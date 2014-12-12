@@ -1,0 +1,37 @@
+close all
+clear all
+clc
+
+load tempo.dat
+
+load torque_m.dat
+
+load Im.dat
+
+load controle.dat
+
+load theta_m.dat
+load theta_c.dat
+load theta_l.dat
+load theta_ld.dat
+
+load torque_d.dat
+load torque_l.dat
+load torque_lf.dat
+
+load omega_l.dat
+load omega_lf.dat
+
+
+figure
+plot(5e-3*tempo(1:6000),(180/pi)*theta_ld(1:6000),'r',5e-3*tempo(1:6000),(180/pi)*theta_l(1:6000))
+grid
+
+figure
+plotyy(5e-3*tempo(1:6000),-torque_lf(1:6000),5e-3*tempo(1:6000),(180/pi)*theta_l(1:6000))
+% 
+%  
+% data = clock;
+% arq = [ num2str(data(1)) '_' num2str(data(2)) '_' num2str(data(3)) '_' num2str(data(4)) '_' num2str(data(5)) '.mat']
+% 
+% eval(['save ',arq])
