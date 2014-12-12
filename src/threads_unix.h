@@ -50,7 +50,8 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args )
 // Encerra uma thread em execução (retornando o valor fornecido) e decrementa a contagem de métodos assíncronos em execução
 void exit_thread( uint32_t exit_code )
 {
-  static uint32_t exit_code_storage = exit_code;
+  static uint32_t exit_code_storage;
+  exit_code_storage = exit_code;
   n_threads--;
   printf( "exit_thread: thread exiting with code: %u\n", exit_code );
   pthread_exit( &exit_code_storage );

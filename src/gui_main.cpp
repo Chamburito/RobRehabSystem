@@ -235,28 +235,28 @@ string pythonCommands;
 
 void initScriptInterface( /*const char* initFile, const char* loopFile*/ )
 {
-    #ifdef WIN32
+  #ifdef WIN32
     char pySearchPath[] = "Python33";
     Py_SetPythonHome( nstrws_convert( pySearchPath ) );
-    #endif
+  #endif
     
-    PyImport_AppendInittab( "EposInterface", &initInterfaceModule );
-    PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
-    Py_Initialize();
-	
-    //initInterfaceModule();
-    //initNetworkScriptInterface();
+  PyImport_AppendInittab( "EposInterface", &initInterfaceModule );
+  PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
+  Py_Initialize();
 
-    ifstream file;
-    file.open( "init.py" );
-    getline( file, pythonCommands, '\0' );
-    file.close();
-    PyRun_SimpleString( pythonCommands.c_str() );
-    pythonCommands.clear();
+  //initInterfaceModule();
+  //initNetworkScriptInterface();
 
-    file.open( "update.py" );
-    getline( file, pythonCommands, '\0' );
-    file.close();
+  ifstream file;
+  file.open( "gui_init.py" );
+  getline( file, pythonCommands, '\0' );
+  file.close();
+  PyRun_SimpleString( pythonCommands.c_str() );
+  pythonCommands.clear();
+
+  file.open( "gui_update.py" );
+  getline( file, pythonCommands, '\0' );
+  file.close();
 }
 
 void runScriptUpdate()

@@ -51,55 +51,30 @@ char* get_text( FILE* file )
 
 int main( int argc, char* argv[] )
 {    
-    FILE* file;
-    char* python_commands;
+  FILE* file;
+  char* python_commands;
   
   #ifdef WIN32
     char pySearchPath[] = "Python33";
     Py_SetPythonHome( nstrws_convert( pySearchPath ) );
   #endif
     
-    PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
-    Py_Initialize();
+  PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
+  Py_Initialize();
 
-    file = fopen( "init.py", "r" );
-    python_commands = get_text( file );
-    fclose( file );
-	//printf( "init: %s\n", python_commands );
-    PyRun_SimpleString( python_commands );
-    free( python_commands );
+  file = fopen( "server_init.py", "r" );
+  python_commands = get_text( file );
+  fclose( file );
+  PyRun_SimpleString( python_commands );
+  free( python_commands );
 
-    file = fopen( "update.py", "r" );
-    python_commands = get_text( file );
-    fclose( file );
-	//printf( "update: %s\n", python_commands );
-    PyRun_SimpleString( python_commands );
-    free( python_commands );
+  file = fopen( "server_update.py", "r" );
+  python_commands = get_text( file );
+  fclose( file );
+  PyRun_SimpleString( python_commands );
+  free( python_commands );
     
-    endNetworkScriptInterface();
-
-	/*int i;
-	Connection *server, *client;
-
-  printf( "server\n" );
-  server = open_connection( NULL, "3490", SOCK_STREAM );
-  printf( "server id: %d\n", server->sockfd );
-
-  printf( "client\n" );
-  while( wait_message( server, 100 ) == 0 )
-    continue;
-  
-  client = add_client( server );
-  printf( "client id: %d\n", client->sockfd );
-  
-  printf( "read\n" );
-  
-  for( i = 0; i < 100; i++ )
-    printf( "%s\n", receive_message( client ) );
-  
-  close_connection( server );
-  close_connection( client );*/
-  
-  //EXIT_THREAD;
+  endNetworkScriptInterface();
+    
   exit( 0 );
 }

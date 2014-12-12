@@ -5,7 +5,12 @@
 extern "C"{
 #endif
 
-#include "Python.h"
+#ifdef WIN32
+  #include "Python.h"
+#else
+  #include <Python.h>
+#endif
+    
 #include "async_connection.h"
 
 static PyObject* createConnection( PyObject*, PyObject* );
