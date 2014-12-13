@@ -5,11 +5,7 @@
 extern "C"{
 #endif
 
-#ifdef WIN32
-  #include "Python.h"
-#else
-  #include <Python.h>
-#endif
+#include "Python.h"
     
 #include "async_connection.h"
 
