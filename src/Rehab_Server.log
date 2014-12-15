@@ -1,0 +1,17 @@
+﻿Build started 15/12/2014 18:15:22.
+     1>Project "E:\Leonardo Jose\RobRehabSystem\src\Rehab_Server.vcxproj" on node 2 (build target(s)).
+     1>InitializeBuildStatus:
+         Creating "E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Server.unsuccessfulbuild" because "AlwaysCreate" was specified.
+       ClCompile:
+         All outputs are up-to-date.
+       Link:
+         All outputs are up-to-date.
+         Rehab_Server.vcxproj -> E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Server.exe
+       FinalizeBuildStatus:
+         Deleting file "E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Server.unsuccessfulbuild".
+         Touching "E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Server.lastbuildstate".
+     1>Done Building Project "E:\Leonardo Jose\RobRehabSystem\src\Rehab_Server.vcxproj" (build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:00.06

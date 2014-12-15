@@ -84,7 +84,7 @@ class AxisServer:
                      self.axisDataClients[ axisName ] = client
                      
                   # Teste Latência
-                  #sendMessage( client, 'Axis Feedback:PLAYER Calcanhar:0:0' )
+                  sendMessage( client, 'Axis Feedback:PLAYER Calcanhar:0:0' )
 					 
                      # Teste Feedback
                      #sendMessage( client, 'Axis Feedback:{0:s}:{1:g}:{2:g}'.format( axisName, 

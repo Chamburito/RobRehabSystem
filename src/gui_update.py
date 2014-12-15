@@ -10,7 +10,7 @@ from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg as Navigat
 # Criação da Janela principal
 window = Tk()  
 
-logSamples = 100
+logSamples = 200
 logListOut = []
 logListIn = []
 logFileOut = open( 'log_out_remote.txt', 'w' )
@@ -196,13 +196,21 @@ def updateConnectedData():
    # Comunicação via socket UDP
    message = None
    if dataClientId is not None:
+   
+      if len(logListOut) == 0:
+         sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
+         logListOut.append( getExecTime() ) # benchmark
+   
       message = receiveMessage( dataClientId )
       if message is not None:
          print( 'Received message: ' + message )
          dataList = message.split(':')
          if len(dataList) >= 4:
             if dataList[0] == 'Axis Feedback':
-               #if len(logListIn) < logSamples: logListIn.append( getExecTime() ) # benchmark
+               if len(logListIn) < logSamples: logListIn.append( getExecTime() ) # benchmark
+               print( 'Sending Axis Data' ) # benchmark
+               sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
+               if len(logListOut) < logSamples: logListOut.append( getExecTime() ) # benchmark
                axisName = dataList[1]
                axisId = axisNetworkIds[ axisName ]
                positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - getExecTime() ) / 1000
@@ -220,7 +228,6 @@ def updateConnectedData():
                
       if axisDataMessage != 'Axis Data':
          #print( 'Sending Axis Data: ' + axisDataMessage )
-         #if len(logListOut) < logSamples: logListOut.append( getExecTime() ) # benchmark
          sendMessage( dataClientId, axisDataMessage )
    
    window.after( 10, updateConnectedData ) 
