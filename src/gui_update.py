@@ -10,9 +10,13 @@ from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg as Navigat
 # Criação da Janela principal
 window = Tk()  
 
-logSamples = 200
+logNSamples = 200
+logSamplesCount = 0
 logListOut = []
 logListIn = []
+for i in range( logNSamples ):
+   logListOut.append( 0 )
+   logListIn.append( 0 )
 logFileOut = open( 'log_out_remote.txt', 'w' )
 logFileIn = open( 'log_in_remote.txt', 'w' )
 
@@ -192,29 +196,38 @@ def updateConnectedData():
    global axisPositions
    global axisVelocities
    global axisMotionTimes
+   global logListOut # benchmark
+   global logSamplesCount # benchmark
 
    # Comunicação via socket UDP
    message = None
    if dataClientId is not None:
    
-      if len(logListOut) == 0:
+      execTime = getExecTime() # benchmark
+      if logSamplesCount == 0:
          sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
-         logListOut.append( getExecTime() ) # benchmark
+         logListOut[ logSamplesCount ] = execTime # benchmark
+         #logSamplesCount = 1
    
       message = receiveMessage( dataClientId )
       if message is not None:
-         print( 'Received message: ' + message )
+         #print( 'Received message: ' + message )
          dataList = message.split(':')
          if len(dataList) >= 4:
             if dataList[0] == 'Axis Feedback':
-               if len(logListIn) < logSamples: logListIn.append( getExecTime() ) # benchmark
-               print( 'Sending Axis Data' ) # benchmark
-               sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
-               if len(logListOut) < logSamples: logListOut.append( getExecTime() ) # benchmark
+               if logSamplesCount < logNSamples: # benchmark
+                  logListIn[ logSamplesCount ] = execTime # benchmark
+                  #print( 'Sending Axis Data' ) # benchmark
+                  logSamplesCount += 1 # benchmark
+               if logSamplesCount < logNSamples: # benchmark
+                  sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
+                  logListOut[ logSamplesCount ] = execTime # benchmark
                axisName = dataList[1]
                axisId = axisNetworkIds[ axisName ]
                positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - getExecTime() ) / 1000
                setAxisValue( axisId, dimensionIndex[ 'Position Ref' ], positionReference )
+			   
+               #print( 'Sample ' + str(logSamplesCount) + ' exec time: ' + str(execTime) )
    
       axisDataMessage = 'Axis Data'
       for axisName in axisNetworkIds.keys():

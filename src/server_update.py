@@ -75,7 +75,7 @@ class AxisServer:
       for client in self.dataClients:
          message = receiveMessage( client )
          if message is not None:
-            print( 'Axis Server receive: ' + message )
+            #print( 'Axis Server receive: ' + message )
             clientInfo = message.split(':')
             if ( len(clientInfo) - 1 ) % 3 == 0:
                if clientInfo[0] == 'Axis Data':
