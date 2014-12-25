@@ -1,3 +1,8 @@
+///////////////////////////////////////////////////////////////////////////////
+///// Wrapper library for thread management (creation and syncronization) ///// 
+///// using low level operating system native methods (Windows Version)   /////
+///////////////////////////////////////////////////////////////////////////////
+
 #ifndef THREADS_H
 #define THREADS_H
 
@@ -9,21 +14,28 @@ extern "C"{
 #include <process.h>
 #include <stdio.h>
 
+// Mutex aquisition and release
 #define LOCK_THREAD( lock ) TryEnterCriticalSection( lock )
 #define UNLOCK_THREAD( lock ) LeaveCriticalSection( lock )
+
+// Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()
 
 typedef HANDLE Thread_Handle;
 typedef CRITICAL_SECTION* Thread_Lock;
 
+// List of created mutexes
 static CRITICAL_SECTION* lock_list;
 static size_t n_locks = 0;
 
+// List of manipulators for the created threads
 static HANDLE* handle_list;
 static size_t n_handles = 0;
 
+// Number of running threads
 static size_t n_threads = 0;
 
+// Request new unique mutex for using in thread syncronization
 Thread_Lock get_new_thread_lock()
 {
   lock_list = (CRITICAL_SECTION*) realloc( lock_list, ( n_locks + 1 ) * sizeof(CRITICAL_SECTION) );
@@ -31,6 +43,7 @@ Thread_Lock get_new_thread_lock()
   return &lock_list[ n_locks++ ];
 }
 
+// Setup new thread to run the given method asyncronously
 Thread_Handle run_thread( void* (*function)( void* ), void* args )
 {
   static unsigned int thread_id;
@@ -48,13 +61,14 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args )
   return handle_list[ n_handles++ ];
 }
 
+// Exit the calling thread, returning the given value
 void exit_thread( uint32_t exit_code )
 {
   n_threads--;
   _endthreadex( (DWORD) exit_code );
 }
 
-// Aguarda o encerramento de uma thread e retorna seu código de saída
+// Wait for the thread of the given manipulator to exit and return its exiting value
 uint32_t wait_thread_end( Thread_Handle handle )
 {
   static DWORD exit_code;
@@ -74,11 +88,13 @@ uint32_t wait_thread_end( Thread_Handle handle )
     return 0;
 }
 
+// Returns number of running threads (method for encapsulation purposes)
 size_t get_threads_number()
 {
   return n_threads;
 }
 
+// Handle the destruction of the remaining threads and mutexes when the program quits
 void end_threading()
 {
   size_t id;

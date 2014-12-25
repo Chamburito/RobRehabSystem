@@ -1,3 +1,8 @@
+/////////////////////////////////////////////////////////////////////////////////////
+///// Multiplatform library for creation and handling of IP sockets connections /////
+///// as server or client, using TCP or UDP protocols                           /////
+/////////////////////////////////////////////////////////////////////////////////////
+
 #ifndef CONNECT_H
 #define CONNECT_H
 
@@ -66,6 +71,7 @@ extern "C"{
 
 typedef struct _Connection Connection;
 
+// Generic structure to store methods and data of any connection type handled by the library
 struct _Connection
 {
   Socket sockfd;
@@ -85,7 +91,7 @@ struct _Connection
   };
 };
 
-
+// Utility method to request an address (host and port) string for client connections (returns default values for server connections)
 char* get_address( Connection* connection )
 {
   static char address_string[ ADDRESS_LENGTH ];
@@ -114,7 +120,8 @@ char* get_address( Connection* connection )
   return address_string;
 }
 
-int compare_addresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
+// More complete (but slow) method for verifying the remote address of incoming messages
+static int compare_addresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
 {
   static char address_strings[ 2 ][ ADDRESS_LENGTH ];
   static int error = 0;
@@ -147,7 +154,7 @@ int compare_addresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
     return -1;
 }
 
-// For syncronous networking
+// Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
 unsigned short wait_message( Connection* connection, unsigned int milisseconds )
 {
   static struct timeval timeout;
@@ -175,6 +182,7 @@ unsigned short wait_message( Connection* connection, unsigned int milisseconds )
     return 0;
 }
 
+// Try to receive incoming message from the given TCP client connection and store it on its buffer
 static char* receive_tcp_message( Connection* connection )
 {
   int bytes_received;
@@ -206,6 +214,7 @@ static char* receive_tcp_message( Connection* connection )
   return connection->buffer;
 }
 
+// Send given message through the given TCP connection
 static int send_tcp_message( Connection* connection, const char* message )
 {
   if( strlen( message ) + 1 > BUFFER_SIZE )
@@ -227,6 +236,7 @@ static int send_tcp_message( Connection* connection, const char* message )
   return 0;
 }
 
+// Try to receive incoming message from the given UDP client connection and store it on its buffer
 static char* receive_udp_message( Connection* connection )
 {
   struct sockaddr_in6 address;
@@ -265,6 +275,7 @@ static char* receive_udp_message( Connection* connection )
   return empty_message;
 }
 
+// Send given message through the given UDP connection
 static int send_udp_message( Connection* connection, const char* message )
 {
   if( strlen( message ) + 1 > BUFFER_SIZE )
@@ -290,6 +301,7 @@ static int send_udp_message( Connection* connection, const char* message )
   return 0;
 }
 
+// Send given message to all the clients of the given server connection
 static int send_message_all( Connection* connection, const char* message )
 {
   static size_t client_id;
@@ -303,8 +315,10 @@ static int send_message_all( Connection* connection, const char* message )
   return 0;
 }
 
+// Forward declaration
 static Connection* add_connection( int, struct sockaddr*, unsigned short );
 
+// Add defined connection to the client list of the given server connection
 void add_client( Connection* server, Connection* client )
 {
   #ifdef DEBUG_1
@@ -339,6 +353,7 @@ void add_client( Connection* server, Connection* client )
   return;
 }
 
+// Waits for a remote connection to be added to the client list of the given TCP server connection
 static Connection* accept_tcp_client( Connection* server )
 {
   Connection* client;
@@ -369,6 +384,7 @@ static Connection* accept_tcp_client( Connection* server )
   return client;
 }
 
+// Waits for a remote connection to be added to the client list of the given UDP server connection
 static Connection* accept_udp_client( Connection* server )
 {
   size_t client_id;
@@ -420,6 +436,7 @@ static Connection* accept_udp_client( Connection* server )
   return client;
 }
 
+// Handle construction of a Connection structure with the defined properties
 static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_t type )
 {
   int opt = BUFFER_SIZE;
@@ -474,6 +491,7 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
   return connection;
 }
 
+// Generic method for opening a new socket and providing a corresponding Connection structure for use
 Connection* open_connection( const char* host, const char* port, int protocol )
 {
   static Connection* connection;
@@ -531,6 +549,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
   // loop through all the results and bind to the first we can
   for(p = host_info; p != NULL; p = p->ai_next) 
   {
+	// Extended connection info for debug builds
     #ifdef DEBUG_1
     char address_string[ ADDRESS_LENGTH ];
     getnameinfo( p->ai_addr, sizeof(struct sockaddr), 
@@ -547,6 +566,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     else printf( " - version: unspecified: %u\n", p->ai_family );
     #endif
 
+	// Create IP socket
     if( (sockfd = socket( p->ai_family, p->ai_socktype, p->ai_protocol )) == INVALID_SOCKET )
     {
       #ifdef WIN32
@@ -558,6 +578,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     }
     
     rw = 1;
+	// Allow sockets to be binded to the same local port
     if( setsockopt( sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR ) 
     {
       #ifdef WIN32
@@ -574,6 +595,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
       if( p->ai_family == AF_INET ) continue;
       
       rw = 0;
+	  // Let IPV6 servers accept IPV4 clients
       if( setsockopt( sockfd, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR )
       {
         #ifdef WIN32
@@ -585,6 +607,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
         return NULL;
       }
       
+	  // Bind server socket to the given local address
       if( bind( sockfd, p->ai_addr, p->ai_addrlen ) == SOCKET_ERROR )
       {
         #ifdef WIN32
@@ -598,6 +621,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
       
       if( p->ai_socktype == SOCK_STREAM )
       {
+		// Set server socket to listen to remote connections
         if( listen( sockfd, QUEUE_SIZE ) == SOCKET_ERROR )
         {
           #ifdef WIN32
@@ -612,6 +636,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     }
     else if( (connection_type & PROTOCOL) == TCP )
     {
+	  // Connect TCP client socket to given remote address
       if( connect( sockfd, p->ai_addr, p->ai_addrlen ) == SOCKET_ERROR )
       {
         #ifdef WIN32
@@ -625,9 +650,9 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     }
     else
     {
+	  // Bind UDP client socket to available local address
       static struct sockaddr_storage local_address;
       local_address.ss_family = p->ai_addr->sa_family;
-      
       if( bind( sockfd, (struct sockaddr*) &local_address, sizeof(local_address) ) == SOCKET_ERROR )
       {
         #ifdef WIN32
@@ -649,13 +674,14 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     return NULL;
   }
   
-  connection = add_connection( sockfd, p->ai_addr, connection_type );
+  connection = add_connection( sockfd, p->ai_addr, connection_type ); // Build the Connection structure
   
   freeaddrinfo( host_info ); // Don't need this struct anymore
   
   return connection;
 }
 
+// Handle proper destruction of any given connection type
 void close_connection( Connection* connection )
 {
   if( connection != NULL )

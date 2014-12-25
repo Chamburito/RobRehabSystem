@@ -1,3 +1,8 @@
+///////////////////////////////////////////////////////////////////////////////
+///// Wrapper library for thread management (creation and syncronization) ///// 
+///// using low level operating system native methods (Posix Version)     /////
+///////////////////////////////////////////////////////////////////////////////
+
 #ifndef THREADS_H
 #define THREADS_H
 
@@ -8,22 +13,28 @@ extern "C"{
 #include <pthread.h>
 #include <stdio.h>
 
+// Mutex aquisition and release
 #define LOCK_THREAD( lock ) pthread_mutex_trylock( lock )
 #define UNLOCK_THREAD( lock ) pthread_mutex_unlock( lock )
+
+// Returns unique identifier of the calling thread
 #define THREAD_ID pthread_self()
 
 typedef pthread_t Thread_Handle;
 typedef pthread_mutex_t* Thread_Lock;
 
+// List of created mutexes
 static pthread_mutex_t* lock_list;
 static size_t n_locks = 0;
 
+// List of manipulators for the created threads
 static pthread_t* handle_list;
 static size_t n_handles = 0;
 
+// Number of running threads
 static size_t n_threads = 0;
 
-// Fornece uma variável mutex exclusiva
+// Request new unique mutex for using in thread syncronization
 Thread_Lock get_new_thread_lock()
 {
   lock_list = (pthread_mutex_t*) realloc( lock_list, ( n_locks + 1 ) * sizeof(pthread_mutex_t) );
@@ -31,7 +42,7 @@ Thread_Lock get_new_thread_lock()
   return &lock_list[ n_locks++ ];
 }
 
-// Chama o método fornecido em uma nova thread e incrementa a contagem de métodos assíncronos em execução
+// Setup new thread to run the given method asyncronously
 Thread_Handle run_thread( void* (*function)( void* ), void* args )
 {
   handle_list = (pthread_t*) realloc( handle_list, ( n_handles + 1 ) * sizeof(pthread_t) );
@@ -47,7 +58,7 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args )
   return handle_list[ n_handles++ ];
 }
 
-// Encerra uma thread em execução (retornando o valor fornecido) e decrementa a contagem de métodos assíncronos em execução
+// Exit the calling thread, returning the given value
 void exit_thread( uint32_t exit_code )
 {
   static uint32_t exit_code_storage;
@@ -58,7 +69,7 @@ void exit_thread( uint32_t exit_code )
   printf( "exit_thread: thread exited with code: %u\n", exit_code_storage );
 }
 
-// Aguarda o encerramento de uma thread e retorna seu código de saída
+// Wait for the thread of the given manipulator to exit and return its exiting value
 uint32_t wait_thread_end( Thread_Handle handle )
 {
   static void* exit_code_ref = NULL;
@@ -78,13 +89,13 @@ uint32_t wait_thread_end( Thread_Handle handle )
     return 0;
 }
 
-// Retorna o número de métodos assíncronos em execução
+// Returns number of running threads (method for encapsulation purposes)
 size_t get_threads_number()
 {
   return n_threads;
 }
 
-// Destrói apropriadamente as variáveis mutex em uso
+// Handle the destruction of the remaining threads and mutexes when the program quits
 void end_threading()
 {  
   int id;

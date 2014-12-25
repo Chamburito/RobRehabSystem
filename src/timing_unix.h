@@ -1,9 +1,15 @@
+///////////////////////////////////////////////////////////////////////////////
+///// Wrapper library for time measurement and thread sleeping (blocking) ///// 
+///// using low level operating system native methods (Posix Version)     /////
+///////////////////////////////////////////////////////////////////////////////
+
 #ifndef TIMING_H
 #define TIMING_H
 
 #include <time.h>
 #include <unistd.h>
 
+// Make the calling thread wait for the given time ( in milisseconds )
 void delay( unsigned long milisseconds )
 {
     struct timespec delay_ts = { milisseconds / 1000, ( milisseconds % 1000 ) * 1000000 };
@@ -14,6 +20,7 @@ void delay( unsigned long milisseconds )
     return;
 }
 
+// Get system time in milisseconds
 unsigned long get_exec_time_milisseconds()
 {
     struct timespec ts;
@@ -28,6 +35,7 @@ unsigned long get_exec_time_milisseconds()
     return exec_time;
 }
 
+// Get system time in seconds
 unsigned int get_exec_time_seconds()
 {
     struct timespec ts;
