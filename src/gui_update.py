@@ -10,16 +10,24 @@ from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg as Navigat
 # Criação da Janela principal
 window = Tk()  
 
-logSamples = 200
-logListOut = []
-logListIn = []
-logFileOut = open( 'log_out_remote.txt', 'w' )
-logFileIn = open( 'log_in_remote.txt', 'w' )
+# Profiling data
+logNSamples = 100
+logSamplesCount = 0
+messageResponseTimes = []
+messageBuildTimes = []
+messageParseTimes = []
+for i in range( logNSamples ):
+   messageResponseTimes.append( 0 )
+   messageBuildTimes.append( 0 )
+   messageParseTimes.append( 0 )
+messageResponseLog = open( 'message_response_times.txt', 'w' )
+messageBuildLog = open( 'message_build_times.txt', 'w' )
+messageParseLog = open( 'message_parse_times.txt', 'w' )
 
+# Connection variables
 currentServerHost = 'localhost'
 serverHost = StringVar()
 serverHost.set( currentServerHost )
-
 serverPort = 10000
 
 # Criam conexão com o servidor ou se conectam ao cliente
@@ -33,12 +41,13 @@ def close():
    print( 'Destroying Window' )
    if dataServerId is not None: sendMessage( dataServerId, 'Axis End' )   
    
-   for time in logListIn:
-      logFileIn.write( str(time) + '\n' )
-   logFileIn.close()
-   for time in logListOut:
-      logFileOut.write( str(time) + '\n' )
-   logFileOut.close()
+   for time in range( logSamplesCount ):
+      messageResponseLog.write( str(messageResponseTimes[ time ]) + '\n' )
+      messageBuildLog.write( str(messageBuildTimes[ time ]) + '\n' )
+      messageParseLog.write( str(messageParseTimes[ time ]) + '\n' )
+   messageResponseLog.close()
+   messageBuildLog.close()
+   messageParseLog.close()
    
    window.destroy()
       
@@ -132,7 +141,7 @@ def setupClient():
       print( 'host: ' + str(host) + ' - port: ' + str(port) )
       
    window.after( 100, updateServerInfo )
-   window.after( 100, updateConnectedData )
+   window.after( 100, sendData )
 
 
 count = 0
@@ -186,20 +195,48 @@ for axisId in range( nAxis ):
    axisPositions.append( 0 )
    axisVelocities.append( 0 )
    axisMotionTimes.append( getExecTime() )
-# Função de envio de valores de eixos para o servidor principal ou cliente conectado
-def updateConnectedData():
-   global axisNetworkIds
-   global axisPositions
-   global axisVelocities
-   global axisMotionTimes
+# Method for sending axis values to master server or connected client
+def sendData():
+   global logSamplesCount
+   
+   if dataClientId is not None:
+   
+      execTime = getExecTime() # benchmark
+   
+      axisDataMessage = 'Axis Data'
+      
+      axisName = 'PLAYER Calcanhar' # benchmark
+      axisId = axisNetworkIds[ axisName ] # benchmark
+      axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] ) # benchmark
+      if logSamplesCount < logNSamples: # benchmark
+         messageBuildTimes[ logSamplesCount ] = getExecTime() - execTime # benchmark
+         messageResponseTimes[ logSamplesCount ] = execTime # benchmark
+      window.after( 10, receiveData ) # benchmark
+
+      for axisName in axisNetworkIds.keys():
+         axisId = axisNetworkIds[ axisName ]
+         if len(dimensionValue[ axisId ]) > 0:
+            if( dimensionValue[ axisId ][ 'Velocity' ][-1] != axisVelocities[ axisId ] 
+            or dimensionValue[ axisId ][ 'Position' ][-1] != axisPositions[ axisId ] ):
+               axisPositions[ axisId ] = dimensionValue[ axisId ][ 'Position' ][-1]
+               axisVelocities[ axisId ] = dimensionValue[ axisId ][ 'Velocity' ][-1]               
+               axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] )
+               window.after( 10, receiveData )
+            
+      print( 'Sending Axis Data: ' + axisDataMessage )
+      sendMessage( dataClientId, axisDataMessage )
+      
+      window.after( 10, sendData ) 
+
+# Method for receiving axis values from master server or connected client
+def receiveData():
+   global logSamplesCount
 
    # Comunicação via socket UDP
    message = None
    if dataClientId is not None:
    
-      if len(logListOut) == 0:
-         sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
-         logListOut.append( getExecTime() ) # benchmark
+      execTime = getExecTime() # benchmark
    
       message = receiveMessage( dataClientId )
       if message is not None:
@@ -207,30 +244,19 @@ def updateConnectedData():
          dataList = message.split(':')
          if len(dataList) >= 4:
             if dataList[0] == 'Axis Feedback':
-               if len(logListIn) < logSamples: logListIn.append( getExecTime() ) # benchmark
-               print( 'Sending Axis Data' ) # benchmark
-               sendMessage( dataClientId, 'Axis Data:PLAYER Calcanhar:0:0' ) # benchmark
-               if len(logListOut) < logSamples: logListOut.append( getExecTime() ) # benchmark
+               if logSamplesCount < logNSamples: # benchmark
+                  messageParseTimes[ logSamplesCount ] = getExecTime() - execTime # benchmark
+                  messageResponseTimes[ logSamplesCount ] = execTime - messageResponseTimes[ logSamplesCount ]# benchmark
+                  logSamplesCount += 1 # benchmark
                axisName = dataList[1]
                axisId = axisNetworkIds[ axisName ]
                positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - getExecTime() ) / 1000
-               setAxisValue( axisId, dimensionIndex[ 'Position Ref' ], positionReference )
-   
-      axisDataMessage = 'Axis Data'
-      for axisName in axisNetworkIds.keys():
-         axisId = axisNetworkIds[ axisName ]
-         if len(dimensionValue[ axisId ]) > 0:
-            if( dimensionValue[ axisId ][ 'Velocity' ][-1] != axisVelocities[ axisId ] 
-            or dimensionValue[ axisId ][ 'Position' ][-1] != axisPositions[ axisId ] ):
-               axisPositions[ axisId ] = dimensionValue[ axisId ][ 'Position' ][-1]
-               axisVelocities[ axisId ] = dimensionValue[ axisId ][ 'Velocity' ][-1]
-               axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] )
-               
-      if axisDataMessage != 'Axis Data':
-         #print( 'Sending Axis Data: ' + axisDataMessage )
-         sendMessage( dataClientId, axisDataMessage )
-   
-   window.after( 10, updateConnectedData ) 
+               setAxisValue( axisId, 1, positionReference ) # dimensionIndex[ 'Position Ref' ]
+               return
+
+               #print( 'Sample ' + str(logSamplesCount) + ' exec time: ' + str(execTime) )
+ 
+      window.after( 5, receiveData )
   
 # Função de recebimento de dados do cliente
 def updateDataClient():
