@@ -1,9 +1,6 @@
-//*******************************************************************************
-//	
-//	Controle de impedância do ExoKanguera
-//	Data de início 10/02/2014
-//
-//********************************************************************************
+///////////////////////////////////////////////////////////////////////////////////
+///// Graphical user interface for ExoKanguera control and data visualization /////
+///////////////////////////////////////////////////////////////////////////////////
 
 #include "script_network.h"
 #include "control.h"
@@ -11,16 +8,17 @@
 #include <iostream>
 #include <fstream>
 
+// Utility function for conversion from ascii strings to unicode
 #ifdef WIN32
     #include <Windows.h>
     
     /** Windows char * to wchar_t conversion. */
     wchar_t* nstrws_convert( char* raw ) 
     {
-	int size_needed = MultiByteToWideChar( CP_UTF8, 0, raw, -1, NULL, 0 );
-	wchar_t* rtn = (wchar_t*) calloc( 1, size_needed * sizeof(wchar_t) );
-	MultiByteToWideChar( CP_UTF8, 0, raw, -1, rtn, size_needed );
-	return rtn;
+	  int size_needed = MultiByteToWideChar( CP_UTF8, 0, raw, -1, NULL, 0 );
+	  wchar_t* rtn = (wchar_t*) calloc( 1, size_needed * sizeof(wchar_t) );
+	  MultiByteToWideChar( CP_UTF8, 0, raw, -1, rtn, size_needed );
+	  return rtn;
     }
     
 #else
@@ -29,21 +27,20 @@
     /** Unix-like platform char * to wchar_t conversion. */
     wchar_t* nstrws_convert( char* raw ) 
     {
-	wchar_t* rtn = (wchar_t*) calloc( 1, (sizeof(wchar_t) * (strlen(raw) + 1)) );
-	setlocale( LC_ALL, "en_US.UTF-8" ); // Seriously, eat a bag of dicks python developers. Unless you do this python 3 crashes.
-	mbstowcs( rtn, raw, strlen(raw) );
-	return rtn;
+	  wchar_t* rtn = (wchar_t*) calloc( 1, (sizeof(wchar_t) * (strlen(raw) + 1)) );
+	  setlocale( LC_ALL, "en_US.UTF-8" ); // Seriously, eat a bag of dicks python developers. Unless you do this python 3 crashes.
+	  mbstowcs( rtn, raw, strlen(raw) );
+	  return rtn;
     }
     
 #endif
 
 using namespace std;
 
-//*******************************************************************************
-//
-//		Início da interface com Python
-//
-//*******************************************************************************
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///// Python interface for ExoKangura control and data access through CAN interface (CANOpen protocol) /////
+///// Exposed for scripts running on the embedded Python interpreter                                   /////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static PyObject* getStatusWord( PyObject *self, PyObject *args )
 {
@@ -204,6 +201,7 @@ static PyObject* getExecTime( PyObject *self, PyObject *args )
     return Py_BuildValue( "k", get_exec_time_milisseconds() );
 }
 
+// Names of the Python methods exported, with corresponding C function pointer and documentation
 static PyMethodDef interfaceMethods[] = {
             { "getStatusWord", getStatusWord, METH_VARARGS, "Get value from the status word." },
             { "setControlWord", setControlWord, METH_VARARGS, "Define value of the control word." },
@@ -231,8 +229,8 @@ static PyObject* initInterfaceModule(void)
     return PyModule_Create( &interfaceModule );
 }
 
+// Embedded interpreter initialization
 string pythonCommands;
-
 void initScriptInterface( /*const char* initFile, const char* loopFile*/ )
 {
   #ifdef WIN32
@@ -271,37 +269,36 @@ void endScriptInterface()
     Py_Finalize();
 }
 
-//*******************************************************************************
-//
-//		Fim da interface com Python
-//
-//*******************************************************************************
 
+/////////////////////////////////////////////////////////////
+//////////          Main program function          //////////
+/////////////////////////////////////////////////////////////
 
 int main( int argc, char** argv ) 
 {
-    //START DE TRANSMISSÃO DA REDE
+    // Start CAN network transmission
     for( int nodeId = 1; nodeId <= N_EPOS; nodeId++ )
       eposNetwork.StartPDOS( nodeId );
 
-    //init_threading();
-
+	// Initially turn axes motors off
 	for( int id = 0; id < N_EPOS; id++ )
       DisableAxis( id );
     
+	// Run Program scripts
     initScriptInterface();
     runScriptUpdate();
     endScriptInterface();
 
-    // Desabilita Eixos
+    // Turn off axes motors that were turned on
     for( int id = 0; id < N_EPOS; id++ )
       DisableAxis( id );	
 
-    //FINALIZA A COMUNICAÇÃO COM AS EPOS
+    // End CAN network transmission
     eposNetwork.StopPDOS(1);
 
     delay( 2000 );
     
+	// End threading subsystem
     end_threading();
 
     return 0;

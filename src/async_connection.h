@@ -1,3 +1,8 @@
+////////////////////////////////////////////////////////////////////////////////////////
+///// Library that combines threading utilities with the socket connection library /////
+///// to provide asyncronous network communication methods                         /////
+////////////////////////////////////////////////////////////////////////////////////////
+
 #ifndef ASYNC_CONNECT_H
 #define ASYNC_CONNECT_H
 
@@ -17,7 +22,7 @@ extern "C"{
 
   
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                         DATA STRUCTURES                                               //
+/////                                      DATA STRUCTURES                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   
 #define MAX_MESSAGES 10
@@ -26,6 +31,7 @@ extern "C"{
 typedef struct _Connection_Buffer Connection_Buffer;
 typedef char Message[ BUFFER_SIZE ];
 
+// Structure that stores read and write message queues for a Connection struct used asyncronously
 struct _Connection_Buffer
 {
   Connection* connection;
@@ -39,18 +45,21 @@ struct _Connection_Buffer
   char address[ ADDRESS_LENGTH ];
 };
 
+// Internal (private) list of asyncronous connections created (accessible only by index)
 static Connection_Buffer** buffer_list = NULL;
 static size_t n_connections = 0;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                            INFORMATION                                                //
+/////                                      INFORMATION UTILITIES                                      /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Returns the number of asyncronous connections created (method for encapsulation purposes)
 size_t connections_number()
 {
   return n_connections;
 }
 
+// Returns number of clients for the server connection of given index
 size_t clients_number( int server_id )
 {
   if( server_id < 0 || server_id >= (int) n_connections )
@@ -68,6 +77,7 @@ size_t clients_number( int server_id )
   return buffer_list[ server_id ]->connection->n_clients;
 }
 
+// Returns address string (host and port) for the connection of given index
 char* connection_address( int connection_id )
 {
   if( connection_id < 0 || connection_id >= (int) n_connections )
@@ -81,13 +91,15 @@ char* connection_address( int connection_id )
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                          INITIALIZATION                                               //
+/////                                       INITIALIZATION                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Forward definition
 static void* async_read_queue( void* );
 static void* async_write_queue( void* );
 static void* async_accept_clients( void* );
 
+// Create new Connection_Buffer structure (from a given Connection structure) and add it to the internal list
 static int add_async_connection( Connection* connection )
 {
   static Connection_Buffer* connection_buffer;
@@ -128,6 +140,7 @@ static int add_async_connection( Connection* connection )
   return n_connections++;
 }
 
+// Creates a new Connection structure (from the defined properties) and add it to the asyncronous connection list
 int open_async_connection( const char* host, const char* port, short connected )
 {
   Connection* connection = open_connection( host, port, ( connected == 0 ) ? UDP : TCP );
@@ -140,6 +153,7 @@ int open_async_connection( const char* host, const char* port, short connected )
   return add_async_connection( connection );
 }
 
+// Add async connection client to the client list of the given index corresponding (if server) connection 
 int add_async_client( int server_id, const char* address, const char* port )
 {
   Connection* server;
@@ -161,9 +175,10 @@ int add_async_client( int server_id, const char* address, const char* port )
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                        ASYNCRONOUS UPDATE                                             //
+/////                                     ASYNCRONOUS UPDATE                                          /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Loop of message reading (storing in queue) to be called asyncronously for client connections
 static void* async_read_queue( void* args )
 {
   Connection_Buffer* reader_buffer = (Connection_Buffer*) args;
@@ -188,6 +203,7 @@ static void* async_read_queue( void* args )
     printf( "async_read_queue: message list: first: %d - last: %d\n", first_message_index, last_message_index );
     #endif
     
+	// Give CPU time to the other read/write threads based on how much of our queue is filled
 	if( last_message_index - first_message_index > 0 )
       delay( BASE_WAIT_TIME * ( last_message_index - first_message_index ) );
     
@@ -199,6 +215,7 @@ static void* async_read_queue( void* args )
       break;
     }
     
+	// Do not proceed if queue is full
     if( last_message_index - first_message_index >= MAX_MESSAGES )
     {
       #ifdef DEBUG_2
@@ -207,6 +224,7 @@ static void* async_read_queue( void* args )
       continue;
     }
     
+	// Blocking call
     if( (message_buffer = receive_message( reader )) != NULL )
     {
       if( message_buffer[0] == '\0' ) continue;
@@ -215,10 +233,11 @@ static void* async_read_queue( void* args )
       printf( "async_read_queue: connection socket %d received message: %s\n", reader->sockfd, reader->buffer );
       #endif
       
-      last_message = read_cache[ last_message_index % MAX_MESSAGES ];
+      last_message = read_cache[ last_message_index % MAX_MESSAGES ]; // Always keep access index between 0 and MAX_MESSAGES 
       
       strcpy( last_message, message_buffer );
       
+	  // Mutex prevent index of the last (newest) message to be read before being incremented
       //LOCK_THREAD( read_lock );
       reader_buffer->read_queue.last++;
       //UNLOCK_THREAD( read_lock );
@@ -231,6 +250,7 @@ static void* async_read_queue( void* args )
   return NULL;
 }
 
+// Loop of message writing (removing in order from queue) to be called asyncronously
 static void* async_write_queue( void* args )
 {
   Connection_Buffer* writer_buffer = (Connection_Buffer*) args;
@@ -262,16 +282,17 @@ static void* async_write_queue( void* args )
       break;
     }
 
+	// Do not proceed if queue is empty
 	if( last_message_index - first_message_index <= 0 )
 	{
 	  #ifdef DEBUG_2
       printf( "async_write_queue: connection socket %d write cache empty\n", writer_buffer->connection->sockfd );
       #endif
-	  delay( BASE_WAIT_TIME );
+	  delay( BASE_WAIT_TIME ); // Wait a little for messages to be sent
       continue;
 	}
     
-    first_message = write_cache[ first_message_index % MAX_MESSAGES ];
+    first_message = write_cache[ first_message_index % MAX_MESSAGES ]; // Always keep access index between 0 and MAX_MESSAGES 
     
     #ifdef DEBUG_2
     printf( "async_write_queue: connection socket %d sending message: %s\n", writer->sockfd, first_message );
@@ -280,6 +301,7 @@ static void* async_write_queue( void* args )
     if( send_message( writer, first_message ) == -1 )
       break;
     
+	// Mutex prevent index of the first (oldest) message to be read before being incremented
     //LOCK_THREAD( write_lock );
     writer_buffer->write_queue.first++;
     //UNLOCK_THREAD( write_lock );
@@ -289,6 +311,8 @@ static void* async_write_queue( void* args )
   return NULL;
 }
 
+// Loop of client accepting (storing in client list) to be called asyncronously for server connections
+// The message queue stores the index and address of the detected remote connection in string format
 static void* async_accept_clients( void* args )
 {  
   Connection_Buffer* server_buffer = (Connection_Buffer*) args;
@@ -310,6 +334,7 @@ static void* async_accept_clients( void* args )
     first_message_index = server_buffer->read_queue.first;
     last_message_index = server_buffer->read_queue.last;
     
+	// Give CPU time to the other read/write threads based on how much of our queue is filled
 	if( last_message_index - first_message_index > 0 )
       delay( BASE_WAIT_TIME * ( last_message_index - first_message_index ) );
     
@@ -321,9 +346,16 @@ static void* async_accept_clients( void* args )
       break;
     }
     
+	// Do not proceed if queue is full
     if( last_message_index - first_message_index >= MAX_MESSAGES )
+    {
+      #ifdef DEBUG_2
+      printf( "async_accept_clients: connection socket %d read cache full\n", server_buffer->connection->sockfd );
+      #endif
       continue;
+    }
     
+	// Blocking call
     if( (client = accept_client( server )) != NULL )
     {
       if( client->sockfd == 0 ) continue;
@@ -335,10 +367,11 @@ static void* async_accept_clients( void* args )
       printf( "async_accept_clients: host: %s - port: %s\n", &client_address[ HOST ], &client_address[ PORT ] );
       #endif
       
-      last_message = server_cache[ last_message_index % MAX_MESSAGES ];
+      last_message = server_cache[ last_message_index % MAX_MESSAGES ]; // Always keep access index between 0 and MAX_MESSAGES    
       
       sprintf( last_message, "%u %s %s", n_connections, &client_address[ HOST ], &client_address[ PORT ] );
       
+	  // Mutex prevent index of the last (newest) client string to be read before being incremented
       //LOCK_THREAD( accept_lock );
       server_buffer->read_queue.last++;
       //UNLOCK_THREAD( accept_lock );
@@ -363,9 +396,11 @@ static void* async_accept_clients( void* args )
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                         SYNCRONOUS UPDATE                                             //
+/////                                      SYNCRONOUS UPDATE                                          /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Get (and remove) message from the beginning (oldest) of the given index corresponding read queue
+// Method to be called from the main thread
 char* dequeue_message( int connection_id )
 {
   static Connection_Buffer* connection_buffer;
@@ -394,6 +429,7 @@ char* dequeue_message( int connection_id )
   printf( "dequeue_message: message from connection index %d: %s\n", connection_id, first_message );
   #endif
   
+  // Mutex prevent index of the first (oldest) message to be read before being incremented
   //LOCK_THREAD( connection_buffer->read_queue.lock );
   connection_buffer->read_queue.first++;
   //UNLOCK_THREAD( connection_buffer->read_queue.lock );
@@ -401,6 +437,8 @@ char* dequeue_message( int connection_id )
   return first_message;
 }
 
+// Put message in the end of the given index corresponding write queue
+// Method to be called from the main thread
 int enqueue_message( int connection_id, const char* message )
 {
   static Connection_Buffer* connection_buffer;
@@ -427,6 +465,7 @@ int enqueue_message( int connection_id, const char* message )
   
   strcpy( last_message, message );
   
+  // Mutex prevent index of the last (newest) message to be read before being incremented
   //LOCK_THREAD( connection_buffer->write_queue.lock );
   connection_buffer->write_queue.last++;
   //UNLOCK_THREAD( connection_buffer->write_queue.lock );
@@ -434,6 +473,8 @@ int enqueue_message( int connection_id, const char* message )
   return 0;
 }
 
+// Get (and remove) message from the end (newest) of the given index corresponding read queue
+// Method to be called from the main thread
 char* pop_message( int connection_id )
 {
   static Connection_Buffer* connection_buffer;
@@ -462,6 +503,7 @@ char* pop_message( int connection_id )
   printf( "pop_message: connection index: %d - message: %s\n", connection_id, last_message );
   #endif
   
+  // Mutex prevent index of the last (newest) message to be read before being decremented
   //LOCK_THREAD( connection_buffer->read_queue.lock );
   connection_buffer->read_queue.last--;
   //connection_buffer->read_queue.last = connection_buffer->read_queue.first; // ?
@@ -472,9 +514,10 @@ char* pop_message( int connection_id )
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                              ENDING                                                   //
+/////                                           ENDING                                                /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Handle socket closing and structures destruction for the given index corresponding connection
 void close_async_connection( int connection_id )
 {
   if( connection_id < 0 || connection_id >= (int) n_connections )
@@ -502,6 +545,7 @@ void close_async_connection( int connection_id )
   return;
 }
 
+// Close all async connections created
 void close_all_connections()
 {
   size_t connection_id;

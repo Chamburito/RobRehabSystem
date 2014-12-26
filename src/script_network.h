@@ -1,3 +1,8 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+///// Interface of networking functions exposed to Python scripts running on the embedded interpreter /////
+///// Just a wrapper around the methods of the C libraries for asyncrounous networking                /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #ifndef SCRIPT_NETWORK_H
 #define SCRIPT_NETWORK_H
 
@@ -19,6 +24,7 @@ static PyObject* clientsNumber( PyObject*, PyObject* );
 static PyObject* getAddress( PyObject*, PyObject* );
 static PyObject* closeConnection( PyObject*, PyObject* );
 
+// Names of the Python methods exported, with corresponding C function pointer and documentation
 static PyMethodDef networkMethods[] = {
     { "createConnection", createConnection, METH_VARARGS, "Stabilish network connection to remote computer." },
     { "addClient", addClient, METH_VARARGS, "Add an existing connection to a server connection clients list." },
