@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 
-// Utility function for conversion from ascii strings to unicode
+// Utility functions for conversion from ascii strings to unicode
 #ifdef WIN32
     #include <Windows.h>
     

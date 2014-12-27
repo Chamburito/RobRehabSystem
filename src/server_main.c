@@ -1,9 +1,14 @@
+///////////////////////////////////////////////////////////////////////////////////
+/////       Master server application for Robotic Rehabilitation System       /////
+///////////////////////////////////////////////////////////////////////////////////
+
 //#include "Python.h"
 #include <stdio.h>
 
 #include "script_network.h"
 #include <fcntl.h>
 
+// Utility functions for conversion from ascii strings to unicode
 #ifdef WIN32
 
   #include <Windows.h>
@@ -32,6 +37,7 @@
 
 #endif
 
+// Utility function to extract the content of a text file as a single string (char array)
 char* get_text( FILE* file )
 {
   char* text;
@@ -49,6 +55,7 @@ char* get_text( FILE* file )
   return text;
 }
 
+// Main program function
 int main( int argc, char* argv[] )
 {    
   FILE* file;

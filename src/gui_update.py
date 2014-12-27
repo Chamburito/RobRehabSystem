@@ -7,30 +7,28 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg as FigureCanvas
 from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg as NavigationToolbar
 
+from time import time as time # benchmark
+
 # Criação da Janela principal
 window = Tk()  
 
-# Profiling data
+# Variáveis para medição de desempenho (benchmark)
 logNSamples = 100
-logSamplesCount = 0
+logOutSamplesCount = 0
+logInSamplesCount = 0
+messageDispatchTimes = []
 messageResponseTimes = []
-messageBuildTimes = []
-messageParseTimes = []
 for i in range( logNSamples ):
+   messageDispatchTimes.append( 0 )
    messageResponseTimes.append( 0 )
-   messageBuildTimes.append( 0 )
-   messageParseTimes.append( 0 )
-messageResponseLog = open( 'message_response_times.txt', 'w' )
-messageBuildLog = open( 'message_build_times.txt', 'w' )
-messageParseLog = open( 'message_parse_times.txt', 'w' )
 
-# Connection variables
+   
+# Variáveis de conexão em rede
 currentServerHost = 'localhost'
 serverHost = StringVar()
 serverHost.set( currentServerHost )
 serverPort = 10000
-
-# Criam conexão com o servidor ou se conectam ao cliente
+# Manipuladores de conexão com servidor ou cliente
 infoServerId = None
 infoClientId = None
 dataServerId = None
@@ -41,13 +39,13 @@ def close():
    print( 'Destroying Window' )
    if dataServerId is not None: sendMessage( dataServerId, 'Axis End' )   
    
-   for time in range( logSamplesCount ):
-      messageResponseLog.write( str(messageResponseTimes[ time ]) + '\n' )
-      messageBuildLog.write( str(messageBuildTimes[ time ]) + '\n' )
-      messageParseLog.write( str(messageParseTimes[ time ]) + '\n' )
-   messageResponseLog.close()
-   messageBuildLog.close()
-   messageParseLog.close()
+   messageResponseLog = open( 'message_response_times.txt', 'w' )             # benchmark
+   messageDispatchLog = open( 'message_dispatch_times.txt', 'w' )             # benchmark
+   for time in range( logOutSamplesCount ):                                   # benchmark
+      messageResponseLog.write( str(messageResponseTimes[ time ]) + '\n' )    # benchmark
+      messageDispatchLog.write( str(messageDispatchTimes[ time ]) + '\n' )    # benchmark
+   messageResponseLog.close()                                                 # benchmark
+   messageDispatchLog.close()                                                 # benchmark
    
    window.destroy()
       
@@ -194,24 +192,24 @@ axisMotionTimes = []
 for axisId in range( nAxis ):
    axisPositions.append( 0 )
    axisVelocities.append( 0 )
-   axisMotionTimes.append( getExecTime() )
-# Method for sending axis values to master server or connected client
+   axisMotionTimes.append( time() * 1000 )
+   
+# Função para enviar valores de eixos para o servidor central ou cliente conectado
 def sendData():
-   global logSamplesCount
+   global logOutSamplesCount # benchmark
    
    if dataClientId is not None:
-   
-      execTime = getExecTime() # benchmark
-   
+
       axisDataMessage = 'Axis Data'
       
-      axisName = 'PLAYER Calcanhar' # benchmark
-      axisId = axisNetworkIds[ axisName ] # benchmark
-      axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] ) # benchmark
-      if logSamplesCount < logNSamples: # benchmark
-         messageBuildTimes[ logSamplesCount ] = getExecTime() - execTime # benchmark
-         messageResponseTimes[ logSamplesCount ] = execTime # benchmark
-      window.after( 10, receiveData ) # benchmark
+      axisName = 'PLAYER Calcanhar'                                                                                           # benchmark
+      axisId = axisNetworkIds[ axisName ]                                                                                     # benchmark
+      axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] )           # benchmark
+      if logOutSamplesCount == logInSamplesCount and logOutSamplesCount < logNSamples:                                        # benchmark
+         messageDispatchTimes[ logOutSamplesCount ] = int(time() * 1000)                                                      # benchmark
+         # print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
+         logOutSamplesCount += 1                                                                                              # benchmark
+      window.after( 10, receiveData )                                                                                         # benchmark
 
       for axisName in axisNetworkIds.keys():
          axisId = axisNetworkIds[ axisName ]
@@ -223,38 +221,34 @@ def sendData():
                axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] )
                window.after( 10, receiveData )
             
-      print( 'Sending Axis Data: ' + axisDataMessage )
+      # print( 'Sending Axis Data: ' + axisDataMessage )
       sendMessage( dataClientId, axisDataMessage )
       
       window.after( 10, sendData ) 
 
-# Method for receiving axis values from master server or connected client
+# Função para receber valores de eixos do servidor central ou cliente conectado
 def receiveData():
-   global logSamplesCount
+   global logInSamplesCount # benchmark
 
    # Comunicação via socket UDP
    message = None
    if dataClientId is not None:
-   
-      execTime = getExecTime() # benchmark
-   
+
       message = receiveMessage( dataClientId )
       if message is not None:
-         print( 'Received message: ' + message )
+         # print( 'Received message: ' + message )
          dataList = message.split(':')
          if len(dataList) >= 4:
             if dataList[0] == 'Axis Feedback':
-               if logSamplesCount < logNSamples: # benchmark
-                  messageParseTimes[ logSamplesCount ] = getExecTime() - execTime # benchmark
-                  messageResponseTimes[ logSamplesCount ] = execTime - messageResponseTimes[ logSamplesCount ]# benchmark
-                  logSamplesCount += 1 # benchmark
+               if logOutSamplesCount < logNSamples and logInSamplesCount == logOutSamplesCount - 1:                           # benchmark
+                  messageResponseTimes[ logInSamplesCount ] = int(time() * 1000)                                              # benchmark
+                  # print( 'Receiving message ' + str(logInSamplesCount) + ' response at ' + str(messageResponseTimes[ logInSamplesCount ]) )
+                  logInSamplesCount += 1                                                                                      # benchmark
                axisName = dataList[1]
                axisId = axisNetworkIds[ axisName ]
-               positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - getExecTime() ) / 1000
+               positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - int(time() * 1000) ) / 1000
                setAxisValue( axisId, 1, positionReference ) # dimensionIndex[ 'Position Ref' ]
                return
-
-               #print( 'Sample ' + str(logSamplesCount) + ' exec time: ' + str(execTime) )
  
       window.after( 5, receiveData )
   
@@ -508,6 +502,7 @@ mplCanvas = FigureCanvas( figure, master = window )
 mplCanvas.show()
 dataCanvas = mplCanvas.get_tk_widget()
 
+# Callback para deslocar o canvas da matplotlib com o slider (não ideal, procurando solução melhor) 
 def move( mode, position, c = UNITS ):
    if float(position) < 0.0: position = 0.0
    if float(position) > 1.0: position = 1.0

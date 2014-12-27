@@ -3,6 +3,8 @@
 from tkinter import *
 from tkinter import ttk
 
+from time import time as execTime # benchmark
+
 #from gameserver import GameServer as GameServer
 class GameServer:
    
@@ -55,6 +57,11 @@ class AxisServer:
    dataClients = []
    axisDataClients = {}
    
+   # Variáveis para medição de desempenho (benchmark)
+   logNSamples = 100
+   logSamplesCount = 0
+   messageArrivalTimes = []
+   
    def __init__( self, port ):
       self.port = port
       self.serverId = createConnection( '0.0.0.0', str(self.port), NetworkInterface.UDP )
@@ -62,6 +69,9 @@ class AxisServer:
          print( 'Axis server id: ' + str(self.serverId) )
          ( host, port ) = getAddress( self.serverId )
          print( 'host: ' + str(host) + ' - port: ' + str(port) )
+         
+      for i in range(self.logNSamples):                                       # benchmark
+         self.messageArrivalTimes.append( 0 )                                 # benchmark
          
    def update( self ):
      
@@ -75,7 +85,7 @@ class AxisServer:
       for client in self.dataClients:
          message = receiveMessage( client )
          if message is not None:
-            print( 'Axis Server receive: ' + message )
+            # print( 'Axis Server receive: ' + message )
             clientInfo = message.split(':')
             if ( len(clientInfo) - 1 ) % 3 == 0:
                if clientInfo[0] == 'Axis Data':
@@ -84,7 +94,17 @@ class AxisServer:
                      self.axisDataClients[ axisName ] = client
                      
                   # Teste Latência
-                  sendMessage( client, 'Axis Feedback:PLAYER Calcanhar:0:0' )
+                  if self.logSamplesCount < self.logNSamples:                                   # benchmark
+                     self.messageArrivalTimes[ self.logSamplesCount ] = int(execTime() * 1000)  # benchmark
+                     self.logSamplesCount += 1                                                  # benchmark
+                  elif self.logSamplesCount == self.logNSamples:                                # benchmark
+                     print( 'Saving Log' )                                                      # benchmark
+                     messageArrivalLog = open( 'message_arrival_times.txt', 'w' )               # benchmark
+                     for time in range( self.logSamplesCount ):                                 # benchmark
+                        messageArrivalLog.write( str(self.messageArrivalTimes[ time ]) + '\n' ) # benchmark
+                     messageArrivalLog.close()                                                  # benchmark
+                     self.logSamplesCount += 1                                                  # benchmark
+                  sendMessage( client, 'Axis Feedback:PLAYER Calcanhar:0:0' )                   # benchmark
 					 
                      # Teste Feedback
                      #sendMessage( client, 'Axis Feedback:{0:s}:{1:g}:{2:g}'.format( axisName, 
@@ -114,12 +134,15 @@ class AxisServer:
 # Criação da Janela principal
 window = Tk()
 
+# Variáveis de conexão em rede
 currentServerPort = 10000
 serverPort = IntVar()
 serverPort.set( currentServerPort )
-
+# Manipuladores de conexão servidor principal
 serverId = None
+# Referência para servidor de eixos
 axisServer = None
+
 def serverConnect():
    global serverId
    global axisServer

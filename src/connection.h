@@ -256,6 +256,7 @@ static char* receive_udp_message( Connection* connection )
     return NULL;
   }
   
+  // Verify if incoming message is destined to this connection (and returns the message if it is)
   if( connection->address->sin6_port == address.sin6_port )
   {
     address_string[0] = connection->address->sin6_addr.s6_addr;
@@ -272,6 +273,7 @@ static char* receive_udp_message( Connection* connection )
     }
   }
   
+  // Default return message (the received one was not destined to this connection) 
   return empty_message;
 }
 
@@ -405,6 +407,7 @@ static Connection* accept_udp_client( Connection* server )
     return NULL;
   }
   
+  // Verify if incoming message belongs to unregistered client (returns default value if not)
   for( client_id = 0; client_id < server->n_clients; client_id++ )
   {
     #ifdef DEBUG_2

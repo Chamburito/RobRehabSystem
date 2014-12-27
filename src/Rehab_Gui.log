@@ -1,40 +1,12 @@
-﻿Build started 26/12/2014 15:13:57.
+﻿Build started 27/12/2014 17:31:12.
      1>Project "E:\Leonardo Jose\RobRehabSystem\src\Rehab_Gui.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Gui.unsuccessfulbuild" because "AlwaysCreate" was specified.
        ClCompile:
-         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /I"E:\Leonardo Jose\RobRehabSystem\src\\include" /Zi /nologo /W3 /WX- /Ox /Oi /Oy- /GL /D NIXNET /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"E:\Leonardo Jose\RobRehabSystem\src\\" /Fd"E:\Leonardo Jose\RobRehabSystem\src\\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt gui_main.cpp
-         gui_main.cpp
-     1>e:\leonardo jose\robrehabsystem\src\script_network.h(127): warning C4101: 'connection_id' : unreferenced local variable
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(147): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(182): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(291): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(783): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(882): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(884): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(1009): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(1108): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(1110): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(1240): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(1339): warning C4003: not enough actual parameters for macro 'close'
-     1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(1341): warning C4003: not enough actual parameters for macro 'close'
-     1>e:\leonardo jose\robrehabsystem\src\Axis.h(192): warning C4003: not enough actual parameters for macro 'close'
-     1>e:\leonardo jose\robrehabsystem\src\control.h(178): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
-     1>e:\leonardo jose\robrehabsystem\src\control.h(207): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
-     1>e:\leonardo jose\robrehabsystem\src\control.h(219): warning C4244: 'argument' : conversion from 'const double' to 'unsigned long', possible loss of data
-     1>e:\leonardo jose\robrehabsystem\src\control.h(363): warning C4244: 'argument' : conversion from 'const double' to 'unsigned long', possible loss of data
-     1>e:\leonardo jose\robrehabsystem\src\control.h(392): warning C4244: '=' : conversion from 'double' to 'int', possible loss of data
-     1>e:\leonardo jose\robrehabsystem\src\control.h(399): warning C4244: 'argument' : conversion from 'const double' to 'unsigned long', possible loss of data
-     1>gui_main.cpp(62): warning C4800: 'int' : forcing value to bool 'true' or 'false' (performance warning)
-     1>gui_main.cpp(251): warning C4003: not enough actual parameters for macro 'close'
-     1>gui_main.cpp(257): warning C4003: not enough actual parameters for macro 'close'
+         All outputs are up-to-date.
        Link:
-         C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"E:\Leonardo Jose\RobRehabSystem\src\\RobRehabGui.exe" /NOLOGO /LIBPATH:"E:\Leonardo Jose\RobRehabSystem\src\\libs" /LIBPATH:"E:\Leonardo Jose\RobRehabSystem\\tcl" /LIBPATH:"E:\Leonardo Jose\RobRehabSystem\src\\tcl" /LIBPATH:"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\\lib32\msvc" nixnet.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /ManifestFile:"E:\Leonardo Jose\RobRehabSystem\src\\RobRehabGui.exe.intermediate.manifest" /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /DEBUG /PDB:"E:\Leonardo Jose\RobRehabSystem\src\RobRehabGui.pdb" /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:\Leonardo Jose\RobRehabSystem\src\\RobRehabGui.lib" /MACHINE:X86 "E:\Leonardo Jose\RobRehabSystem\src\\gui_main.obj"
-         Generating code
-         Finished generating code
+         All outputs are up-to-date.
          Rehab_Gui.vcxproj -> E:\Leonardo Jose\RobRehabSystem\src\\RobRehabGui.exe
-       Manifest:
-         C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\bin\mt.exe /nologo /verbose /outputresource:"E:\Leonardo Jose\RobRehabSystem\src\\RobRehabGui.exe;#1" /manifest "E:\Leonardo Jose\RobRehabSystem\src\\RobRehabGui.exe.intermediate.manifest"
        FinalizeBuildStatus:
          Deleting file "E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Gui.unsuccessfulbuild".
          Touching "E:\Leonardo Jose\RobRehabSystem\src\\Rehab_Gui.lastbuildstate".
@@ -42,4 +14,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:05.70
+Time Elapsed 00:00:00.06
