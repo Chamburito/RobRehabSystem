@@ -12,6 +12,7 @@ extern "C"{
 
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // Mutex aquisition and release
 #define LOCK_THREAD( lock ) pthread_mutex_trylock( lock )

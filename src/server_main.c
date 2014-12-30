@@ -69,13 +69,13 @@ int main( int argc, char* argv[] )
   PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
   Py_Initialize();
 
-  file = fopen( "server_init.py", "r" );
+  file = fopen( "scripts/server_init.py", "r" );
   python_commands = get_text( file );
   fclose( file );
   PyRun_SimpleString( python_commands );
   free( python_commands );
 
-  file = fopen( "server_update.py", "r" );
+  file = fopen( "scripts/server_update.py", "r" );
   python_commands = get_text( file );
   fclose( file );
   PyRun_SimpleString( python_commands );

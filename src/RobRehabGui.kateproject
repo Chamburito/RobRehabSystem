@@ -1,8 +1,0 @@
-{
-  "name": "RobRehabGui"
-, "files": [ { "directory": ".", "filters": ["*.cpp", "*.h", "*.py"] } ]
-, "build": {
-    "directory": "."
-  , "build": "g++ main.cpp -std=c99 -O3 -I/usr/include/python3.4m -lpython3.4m -lpthreads -o RobRehabGui"
-  }
-}

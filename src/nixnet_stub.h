@@ -13,6 +13,9 @@
 #include <termios.h>
 #include <assert.h>
 
+#include <stdlib.h>
+#include <string.h>
+
 #define STDIN 0
 
 int getch(void) 
@@ -29,7 +32,7 @@ int getch(void)
       int res=0;
           //-----  store old settings -----------
       res=tcgetattr(STDIN_FILENO, &org_opts);
-      assert(res==0);
+      //assert(res==0);
           //---- set new terminal parms --------
       memcpy(&new_opts, &org_opts, sizeof(new_opts));
       new_opts.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK | ECHONL | ECHOPRT | ECHOKE | ICRNL);
@@ -42,7 +45,7 @@ int getch(void)
       
           //------  restore old settings ---------
       res=tcsetattr(STDIN_FILENO, TCSANOW, &org_opts);
-      assert(res==0);
+      //assert(res==0);
       return(c);
 }
 #endif

@@ -246,13 +246,13 @@ void initScriptInterface( /*const char* initFile, const char* loopFile*/ )
   //initNetworkScriptInterface();
 
   ifstream file;
-  file.open( "gui_init.py" );
+  file.open( "scripts/gui_init.py" );
   getline( file, pythonCommands, '\0' );
   file.close();
   PyRun_SimpleString( pythonCommands.c_str() );
   pythonCommands.clear();
 
-  file.open( "gui_update.py" );
+  file.open( "scripts/gui_update.py" );
   getline( file, pythonCommands, '\0' );
   file.close();
 }
