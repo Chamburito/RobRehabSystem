@@ -1,0 +1,30 @@
+Determining if files pthread.h exist passed with the following output:
+Change Dir: /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTryCompileExec1229138608/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec1229138608.dir/build.make CMakeFiles/cmTryCompileExec1229138608.dir/build
+make[1]: Entering directory '/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec1229138608.dir/CheckIncludeFiles.c.o
+/usr/bin/cc    -o CMakeFiles/cmTryCompileExec1229138608.dir/CheckIncludeFiles.c.o   -c /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp/CheckIncludeFiles.c
+Linking C executable cmTryCompileExec1229138608
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec1229138608.dir/link.txt --verbose=1
+/usr/bin/cc      CMakeFiles/cmTryCompileExec1229138608.dir/CheckIncludeFiles.c.o  -o cmTryCompileExec1229138608 -rdynamic 
+make[1]: Leaving directory '/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp'
+
+
+Determining if the function pthread_create exists in the pthread passed with the following output:
+Change Dir: /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTryCompileExec2967525108/fast"
+/usr/bin/make -f CMakeFiles/cmTryCompileExec2967525108.dir/build.make CMakeFiles/cmTryCompileExec2967525108.dir/build
+make[1]: Entering directory '/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp'
+/usr/bin/cmake -E cmake_progress_report /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp/CMakeFiles 1
+Building C object CMakeFiles/cmTryCompileExec2967525108.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTryCompileExec2967525108.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.1/Modules/CheckFunctionExists.c
+Linking C executable cmTryCompileExec2967525108
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTryCompileExec2967525108.dir/link.txt --verbose=1
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   CMakeFiles/cmTryCompileExec2967525108.dir/CheckFunctionExists.c.o  -o cmTryCompileExec2967525108 -rdynamic -lpthread 
+make[1]: Leaving directory '/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/CMakeFiles/CMakeTmp'
+
+
