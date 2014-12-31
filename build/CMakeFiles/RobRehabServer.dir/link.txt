@@ -1,0 +1,1 @@
+/usr/bin/cc  -O3 -DNDEBUG -march=native -mtune=native   CMakeFiles/RobRehabServer.dir/src/server_main.c.o  -o ../RobRehabServer -rdynamic -lpython3.4m -lpthread 

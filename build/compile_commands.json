@@ -1,0 +1,12 @@
+[
+{
+  "directory": "/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/build",
+  "command": "/usr/bin/c++    -O3 -DNDEBUG -march=native -mtune=native -I/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/./src -I/usr/include/python3.4m    -o CMakeFiles/RobRehabGui.dir/src/gui_main.cpp.o -c /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/gui_main.cpp",
+  "file": "/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/gui_main.cpp"
+},
+{
+  "directory": "/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/build",
+  "command": "/usr/bin/cc   -O3 -DNDEBUG -march=native -mtune=native -I/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/./src -I/usr/include/python3.4m    -o CMakeFiles/RobRehabServer.dir/src/server_main.c.o   -c /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/server_main.c",
+  "file": "/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/server_main.c"
+}
+]

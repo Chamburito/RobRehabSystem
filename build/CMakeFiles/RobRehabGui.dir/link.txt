@@ -1,0 +1,1 @@
+/usr/bin/c++   -O3 -DNDEBUG -march=native -mtune=native   CMakeFiles/RobRehabGui.dir/src/gui_main.cpp.o  -o ../RobRehabGui -rdynamic -lpython3.4m -lpthread 
