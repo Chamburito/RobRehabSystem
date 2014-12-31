@@ -131,7 +131,7 @@ static int add_async_connection( Connection* connection )
   else if( (connection->type & NETWORK_ROLE) == SERVER )
     connection_buffer->read_queue.handle = run_thread( async_accept_clients, (void*) connection_buffer );
 
-  connection_buffer->write_queue.handle = run_thread( async_write_queue, (void*) connection_buffer );
+  //connection_buffer->write_queue.handle = run_thread( async_write_queue, (void*) connection_buffer );
   
   #ifdef DEBUG_1
   printf( "add_async_connection: last connection index: %d - socket fd: %d\n", n_connections, connection->sockfd );
@@ -203,8 +203,8 @@ static void* async_read_queue( void* args )
     printf( "async_read_queue: message list: first: %d - last: %d\n", first_message_index, last_message_index );
     #endif
     
-	// Give CPU time to the other read/write threads based on how much of our queue is filled
-	if( last_message_index - first_message_index > 0 )
+    // Give CPU time to the other read/write threads based on how much of our queue is filled
+    if( last_message_index - first_message_index > 0 )
       delay( BASE_WAIT_TIME * ( last_message_index - first_message_index ) );
     
     if( reader_buffer->connection == NULL )
@@ -247,6 +247,18 @@ static void* async_read_queue( void* args )
   }
   
   exit_thread( 0 );
+  return NULL;
+}
+
+static void* async_write_message( void* args )
+{
+  Connection_Buffer* writer_buffer = (Connection_Buffer*) args;
+  Connection* writer = writer_buffer->connection;
+  char* message = writer_buffer->write_queue.cache[ 0 ];
+  
+  send_message( writer, message );
+  
+  exit_thread( 1 );
   return NULL;
 }
 
@@ -439,6 +451,25 @@ char* dequeue_message( int connection_id )
 
 // Put message in the end of the given index corresponding write queue
 // Method to be called from the main thread
+int dispatch_message( int connection_id, const char* message )
+{
+  static Connection_Buffer* connection_buffer;
+  
+  if( connection_id < 0 || connection_id >= (int) n_connections )
+  {
+    fprintf( stderr, "dispatch_message: no queue available for this connection: index %d\n", connection_id );    
+    return -1;
+  }
+  
+  connection_buffer = buffer_list[ connection_id ];
+  
+  strcpy( connection_buffer->write_queue.cache[ 0 ], message );
+  
+  run_thread( async_write_message, (void*) connection_buffer );
+
+  return 0;
+}
+
 int enqueue_message( int connection_id, const char* message )
 {
   static Connection_Buffer* connection_buffer;

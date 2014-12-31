@@ -53,7 +53,9 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args )
     perror( "run_thread: pthread_create: error creating new thread:" );
     return 0;
   }
+  #ifdef DEBUG_2
   printf( "run_thread: created thread %x successfully\n", handle_list[ n_handles ] );
+  #endif
   n_threads++;
   
   return handle_list[ n_handles++ ];
@@ -65,25 +67,37 @@ void exit_thread( uint32_t exit_code )
   static uint32_t exit_code_storage;
   exit_code_storage = exit_code;
   n_threads--;
+  #ifdef DEBUG_2
   printf( "exit_thread: thread exiting with code: %u\n", exit_code );
+  #endif
   pthread_exit( &exit_code_storage );
-  printf( "exit_thread: thread exited with code: %u\n", exit_code_storage );
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
 uint32_t wait_thread_end( Thread_Handle handle )
 {
   static void* exit_code_ref = NULL;
+  
+  #ifdef DEBUG_2
   printf( "wait_thread_end: waiting thread %x\n", handle );
+  #endif
+  
   if( pthread_join( handle, &exit_code_ref ) != 0 )
   {
     perror( "wait_thread_end: pthread_join: error waiting for thread end:" );
     return 0;
   }
+  
+  #ifdef DEBUG_2
   printf( "wait_thread_end: thread returned\n" );
+  #endif
+  
   if( exit_code_ref != NULL )
   {
+    #ifdef DEBUG_2
     printf( "wait_thread_end: thread exit code: %u\n", *((uint32_t*) exit_code_ref) );
+    #endif
+    
     return *((uint32_t*) exit_code_ref);
   }
   else

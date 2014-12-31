@@ -91,7 +91,8 @@ static PyObject* sendMessage( PyObject *self, PyObject *args )
     if ( !PyArg_ParseTuple( args, "is", &connection_id, &message ) )
         return NULL;
 
-    return Py_BuildValue( "i", enqueue_message( connection_id, message ) );
+    //return Py_BuildValue( "i", enqueue_message( connection_id, message ) );
+    return Py_BuildValue( "i", dispatch_message( connection_id, message ) );
 }
 
 static PyObject* receiveMessage( PyObject *self, PyObject *args )
