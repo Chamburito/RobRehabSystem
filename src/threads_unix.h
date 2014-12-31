@@ -21,6 +21,12 @@ extern "C"{
 // Returns unique identifier of the calling thread
 #define THREAD_ID pthread_self()
 
+// Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
+// when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
+enum { DETACHED, JOINABLE };
+
+
+// Aliases for platform abstraction
 typedef pthread_t Thread_Handle;
 typedef pthread_mutex_t* Thread_Lock;
 
@@ -28,7 +34,7 @@ typedef pthread_mutex_t* Thread_Lock;
 static pthread_mutex_t* lock_list;
 static size_t n_locks = 0;
 
-// List of manipulators for the created threads
+// List of manipulators for the created (joinable) threads
 static pthread_t* handle_list;
 static size_t n_handles = 0;
 
@@ -44,21 +50,32 @@ Thread_Lock get_new_thread_lock()
 }
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle run_thread( void* (*function)( void* ), void* args )
+Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
 {
-  handle_list = (pthread_t*) realloc( handle_list, ( n_handles + 1 ) * sizeof(pthread_t) );
+  static pthread_t handle;
   
-  if( pthread_create( &handle_list[ n_handles ], NULL, function, args ) != 0 )
+  if( pthread_create( &handle, NULL, function, args ) != 0 )
   {
     perror( "run_thread: pthread_create: error creating new thread:" );
     return 0;
   }
+
   #ifdef DEBUG_2
   printf( "run_thread: created thread %x successfully\n", handle_list[ n_handles ] );
   #endif
+
   n_threads++;
   
-  return handle_list[ n_handles++ ];
+  if( mode == JOINABLE )
+  {
+	handle_list = (pthread_t*) realloc( handle_list, ( n_handles + 1 ) * sizeof(pthread_t) );
+	handle_list[ n_handles ] = handle;
+	n_handles++;
+  }
+  else if( mode == DETACHED ) 
+	pthread_detach( handle );
+
+  return handle;
 }
 
 // Exit the calling thread, returning the given value
@@ -67,9 +84,11 @@ void exit_thread( uint32_t exit_code )
   static uint32_t exit_code_storage;
   exit_code_storage = exit_code;
   n_threads--;
+
   #ifdef DEBUG_2
   printf( "exit_thread: thread exiting with code: %u\n", exit_code );
   #endif
+
   pthread_exit( &exit_code_storage );
 }
 
@@ -78,7 +97,7 @@ uint32_t wait_thread_end( Thread_Handle handle )
 {
   static void* exit_code_ref = NULL;
   
-  #ifdef DEBUG_2
+  #ifdef DEBUG_1
   printf( "wait_thread_end: waiting thread %x\n", handle );
   #endif
   
@@ -88,13 +107,13 @@ uint32_t wait_thread_end( Thread_Handle handle )
     return 0;
   }
   
-  #ifdef DEBUG_2
+  #ifdef DEBUG_1
   printf( "wait_thread_end: thread returned\n" );
   #endif
   
   if( exit_code_ref != NULL )
   {
-    #ifdef DEBUG_2
+    #ifdef DEBUG_1
     printf( "wait_thread_end: thread exit code: %u\n", *((uint32_t*) exit_code_ref) );
     #endif
     

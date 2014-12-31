@@ -21,6 +21,12 @@ extern "C"{
 // Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()
 
+// Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
+// when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
+enum { DETACHED, JOINABLE };
+
+
+// Aliases for platform abstraction
 typedef HANDLE Thread_Handle;
 typedef CRITICAL_SECTION* Thread_Lock;
 
@@ -28,7 +34,7 @@ typedef CRITICAL_SECTION* Thread_Lock;
 static CRITICAL_SECTION* lock_list;
 static size_t n_locks = 0;
 
-// List of manipulators for the created threads
+// List of manipulators for the created (joinable) threads
 static HANDLE* handle_list;
 static size_t n_handles = 0;
 
@@ -44,34 +50,55 @@ Thread_Lock get_new_thread_lock()
 }
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle run_thread( void* (*function)( void* ), void* args )
+Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
 {
+  static HANDLE handle;
   static unsigned int thread_id;
   
-  handle_list = (HANDLE*) realloc( handle_list, ( n_handles + 1 ) * sizeof(HANDLE) );
-  
-  if( (handle_list[ n_handles ] = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == NULL )
+  if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == NULL )
   {
     fprintf( stderr, "run_thread: _beginthreadex: error creating new thread: code: %x", GetLastError() );
     return 0;
   }
   
+  #ifdef DEBUG_2
+  printf( "run_thread: created thread %x successfully\n", handle_list[ n_handles ] );
+  #endif
+
   n_threads++;
   
-  return handle_list[ n_handles++ ];
+  if( mode == JOINABLE )
+  {
+	handle_list = (HANDLE*) realloc( handle_list, ( n_handles + 1 ) * sizeof(HANDLE) );
+	handle_list[ n_handles ] = handle;
+	n_handles++;
+  }
+  else if( mode == DETACHED ) 
+	CloseHandle( handle );
+
+  return handle;
 }
 
 // Exit the calling thread, returning the given value
 void exit_thread( uint32_t exit_code )
 {
   n_threads--;
+
+  #ifdef DEBUG_2
+  printf( "exit_thread: thread exiting with code: %u\n", exit_code );
+  #endif
+
   _endthreadex( (DWORD) exit_code );
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
 uint32_t wait_thread_end( Thread_Handle handle )
 {
-  static DWORD exit_code;
+  static DWORD exit_code = 0;
+
+  #ifdef DEBUG_1
+  printf( "wait_thread_end: waiting thread %x\n", handle );
+  #endif
 
   if( WaitForSingleObject( handle, INFINITE ) == WAIT_FAILED )
   {
@@ -79,9 +106,16 @@ uint32_t wait_thread_end( Thread_Handle handle )
     return 0;
   }
 
+  #ifdef DEBUG_1
+  printf( "wait_thread_end: thread returned\n" );
+  #endif
+
   if( GetExitCodeThread( handle, &exit_code ) != 0 )
   {
+    #ifdef DEBUG_1
     printf( "wait_thread_end: thread exit code: %u\n", exit_code );
+    #endif
+
     return exit_code;
   }
   else

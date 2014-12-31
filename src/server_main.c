@@ -60,11 +60,6 @@ int main( int argc, char* argv[] )
 {    
   FILE* file;
   char* python_commands;
-  
-  #ifdef WIN32
-    char pySearchPath[] = "Python33";
-    Py_SetPythonHome( nstrws_convert( pySearchPath ) );
-  #endif
     
   PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
   Py_Initialize();

@@ -1,0 +1,17 @@
+﻿Build started 31/12/2014 14:21:47.
+     1>Project "E:\Leonardo Jose\RobRehabSystem\Rehab_Gui\Rehab_Gui.vcxproj" on node 2 (build target(s)).
+     1>InitializeBuildStatus:
+         Creating "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.unsuccessfulbuild" because "AlwaysCreate" was specified.
+       ClCompile:
+         All outputs are up-to-date.
+       Link:
+         All outputs are up-to-date.
+         Rehab_Gui.vcxproj -> E:\Leonardo Jose\RobRehabSystem\\RobRehabGui.exe
+       FinalizeBuildStatus:
+         Deleting file "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.unsuccessfulbuild".
+         Touching "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.lastbuildstate".
+     1>Done Building Project "E:\Leonardo Jose\RobRehabSystem\Rehab_Gui\Rehab_Gui.vcxproj" (build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:00.09

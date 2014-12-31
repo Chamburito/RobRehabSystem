@@ -95,6 +95,7 @@
     <ClInclude Include="..\src\EPOSNetwork.h" />
     <ClInclude Include="..\src\nixnet.h" />
     <ClInclude Include="..\src\script_network.h" />
+    <ClInclude Include="..\src\threads_unix.h" />
     <ClInclude Include="..\src\threads_windows.h" />
     <ClInclude Include="..\src\timing_windows.h" />
   </ItemGroup>
@@ -104,6 +105,10 @@
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Full</Optimization>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:\Python34\include;E:\Leonardo Jose\RobRehabSystem\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\scripts\gui_init.py" />
+    <None Include="..\scripts\gui_update.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -127,11 +127,11 @@ static int add_async_connection( Connection* connection )
   connection_buffer->read_queue.lock = get_new_thread_lock();
   
   if( (connection->type & NETWORK_ROLE) == CLIENT )
-    connection_buffer->read_queue.handle = run_thread( async_read_queue, (void*) connection_buffer );
+    connection_buffer->read_queue.handle = run_thread( async_read_queue, (void*) connection_buffer, JOINABLE );
   else if( (connection->type & NETWORK_ROLE) == SERVER )
-    connection_buffer->read_queue.handle = run_thread( async_accept_clients, (void*) connection_buffer );
+    connection_buffer->read_queue.handle = run_thread( async_accept_clients, (void*) connection_buffer, JOINABLE );
 
-  //connection_buffer->write_queue.handle = run_thread( async_write_queue, (void*) connection_buffer );
+  //connection_buffer->write_queue.handle = run_thread( async_write_queue, (void*) connection_buffer, JOINABLE );
   
   #ifdef DEBUG_1
   printf( "add_async_connection: last connection index: %d - socket fd: %d\n", n_connections, connection->sockfd );
@@ -465,7 +465,7 @@ int dispatch_message( int connection_id, const char* message )
   
   strcpy( connection_buffer->write_queue.cache[ 0 ], message );
   
-  run_thread( async_write_message, (void*) connection_buffer );
+  run_thread( async_write_message, (void*) connection_buffer, DETACHED );
 
   return 0;
 }
@@ -566,8 +566,8 @@ void close_async_connection( int connection_id )
     
     (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle );
     printf( "close_async_connection: read thread for connection id %u returned\n", connection_id );
-    (void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle );
-    printf( "close_async_connection: write thread for connection id %u returned\n", connection_id );
+    //(void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle );
+    //printf( "close_async_connection: write thread for connection id %u returned\n", connection_id );
     
     free( buffer_list[ connection_id ] );
     buffer_list[ connection_id ] = NULL;

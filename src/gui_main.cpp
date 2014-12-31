@@ -188,7 +188,7 @@ static PyObject* setControl( PyObject *self, PyObject *args )
     if ( !PyArg_ParseTuple( args, "iii", &eposId, &active, &mode ) )
         return NULL;
     
-    if( active > 0 ) run_thread( controlFunction( mode ), (void*) &(EPOS[ eposId ]) );
+    if( active > 0 ) run_thread( controlFunction( mode ), (void*) &(EPOS[ eposId ]), DETACHED );
     
     return Py_BuildValue( "" );
 }
@@ -232,12 +232,7 @@ static PyObject* initInterfaceModule(void)
 // Embedded interpreter initialization
 string pythonCommands;
 void initScriptInterface( /*const char* initFile, const char* loopFile*/ )
-{
-  #ifdef WIN32
-    char pySearchPath[] = "Python33";
-    Py_SetPythonHome( nstrws_convert( pySearchPath ) );
-  #endif
-    
+{ 
   PyImport_AppendInittab( "EposInterface", &initInterfaceModule );
   PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
   Py_Initialize();

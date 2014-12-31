@@ -51,10 +51,21 @@
     <ClInclude Include="..\src\timing_windows.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\threads_unix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\gui_main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\scripts\gui_init.py">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\scripts\gui_update.py">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
