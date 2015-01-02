@@ -58,7 +58,7 @@ class AxisServer:
    axisDataClients = {}
    
    # Variáveis para medição de desempenho (benchmark)
-   logNSamples = 100
+   logNSamples = 10
    logSamplesCount = 0
    messageArrivalTimes = []
    
@@ -85,7 +85,7 @@ class AxisServer:
       for client in self.dataClients:
          message = receiveMessage( client )
          if message is not None:
-            print( 'Axis Server receive: ' + message )
+            # print( 'Axis Server receive: ' + message )
             clientInfo = message.split(':')
             if ( len(clientInfo) - 1 ) % 3 == 0:
                if clientInfo[0] == 'Axis Data':
@@ -94,19 +94,20 @@ class AxisServer:
                      self.axisDataClients[ axisName ] = client
                      
                   # Teste Latência
-                  messageIndex = int(clientInfo[2])                                                     # benchmark
-                  if self.logSamplesCount < self.logNSamples:                                           # benchmark
-                     if self.messageArrivalTimes[ messageIndex ] == 0: self.logSamplesCount += 1        # benchmark  
-                     self.messageArrivalTimes[ messageIndex ] = int(execTime() * 1000)                  # benchmark
-                     
-                  if self.logSamplesCount == self.logNSamples:                                          # benchmark
-                     print( 'Saving Log' )                                                              # benchmark
-                     messageArrivalLog = open( 'data/message_arrival_times.txt', 'w' )                  # benchmark
-                     for time in range( self.logSamplesCount ):                                         # benchmark
-                        messageArrivalLog.write( str(self.messageArrivalTimes[ time ]) + '\n' )         # benchmark
-                     messageArrivalLog.close()                                                          # benchmark
-                     self.logSamplesCount = self.logNSamples + 1                                        # benchmark
-                  sendMessage( client, 'Axis Feedback:PLAYER Calcanhar:' + str(messageIndex) + ':0' )   # benchmark
+                  messageIndex = int(clientInfo[2])                                                                               # benchmark
+                  if self.logSamplesCount < self.logNSamples and messageIndex < self.logNSamples:                                 # benchmark
+                     if self.messageArrivalTimes[ messageIndex ] == 0: self.logSamplesCount += 1                                  # benchmark  
+                     self.messageArrivalTimes[ messageIndex ] = int(execTime() * 1000)                                            # benchmark
+                     print( 'Message ' + str(messageIndex) + ' received at ' + str(self.messageArrivalTimes[ messageIndex ]) )    # benchmark
+                     print( str(self.logSamplesCount) + ' messages received' )                                                    # benchmark
+                  if self.logSamplesCount == self.logNSamples:                                                                    # benchmark
+                     print( 'Saving Log' )                                                                                        # benchmark
+                     messageArrivalLog = open( 'data/message_arrival_times.txt', 'w' )                                            # benchmark
+                     for time in range( self.logSamplesCount ):                                                                   # benchmark
+                        messageArrivalLog.write( str(self.messageArrivalTimes[ time ]) + '\n' )                                   # benchmark
+                     messageArrivalLog.close()                                                                                    # benchmark
+                     self.logSamplesCount = self.logNSamples + 1                                                                  # benchmark
+                  sendMessage( client, 'Axis Feedback:PLAYER Calcanhar:' + str(messageIndex) + ':0' )                             # benchmark
 					 
                      # Teste Feedback
                      #sendMessage( client, 'Axis Feedback:{0:s}:{1:g}:{2:g}'.format( axisName, 

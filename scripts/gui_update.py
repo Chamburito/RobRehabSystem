@@ -13,7 +13,7 @@ from time import time as execTime # benchmark
 window = Tk()  
 
 # Variáveis para medição de desempenho (benchmark)
-logNSamples = 100
+logNSamples = 10
 logOutSamplesCount = 0
 logInSamplesCount = 0
 messageDispatchTimes = []
@@ -205,11 +205,11 @@ def sendData():
       axisName = 'PLAYER Calcanhar'                                                                                           # benchmark
       axisId = axisNetworkIds[ axisName ]                                                                                     # benchmark
       axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount, axisVelocities[ axisId ] )                # benchmark
-      if logOutSamplesCount < logNSamples: #and logOutSamplesCount == logInSamplesCount:                                        # benchmark
+      if logOutSamplesCount < logNSamples and logOutSamplesCount == logInSamplesCount:                                        # benchmark
          messageDispatchTimes[ logOutSamplesCount ] = int(execTime() * 1000)                                                  # benchmark
-         # print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
+         print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
          logOutSamplesCount += 1                                                                                              # benchmark
-      window.after( 10, receiveData )                                                                                         # benchmark
+      window.after( 5, receiveData )                                                                                          # benchmark
 
       for axisName in axisNetworkIds.keys():
          axisId = axisNetworkIds[ axisName ]
@@ -224,7 +224,7 @@ def sendData():
       # print( 'Sending Axis Data: ' + axisDataMessage )
       sendMessage( dataClientId, axisDataMessage )
       
-      window.after( 20, sendData ) 
+      window.after( 10, sendData ) 
 
 # Função para receber valores de eixos do servidor central ou cliente conectado
 def receiveData():
@@ -240,11 +240,11 @@ def receiveData():
          dataList = message.split(':')
          if len(dataList) >= 4:
             if dataList[0] == 'Axis Feedback':
-               if logInSamplesCount < logNSamples: #and logInSamplesCount == logOutSamplesCount - 1:                               # benchmark
-                  messageIndex = int(dataList[2])                                                                                 # benchmark
-                  if messageResponseTimes[ messageIndex ] == 0: logInSamplesCount += 1                                            # benchmark
-                  messageResponseTimes[ messageIndex ] = int(execTime() * 1000)                                                   # benchmark
-                  # print( 'Receiving message ' + str(messageIndex) + ' response at ' + str(messageResponseTimes[ messageIndex ]) ) # benchmark
+               messageIndex = int(dataList[2])                                                                                      # benchmark
+               if logInSamplesCount < logOutSamplesCount and messageIndex < logNSamples:                                            # benchmark
+                  if messageResponseTimes[ messageIndex ] == 0: logInSamplesCount += 1                                              # benchmark
+                  messageResponseTimes[ messageIndex ] = int(execTime() * 1000)                                                     # benchmark
+                  print( 'Receiving message ' + str(messageIndex) + ' response at ' + str(messageResponseTimes[ messageIndex ]) )   # benchmark
                axisName = dataList[1]
                axisId = axisNetworkIds[ axisName ]
                positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - int(execTime() * 1000) ) / 1000
