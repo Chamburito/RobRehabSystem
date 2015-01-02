@@ -13,14 +13,18 @@ from time import time as execTime # benchmark
 window = Tk()  
 
 # Variáveis para medição de desempenho (benchmark)
-logNSamples = 10
+logNSamples = 200
 logOutSamplesCount = 0
 logInSamplesCount = 0
 messageDispatchTimes = []
 messageResponseTimes = []
+sendCallsNumber = []
+receiveCallsNumber = []
 for i in range( logNSamples ):
    messageDispatchTimes.append( 0 )
    messageResponseTimes.append( 0 )
+   sendCallsNumber.append( 0 )
+   receiveCallsNumber.append( 0 )
 
    
 # Variáveis de conexão em rede
@@ -39,13 +43,20 @@ def close():
    print( 'Destroying Window' )
    if dataServerId is not None: sendMessage( dataServerId, 'Axis End' )   
    
+   print( 'Saving Log' )
    messageResponseLog = open( 'data/message_response_times.txt', 'w' )        # benchmark
    messageDispatchLog = open( 'data/message_dispatch_times.txt', 'w' )        # benchmark
+   sendCallsLog = open( 'data/send_calls_client.txt', 'w' )                   # benchmark
+   receiveCallsLog = open( 'data/receive_calls_client.txt', 'w' )             # benchmark
    for time in range( logOutSamplesCount ):                                   # benchmark
       messageResponseLog.write( str(messageResponseTimes[ time ]) + '\n' )    # benchmark
       messageDispatchLog.write( str(messageDispatchTimes[ time ]) + '\n' )    # benchmark
+      sendCallsLog.write( str(sendCallsNumber[ time ]) + '\n' )               # benchmark
+      receiveCallsLog.write( str(receiveCallsNumber[ time ]) + '\n' )         # benchmark
    messageResponseLog.close()                                                 # benchmark
    messageDispatchLog.close()                                                 # benchmark
+   sendCallsLog.close()                                                       # benchmark
+   receiveCallsLog.close()                                                    # benchmark
    
    window.destroy()
       
@@ -204,11 +215,15 @@ def sendData():
       
       axisName = 'PLAYER Calcanhar'                                                                                           # benchmark
       axisId = axisNetworkIds[ axisName ]                                                                                     # benchmark
-      axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount, axisVelocities[ axisId ] )                # benchmark
       if logOutSamplesCount < logNSamples and logOutSamplesCount == logInSamplesCount:                                        # benchmark
+         axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount, axisVelocities[ axisId ] )             # benchmark
          messageDispatchTimes[ logOutSamplesCount ] = int(execTime() * 1000)                                                  # benchmark
-         print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
+         # print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
+         # print( '-> ' + axisDataMessage )
          logOutSamplesCount += 1                                                                                              # benchmark
+      elif logOutSamplesCount < logNSamples:
+         # print( 'Waiting message ' + str(logOutSamplesCount - 1) )
+         axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount - 1, axisVelocities[ axisId ] )         # benchmark
       window.after( 5, receiveData )                                                                                          # benchmark
 
       for axisName in axisNetworkIds.keys():
@@ -222,6 +237,7 @@ def sendData():
                window.after( 10, receiveData )
             
       # print( 'Sending Axis Data: ' + axisDataMessage )
+      if logInSamplesCount < logNSamples: sendCallsNumber[ logOutSamplesCount - 1 ] += 1                                      # benchmark
       sendMessage( dataClientId, axisDataMessage )
       
       window.after( 10, sendData ) 
@@ -229,11 +245,11 @@ def sendData():
 # Função para receber valores de eixos do servidor central ou cliente conectado
 def receiveData():
    global logInSamplesCount # benchmark
-
+   
    # Comunicação via socket UDP
    message = None
    if dataClientId is not None:
-
+      if logOutSamplesCount < logNSamples: receiveCallsNumber[ logOutSamplesCount ] += 1                                            # benchmark
       message = receiveMessage( dataClientId )
       if message is not None:
          # print( 'Received message: ' + message )
@@ -244,13 +260,14 @@ def receiveData():
                if logInSamplesCount < logOutSamplesCount and messageIndex < logNSamples:                                            # benchmark
                   if messageResponseTimes[ messageIndex ] == 0: logInSamplesCount += 1                                              # benchmark
                   messageResponseTimes[ messageIndex ] = int(execTime() * 1000)                                                     # benchmark
-                  print( 'Receiving message ' + str(messageIndex) + ' response at ' + str(messageResponseTimes[ messageIndex ]) )   # benchmark
+                  # print( 'Receiving message ' + str(messageIndex) + ' response at ' + str(messageResponseTimes[ messageIndex ]) )   # benchmark
                axisName = dataList[1]
                axisId = axisNetworkIds[ axisName ]
                positionReference = int(dataList[2]) + int(dataList[3]) * ( axisMotionTimes[ axisId ] - int(execTime() * 1000) ) / 1000
                setAxisValue( axisId, 1, positionReference ) # dimensionIndex[ 'Position Ref' ]
+               if logInSamplesCount == logNSamples: print( 'Profiling End' )
                return
- 
+      
       window.after( 5, receiveData )
   
 # Função de recebimento de dados do cliente

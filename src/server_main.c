@@ -77,6 +77,6 @@ int main( int argc, char* argv[] )
   free( python_commands );
     
   endNetworkScriptInterface();
-    
+
   exit( 0 );
 }
