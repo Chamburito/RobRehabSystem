@@ -283,8 +283,10 @@ def updateDataClient():
          if dataClientId is not None: closeConnection( dataClientId )
          dataClientId = int( message.split()[0] )
          window.after( 100, updateConnectedData )
+         
+      closeConnection( dataClientId )
    
-   window.after( 100, updateDataClient ) 
+   #window.after( 100, updateDataClient ) 
 
 
 # Função de atualização de informações do servidor
