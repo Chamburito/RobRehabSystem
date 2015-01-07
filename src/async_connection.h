@@ -370,7 +370,7 @@ static void* async_accept_clients( void* args )
 	// Blocking call
     if( (client = accept_client( server )) != NULL )
     {
-      if( client->sockfd == 0 ) continue;
+	  if( client->sockfd == 0 ) { printf( "async_accept_clients: no client\n" ); continue; }
 
       client_address = get_address( client );
       

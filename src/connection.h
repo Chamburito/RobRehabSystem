@@ -489,18 +489,17 @@ static char* receive_tcp_message( Connection* connection )
   
   memset( connection->buffer, 0, BUFFER_SIZE );
   // Blocks until there is something to be read in the socket
-  if( (bytes_received = recv( connection->sockfd, connection->buffer, BUFFER_SIZE, 0 )) < BUFFER_SIZE )
+  bytes_received = recv( connection->sockfd, connection->buffer, BUFFER_SIZE, 0 );
+
+  if( bytes_received == SOCKET_ERROR )
   {
-    if( bytes_received == SOCKET_ERROR )
-    {
-      print_socket_error( "receive_tcp_message: recv: error reading from socket" );
-      return NULL;
-    }
-    else if( bytes_received == 0 )
-    {
-      fprintf( stderr, "receive_tcp_message: recv: remote connection closed\n" );
-      return NULL;
-    }
+    print_socket_error( "receive_tcp_message: recv: error reading from socket" );
+    return NULL;
+  }
+  else if( bytes_received == 0 )
+  {
+    fprintf( stderr, "receive_tcp_message: recv: remote connection closed\n" );
+    return NULL;
   }
   
   #ifdef DEBUG_2
@@ -535,15 +534,19 @@ static char* receive_udp_message( Connection* connection )
   socklen_t addr_len = sizeof(struct sockaddr_storage);
   static uint8_t* address_string[2];
   static char* empty_message = { '\0' };
-  
+
   memset( connection->buffer, 0, BUFFER_SIZE );
   // Blocks until there is something to be read in the socket
+  if( wait_message( connection, 1000 ) == 1 ) {
   if( recvfrom( connection->sockfd, connection->buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &address, &addr_len ) == SOCKET_ERROR )
   {
     print_socket_error( "receive_udp_message: recvfrom: error reading from socket" );
     return NULL;
   }
-  
+  }
+  else
+	return empty_message;
+
   // Verify if incoming message is destined to this connection (and returns the message if it is)
   if( connection->address->sin6_port == address.sin6_port )
   {
@@ -641,12 +644,17 @@ static Connection* accept_udp_client( Connection* server )
   static char buffer[ BUFFER_SIZE ];
   static uint8_t* address_string[2];
   static Connection dummy_connection;
-	
+  int bytes_received;
+
+  if( wait_message( server, 1000 ) == 1 ) {
   if( recvfrom( server->sockfd, buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &client_address, &addr_len ) == SOCKET_ERROR )
   {
     print_socket_error( "accept_udp_client: recvfrom: error reading from socket" );
     return NULL;
   }
+  }
+  else
+	return &dummy_connection;
   
   // Verify if incoming message belongs to unregistered client (returns default value if not)
   n_clients = *(server->ref_connections_count);
@@ -695,6 +703,7 @@ void close_connection( Connection* connection )
     printf( "close_connection: closing connection for socket %d\n", connection->sockfd );
     printf( "close_connection: connection users count: %u\n", *(connection->ref_connections_count) );
     #endif
+	printf( "close_connection: connection users count: %u\n", *(connection->ref_connections_count) );
     if( (connection->type & PROTOCOL) == TCP ) 
       shutdown( connection->sockfd, SHUT_RDWR );
     else if( *(connection->ref_connections_count) <= 0 )
