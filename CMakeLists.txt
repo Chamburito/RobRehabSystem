@@ -3,6 +3,7 @@ project( RobRehabGui )
 
 set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR} )
 
+set( CMAKE_C_STANDARD_REQUIRED 11 )
 set( CMAKE_CXX_STANDARD_REQUIRED 11 )
 
 find_package( PythonLibs REQUIRED )

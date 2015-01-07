@@ -85,6 +85,8 @@ arpa/inet.h
 -
 netdb.h
 -
+stdbool.h
+-
 
 /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/control.h
 Axis.h

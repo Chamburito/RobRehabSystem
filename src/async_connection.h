@@ -74,7 +74,7 @@ size_t clients_number( int server_id )
     return 0;
   }
 
-  return buffer_list[ server_id ]->connection->n_clients;
+  return connections_count( buffer_list[ server_id ]->connection );
 }
 
 // Returns address string (host and port) for the connection of given index
@@ -229,7 +229,7 @@ static void* async_read_queue( void* args )
     {
       if( message_buffer[0] == '\0' ) continue;
       
-      #ifdef DEBUG_1
+      #ifdef DEBUG_2
       printf( "async_read_queue: connection socket %d received message: %s\n", reader->sockfd, reader->buffer );
       #endif
       
@@ -489,7 +489,9 @@ int enqueue_message( int connection_id, const char* message )
     fprintf( stderr, "enqueue_message: write queue is full for this connection: index %d\n", connection_id );
     #endif
 
-    return -1;
+    //LOCK_THREAD( connection_buffer->write_queue.lock );
+    connection_buffer->write_queue.first++;
+    //UNLOCK_THREAD( connection_buffer->write_queue.lock );
   }
   
   last_message = connection_buffer->write_queue.cache[ connection_buffer->write_queue.last % MAX_MESSAGES ];
@@ -562,12 +564,21 @@ void close_async_connection( int connection_id )
     close_connection( buffer_list[ connection_id ]->connection );
     buffer_list[ connection_id ]->connection = NULL;
     
+    #ifdef DEBUG_1
     printf( "close_async_connection: waiting threads for connection id %u\n", connection_id );
+    #endif
     
     (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle );
+    
+    #ifdef DEBUG_1
     printf( "close_async_connection: read thread for connection id %u returned\n", connection_id );
+    #endif
+    
     //(void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle );
+    
+    #ifdef DEBUG_1
     //printf( "close_async_connection: write thread for connection id %u returned\n", connection_id );
+    #endif
     
     free( buffer_list[ connection_id ] );
     buffer_list[ connection_id ] = NULL;
@@ -582,7 +593,10 @@ void close_all_connections()
   size_t connection_id;
   for( connection_id = 0; connection_id < n_connections; connection_id++ )
   {
+    #ifdef DEBUG_1
     printf( "close_all_connections: closing connection id %u\n", connection_id );
+    #endif
+    
     close_async_connection( connection_id );
   }
   
