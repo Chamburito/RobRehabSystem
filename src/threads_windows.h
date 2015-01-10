@@ -57,7 +57,7 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
   
   if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == NULL )
   {
-    fprintf( stderr, "run_thread: _beginthreadex: error creating new thread: code: %x", GetLastError() );
+    fprintf( stderr, "run_thread: _beginthreadex: error creating new thread: code: %x\n", GetLastError() );
     return 0;
   }
   
@@ -92,17 +92,24 @@ void exit_thread( uint32_t exit_code )
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t wait_thread_end( Thread_Handle handle )
+uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
 {
   static DWORD exit_code = 0;
+  static DWORD exit_status = WAIT_OBJECT_0;
 
   #ifdef DEBUG_1
   printf( "wait_thread_end: waiting thread %x\n", handle );
   #endif
 
-  if( WaitForSingleObject( handle, INFINITE ) == WAIT_FAILED )
+  exit_status = WaitForSingleObject( handle, (DWORD) milisseconds );
+  if( exit_status == WAIT_FAILED )
   {
-    perror( "wait_thread_end: WaitForSingleObject: error waiting for thread end:" );
+    fprintf( stderr, "wait_thread_end: WaitForSingleObject: error waiting for thread end: code: %x\n", GetLastError() );
+    return 0;
+  }
+  else if( exit_status == WAIT_TIMEOUT )
+  {
+    fprintf( stderr, "wait_thread_end: WaitForSingleObject: wait timed out\n" );
     return 0;
   }
 

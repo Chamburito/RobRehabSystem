@@ -103,6 +103,13 @@ struct _Connection
 };
 
 
+//////////////////////////////////////////////////////////////////////////
+/////                        GLOBAL VARIABLES                        /////
+//////////////////////////////////////////////////////////////////////////
+
+static fd_set socket_read_fds; // stores all the socket file descriptors in use (for performance when verifying incoming messages) 
+
+
 ///////////////////////////////////////////////////////////////////////////
 /////                         DEBUG UTILITIES                         /////
 ///////////////////////////////////////////////////////////////////////////
@@ -208,6 +215,7 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
   int opt = BUFFER_SIZE;
   Connection* connection = (Connection*) malloc( sizeof(Connection) );
   connection->sockfd = sockfd;
+  FD_SET( connection->sockfd, &socket_read_fds );
   connection->type = type;
 
   #ifdef DEBUG_1
@@ -298,7 +306,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
 
   static int rw;
   static uint16_t connection_type;
-
+  
   #ifdef WIN32
   WSADATA wsa;
   if( WSAStartup( MAKEWORD(2,2), &wsa ) != 0 )
@@ -459,24 +467,24 @@ inline int send_message( Connection* c, const char* message ) { return c->send_m
 inline Connection* accept_client( Connection* c ) { return c->accept_client( c ); }
 
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
-unsigned short wait_message( Connection* connection, unsigned int milisseconds )
+short wait_message( Connection* connection, unsigned int milisseconds )
 {
-  static struct timeval timeout;
-  static fd_set read_fds;
+  struct timeval timeout;
+  int n_changes;
   
   timeout.tv_sec = milisseconds / 1000;
   timeout.tv_usec =  1000 * ( milisseconds % 1000 );
   
-  FD_ZERO( &read_fds );
-  FD_SET( connection->sockfd, &read_fds );
-  
-  if( select( connection->sockfd + 1, &read_fds, NULL, NULL, &timeout ) == SOCKET_ERROR )
+  n_changes = select( connection->sockfd + 1, &socket_read_fds, NULL, NULL, &timeout );
+  if( n_changes == SOCKET_ERROR )
   {
     print_socket_error( "wait_message: select: error waiting for message" );
-    return 0;
+    return -1;
   }
+  else if( n_changes == 0 )
+    return 0;
   
-  if( FD_ISSET( connection->sockfd, &read_fds ) )
+  if( FD_ISSET( connection->sockfd, &socket_read_fds ) )
     return 1;
   else
     return 0;
@@ -537,15 +545,11 @@ static char* receive_udp_message( Connection* connection )
 
   memset( connection->buffer, 0, BUFFER_SIZE );
   // Blocks until there is something to be read in the socket
-  if( wait_message( connection, 1000 ) == 1 ) {
   if( recvfrom( connection->sockfd, connection->buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &address, &addr_len ) == SOCKET_ERROR )
   {
     print_socket_error( "receive_udp_message: recvfrom: error reading from socket" );
     return NULL;
   }
-  }
-  else
-	return empty_message;
 
   // Verify if incoming message is destined to this connection (and returns the message if it is)
   if( connection->address->sin6_port == address.sin6_port )
@@ -646,15 +650,11 @@ static Connection* accept_udp_client( Connection* server )
   static Connection dummy_connection;
   int bytes_received;
 
-  if( wait_message( server, 1000 ) == 1 ) {
   if( recvfrom( server->sockfd, buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &client_address, &addr_len ) == SOCKET_ERROR )
   {
     print_socket_error( "accept_udp_client: recvfrom: error reading from socket" );
     return NULL;
   }
-  }
-  else
-	return &dummy_connection;
   
   // Verify if incoming message belongs to unregistered client (returns default value if not)
   n_clients = *(server->ref_connections_count);
@@ -703,28 +703,49 @@ void close_connection( Connection* connection )
     printf( "close_connection: closing connection for socket %d\n", connection->sockfd );
     printf( "close_connection: connection users count: %u\n", *(connection->ref_connections_count) );
     #endif
-	printf( "close_connection: connection users count: %u\n", *(connection->ref_connections_count) );
-    if( (connection->type & PROTOCOL) == TCP ) 
-      shutdown( connection->sockfd, SHUT_RDWR );
-    else if( *(connection->ref_connections_count) <= 0 )
+
+    // Each TCP connection has its own socket, so we can close it without problem. But UDP connections
+    // from the same server share the socket, so we need to wait for all of them to be stopped to close the socket
+    if( (connection->type & PROTOCOL) == TCP )
     {
       #ifdef DEBUG_1
-      printf( "close_connection: closing unused socket fd: %d\n", connection->sockfd );
+      printf( "close_connection: closing TCP connection unused socket fd: %d\n", connection->sockfd );
       #endif
-      close( connection->sockfd );
+      FD_CLR( connection->sockfd, &socket_read_fds );
+      shutdown( connection->sockfd, SHUT_RDWR );
     }
-
-    (*(connection->ref_connections_count))--;
+    // Check number of client connections of a server (also of sharers of a socket for UDP connections)
+    if( *(connection->ref_connections_count) <= 0 )
+    {
+      if( (connection->type & PROTOCOL) == UDP )
+      {
+        #ifdef DEBUG_1
+        printf( "close_connection: closing UDP connection unused socket fd: %d\n", connection->sockfd );
+        #endif
+        FD_CLR( connection->sockfd, &socket_read_fds );
+        close( connection->sockfd );
+      }
+      free( connection->ref_connections_count );
+    }
+    else
+      (*(connection->ref_connections_count))--;
+  
+    free( connection->address );
+    connection->address = NULL;
   
     if( (connection->type & NETWORK_ROLE) == CLIENT )
     {
+      #ifdef DEBUG_1
+      printf( "close_connection: freeing client connection message buffer\n" );
+      #endif
       free( connection->buffer );
       connection->buffer = NULL;
-      free( connection->address );
-      connection->address = NULL;
     }
     else if( (connection->type & NETWORK_ROLE) == SERVER )
     {
+      #ifdef DEBUG_1
+      printf( "close_connection: cleaning server connection client list\n" );
+      #endif
       if( connection->client_list != NULL )
       {
         free( connection->client_list );

@@ -224,7 +224,7 @@ static void* async_read_queue( void* args )
       continue;
     }
     
-	// Blocking call
+    // Blocking call
     if( (message_buffer = receive_message( reader )) != NULL )
     {
       if( message_buffer[0] == '\0' ) continue;
@@ -237,7 +237,7 @@ static void* async_read_queue( void* args )
       
       strcpy( last_message, message_buffer );
       
-	  // Mutex prevent index of the last (newest) message to be read before being incremented
+      // Mutex prevent index of the last (newest) message to be read before being incremented
       //LOCK_THREAD( read_lock );
       reader_buffer->read_queue.last++;
       //UNLOCK_THREAD( read_lock );
@@ -367,11 +367,11 @@ static void* async_accept_clients( void* args )
       continue;
     }
     
-	// Blocking call
+    // Blocking call
     if( (client = accept_client( server )) != NULL )
     {
-	  if( client->sockfd == 0 ) { printf( "async_accept_clients: no client\n" ); continue; }
-
+      if( client->sockfd == 0 ) continue;
+      
       client_address = get_address( client );
       
       #ifdef DEBUG_1
@@ -383,7 +383,7 @@ static void* async_accept_clients( void* args )
       
       sprintf( last_message, "%u %s %s", n_connections, &client_address[ HOST ], &client_address[ PORT ] );
       
-	  // Mutex prevent index of the last (newest) client string to be read before being incremented
+      // Mutex prevent index of the last (newest) client string to be read before being incremented
       //LOCK_THREAD( accept_lock );
       server_buffer->read_queue.last++;
       //UNLOCK_THREAD( accept_lock );
@@ -568,13 +568,13 @@ void close_async_connection( int connection_id )
     printf( "close_async_connection: waiting threads for connection id %u\n", connection_id );
     #endif
     
-    (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle );
+    (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle, 2000 );
     
     #ifdef DEBUG_1
     printf( "close_async_connection: read thread for connection id %u returned\n", connection_id );
     #endif
     
-    //(void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle );
+    //(void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle, 2000 );
     
     #ifdef DEBUG_1
     //printf( "close_async_connection: write thread for connection id %u returned\n", connection_id );

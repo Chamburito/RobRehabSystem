@@ -93,17 +93,21 @@ void exit_thread( uint32_t exit_code )
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t wait_thread_end( Thread_Handle handle )
+uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
 {
   static void* exit_code_ref = NULL;
+  static struct timespec timeout;
+  
+  timeout.tv_sec = (time_t) ( milisseconds / 1000 );
+  timeout.tv_nsec = (long) 1000000 * ( milisseconds % 1000 );
   
   #ifdef DEBUG_1
   printf( "wait_thread_end: waiting thread %x\n", handle );
   #endif
   
-  if( pthread_join( handle, &exit_code_ref ) != 0 )
+  if( pthread_timedjoin_np( handle, &exit_code_ref, &timeout ) != 0 )
   {
-    perror( "wait_thread_end: pthread_join: error waiting for thread end:" );
+    perror( "wait_thread_end: pthread_timedjoin_np: error waiting for thread end" );
     return 0;
   }
   
