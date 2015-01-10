@@ -26,7 +26,7 @@ end
 figure(1), b = bar( time_data, 'stacked' );
 set( b(1), 'FaceColor', 'blue', 'EdgeColor', 'black' );
 set( b(2), 'FaceColor', 'yellow', 'EdgeColor', 'black' );
-axis( [ 0 n_samples+1 0 400 ] );
+axis( [ 0 n_samples+1 0 250 ] );
 xlabel( 'Ordem de envios de mensagem inicial' );
 ylabel( 'Tempo de resposta (ms)' );
 
@@ -35,6 +35,6 @@ set( b(1), 'FaceColor', 'blue', 'EdgeColor', 'black' );
 set( b(2), 'FaceColor', 'green', 'EdgeColor', 'black' );
 set( b(3), 'FaceColor', 'red', 'EdgeColor', 'black' );
 set( b(4), 'FaceColor', 'yellow', 'EdgeColor', 'black' );
-axis( [ 0 n_samples+1 0 400 ] );
+axis( [ 0 n_samples+1 0 250 ] );
 xlabel( 'Ordem de envios de mensagem inicial' );
 ylabel( 'Número de chamadas' );
