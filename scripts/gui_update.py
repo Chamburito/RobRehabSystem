@@ -252,7 +252,7 @@ def receiveData():
       if logOutSamplesCount < logNSamples: receiveCallsNumber[ logOutSamplesCount ] += 1                                            # benchmark
       message = receiveMessage( dataClientId )
       if message is not None:
-         # print( 'Received message: ' + message )
+         print( 'Received message: ' + message )
          dataList = message.split(':')
          if len(dataList) >= 4:
             if dataList[0] == 'Axis Feedback':
