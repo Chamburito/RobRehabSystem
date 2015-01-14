@@ -13,6 +13,7 @@ extern "C"{
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define INFINITE 0xffffffff
 
@@ -27,6 +28,13 @@ extern "C"{
 // when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
 enum { DETACHED, JOINABLE };
 
+typedef struct _Controller
+{
+  pthread_t handle;
+  pthread_cond_t condition;
+  pthread_mutex_t lock;
+  void** result;
+} Controller;
 
 // Aliases for platform abstraction
 typedef pthread_t Thread_Handle;
@@ -94,14 +102,33 @@ void exit_thread( uint32_t exit_code )
   pthread_exit( &exit_code_storage );
 }
 
+// Waiter function to be called asyncronously
+static void* waiter( void *args )
+{
+    Controller* controller = (Controller*) args;
+	pthread_join( controller->handle, controller->result );
+    pthread_mutex_lock( &controller->lock );
+    pthread_mutex_unlock( &controller->lock );
+    pthread_cond_signal( &controller->condition );
+
+	pthread_exit( NULL );
+    return 0;
+}
+
 // Wait for the thread of the given manipulator to exit and return its exiting value
 uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
 {
   static void* exit_code_ref = NULL;
   static struct timespec timeout;
-  
-  timeout.tv_sec = (time_t) ( milisseconds / 1000 );
-  timeout.tv_nsec = (long) 1000000 * ( milisseconds % 1000 );
+  Controller controller;
+
+  clock_gettime( CLOCK_REALTIME, &timeout );
+
+  if( timeout.tv_sec + ( milisseconds / 1000 ) < INFINITE )
+  {
+    timeout.tv_sec += (time_t) ( milisseconds / 1000 );
+    timeout.tv_nsec += (long) 1000000 * ( milisseconds % 1000 );
+  }
   
   #ifdef DEBUG_1
   printf( "wait_thread_end: waiting thread %x\n", handle );

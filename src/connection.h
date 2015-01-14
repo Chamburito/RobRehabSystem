@@ -213,7 +213,6 @@ static Connection* accept_udp_client( Connection* );
 // Handle construction of a Connection structure with the defined properties
 static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_t type )
 {
-  int opt = BUFFER_SIZE;
   Connection* connection = (Connection*) malloc( sizeof(Connection) );
   connection->sockfd = sockfd;
   connection->type = type;
@@ -234,19 +233,7 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
     connection->send_message = send_message_all;
   }
   else
-  {
-    /*if( setsockopt( connection->sockfd, SOL_SOCKET, SO_RCVLOWAT, (const char*) &opt, sizeof(opt) ) == SOCKET_ERROR )
-    {
-      perror( "add_connection: error setting socket option SO_RCVLOWAT" );
-      return NULL;
-    }*/
-    // Not available
-    /*if( setsockopt( connection->sockfd, SOL_SOCKET, SO_SNDLOWAT, (const char*) &opt, sizeof(opt) ) == SOCKET_ERROR )
-    {
-      perror( "add_connection: error setting socket option SO_SNDLOWAT" );
-      return NULL;
-    }*/
-      
+  {   
     #ifdef DEBUG_1
     printf( "add_connection: connection added:\n" );
     printf( "\tfamily: %u\n", connection->address->sin6_family );
