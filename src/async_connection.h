@@ -225,8 +225,9 @@ static void* async_read_queue( void* args )
     }
     
     // Blocking call
-	if( wait_message( reader, 2000 ) != 0 ) {
-		printf( "async_read_queue: message available\n" );
+	if( wait_message( reader, 2000 ) != 0 ) 
+	{
+	  printf( "async_read_queue: message available\n" );
     if( (message_buffer = receive_message( reader )) != NULL )
     {
       if( message_buffer[0] == '\0' ) continue;
@@ -371,8 +372,9 @@ static void* async_accept_clients( void* args )
     }
     
     // Blocking call
-	if( wait_message( server, 5000 ) != 0 ) {
-		printf( "async_accept_clients: client available\n" );
+	if( wait_message( server, 5000 ) != 0 ) 
+	{
+      printf( "async_accept_clients: client available\n" );
     if( (client = accept_client( server )) != NULL )
     {
       if( client->sockfd == 0 ) continue;
@@ -574,13 +576,13 @@ void close_async_connection( int connection_id )
     printf( "close_async_connection: waiting threads for connection id %u\n", connection_id );
     #endif
     
-    (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle, 2000 );
+    (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle, INFINITE );
     
     #ifdef DEBUG_1
     printf( "close_async_connection: read thread for connection id %u returned\n", connection_id );
     #endif
     
-    //(void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle, 2000 );
+    //(void) wait_thread_end( buffer_list[ connection_id ]->write_queue.handle, INFINITE );
     
     #ifdef DEBUG_1
     //printf( "close_async_connection: write thread for connection id %u returned\n", connection_id );

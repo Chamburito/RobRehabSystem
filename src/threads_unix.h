@@ -100,7 +100,7 @@ uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
   static void* exit_code_ref = NULL;
   static struct timespec timeout;
   
-  timeout.tv_sec = (time_t) INFINITE /*( milisseconds / 1000 )*/;
+  timeout.tv_sec = (time_t) ( milisseconds / 1000 );
   timeout.tv_nsec = (long) 1000000 * ( milisseconds % 1000 );
   
   #ifdef DEBUG_1

@@ -1,11 +1,13 @@
-﻿Build started 14/01/2015 15:39:39.
-     1>Project "E:\Leonardo Jose\RobRehabSystem\Rehab_Gui\Rehab_Gui.vcxproj" on node 2 (build target(s)).
-     1>InitializeBuildStatus:
+﻿Build started 14/01/2015 16:50:53.
+     1>Project "E:\Leonardo Jose\RobRehabSystem\Rehab_Gui\Rehab_Gui.vcxproj" on node 2 (rebuild target(s)).
+     1>_PrepareForClean:
+         Deleting file "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.lastbuildstate".
+       InitializeBuildStatus:
          Creating "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.unsuccessfulbuild" because "AlwaysCreate" was specified.
        ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /IC:\Python34\include /I"E:\Leonardo Jose\RobRehabSystem\src" /I"E:\Leonardo Jose\RobRehabSystem\src" /IC:\Python34\include /Zi /nologo /W3 /WX- /Ox /Oi /Oy- /GL /D NIXNET /D WIN32 /D _MBCS /D NIXNET /D WIN32 /D _MBCS /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"E:\Leonardo Jose\RobRehabSystem\\" /Fd"E:\Leonardo Jose\RobRehabSystem\\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt ..\src\gui_main.cpp
          gui_main.cpp
-     1>e:\leonardo jose\robrehabsystem\src\connection.h(667): warning C4101: 'bytes_received' : unreferenced local variable
+     1>e:\leonardo jose\robrehabsystem\src\connection.h(672): warning C4101: 'bytes_received' : unreferenced local variable
      1>e:\leonardo jose\robrehabsystem\src\script_network.h(128): warning C4101: 'connection_id' : unreferenced local variable
      1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(147): warning C4003: not enough actual parameters for macro 'close'
      1>C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\fstream(182): warning C4003: not enough actual parameters for macro 'close'
@@ -39,8 +41,8 @@
        FinalizeBuildStatus:
          Deleting file "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.unsuccessfulbuild".
          Touching "E:\Leonardo Jose\RobRehabSystem\\Rehab_Gui.lastbuildstate".
-     1>Done Building Project "E:\Leonardo Jose\RobRehabSystem\Rehab_Gui\Rehab_Gui.vcxproj" (build target(s)).
+     1>Done Building Project "E:\Leonardo Jose\RobRehabSystem\Rehab_Gui\Rehab_Gui.vcxproj" (rebuild target(s)).
 
 Build succeeded.
 
-Time Elapsed 00:00:02.20
+Time Elapsed 00:00:01.64

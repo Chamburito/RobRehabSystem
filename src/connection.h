@@ -385,7 +385,12 @@ Connection* open_connection( const char* host, const char* port, int protocol )
       return NULL;
     }
     #else
-	fcntl( sockfd, F_SETFL, O_NONBLOCK );
+	if( fcntl( sockfd, F_SETFL, O_NONBLOCK ) == SOCKET_ERROR )
+	{
+	  perror( "open_connection: fcntl: error setting socket option O_NONBLOCK" );
+	  close( sockfd );
+      return NULL;
+	}
     #endif
 
     rw = 1;
