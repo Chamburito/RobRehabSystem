@@ -225,6 +225,8 @@ static void* async_read_queue( void* args )
     }
     
     // Blocking call
+	if( wait_message( reader, 2000 ) != 0 ) {
+		printf( "async_read_queue: message available\n" );
     if( (message_buffer = receive_message( reader )) != NULL )
     {
       if( message_buffer[0] == '\0' ) continue;
@@ -244,6 +246,7 @@ static void* async_read_queue( void* args )
     }
     else
       break;
+	}
   }
   
   exit_thread( 0 );
@@ -368,6 +371,8 @@ static void* async_accept_clients( void* args )
     }
     
     // Blocking call
+	if( wait_message( server, 5000 ) != 0 ) {
+		printf( "async_accept_clients: client available\n" );
     if( (client = accept_client( server )) != NULL )
     {
       if( client->sockfd == 0 ) continue;
@@ -400,6 +405,7 @@ static void* async_accept_clients( void* args )
     }
     else
       break;
+	}
   }
   
   exit_thread( 2 );

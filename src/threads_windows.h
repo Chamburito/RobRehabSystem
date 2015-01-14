@@ -101,7 +101,7 @@ uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
   printf( "wait_thread_end: waiting thread %x\n", handle );
   #endif
 
-  exit_status = WaitForSingleObject( handle, (DWORD) milisseconds );
+  exit_status = WaitForSingleObject( handle, INFINITE /*(DWORD) milisseconds*/ );
   if( exit_status == WAIT_FAILED )
   {
     fprintf( stderr, "wait_thread_end: WaitForSingleObject: error waiting for thread end: code: %x\n", GetLastError() );

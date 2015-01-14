@@ -13,6 +13,7 @@ extern "C"{
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
   
 #ifdef WIN32
   
@@ -215,7 +216,6 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
   int opt = BUFFER_SIZE;
   Connection* connection = (Connection*) malloc( sizeof(Connection) );
   connection->sockfd = sockfd;
-  FD_SET( connection->sockfd, &socket_read_fds );
   connection->type = type;
 
   #ifdef DEBUG_1
@@ -223,7 +223,7 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
   #endif
   
   connection->address = (struct sockaddr_in6*) malloc( sizeof(struct sockaddr_in6) );
-    *(connection->address) = *((struct sockaddr_in6*) address);
+  *(connection->address) = *((struct sockaddr_in6*) address);
   connection->ref_connections_count = (size_t*) malloc( sizeof(size_t) );
   *(connection->ref_connections_count) = 0;
   
@@ -376,11 +376,23 @@ Connection* open_connection( const char* host, const char* port, int protocol )
       continue;
     }
     
+    #ifdef WIN32
+	rw = 1;
+	if( ioctlsocket( sockfd, FIONBIO, (u_long*) &rw ) == SOCKET_ERROR )
+	{
+	  fprintf( stderr, "open_connection: ioctlsocket: error setting socket option FIONBIO: code: %d\n", WSAGetLastError() );
+      close( sockfd );
+      return NULL;
+    }
+    #else
+	fcntl( sockfd, F_SETFL, O_NONBLOCK );
+    #endif
+
     rw = 1;
     // Allow sockets to be binded to the same local port
     if( setsockopt( sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR ) 
     {
-      print_socket_error( "open_connection: setsockopt: error setting socket options SO_REUSEADDR" );
+      print_socket_error( "open_connection: setsockopt: error setting socket option SO_REUSEADDR" );
       close( sockfd );
       return NULL;
     }
@@ -393,7 +405,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
       // Let IPV6 servers accept IPV4 clients
       if( setsockopt( sockfd, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR )
       {
-        print_socket_error( "open_connection: setsockopt: error setting socket options IPV6_V6ONLY" );
+        print_socket_error( "open_connection: setsockopt: error setting socket option IPV6_V6ONLY" );
         close( sockfd );
         return NULL;
       }
@@ -469,13 +481,17 @@ inline Connection* accept_client( Connection* c ) { return c->accept_client( c )
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
 short wait_message( Connection* connection, unsigned int milisseconds )
 {
+  fd_set read_fds;
   struct timeval timeout;
   int n_changes;
-  
+
+  FD_ZERO( &read_fds );
+  FD_SET( connection->sockfd, &read_fds );
+
   timeout.tv_sec = milisseconds / 1000;
   timeout.tv_usec =  1000 * ( milisseconds % 1000 );
   
-  n_changes = select( connection->sockfd + 1, &socket_read_fds, NULL, NULL, &timeout );
+  n_changes = select( connection->sockfd + 1, &read_fds, NULL, NULL, &timeout );
   if( n_changes == SOCKET_ERROR )
   {
     print_socket_error( "wait_message: select: error waiting for message" );
@@ -484,7 +500,7 @@ short wait_message( Connection* connection, unsigned int milisseconds )
   else if( n_changes == 0 )
     return 0;
   
-  if( FD_ISSET( connection->sockfd, &socket_read_fds ) )
+  if( FD_ISSET( connection->sockfd, &read_fds ) )
     return 1;
   else
     return 0;
