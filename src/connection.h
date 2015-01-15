@@ -213,6 +213,7 @@ static Connection* accept_udp_client( Connection* );
 // Handle construction of a Connection structure with the defined properties
 static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_t type )
 {
+  int opt;
   Connection* connection = (Connection*) malloc( sizeof(Connection) );
   connection->sockfd = sockfd;
   connection->type = type;

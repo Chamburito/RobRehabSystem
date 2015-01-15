@@ -14,6 +14,7 @@ extern "C"{
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <errno.h>
 
 #define INFINITE 0xffffffff
 
@@ -33,7 +34,7 @@ typedef struct _Controller
   pthread_t handle;
   pthread_cond_t condition;
   pthread_mutex_t lock;
-  void** result;
+  void* result;
 } Controller;
 
 // Aliases for platform abstraction
@@ -78,12 +79,12 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
   
   if( mode == JOINABLE )
   {
-	handle_list = (pthread_t*) realloc( handle_list, ( n_handles + 1 ) * sizeof(pthread_t) );
-	handle_list[ n_handles ] = handle;
-	n_handles++;
+    handle_list = (pthread_t*) realloc( handle_list, ( n_handles + 1 ) * sizeof(pthread_t) );
+    handle_list[ n_handles ] = handle;
+    n_handles++;
   }
   else if( mode == DETACHED ) 
-	pthread_detach( handle );
+    pthread_detach( handle );
 
   return handle;
 }
@@ -105,22 +106,24 @@ void exit_thread( uint32_t exit_code )
 // Waiter function to be called asyncronously
 static void* waiter( void *args )
 {
-    Controller* controller = (Controller*) args;
-	pthread_join( controller->handle, controller->result );
-    pthread_mutex_lock( &controller->lock );
-    pthread_mutex_unlock( &controller->lock );
-    pthread_cond_signal( &controller->condition );
+  Controller* controller = (Controller*) args;
+    
+  pthread_join( controller->handle, &(controller->result) );
+  pthread_mutex_lock( &(controller->lock) );
+  pthread_mutex_unlock( &(controller->lock) );
+  pthread_cond_signal( &(controller->condition) );
 
-	pthread_exit( NULL );
-    return 0;
+  pthread_exit( NULL );
+  return 0;
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
 uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
 {
-  static void* exit_code_ref = NULL;
   static struct timespec timeout;
-  Controller controller;
+  pthread_t control_handle;
+  Controller control_args = { handle };
+  int control_result;
 
   clock_gettime( CLOCK_REALTIME, &timeout );
 
@@ -130,30 +133,46 @@ uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
     timeout.tv_nsec += (long) 1000000 * ( milisseconds % 1000 );
   }
   
+  pthread_mutex_init( &(control_args.lock), 0 );
+  pthread_cond_init( &(control_args.condition), 0 );
+  pthread_mutex_lock( &(control_args.lock) );
+
+  if( pthread_create( &control_handle, NULL, waiter, (void*) &control_args ) != 0 )
+  {
+    perror( "wait_thread_end: pthread_create: error creating waiter thread:" );
+    return 0;
+  }
+  
   #ifdef DEBUG_1
   printf( "wait_thread_end: waiting thread %x\n", handle );
   #endif
   
-  if( pthread_timedjoin_np( handle, &exit_code_ref, &timeout ) != 0 )
-  {
-    perror( "wait_thread_end: pthread_timedjoin_np: error waiting for thread end" );
-    return 0;
-  }
+  do control_result = pthread_cond_timedwait( &(control_args.condition), &(control_args.lock), &timeout );
+  while( control_args.result != NULL && control_result != ETIMEDOUT );
+
+  pthread_cancel( control_handle );
+  pthread_join( control_handle, NULL );
+
+  pthread_cond_destroy( &(control_args.condition) );
+  pthread_mutex_destroy( &(control_args.lock) );
   
   #ifdef DEBUG_1
-  printf( "wait_thread_end: thread returned\n" );
+  printf( "wait_thread_end: waiter thread exited\n" );
   #endif
   
-  if( exit_code_ref != NULL )
+  if( control_args.result != NULL )
   {
     #ifdef DEBUG_1
-    printf( "wait_thread_end: thread exit code: %u\n", *((uint32_t*) exit_code_ref) );
+    printf( "wait_thread_end: thread exit code: %u\n", *((uint32_t*) (control_args.result)) );
     #endif
     
-    return *((uint32_t*) exit_code_ref);
+    return *((uint32_t*) (control_args.result));
   }
-  else
-    return 0;
+  #ifdef DEBUG_1
+  else printf( "wait_thread_end: waiting thread timed out\n" );
+  #endif
+  
+  return 0;
 }
 
 // Returns number of running threads (method for encapsulation purposes)
@@ -171,7 +190,11 @@ void end_threading()
     pthread_mutex_destroy( &(lock_list[ id ]) );
   
   for( id = 0; id < n_handles; id++ )
-    pthread_detach( handle_list[ id ] );
+  {
+    pthread_cancel( handle_list[ id ] );
+    pthread_join( handle_list[ id ], NULL );
+    //pthread_detach( handle_list[ id ] );
+  }
   
   return;
 }

@@ -5,7 +5,6 @@
 # *.[oa]
 # *~
 
-data/{message,send,receive}*.txt
 data/message_dispatch_times.txt
 data/message_response_times.txt
 data/receive_calls_client.txt

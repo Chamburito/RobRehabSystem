@@ -576,7 +576,7 @@ void close_async_connection( int connection_id )
     printf( "close_async_connection: waiting threads for connection id %u\n", connection_id );
     #endif
     
-    (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle, INFINITE );
+    (void) wait_thread_end( buffer_list[ connection_id ]->read_queue.handle, 5000 );
     
     #ifdef DEBUG_1
     printf( "close_async_connection: read thread for connection id %u returned\n", connection_id );

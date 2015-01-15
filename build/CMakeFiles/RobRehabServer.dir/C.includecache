@@ -25,6 +25,8 @@ stdlib.h
 -
 string.h
 -
+fcntl.h
+-
 winsock2.h
 -
 ws2tcpip.h
@@ -74,6 +76,10 @@ pthread.h
 stdio.h
 -
 stdlib.h
+-
+time.h
+-
+errno.h
 -
 
 /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/threads_windows.h
