@@ -86,13 +86,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\src\async_connection.h" />
-    <ClInclude Include="..\src\Axis.h" />
-    <ClInclude Include="..\src\CANFrame.h" />
+    <ClInclude Include="..\src\axis.h" />
+    <ClInclude Include="..\src\can_frame.h" />
     <ClInclude Include="..\src\connection.h" />
-    <ClInclude Include="..\src\constantes_quadril.h" />
     <ClInclude Include="..\src\control.h" />
-    <ClInclude Include="..\src\declarations.h" />
-    <ClInclude Include="..\src\EPOSNetwork.h" />
+    <ClInclude Include="..\src\epos_network.h" />
     <ClInclude Include="..\src\nixnet.h" />
     <ClInclude Include="..\src\script_network.h" />
     <ClInclude Include="..\src\threads_unix.h" />

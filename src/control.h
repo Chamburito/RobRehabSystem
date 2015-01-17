@@ -1,95 +1,36 @@
 #ifndef CONTROL_H
 #define CONTROL_H
 
-#include "Axis.h"
-#include "EPOSNetwork.h"
-
-#ifdef WIN32
-  #include "timing_windows.h"
-  #include "threads_windows.h"
-#else
-  #include "timing_unix.h"
-  #include "threads_unix.h"
-#endif
-
+#include "axis.h"
+#include "epos_network.h"
+#include "threads_windows.h"
 #include <cmath>
 #include <iostream>
+
 using namespace std;
   
-enum { HIPS = 2, KNEE = 1, ANKLE = 0 };		// Índices dos algoritmos de controle
+enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };		// Índices dos algoritmos de controle
 
 /////////////////////////////////////////////////////////////////////////////////
-////////// DISPOSITIVOS DE CONTROLE /////////////////////////////////////////////
+/////                       DISPOSITIVOS DE CONTROLE                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-    //ENDEREÇAMENTO DA BASE DE DADOS CAN
-    const char *CAN_DATABASE = "database";
-    const char *CAN_CLUSTER = "NETCAN";
+//ENDEREÇAMENTO DA BASE DE DADOS CAN
+const char *CAN_DATABASE = "database";
+const char *CAN_CLUSTER = "NETCAN";
     
-    const char *NET_ID_SERVO_01 = "1";
-    const char *NET_ID_SERVO_02 = "2";
-    const char *NET_ID_SERVO_03 = "3";
+const char *NET_ID_SERVO_01 = "1";
+const char *NET_ID_SERVO_02 = "2";
+const char *NET_ID_SERVO_03 = "3";
 
-    //INICIALIZAÇÃO DA REDE CAN
-    EPOSNetwork eposNetwork( CAN_DATABASE, CAN_CLUSTER );
+//INICIALIZAÇÃO DA REDE CAN
+EPOSNetwork eposNetwork( CAN_DATABASE, CAN_CLUSTER );
 
-    //INICIALIZAÇÃO DAS EPOS
-    const int N_EPOS = 3;
-    Axis EPOS[ N_EPOS ] = { Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_01 ),
-                          Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_02 ),
-                          Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_03 ) };
-
-void EnableAxis( int id )
-{  
-  if( id < 0 || id >= N_EPOS )
-    return;
-  
-  EPOS[ id ].PDOsetControlWord( SWITCH_ON, false );
-  EPOS[ id ].PDOsetControlWord( ENABLE_VOLTAGE, true );
-  EPOS[ id ].PDOsetControlWord( QUICK_STOP, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_OPERATION, false );
-  EPOS[ id ].WritePDO01();
-        
-  delay( 500 );
-        
-  EPOS[ id ].PDOsetControlWord( SWITCH_ON, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_VOLTAGE, true );
-  EPOS[ id ].PDOsetControlWord( QUICK_STOP, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_OPERATION, false );
-  EPOS[ id ].WritePDO01();
-		
-  delay( 500 );
-        
-  EPOS[ id ].PDOsetControlWord( SWITCH_ON, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_VOLTAGE, true );
-  EPOS[ id ].PDOsetControlWord( QUICK_STOP, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_OPERATION, true );
-  EPOS[ id ].WritePDO01();
-
-  EPOS[id].active = true;
-}
-
-void DisableAxis( int id )
-{        
-  if( id < 0 || id >= N_EPOS )
-    return;
-  
-  EPOS[ id ].PDOsetControlWord( SWITCH_ON, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_VOLTAGE, true );
-  EPOS[ id ].PDOsetControlWord( QUICK_STOP, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_OPERATION, false );
-  EPOS[ id ].WritePDO01();
-        
-  delay( 500 );
-        
-  EPOS[ id ].PDOsetControlWord( SWITCH_ON, false );
-  EPOS[ id ].PDOsetControlWord( ENABLE_VOLTAGE, true );
-  EPOS[ id ].PDOsetControlWord( QUICK_STOP, true );
-  EPOS[ id ].PDOsetControlWord( ENABLE_OPERATION, false );
-  EPOS[ id ].WritePDO01();
-
-  EPOS[ id ].active = false;
-}
+//INICIALIZAÇÃO DAS EPOS
+const int N_EPOS = 3;
+Axis EPOS[ N_EPOS ] = { Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_01 ),
+                      Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_02 ),
+                      Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_03 ) };
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -170,7 +111,7 @@ void* hipsControl( void* args )
     double Fl = -Ks_1 * ( refPosition - position ); // N
 
     //thetad_q = epos->GetSetpoint();
-	thetad_q = epos->PDOgetValue( POSITION_SETPOINT );
+    thetad_q = epos->PDOgetValue( POSITION_SETPOINT );
     cout << "Angle setpoint: " << thetad_q << endl;
 
     //-------- Mecanismo de 4 barras do quadril [metros] --------
@@ -233,10 +174,10 @@ void* hipsControl( void* args )
 ////////// CONSTANTES JOELHO ////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
-const int N = 150;						  // Redução do sistema
-const int ENCODER_IN_RES = 4096;			  // Resolução do encoder do motor
+const int N = 150;						            // Redução da junta
+const int ENCODER_IN_RES = 4096;			    // Resolução do encoder do motor
 const int ENCODER_OUT_RES = 2000;		      // Resolução do encoder de saída
-const int Ks = 104;						  // Constante elástica
+const int Ks = 104;						            // Constante elástica
 
 const double a2 = -0.9428;
 const double a3 = 0.3333;

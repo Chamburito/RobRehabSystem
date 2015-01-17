@@ -7,42 +7,34 @@
  * Created on 26 de Janeiro de 2012, 19:34
  */
 
-
-#include "CANFrame.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <fstream>
-#include <string>
-#include <time.h>
-#include <vector>
-
-#define HOMMING_MODE  0x06
-#define PROFILE_VELOCITY_MODE  0x03
-#define PROFILE_POSITION_MODE  0x01
-#define POSITION_MODE  0xFF
-#define VELOCITY_MODE 0xFE
-#define CURRENT_MODE 0xFD
-#define MASTER_ENCODER_MODE 0xFB
-#define STEP_MODE 0xFA
-
-
 #ifndef AXIS_H
 #define	AXIS_H
 
-enum { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAULT = 8, VOLTAGE_ENABLED = 16,
+#include "can_frame.h"
+#include "timing_windows.h"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+
+using namespace std;
+
+enum OperationMode { HOMMING_MODE = 0x06, PROFILE_VELOCITY_MODE = 0x03, PROFILE_POSITION_MODE = 0x01,
+	POSITION_MODE = 0xFF, VELOCITY_MODE = 0xFE, CURRENT_MODE = 0xFD, MASTER_ENCODER_MODE = 0xFB, STEP_MODE = 0xFA };
+
+enum StatusWord { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAULT = 8, VOLTAGE_ENABLED = 16,
 	QUICK_STOPPED = 32, SWITCH_ON_DISABLE = 64, REMOTE_NMT = 512, TARGET_REACHED = 1024, SETPOINT_ACK = 4096 };
 
-enum { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, NEW_SETPOINT = 16,
+enum ControlWord { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, NEW_SETPOINT = 16,
 	CHANGE_IMMEDIATEDLY = 32, ABS_REL = 64, FAULT_RESET = 128, HALT = 256 };
 	
-enum { POSITION, POSITION_SETPOINT, VELOCITY, VELOCITY_SETPOINT, CURRENT, TENSION, ANGLE, ANGLE_SETPOINT, FORCE, N_DIMS }; 
+enum Dimension { POSITION, POSITION_SETPOINT, VELOCITY, VELOCITY_SETPOINT, CURRENT, TENSION, ANGLE, ANGLE_SETPOINT, FORCE, N_DIMS }; 
 
-enum { KP, KD, N_PARAMS }; 
+enum Parameter { KP, KD, N_PARAMS }; 
 
 class Axis
 {
-
-    private:
+  private:
 
 	//FRAMES DA REDE CAN
 	CANFrame SDO_TX, SDO_RX, PDO01_RX, PDO01_TX, PDO02_RX, PDO02_TX;
@@ -53,74 +45,120 @@ class Axis
 
 	vector<double> setpoints;
 
-    public:
-      
-      bool active;
+  public:
 
-    double PDOgetValue( unsigned int index )
-    {
-		if( index >= N_DIMS )
-		{
-			fprintf( stderr, "PDOgetValue: invalid value index: %d\n", index );
-			return 0;
-		}
-      
-		return dimensionValue[ index ];
+  bool active;
+
+	void Enable()
+    {  
+      PDOsetControlWord( SWITCH_ON, false );
+      PDOsetControlWord( ENABLE_VOLTAGE, true );
+      PDOsetControlWord( QUICK_STOP, true );
+      PDOsetControlWord( ENABLE_OPERATION, false );
+      WritePDO01();
+        
+      delay( 500 );
+        
+      PDOsetControlWord( SWITCH_ON, true );
+      PDOsetControlWord( ENABLE_VOLTAGE, true );
+      PDOsetControlWord( QUICK_STOP, true );
+      PDOsetControlWord( ENABLE_OPERATION, false );
+      WritePDO01();
+		
+      delay( 500 );
+        
+      PDOsetControlWord( SWITCH_ON, true );
+      PDOsetControlWord( ENABLE_VOLTAGE, true );
+      PDOsetControlWord( QUICK_STOP, true );
+      PDOsetControlWord( ENABLE_OPERATION, true );
+      WritePDO01();
+
+      active = true;
     }
 
-    void PDOsetValue( unsigned int index, double value )
+    void Disable()
+    {          
+      PDOsetControlWord( SWITCH_ON, true );
+      PDOsetControlWord( ENABLE_VOLTAGE, true );
+      PDOsetControlWord( QUICK_STOP, true );
+      PDOsetControlWord( ENABLE_OPERATION, false );
+      WritePDO01();
+        
+      delay( 500 );
+        
+      PDOsetControlWord( SWITCH_ON, false );
+      PDOsetControlWord( ENABLE_VOLTAGE, true );
+      PDOsetControlWord( QUICK_STOP, true );
+      PDOsetControlWord( ENABLE_OPERATION, false );
+      WritePDO01();
+
+      active = false;
+    }
+
+    double PDOgetValue( Dimension index )
     {
-		if( index >= N_DIMS )
-		{
-			fprintf( stderr, "PDOsetValue: invalid value index: %d\n", index );
-			return;
-		}
+      if( index >= N_DIMS )
+      {
+        fprintf( stderr, "PDOgetValue: invalid value index: %d\n", index );
+        return 0;
+      }
       
-		dimensionValue[ index ] = value;
+      return dimensionValue[ index ];
+    }
+
+    void PDOsetValue( Dimension index, double value )
+    {
+      if( index >= N_DIMS )
+      {
+        fprintf( stderr, "PDOsetValue: invalid value index: %d\n", index );
+        return;
+      }
+      
+      dimensionValue[ index ] = value;
 	
-		return;
+      return;
     }
       
-    double GetControlValue( unsigned int index )
+    double GetControlValue( Parameter index )
     {
-		if( index >= N_PARAMS )
-		{
-			fprintf( stderr, "GetParameterValue: invalid value index: %d\n", index );
-			return 0;
-		}
+      if( index >= N_PARAMS )
+      {
+        fprintf( stderr, "GetParameterValue: invalid value index: %d\n", index );
+        return 0;
+      }
       
-		return controlValue[ index ];
+      return controlValue[ index ];
     }
 
-    void SetControlValue( unsigned int index, double value )
+    void SetControlValue( Parameter index, double value )
     {
-		if( index >= N_PARAMS )
-		{
-			fprintf( stderr, "SetParameterValue: invalid value index: %d\n", index );
-			return;
-		}
+      if( index >= N_PARAMS )
+      {
+        fprintf( stderr, "SetParameterValue: invalid value index: %d\n", index );
+        return;
+      }
       
-		controlValue[ index ] = value;
+      controlValue[ index ] = value;
 	
-		return;
+      return;
     }
 
     void PDOsetOutput( int state )
     {
-	    if (state > 0) output = 0x2000;
-	    else output = 0x0000;
+      if (state > 0) output = 0x2000;
+      else output = 0x0000;
     }
 	    
-    bool PDOgetStatusWord( unsigned int index )
+    bool PDOgetStatusWord( StatusWord index )
     {
-		if( (statusWord & index) > 0 ) return true;
-		else return false;
+      if( (statusWord & index) > 0 ) return true;
+      else return false;
     }
 
-    void PDOsetControlWord( unsigned int index, bool state )
+    void PDOsetControlWord( ControlWord index, bool state )
     {
-		if( state ) controlWord = controlWord | index;
-		else controlWord = controlWord & (~index);
+      if( state ) controlWord = controlWord | index;
+      else controlWord = controlWord & (~index);
     }
 
 
@@ -129,220 +167,208 @@ class Axis
     //Construtor da classe
     Axis( string selectedDatabase, string selectedCluster, string netAddress ) 
     {
-		active = false;
-		  //Inicializa variaveis
-		int i;
-		for( i = 0; i < N_DIMS; i++ )
-			dimensionValue[ i ] = 0.0;
-		for( i = 0; i < N_PARAMS; i++ )
-			controlValue[ i ] = 10.0;
+      //Inicializa variaveis
+      for( int i = 0; i < N_DIMS; i++ )
+        dimensionValue[ i ] = 0.0;
+      for( int i = 0; i < N_PARAMS; i++ )
+        controlValue[ i ] = 10.0;
 
-		  //CRIA E INICIALIZA OS CAN FRAMES PARA O EIXO
+      //CRIA E INICIALIZA OS CAN FRAMES PARA O EIXO
 	
-		string temp;
+      string temp;
 	
-		temp = "SDO_TX_0";
-		temp += netAddress;
-		SDO_TX.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, temp ); //11
+      temp = "SDO_TX_0";
+      temp += netAddress;
+      SDO_TX.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, temp ); //11
 		    
-		temp = "SDO_RX_0";
-		temp += netAddress;
-		SDO_RX.Init( nxMode_FrameInSinglePoint, "CAN1", selectedDatabase, selectedCluster, temp ); //8
+      temp = "SDO_RX_0";
+      temp += netAddress;
+      SDO_RX.Init( nxMode_FrameInSinglePoint, "CAN1", selectedDatabase, selectedCluster, temp ); //8
 
-		temp = "PDO01_TX_0";
-		temp += netAddress;
-		PDO01_TX.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, temp ); //11
+      temp = "PDO01_TX_0";
+      temp += netAddress;
+      PDO01_TX.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, temp ); //11
 	    
-		temp = "PDO01_RX_0";
-		temp += netAddress;
-		PDO01_RX.Init( nxMode_FrameInSinglePoint, "CAN1", selectedDatabase, selectedCluster, temp ); //8
+      temp = "PDO01_RX_0";
+      temp += netAddress;
+      PDO01_RX.Init( nxMode_FrameInSinglePoint, "CAN1", selectedDatabase, selectedCluster, temp ); //8
 		    
-		temp = "PDO02_TX_0";
-		temp += netAddress;
-		PDO02_TX.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, temp ); //11
+      temp = "PDO02_TX_0";
+      temp += netAddress;
+      PDO02_TX.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, temp ); //11
 
-		temp = "PDO02_RX_0";
-		temp += netAddress;
-		PDO02_RX.Init( nxMode_FrameInSinglePoint, "CAN1", selectedDatabase, selectedCluster, temp ); //8
+      temp = "PDO02_RX_0";
+      temp += netAddress;
+      PDO02_RX.Init( nxMode_FrameInSinglePoint, "CAN1", selectedDatabase, selectedCluster, temp ); //8
 
+      Disable();
     }
     
     virtual ~Axis()
     {
-        active = false;
-		setpoints.clear();
+      Disable();
+      setpoints.clear();
     }
 	    
 	void ReadSetpoints( string fileName )
 	{
-		fstream file;
-		file.open( fileName.c_str() );
+      fstream file;
+      file.open( fileName.c_str() );
 
-		double setpoint;
+      setpoints.clear();
 
-		setpoints.clear();
+      double setpoint;
+      while( file >> setpoint )
+        setpoints.push_back( setpoint );
 
-		while( file >> setpoint )
-		{
-			setpoints.push_back( setpoint );
-		}
+      //setpoints.push_back( 0.0 );
 
-		//setpoints.push_back( 0.0 );
-
-		file.close();
+      file.close();
 	}
 
 	double GetSetpoint()
 	{
-		static int index;
+      static int index;
 
-		return setpoints[ (index++) % (int) setpoints.size() ];
+      return setpoints[ (index++) % (int) setpoints.size() ];
 	}
 
     //Realiza a leitura do PDO01 - Posição e Corrente
     void ReadPDO01()
     {    
-	    static u8 readPayload[8];
-		PDO01_RX.Read( readPayload );
+      static u8 readPayload[8];
+      PDO01_RX.Read( readPayload );
 	    
-		//ATUALIZA O VALOR DE POSIÇÃO
-		/*actualPosition*/dimensionValue[ POSITION ] = readPayload[3]*0x1000000 + readPayload[2]*0x10000 + readPayload[1]*0x100 + readPayload[0];
+      //ATUALIZA O VALOR DE POSIÇÃO
+      dimensionValue[ POSITION ] = readPayload[3] * 0x1000000 + readPayload[2] * 0x10000 + readPayload[1] * 0x100 + readPayload[0];
 	    
-		//ATUALIZA O VALOR DE CORRENTE
-		/*actualCurrent*/dimensionValue[ CURRENT ] = readPayload[5]*0x100 + readPayload[4];
+      //ATUALIZA O VALOR DE CORRENTE
+      dimensionValue[ CURRENT ] = readPayload[5] * 0x100 + readPayload[4];
 
-		//ATUALIZA A STATUS WORD
-		statusWord = readPayload[7]*0x100 + readPayload[6];
-
+      //ATUALIZA A STATUS WORD
+      statusWord = readPayload[7] * 0x100 + readPayload[6];
     }
 
     //Realiza a leitura do PDO02 - Velocidade
     void ReadPDO02()
     {
-	    static u8 readPayload[8];
-		PDO02_RX.Read( readPayload );
+      static u8 readPayload[8];
+      PDO02_RX.Read( readPayload );
 	    
-		//ATUALIZA O VALOR DE POSIÇÃO
-		/*actualVelocity*/dimensionValue[ VELOCITY ] = readPayload[3]*0x1000000 + readPayload[2]*0x10000 + readPayload[1]*0x100 + readPayload[0];
+      //ATUALIZA O VALOR DE POSIÇÃO
+      dimensionValue[ VELOCITY ] = readPayload[3] * 0x1000000 + readPayload[2] * 0x10000 + readPayload[1] * 0x100 + readPayload[0];
 	
-		//ATUALIZA O VALOR DA ANNALÓGICA 01
-		/*analogInput_01*/dimensionValue[ TENSION ] = readPayload[5]*0x100 + readPayload[4];
-	
-		//ATUALIZA O VALOR DA ANALÓGIA 02
-		///*analogInput_02*/dimensionValue[ ANALOG_02 ] = readPayload[7]*0x100 + readPayload[6];
-
+      //ATUALIZA O VALOR DA ANNALÓGICA 01
+      dimensionValue[ TENSION ] = readPayload[5] * 0x100 + readPayload[4];
     }
 
     //Método de escrita do PDO01 - Setpoint de posição e corrente
     void WritePDO01()
     {	    
-	//MONTA O PAYLOAD DE WRITE
-	    static u8 writePayload[8];
-	writePayload[0] = ( /*positionSetpoint*/(int)dimensionValue[ POSITION_SETPOINT ] & 0x000000ff );
-	writePayload[1] = ( /*positionSetpoint*/(int)dimensionValue[ POSITION_SETPOINT ] & 0x0000ff00 ) / 0x100;
-	writePayload[2] = ( /*positionSetpoint*/(int)dimensionValue[ POSITION_SETPOINT ] & 0x00ff0000 ) / 0x10000;
-	writePayload[3] = ( /*positionSetpoint*/(int)dimensionValue[ POSITION_SETPOINT ] & 0xff000000 ) / 0x1000000;
-	writePayload[4] = ( /*currentSetpoint*//*(int)dimensionValue[ CURRENT_SETPOINT ]*/0 & 0x000000ff );
-	writePayload[5] = ( /*currentSetpoint*//*(int)dimensionValue[ CURRENT_SETPOINT ]*/0 & 0x0000ff00 ) / 0x100; 
-	writePayload[6] = ( controlWord & 0x000000ff );
-	writePayload[7] = ( controlWord & 0x0000ff00 ) / 0x100; 
+      //MONTA O PAYLOAD DE WRITE
+      static u8 writePayload[8];
+      writePayload[0] = ( (int) dimensionValue[ POSITION_SETPOINT ] & 0x000000ff );
+      writePayload[1] = ( (int) dimensionValue[ POSITION_SETPOINT ] & 0x0000ff00 ) / 0x100;
+      writePayload[2] = ( (int) dimensionValue[ POSITION_SETPOINT ] & 0x00ff0000 ) / 0x10000;
+      writePayload[3] = ( (int) dimensionValue[ POSITION_SETPOINT ] & 0xff000000 ) / 0x1000000;
+      writePayload[4] = ( 0 & 0x000000ff );
+      writePayload[5] = ( 0 & 0x0000ff00 ) / 0x100; 
+      writePayload[6] = ( controlWord & 0x000000ff );
+      writePayload[7] = ( controlWord & 0x0000ff00 ) / 0x100; 
 
-	//ENVIA COMANDO DE START PDOS PARA A REDE
-	PDO01_TX.Write( writePayload );
+      //ENVIA COMANDO DE START PDOS PARA A REDE
+      PDO01_TX.Write( writePayload );
     }
 
     //Método de escrita do PDO02 - Setpoint de velocidade
     void WritePDO02()
     {	    
-	//MONTA O PAYLOAD DE WRITE
-	    static u8 writePayload[8];
-	writePayload[0] = ( /*velocitySetpoint*/(int)dimensionValue[ VELOCITY_SETPOINT ] & 0x000000ff );
-	writePayload[1] = ( /*velocitySetpoint*/(int)dimensionValue[ VELOCITY_SETPOINT ] & 0x0000ff00 ) / 0x100;
-	writePayload[2] = ( /*velocitySetpoint*/(int)dimensionValue[ VELOCITY_SETPOINT ] & 0x00ff0000 ) / 0x10000;
-	writePayload[3] = ( /*velocitySetpoint*/(int)dimensionValue[ VELOCITY_SETPOINT ] & 0xff000000 ) / 0x1000000;
-	writePayload[4] = ( output & 0x000000ff );
-	writePayload[5] = ( output & 0x0000ff00 ) / 0x100; 
-	writePayload[6] = ( 0 & 0x000000ff );
-	writePayload[7] = ( 0 & 0x0000ff00 ) / 0x100; 
+      //MONTA O PAYLOAD DE WRITE
+      static u8 writePayload[8];
+      writePayload[0] = ( (int) dimensionValue[ VELOCITY_SETPOINT ] & 0x000000ff );
+      writePayload[1] = ( (int) dimensionValue[ VELOCITY_SETPOINT ] & 0x0000ff00 ) / 0x100;
+      writePayload[2] = ( (int) dimensionValue[ VELOCITY_SETPOINT ] & 0x00ff0000 ) / 0x10000;
+      writePayload[3] = ( (int) dimensionValue[ VELOCITY_SETPOINT ] & 0xff000000 ) / 0x1000000;
+      writePayload[4] = ( output & 0x000000ff );
+      writePayload[5] = ( output & 0x0000ff00 ) / 0x100; 
+      writePayload[6] = ( 0 & 0x000000ff );
+      writePayload[7] = ( 0 & 0x0000ff00 ) / 0x100; 
 
-	//ENVIA COMANDO DE START PDOS PARA A REDE
-	PDO02_TX.Write( writePayload );
+      //ENVIA COMANDO DE START PDOS PARA A REDE
+      PDO02_TX.Write( writePayload );
     }
 
     //MÉTODO DE REQUISIÇÂO DE LEITURA DE SDO
-    void RequireReadSDO(int index, int subIndex)
+    void RequireReadSDO( int index, int subIndex )
     {
-	//MONTA O PAYLOAD DE WRITE requisição de leitura
-	    static u8 writePayload[8];
-	writePayload[0] = 0x40; 
-	writePayload[1] = ( index & 0x000000ff );
-	writePayload[2] = ( index & 0x0000ff00 ) / 0xff;
-	writePayload[3] = subIndex;
-	writePayload[4] = 0;
-	writePayload[5] = 0;
-	writePayload[6] = 0;
-	writePayload[7] = 0;
+      //MONTA O PAYLOAD DE WRITE requisição de leitura
+      static u8 writePayload[8];
+      writePayload[0] = 0x40; 
+      writePayload[1] = ( index & 0x000000ff );
+      writePayload[2] = ( index & 0x0000ff00 ) / 0xff;
+      writePayload[3] = subIndex;
+      writePayload[4] = 0;
+      writePayload[5] = 0;
+      writePayload[6] = 0;
+      writePayload[7] = 0;
 
-	//ENVIA COMANDO DE START PDOS PARA A REDE
-	SDO_TX.Write( writePayload );	
+      //ENVIA COMANDO DE START PDOS PARA A REDE
+      SDO_TX.Write( writePayload );	
     }
 
     //MÉTODO DE LEITURA DE SDO
     int ReadSDO()
     {
-	//MONTA O PAYLOAD DE WRITE requisição de leitura
-	    static u8 readPayload[8];
+      //MONTA O PAYLOAD DE WRITE requisição de leitura
+      static u8 readPayload[8];
 	
-	SDO_RX.Read( readPayload );
+      SDO_RX.Read( readPayload );
 
-	int result = readPayload[7]*0x1000000 + readPayload[6]*0x10000 + readPayload[5]*0x100 + readPayload[4];
+      int result = readPayload[7] * 0x1000000 + readPayload[6] * 0x10000 + readPayload[5] * 0x100 + readPayload[4];
 
-	return result;
-	    
+      return result; 
     }
 
     //MÉTODO DE ESCRITA DE UM SDO
-    void WriteSDO(int index, u8 subIndex, short int value)
+    void WriteSDO( int index, u8 subIndex, short int value )
     {
-	//MONTA O PAYLOAD DE WRITE
-	    static u8 writePayload[8];
-	writePayload[0] = 0x22; 
-	writePayload[1] = ( index & 0x000000ff );
-	writePayload[2] = ( index & 0x0000ff00 ) / 0x100;
-	writePayload[3] = subIndex;
-	writePayload[4] = ( value & 0x000000ff );
-	writePayload[5] = ( value & 0x0000ff00 ) / 0x100;
-	writePayload[6] = ( value & 0x00ff0000 ) / 0x10000;
-	writePayload[7] = ( value & 0xff000000 ) / 0x1000000;
+	  //MONTA O PAYLOAD DE WRITE
+      static u8 writePayload[8];
+      writePayload[0] = 0x22; 
+      writePayload[1] = ( index & 0x000000ff );
+      writePayload[2] = ( index & 0x0000ff00 ) / 0x100;
+      writePayload[3] = subIndex;
+      writePayload[4] = ( value & 0x000000ff );
+      writePayload[5] = ( value & 0x0000ff00 ) / 0x100;
+      writePayload[6] = ( value & 0x00ff0000 ) / 0x10000;
+      writePayload[7] = ( value & 0xff000000 ) / 0x1000000;
 
-	//ENVIA COMANDO DE START PDOS PARA A REDE
-	SDO_TX.Write( writePayload );		
+      //ENVIA COMANDO DE START PDOS PARA A REDE
+      SDO_TX.Write( writePayload );		
     }
 
 
-    void VCS_SetOperationMode (int mode)
+    void VCS_SetOperationMode( OperationMode mode )
     {	
-	//Escreve o modo de operação desejado
-	WriteSDO( 0x6060, 0x00, mode );
-	return;  
+      //Escreve o modo de operação desejado
+      WriteSDO( 0x6060, 0x00, mode );
+      return;  
     }
 
 
     void SetDigitalOutput()
     {	
-	//Escreve o modo de operação desejado
-	WriteSDO( 0x6060, 0x00, 0xff );
-	return;  
+      //Escreve o modo de operação desejado
+      WriteSDO( 0x6060, 0x00, 0xff );
+      return;  
     }
 
     void ResetDigitalOutput()
     {	
-	//Escreve o modo de operação desejado
-	WriteSDO( 0x6060, 0x00, 0x00 );
-	return;  
+      //Escreve o modo de operação desejado
+      WriteSDO( 0x6060, 0x00, 0x00 );
+      return;  
     }
-
-
 
 };
 
