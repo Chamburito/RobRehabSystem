@@ -13,6 +13,7 @@ extern "C"{
 #include <Windows.h>
 #include <process.h>
 #include <stdio.h>
+#include <stdint.h>
 
 // Mutex aquisition and release
 #define LOCK_THREAD( lock ) TryEnterCriticalSection( lock )

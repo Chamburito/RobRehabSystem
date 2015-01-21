@@ -91,15 +91,15 @@ class AxisServer:
          message = receiveMessage( client )
          if message is not None:
             # print( 'Axis Server receive: ' + message )
-            clientInfo = message.split(':')
-            if len(clientInfo) >= 4 and( len(clientInfo) - 1 ) % 3 == 0:
-               if clientInfo[0] == 'Axis Data':
-                  for axisDataOffset in range( 1, 3, len(clientInfo) - 2 ):
-                     axisName = clientInfo[ axisDataOffset ]
+            clientData = message.split(':')
+            if len(clientData) >= 4 and( len(clientData) - 1 ) % 3 == 0:
+               if clientData[0] == 'Axis Data':
+                  for axisDataOffset in range( 1, 3, len(clientData) - 2 ):
+                     axisName = clientData[ axisDataOffset ]
                      self.axisDataClients[ axisName ] = client
                      
                   # Teste Latência
-                  messageIndex = int(clientInfo[2])                                                                               # benchmark
+                  messageIndex = int(clientData[2])                                                                               # benchmark
                   if self.logSamplesCount < self.logNSamples and messageIndex < self.logNSamples:                                 # benchmark
                      if self.messageArrivalTimes[ messageIndex ] == 0: self.logSamplesCount += 1                                  # benchmark  
                      self.messageArrivalTimes[ messageIndex ] = int(execTime() * 1000)                                            # benchmark
@@ -112,7 +112,7 @@ class AxisServer:
 					 
                      # Teste Feedback
                      #sendMessage( client, 'Axis Feedback:{0:s}:{1:g}:{2:g}'.format( axisName, 
-						#					float(clientInfo[ axisDataOffset + 1 ]), float(clientInfo[ axisDataOffset + 2 ]) ) )
+						#					float(clientData[ axisDataOffset + 1 ]), float(clientData[ axisDataOffset + 2 ]) ) )
                      
                   newAxisData = message.replace( 'Axis Data', '', 1 )
                   if len(axisDataMessage + newAxisData) < NetworkInterface.BUFFER_SIZE:
@@ -123,9 +123,9 @@ class AxisServer:
                         if destinationClient not in self.axisDataClients.values(): sendMessage( destinationClient, axisDataMessage )
                      axisDataMessage = newAxisData
 
-            if len(clientInfo) >= 4:
-               if clientInfo[0] == 'Axis Feedback':
-                  axisName = clientInfo[1]
+            if len(clientData) >= 4:
+               if clientData[0] == 'Axis Feedback':
+                  axisName = clientData[1]
                   #print( 'Receiver client ' + str(client) + ' returning feedback to axis ' + axisName )
                   sendMessage( self.axisDataClients[ axisName ], message )
 

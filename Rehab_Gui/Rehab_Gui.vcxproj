@@ -92,7 +92,8 @@
     <ClInclude Include="..\src\control.h" />
     <ClInclude Include="..\src\epos_network.h" />
     <ClInclude Include="..\src\nixnet.h" />
-    <ClInclude Include="..\src\script_network.h" />
+    <ClInclude Include="..\src\script_epos_can.h" />
+    <ClInclude Include="..\src\script_ip_network.h" />
     <ClInclude Include="..\src\threads_unix.h" />
     <ClInclude Include="..\src\threads_windows.h" />
     <ClInclude Include="..\src\timing_windows.h" />

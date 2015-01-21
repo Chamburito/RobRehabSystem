@@ -17,7 +17,7 @@ extern "C"{
   
 #ifdef WIN32
   
-  #include <winsock2.h>
+  //#include <winsock2.h>
   #include <ws2tcpip.h>
   #include <stdint.h>
   #include <time.h>
@@ -51,7 +51,8 @@ extern "C"{
 /////////////////////////////////////////////////////////////////////////
 
 #ifdef _MSC_VER
-  #define INLINE __forceinline /* use __forceinline (VC++ specific) */
+  //#define INLINE __forceinline /* use __forceinline (VC++ specific) */
+  #define INLINE
 #else
   #define INLINE inline        /* use standard inline */
 #endif

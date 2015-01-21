@@ -218,7 +218,7 @@ def sendData():
       if logOutSamplesCount < logNSamples and logOutSamplesCount == logInSamplesCount:                                        # benchmark
          axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount, axisVelocities[ axisId ] )             # benchmark
          messageDispatchTimes[ logOutSamplesCount ] = int(execTime() * 1000)                                                  # benchmark
-         # print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
+         # print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )   # benchmark
          # print( '-> ' + axisDataMessage )
          logOutSamplesCount += 1                                                                                              # benchmark
       elif logOutSamplesCount < logNSamples:

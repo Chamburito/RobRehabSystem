@@ -2,8 +2,8 @@
 ///// Graphical user interface for ExoKanguera control and data visualization /////
 ///////////////////////////////////////////////////////////////////////////////////
 
-#include "script_epos_can.h"
 #include "script_ip_network.h"
+#include "script_epos_can.h"
 #include "control.h"
 #include "Python.h"
 #include <iostream>
@@ -45,9 +45,6 @@ void initScriptInterface( /*const char* initFile, const char* loopFile*/ )
   PyImport_AppendInittab( "EposInterface", &initEposScriptInterface );
   PyImport_AppendInittab( "NetworkInterface", &initIPNetworkScriptInterface );
   Py_Initialize();
-
-  //initEposScriptInterface();
-  //initIPNetworkScriptInterface();
 
   ifstream file;
   file.open( "scripts/gui_init.py" );

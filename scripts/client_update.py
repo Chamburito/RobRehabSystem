@@ -69,25 +69,18 @@ playerNetworkId = 'PLAYER'
 playerName.set( playerNetworkId )
 
 # Identificadores de Rede dos eixos
-axisNetworkIds = {} 
+axisNames = []
 
-# Número de Eixos sendo utilizadas
-nAxis = 3
-
-# Habilita ou não o uso de servidor remoto
-remoteServerEnabled = -1
-useRemoteServer = IntVar()
-useRemoteServer.set( 0 )
 # Função de conexão com servidor ( Computador recebendo os dados )
 def setupConnection():
    global playerNetworkId
-   global axisNetworkIds
+   global axisNames
    global remoteServerEnabled
    
    maxIdLength = 10
    playerNetworkId = playerName.get() if len(playerName.get()) <= maxIdLength else playerName.get()[:maxIdLength]
    for axisId in range( nAxis ):
-      axisNetworkIds[ playerNetworkId + ' ' + controlMode[ axisId ] ] = axisId
+      axisNames[ playerNetworkId + ' ' + controlMode[ axisId ] ] = axisId
    
    if ( infoClientId is None ) or ( dataClientId is None ) or ( currentServerHost != serverHost.get() ):
       if infoClientId is not None: closeConnection( infoClientId )
@@ -99,6 +92,7 @@ def setupConnection():
       currentServerHost = serverHost.get()
       
    if infoClientId is not None:
+      initLabel[ 'text' ] = 'COMUNICAÇÃO INICIALIZADA'
       ( host, port ) = getAddress( infoClientId )
       print( 'host: ' + str(host) + ' - port: ' + str(port) )
    if dataClientId is not None:
@@ -109,102 +103,35 @@ def setupConnection():
    window.after( 100, sendData )
 
 
-count = 0
-# Função de inicialização
-def init():
-   
-   global count
+dimensionValue = {}
+axisMotionTimes = {}
+axisControlChecks = {}
+axisControlValues = {}
+
+def addAxis( axisName ):
+   axisNames.append( axisName )
+   dimensionValue[ axisName ] = {}
+   for dimension in list(Dimension):
+      dimensionValue[ axisName ][ dimension ] = []
+      dimensionValue[ axisName ][ dimension ].append( 0 )
       
-   for axisId in range( 0, nAxis ):
-      readValues( axisId )
-      setControlWord( axisId, controlWord[ 'Fault Reset' ], 1 )
-      writeValues( axisId )
-      setControlWord( axisId, controlWord[ 'Fault Reset' ], 0 )
-      writeValues( axisId )
-         
-   initLabel[ 'text' ] += '.'
+   axisMotionTimes[ axisName ] = []
+   axisMotionTimes[ axisName ].append( execTime() * 1000 )
    
-   if count >= 10:
-      initLabel[ 'text' ] = 'COMUNICAÇÃO CANOpen INICIALIZADA'
-      window.after( 100, updateValues )
-   else:
-      count += 1
-      window.after( 500, init )
-
-
-dimensionValue = []
-for axisId in range(nAxis):
-   dimensionValue.append( {} )
-   for dimension in dimensionIndex.keys():
-      dimensionValue[ axisId ][ dimension ] = []
-#Função de atualização dos valores
-def updateValues():   
-   # Obtém valores dos frames da rede CAN
-   for axisId in range(nAxis):
-      readValues( axisId )
-      for dimension in dimensionValue[ axisId ].keys():
-         dimensionValue[ axisId ][ dimension ].append( getAxisValue( axisId, dimensionIndex[ dimension ] ) )
+   axisControlChecks[ axisName ] = 0
    
-   # Atualiza valores a serem exibidos na tela
-   for word in statusWord.keys():
-      statusValue[ word ].set( getStatusWord( axisIdView.get(), statusWord[ word ] ) )
-      
-   # Registra função de atualização para ser executada novamente
-   window.after( 5, updateValues )
-
-
-axisPositions = []
-axisVelocities = []
-axisMotionTimes = []
-for axisId in range( nAxis ):
-   axisPositions.append( 0 )
-   axisVelocities.append( 0 )
-   axisMotionTimes.append( execTime() * 1000 )
+   axisControlValues[ axisName ] = {}
+   for parameterIndex in list(Parameter):
+      axisControlValues[ axisName ][ parameterIndex ] = 0
    
-# Função para enviar valores de eixos para o servidor central ou cliente conectado
-def sendData():
-   global logOutSamplesCount # benchmark
    
-   if dataClientId is not None:
-
-      axisDataMessage = 'Axis Data'
-      
-      axisName = 'PLAYER Calcanhar'                                                                                           # benchmark
-      axisId = axisNetworkIds[ axisName ]                                                                                     # benchmark
-      if logOutSamplesCount < logNSamples and logOutSamplesCount == logInSamplesCount:                                        # benchmark
-         axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount, axisVelocities[ axisId ] )             # benchmark
-         messageDispatchTimes[ logOutSamplesCount ] = int(execTime() * 1000)                                                  # benchmark
-         # print( 'Sending message ' + str(logOutSamplesCount) + ' at ' + str(messageDispatchTimes[ logOutSamplesCount ]) )     # benchmark
-         # print( '-> ' + axisDataMessage )
-         logOutSamplesCount += 1                                                                                              # benchmark
-      elif logOutSamplesCount < logNSamples:
-         # print( 'Waiting message ' + str(logOutSamplesCount - 1) )
-         axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, logOutSamplesCount - 1, axisVelocities[ axisId ] )         # benchmark
-      window.after( 5, receiveData )                                                                                          # benchmark
-
-      for axisName in axisNetworkIds.keys():
-         axisId = axisNetworkIds[ axisName ]
-         if len(dimensionValue[ axisId ]) > 0:
-            if( dimensionValue[ axisId ][ 'Velocity' ][-1] != axisVelocities[ axisId ] 
-            or dimensionValue[ axisId ][ 'Position' ][-1] != axisPositions[ axisId ] ):
-               axisPositions[ axisId ] = dimensionValue[ axisId ][ 'Position' ][-1]
-               axisVelocities[ axisId ] = dimensionValue[ axisId ][ 'Velocity' ][-1]               
-               axisDataMessage += ':{0:s}:{1:g}:{2:g}'.format( axisName, axisPositions[ axisId ], axisVelocities[ axisId ] )
-               window.after( 10, receiveData )
-            
-      # print( 'Sending Axis Data: ' + axisDataMessage )
-      if logInSamplesCount < logNSamples: sendCallsNumber[ logOutSamplesCount - 1 ] += 1                                      # benchmark
-      sendMessage( dataClientId, axisDataMessage )
-      
-      window.after( 10, sendData ) 
-
 # Função para receber valores de eixos do servidor central ou cliente conectado
-position = 0
-velocity = 0
-def receiveData():
-   global position
-   global velocity
-   
+def updateData():
+   # Garantindo o preenchimento de todos os valores
+   for axisName in axisNames:
+      for dimension in list(Dimension):
+         dimensionValue[ axisName ][ dimension ].append( dimensionValue[ axisName ][ dimension ][-1] )
+
    # Comunicação via socket UDP
    message = None
    if dataClientId is not None:
@@ -212,78 +139,48 @@ def receiveData():
       if message is not None:
          print( 'Received message: ' + message )
          dataList = message.split(':')
-         if len(dataList) >= 4:
-            if dataList[0] == 'Axis Feedback':
-               axisId = int(dataList[1])
-               position = int(dataList[2])
-               velocity = int(dataList[3])
+         if len(dataList) >= 4 and ( len(dataList) - 1 ) % 3 == 0:
+            if dataList[0] == 'Axis Data':
+               for axisDataOffset in range( 1, 3, len(clientData) - 2 ):
+                  axisName = dataList[axisDataOffset]
+                  
+                  if axisName not in axisNames: addAxis( axisName )
+                  
+                  dimensionValue[ axisName ][ Dimension.Position ][-1] = int(dataList[ axisDataOffset + 1 ])
+                  dimensionValue[ axisName ][ Dimension.Velocity ][-1] = int(dataList[ axisDataOffset + 2 ])
+      else
+         sendMessage( dataClientId, 'Axis Data Request' )
                
       window.after( 5, receiveData )
-   
-   dimensionValue[ axisId ][ 'Position' ].append( position )
-   dimensionValue[ axisId ][ 'Velocity' ].append( velocity )
-  
-# Função de recebimento de dados do cliente
-def updateDataClient():
-   global dataClientId
-  
-   # Comunicação via socket UDP
-   message = None
-   if dataServerId is not None:
-      message = receiveMessage( dataServerId )
-      if message is not None:
-         print( 'Add Client: ' + message )
-         if dataClientId is not None: closeConnection( dataClientId )
-         dataClientId = int( message.split()[0] )
-         window.after( 100, updateConnectedData )
-         
-      closeConnection( dataClientId )
-   
-   #window.after( 100, updateDataClient ) 
 
-
-# Função de atualização de informações do servidor
-def updateServerInfo():
   
-   # Comunicação via socket TCP
-   if infoServerId is not None:      
-      for axis in controlMode.values():
-         print( 'Axis Keep Alive' )
-         sendMessage( infoServerId, 'Axis Keep:' + playerNetworkId + ' ' + axis )
-               
-   window.after( 10000, updateServerInfo )
-
 # Função de atualização de informações do cliente
-def updateClientInfo():
-   global infoClientId 
-   
+def updateInfo():
    # Comunicação via socket TCP
    message = None   
-   if infoServerId is not None:  
-      message = receiveMessage( infoServerId )
+   if infoConnectionId is not None:  
+      message = receiveMessage( infoConnectionId )
       if message is not None: 
-         print( 'Add Client: ' + message )
-         newClientInfo = message.split()
-         infoClientId = int(newClientInfo[0])
-      
-   if infoClientId is not None:
-      message = receiveMessage( infoClientId )
-      if message is not None:
-         if message.strip() == 'Axis Info':
-            print( 'Axis Info Requested' )
-            sendMessage( infoClientId, 'Axis Info Begin' )
-            print( 'Axis Info: ' + str(controlMode) )
-            for axisName in controlMode.values():
-               sendMessage( infoClientId, playerNetworkId + ' ' + axisName )
-            sendMessage( infoClientId, 'Axis Info End' )
+         print( 'Received Control Message: ' + message )
+         infoList = message.split()
+         if len(infoList) >= 4:
+            axisName = infoList[1]
+            valueIndex = int(infoList[2])
+            if infoList[0] == 'Axis Status':
+               statusValues[ axisName ][ valueIndex ] = int(infoList[3])
+            elif infoList[0] == 'Axis Parameter':
+               parameterValues[ axisName ][ valueIndex ] = int(infoList[3])
                
-   window.after( 1000, updateClientInfo )
+   window.after( 1000, updateInfo )
 
 
 # Função de atualização da tela 
 def updateScreen():
   
-   time = len(dimensionValue[ axisIdView.get() ][ 'Position' ])
+   for status in list(StatusWord):
+      statusEntryValues[ status ].set( statusValues[ axisIdView.get() ][ status ] )
+  
+   time = len(dimensionValue[ axisIdView.get() ][ Dimension.Position ])
    global plotWidth
    
    # Plota valores de posição, velocidade, corrente e tensão no gráfico   
@@ -341,14 +238,11 @@ def updateScreen():
 
 # Função de Reset das falhas
 def resetFault():
-
-   setControlWord( axisIdView.get(), controlWord['Fault Reset'], 1 )
-   writeValues( axisIdView.get() )
-   setControlWord( axisIdView.get(), controlWord['Fault Reset'], 0 )
-   writeValues( axisIdView.get() )
+   sendMessage( infoConnectionId, 'Axis Control:' + str(axisIdView.get()) + ':' + str(ControlWord.FaultReset) + ':1' )
+   sendMessage( infoConnectionId, 'Axis Control:' + str(axisIdView.get()) + ':' + str(ControlWord.FaultReset) + ':0' )
 
 # Propriedades da Janela
-window.title('RobRehabGui')
+window.title( 'RobRehabGui' )
 window.resizable( width = False, height = False )
 window.columnconfigure( 1, minsize = 400 )
 window.columnconfigure( 2, minsize = 400 )
@@ -359,8 +253,8 @@ headerFrame = LabelFrame( window )
 headerFrame.grid( row = 1, column = 1, columnspan = 3, pady = 5 )     
 # Label do Título    
 titleLabel = Label( headerFrame, width = 70, height = 5 )
-titleLabel['text'] = 'CONTROLE DE IMPEDÂNCIA EXO-KANGUERA - EPOS CANOpen\nESCOLA DE ENGENHARIA DE SÃO CARLOS - EESC/USP\nLABORATÓRIO DE REABILITAÇÃO ROBÓTICA\n'
-titleLabel['font'] = ('comic sans', 12, 'bold')
+titleLabel[ 'text' ] = 'CONTROLE DE IMPEDÂNCIA EXO-KANGUERA - EPOS CANOpen\nESCOLA DE ENGENHARIA DE SÃO CARLOS - EESC/USP\nLABORATÓRIO DE REABILITAÇÃO ROBÓTICA\n'
+titleLabel[ 'font' ] = ( 'comic sans', 12, 'bold' )
 titleLabel.grid( row = 1, column = 2 )
 # Logos
 robRehabLogo = PhotoImage( file='rehab_resized.gif' )
@@ -370,9 +264,14 @@ eescLogo = PhotoImage( file='eesc_resized.gif' )
 eescLabel = ttk.Label( headerFrame, image = eescLogo )
 eescLabel.grid( row = 1, column = 3, padx = 10, pady = 5 )
       
+# Label do status de inicialização      
+initLabel = Label( window, height = 2, width = 60, relief = RIDGE )
+initLabel['text'] = 'INICIALIZANDO COMUNICAÇÃO CANOpen COM AS EPOS'
+initLabel.grid( row = 2, column = 1, columnspan = 3, pady = 5 )
+      
 # Configurações de conexão
 serverFrame = LabelFrame( window, text = 'Configurações de Conexão' )
-serverFrame.grid( row = 2, column = 1, columnspan = 3, pady = 5, ipady = 10 )
+serverFrame.grid( row = 3, column = 1, columnspan = 2, pady = 5, ipady = 10 )
 
 # Configuração de identificador de rede ( nome do usuário )
 Label( serverFrame, text = 'Usuário:' ).pack( side = LEFT, padx = 10, anchor = E )
@@ -380,63 +279,86 @@ Entry( serverFrame, textvariable = playerName, width = 20, fg = 'black', bg = 'w
 # Configuração de host
 Label( serverFrame, text = 'Endereço (Domínio ou IP):' ).pack( side = LEFT, padx = 10, anchor = E )
 Entry( serverFrame, textvariable = serverHost, width = 20, fg = 'black', bg = 'white', justify = CENTER ).pack( side = LEFT, padx = 10 )
-# Configuração de porta
-#Label( serverFrame, text = 'Porta:' ).pack( side = LEFT, padx = 10, anchor = E )
-#Entry( serverFrame, textvariable = serverPort, width = 10, fg = 'black', bg = 'white', justify = CENTER ).pack( side = LEFT, padx = 10 )
 # Ativação de uso de servidor remoto ( dados dos eixos vão para servidor principal )
 Label( serverFrame, text = 'Utilizar Servidor Remoto' ).pack( side = LEFT, padx = 10, anchor = E )
 Checkbutton( serverFrame, variable = useRemoteServer, fg = 'black' ).pack( side = LEFT )
 # Botão de ativação da conexão
 ttk.Button( serverFrame, text = 'Conectar', command = setupConnection ).pack( side = LEFT, padx = 40 )
-      
-# Label do status de inicialização      
-initLabel = Label( window, height = 2, width = 60, relief = RIDGE )
-initLabel['text'] = 'INICIALIZANDO COMUNICAÇÃO CANOpen COM AS EPOS'
-initLabel.grid( row = 3, column = 1, columnspan = 3, pady = 5 )
 
 #Frames de configuração das controladoras dos eixos
-controlCheck = {}
-controlValue = {}
-for axisId in range(nAxis):
-   axisFrame = LabelFrame( window, text = str(controlMode[ axisId ]) )
-   axisFrame.grid( row = 4, column = axisId + 1, pady = 10 )
-   Label( axisFrame, text = 'Visualização' ).grid( row = 1, column = 1, padx = 10 )
-   Radiobutton( axisFrame, variable = axisIdView, value = axisId, fg = 'black' ).grid( row = 1, column = 2, sticky = W )
-   Label( axisFrame, text = 'Controle' ).grid( row = 1, column = 3, padx = 10 )
-   
-   controlCheck[ axisId ] = IntVar()
-   # Função de início/término do controle (Definida para cada Eixo)
-   def toggleControl( axisId = axisId ):
-      setAxisEnabled( axisId, controlCheck[ axisId ].get() )
-      setControl( axisId, controlCheck[ axisId ].get(), axisId )
-   
-   Checkbutton( axisFrame, variable = controlCheck[ axisId ], command = toggleControl, fg = 'black' ).grid( row = 1, column = 4, sticky = W )
-   
-   pos = 0
-   controlValue[ axisId ] = {}
-   for parameter in sorted( parameterIndex.keys(), key = parameterIndex.get ):
-      Label( axisFrame, text = parameter + ':', width = pos * 6 + 6, justify = RIGHT ).grid( row = 2, column = pos * 2 + 1, pady = 5 )
+axisFrame = LabelFrame( window, text = 'Seleção de Eixo' )
+axisFrame.grid( row = 3, column = 3, pady = 10 )
 
-      controlValue[ axisId ][ parameter ] = DoubleVar()
-      controlValue[ axisId ][ parameter ].set( getControlValue( axisId, parameterIndex[ parameter ] ) )
-      # Função de evento da caixa de texto
-      def setParameter( event, axisId = axisId, parameter = parameter ):
-         setControlValue( axisId, parameterIndex[ parameter ], controlValue[ axisId ][ parameter ].get() )
-         controlValue[ axisId ][ parameter ].set( getControlValue( axisId, parameterIndex[ parameter ] ) )
+axisViewName = StringVar()
+axisSelector = ttk.Combobox( axisFrame, textvariable = axisViewName, justify = CENTER )
+axisSelector.grid( row = 1, column = 1, columnspan = 2, padx = 10 )
+
+Label( axisFrame, text = 'Controle' ).grid( row = 1, column = 3, padx = 10 )
+controlEnabled = IntVar()
+# Função de início/término do controle (Definida para cada Eixo)
+def toggleControl(): sendMessage( infoConnectionId, 'Axis Control:{0:s}:Enable:{1:d}'.format( axisViewName.get(), controlEnabled.get() ) )   
+Checkbutton( axisFrame, variable = controlEnabled[ axisId ], command = toggleControl, fg = 'black' ).grid( row = 1, column = 4, sticky = W )
+
+pos = 0
+parameterValues = {}
+for parameterIndex in list(Parameter):
+   Label( axisFrame, text = parameterName[ parameterIndex ] + ':', width = 10, justify = LEFT ).grid( row = 2, column = pos * 2 + 1, pady = 5 )
+
+   parameterValues[ parameterIndex ] = DoubleVar()
+   # Função de evento da caixa de texto
+   def setParameter( event, parameterIndex = parameterIndex ):
+      sendMessage( infoConnectionId, 'Axis Parameter:{0:s}:{1:d}:{2:.3g}'.format( axisIdView.get(), parameterIndex, parameterValues[ parameterIndex ].get() ) )
+      axisControlValues[ axisViewName.get() ][ parameterIndex ] = parameterValues[ parameterIndex ].get()
+
+def axisViewChange():
+   if axisViewName.get() in axisNames:
+      controlEnabled.set( axisControlValues[ axisViewName.get() ][ Parameter.Enabled ] )
+      for parameterIndex in list(Parameter):
+         parameterValues[ parameterIndex ].set( axisControlValues[ axisViewName.get() ][ parameterIndex ] )
+axisSelector.bind( '<<ComboboxSelected>>', axisViewChange )
+
+# controlCheck = {}
+# controlValue = {}
+# for axisId in range(nAxis):
+   # axisFrame = LabelFrame( window, text = str(controlMode[ axisId ]) )
+   # axisFrame.grid( row = 4, column = axisId + 1, pady = 10 )
+   # Label( axisFrame, text = 'Visualização' ).grid( row = 1, column = 1, padx = 10 )
+   # Radiobutton( axisFrame, variable = axisIdView, value = axisId, fg = 'black' ).grid( row = 1, column = 2, sticky = W )
+   # Label( axisFrame, text = 'Controle' ).grid( row = 1, column = 3, padx = 10 )
    
-      parameterEntry = Entry( axisFrame, textvariable = controlValue[ axisId ][ parameter ], width = 5, fg = 'black', bg = 'white', justify = CENTER )
-      parameterEntry.bind( ('<KeyPress-Return>', '<KeyRelease-Return>'), setParameter )
-      parameterEntry.bind( '<FocusOut>', setParameter )
-      parameterEntry.grid( row = 2, column = pos * 2 + 2, padx = 10, sticky = E )
-      pos += 1
+   # controlCheck[ axisId ] = IntVar()
+   # Função de início/término do controle (Definida para cada Eixo)
+   # def toggleControl( axisId = axisId ):
+      # setAxisEnabled( axisId, controlCheck[ axisId ].get() )
+      # setControl( axisId, controlCheck[ axisId ].get(), axisId )
+   
+   # Checkbutton( axisFrame, variable = controlCheck[ axisId ], command = toggleControl, fg = 'black' ).grid( row = 1, column = 4, sticky = W )
+   
+   # pos = 0
+   # controlValue[ axisId ] = {}
+   # for parameter in sorted( parameterIndex.keys(), key = parameterIndex.get ):
+      # Label( axisFrame, text = parameter + ':', width = pos * 6 + 6, justify = RIGHT ).grid( row = 2, column = pos * 2 + 1, pady = 5 )
+
+      # controlValue[ axisId ][ parameter ] = DoubleVar()
+      # controlValue[ axisId ][ parameter ].set( getControlValue( axisId, parameterIndex[ parameter ] ) )
+      # Função de evento da caixa de texto
+      # def setParameter( event, axisId = axisId, parameter = parameter ):
+         # setControlValue( axisId, parameterIndex[ parameter ], controlValue[ axisId ][ parameter ].get() )
+         # controlValue[ axisId ][ parameter ].set( getControlValue( axisId, parameterIndex[ parameter ] ) )
+   
+      # parameterEntry = Entry( axisFrame, textvariable = controlValue[ axisId ][ parameter ], width = 5, fg = 'black', bg = 'white', justify = CENTER )
+      # parameterEntry.bind( ('<KeyPress-Return>', '<KeyRelease-Return>'), setParameter )
+      # parameterEntry.bind( '<FocusOut>', setParameter )
+      # parameterEntry.grid( row = 2, column = pos * 2 + 2, padx = 10, sticky = E )
+      # pos += 1
 
 # Botão de Reset de falhas
 resetButton = ttk.Button( window, text = 'Reset de Falhas', command = resetFault )
-resetButton.grid( row = 5, column = 1, sticky = S )
+resetButton.grid( row = 4, column = 1, sticky = S )
 
 # Frame de exibição dos valores de StatusWord 
 statusFrame = LabelFrame( window, text = 'LEITURA DE STATUS WORDS' )#, labelanchor = 'n' )
-statusFrame.grid( row = 6, column = 1, rowspan = 2, pady = 30, ipadx = 10, ipady = 5, sticky = N )   
+statusFrame.grid( row = 5, column = 1, rowspan = 2, pady = 30, ipadx = 10, ipady = 5, sticky = N )   
 # Caixas para exibição dos valores de Status Word
 pos = 1
 statusEntry = {}
@@ -450,7 +372,7 @@ for word in sorted( statusWord.keys(), key = statusWord.get ):
    
 # Frame de exibição dos valores medidos
 dimensionFrame = LabelFrame( window, text = 'VALORES MEDIDOS' )#, labelanchor = 'n' )
-dimensionFrame.grid( row = 5, column = 3, rowspan = 3, pady = 5 ) 
+dimensionFrame.grid( row = 4, column = 3, rowspan = 3, pady = 5 ) 
 # Caixas para exibição dos valores medidos
 pos = 1
 dimensionEntry = {}
@@ -483,8 +405,8 @@ def move( mode, position, c = UNITS ):
    space = 1.0 - width
    scroll.set( float(position) * space, float(position) * space + width )
 scroll[ 'command' ] = move
-dataCanvas.grid( row = 5, column = 2, rowspan = 2, sticky = (N, S, E, W) )
-scroll.grid( row = 7, column = 2, pady = 5, sticky = (N, E, W) )
+dataCanvas.grid( row = 4, column = 2, rowspan = 2, sticky = (N, S, E, W) )
+scroll.grid( row = 6, column = 2, pady = 5, sticky = (N, E, W) )
 
 # Espaço para configurações personalizadas
 ###############################################################################################################################################################################
