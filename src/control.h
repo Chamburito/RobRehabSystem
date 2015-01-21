@@ -3,25 +3,31 @@
 
 #include "axis.h"
 #include "epos_network.h"
-#include "threads_windows.h"
+
+#ifdef WIN32
+  #include "threads_windows.h"
+#else
+  #include "threads_unix.h"
+#endif
+
 #include <cmath>
 #include <iostream>
 
 using namespace std;
   
-enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };		// Índices dos algoritmos de controle
+enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Índices dos algoritmos de controle
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                       DISPOSITIVOS DE CONTROLE                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
 //ENDEREÇAMENTO DA BASE DE DADOS CAN
-const char *CAN_DATABASE = "database";
-const char *CAN_CLUSTER = "NETCAN";
+const char* CAN_DATABASE = "database";
+const char* CAN_CLUSTER = "NETCAN";
     
-const char *NET_ID_SERVO_01 = "1";
-const char *NET_ID_SERVO_02 = "2";
-const char *NET_ID_SERVO_03 = "3";
+const char* NET_ID_SERVO_01 = "1";
+const char* NET_ID_SERVO_02 = "2";
+const char* NET_ID_SERVO_03 = "3";
 
 //INICIALIZAÇÃO DA REDE CAN
 EPOSNetwork eposNetwork( CAN_DATABASE, CAN_CLUSTER );
@@ -236,17 +242,17 @@ void* kneeControl( void* args )
     double Im = epos->PDOgetValue( CURRENT );
     //double theta_c = ( ( epos->PDOgetValue( POSITION ) - epos->PDOgetValue( POSITION_SETPOINT ) ) * 2 * PI ) / ( ENCODER_IN_RES * N );
     //double theta_m = ( ( epos->PDOgetValue( POSITION ) - epos->PDOgetValue( POSITION_SETPOINT ) ) * 2 * PI ) / ENCODER_IN_RES;
-	double theta_c = ( ( epos->PDOgetValue( POSITION ) ) * 2 * PI ) / ( ENCODER_IN_RES * N );
+    double theta_c = ( ( epos->PDOgetValue( POSITION ) ) * 2 * PI ) / ( ENCODER_IN_RES * N );
     double theta_m = ( ( epos->PDOgetValue( POSITION ) ) * 2 * PI ) / ENCODER_IN_RES;
-				  
+        
     double omega_m = epos->PDOgetValue( VELOCITY );
 
     //theta_ld = epos->GetSetpoint();
-	//theta_ld = epos->PDOgetValue( POSITION_SETPOINT );
-	//omega_ld = epos->PDOgetValue( VELOCITY_SETPOINT );
+    //theta_ld = epos->PDOgetValue( POSITION_SETPOINT );
+    //omega_ld = epos->PDOgetValue( VELOCITY_SETPOINT );
 
-	//---------------Controle de Impedância--------------------//
-			  
+    //---------------Controle de Impedância--------------------//
+      
     Kv = epos->GetControlValue( KP );
     Bv = epos->GetControlValue( KD );
 
@@ -256,7 +262,7 @@ void* kneeControl( void* args )
     omega_lf[0] = -c2 * omega_lf[1] - c3 * omega_lf[2] + d1 * omega_l[0] + d2 * omega_l[1] + d3 * omega_l[2];
 
     //theta_l[0] = ( ( -EPOS[0].PDOgetValue( POSITION ) - EPOS[0].PDOgetValue( POSITION_SETPOINT ) ) * 2 * PI ) / ENCODER_OUT_RES;
-	theta_l[0] = ( ( -EPOS[0].PDOgetValue( POSITION ) ) * 2 * PI ) / ENCODER_OUT_RES;
+    theta_l[0] = ( ( -EPOS[0].PDOgetValue( POSITION ) ) * 2 * PI ) / ENCODER_OUT_RES;
 
     double torque_d = -Kv * ( theta_l[0] - theta_ld ) - Bv * ( omega_lf[0] - omega_ld );
 
@@ -354,7 +360,7 @@ typedef void* (*async_function)( void* ); // Use "async_function" type as "void 
 
 async_function functions[] = { ankleControl, kneeControl, hipsControl };
 
-async_function controlFunction( int index )
+async_function controlFunction( Joint index )
 {
   if( index >= 0 && index < 3 )
     return functions[ index ];

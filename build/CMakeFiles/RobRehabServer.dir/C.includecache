@@ -52,7 +52,7 @@ netdb.h
 stdbool.h
 -
 
-/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/script_network.h
+/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/script_ip_network.h
 Python.h
 /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/Python.h
 async_connection.h
@@ -61,8 +61,8 @@ async_connection.h
 /home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/server_main.c
 stdio.h
 -
-script_network.h
-/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/script_network.h
+script_ip_network.h
+/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/script_ip_network.h
 fcntl.h
 -
 Windows.h

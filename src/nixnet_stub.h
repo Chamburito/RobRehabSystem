@@ -2,7 +2,7 @@
 #define ___nixnet_h___
 
 #include <stdlib.h>
-
+#include <stdint.h>
 #include <stdio.h>
 
 #ifndef WIN32
@@ -41,7 +41,7 @@ int getch(void)
       select( STDIN + 1, &read_fds, NULL, NULL, &timeout);
   
       if( FD_ISSET( STDIN, &read_fds ) )
-        c=getchar();
+        c = getchar();
       
           //------  restore old settings ---------
       res=tcsetattr(STDIN_FILENO, TCSANOW, &org_opts);

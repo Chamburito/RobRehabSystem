@@ -50,16 +50,10 @@ extern "C"{
 /////                    PREPROCESSOR DIRECTIVES                    /////
 /////////////////////////////////////////////////////////////////////////
 
-#ifndef __cplusplus
-  #if __STDC_VERSION__ >= 199901L
-    /* "inline" is a keyword */
-    #include <stdbool.h>
-  #else
-    #define inline //static
-    typedef uint8_t bool;
-    #define true 1
-    #define false 0
-  #endif
+#ifdef _MSC_VER
+  #define INLINE __forceinline /* use __forceinline (VC++ specific) */
+#else
+  #define INLINE inline        /* use standard inline */
 #endif
 
 #define QUEUE_SIZE 20
@@ -116,7 +110,7 @@ static fd_set socket_read_fds; // stores all the socket file descriptors in use 
 ///////////////////////////////////////////////////////////////////////////
 
 // Platform specific error printing
-inline void print_socket_error( const char* message )
+extern INLINE void print_socket_error( const char* message )
 {
   #ifdef WIN32
   fprintf( stderr, "%s: code: %d\n", message, WSAGetLastError() );
@@ -256,7 +250,7 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
 }
 
 // Add defined connection to the client list of the given server connection
-static inline void add_client( Connection* server, Connection* client )
+static INLINE void add_client( Connection* server, Connection* client )
 {
   static size_t n_clients, client_index = 0, client_list_size = 0;
   
@@ -467,9 +461,9 @@ Connection* open_connection( const char* host, const char* port, int protocol )
 /////////////////////////////////////////////////////////////////////////////////
 
 // Wrapper functions
-inline char* receive_message( Connection* c ) { return c->receive_message( c ); }
-inline int send_message( Connection* c, const char* message ) { return c->send_message( c, message ); }
-inline Connection* accept_client( Connection* c ) { return c->accept_client( c ); }
+extern INLINE char* receive_message( Connection* c ) { return c->receive_message( c ); }
+extern INLINE int send_message( Connection* c, const char* message ) { return c->send_message( c, message ); }
+extern INLINE Connection* accept_client( Connection* c ) { return c->accept_client( c ); }
 
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
 short wait_message( Connection* connection, unsigned int milisseconds )

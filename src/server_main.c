@@ -5,7 +5,7 @@
 //#include "Python.h"
 #include <stdio.h>
 
-#include "script_network.h"
+#include "script_ip_network.h"
 #include <fcntl.h>
 
 // Utility functions for conversion from ascii strings to unicode
@@ -61,7 +61,7 @@ int main( int argc, char* argv[] )
   FILE* file;
   char* python_commands;
     
-  PyImport_AppendInittab( "NetworkInterface", &initNetworkScriptInterface );
+  PyImport_AppendInittab( "NetworkInterface", &initIPNetworkScriptInterface );
   Py_Initialize();
 
   file = fopen( "scripts/server_init.py", "r" );
@@ -76,7 +76,7 @@ int main( int argc, char* argv[] )
   PyRun_SimpleString( python_commands );
   free( python_commands );
     
-  endNetworkScriptInterface();
+  endIPNetworkScriptInterface();
 
   exit( 0 );
 }

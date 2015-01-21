@@ -12,13 +12,13 @@ extern "C"{
 #include <stdio.h>
 #include <stdlib.h>
   
-#if __STDC_VERSION__ >= 199901L
-  /* "inline" is a keyword */
+#ifdef _MSC_VER
+  #define INLINE __forceinline /* use __forceinline (VC++ specific) */
 #else
-# define inline //static
+  #define INLINE inline        /* use standard inline */
 #endif
 
-inline void print_platform_error( const char* message )
+extern INLINE void print_platform_error( const char* message )
 {
   #ifdef WIN32
   fprintf( stderr, "%s: code: %d\n", message, GetLastError() );

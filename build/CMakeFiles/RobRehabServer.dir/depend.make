@@ -3,7 +3,7 @@
 
 CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/async_connection.h
 CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/connection.h
-CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/script_network.h
+CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/script_ip_network.h
 CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/server_main.c
 CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/threads_unix.h
 CMakeFiles/RobRehabServer.dir/src/server_main.c.o: ../src/threads_windows.h
