@@ -28,27 +28,53 @@ sys.argv = [ 'update.py' ]	# Prevent fatal error on TK window creation
 # Predefined values
 from enum import IntEnum
 
-class StatusWord( IntEnum ): ReadyToSwitchON = 1; SwitchedON = 2; OperationEnabled = 4; Fault = 8; VoltageEnabled = 16
-                             QuickStop = 32; SwitchOnDisable = 64; RemoteNMT = 512; TargetReached = 1024; SetpointAcknowlege = 4096
+class StatusWord( IntEnum ): 
+   READY_TO_SWITCH_ON = 1; SWITCHED_ON = 2; OPERATION_ENABLED = 4; FAULT = 8; VOLTAGE_ENABLED = 16; 
+   QUICK_STOP = 32; SWITCH_ON_DISABLE = 64; REMOTE_NMT = 512; TARGET_REACHED = 1024; SETPOINT_ACKNOWLEGE = 4096
 
-class ControlWord( IntEnum ): SwitchON = 1; EnableVoltage = 2; QuickStop = 4; EnableOperation = 8 
-                              NewSetpoint = 16; ChangeImmediatedly = 32; AbsRel = 64, FaultReset = 128, Halt = 256
+class ControlWord( IntEnum ): 
+   SWITCH_ON = 1; ENABLE_VOLTAGE = 2; QUICK_STOP = 4; ENABLE_OPERATION = 8; 
+   NEW_SETPOINT = 16; CHANGE_IMMEDIATEDLY = 32; ABS_REL = 64; FAULT_RESET = 128; HALT = 256
 
-class OperationMode( IntEnum ): Homming = 0x06; ProfileVelocity = 0x03; ProfilePosition = 0x01 
-                                Position = 0xFF; Velocity = 0xFE; Current = 0xFD; MasterEncoder = 0xFB; Step = 0xFA
+class OperationMode( IntEnum ): 
+   HOMMING = 0x06; PROFILE_VELOCITY = 0x03; PROFILE_POSITION = 0x01; 
+   POSITION = 0xFF; VELOCITY = 0xFE; CURRENT = 0xFD; MASTER_ENCODER = 0xFB; STEP = 0xFA
 
-class Dimension( IntEnum ): Position = 0; PositionRef = 1; Velocity = 2; VelocityRef = 3; Current = 4; Tension = 5; Angle = 6; AngleRef = 7; Force = 8
+class Dimension( IntEnum ): 
+   POSITION = 0; POSITION_REF = 1; VELOCITY = 2; VELOCITY_REF = 3; CURRENT = 4; TENSION = 5; ANGLE = 6; ANGLE_REF = 7; FORCE = 8
 
-dimensionUnit = { Dimension.Position : 'ppr', Dimension.PositionRef : 'ppr', Dimension.Velocity : 'rpm', Dimension.VelocityRef : 'rpm', \
-                  Dimension.Current : 'mA', Dimension.Tension : 'mV', Dimension.Angle : '°', Dimension.AngleRef : '°', Dimension.Force : 'N' }
-dimensionColor = { Dimension.Position : 'blue', Dimension.Position Ref : '#00007f', Dimension.Velocity : 'green', Dimension.VelocityRef : '#007f00', \
-                   Dimension.Current : 'red', Dimension.Tension : '#7f0000', Dimension.Angle : '#7f7f00', Dimension.AngleRef : '#007f7f', Dimension.Force : 'magenta' }
+dimensionUnit = { Dimension.POSITION : 'ppr', Dimension.POSITION_REF : 'ppr', Dimension.VELOCITY : 'rpm', Dimension.VELOCITY_REF : 'rpm', 
+                  Dimension.CURRENT : 'mA', Dimension.TENSION : 'mV', Dimension.ANGLE : '°', Dimension.ANGLE_REF : '°', Dimension.FORCE : 'N' }
 
-dimensionName = { Dimension.Position : 'Posição', Dimension.PositionRef : 'Posição Alvo', Dimension.Velocity : 'Velocidade', Dimension.VelocityRef : 'Velocidade Alvo', \
-                  Dimension.Current : 'Corrente', Dimension.AngleRef : 'Ângulo Alvo', Dimension.Tension : 'Tensão', Dimension.Angle : 'Ângulo', Dimension.Force : 'Força' }
+dimensionColor = { Dimension.POSITION : 'blue', Dimension.POSITION_REF : '#00007f', Dimension.VELOCITY : 'green', 
+                   Dimension.VELOCITY_REF : '#007f00', Dimension.CURRENT : 'red', Dimension.TENSION : '#7f0000', 
+                   Dimension.ANGLE : '#7f7f00', Dimension.ANGLE_REF : '#007f7f', Dimension.FORCE : 'magenta' }
+
+dimensionName = { Dimension.POSITION : 'Posição', Dimension.POSITION_REF : 'Posição Alvo', Dimension.VELOCITY : 'Velocidade', 
+                  Dimension.VELOCITY_REF : 'Velocidade Alvo', Dimension.CURRENT : 'Corrente', Dimension.TENSION : 'Tensão', 
+                  Dimension.ANGLE_REF : 'Ângulo Alvo', Dimension.ANGLE : 'Ângulo', Dimension.FORCE : 'Força' }
                          
-class Parameter( IntEnum ): Stiffness = 0; Damping = 1
+class Parameter( IntEnum ): STIFFNESS = 0; DAMPING = 1
 
-parameterName = { Parameter.Stiffness : 'Rigidez', Parameter.Damping : 'Amortecimento' }
+parameterName = { Parameter.STIFFNESS : 'Rigidez', Parameter.DAMPING : 'Amortecimento' }
 
-controlMode = { 2 : 'Quadril', 1 : 'Joelho', 0 : 'Calcanhar' }
+class Axis:
+  
+   def __init__( self ):
+      self.dimensionValues = {}
+      for dimension in list(Dimension):
+         self.dimensionValues[ dimension ] = []
+         self.dimensionValues[ dimension ].append( 0 )
+          
+      self.motionTimes = []
+      self.motionTimes.append( execTime() * 1000 )
+      
+      self.controlEnabled = 0
+      
+      self.controlValues = {}
+      for valueIndex in list(Parameter):
+         self.controlValues[ valueIndex ] = 0
+         
+      self.statusValues = {}
+      for valueIndex in list(StatusWord):
+         self.statusValues[ valueIndex ] = 0
