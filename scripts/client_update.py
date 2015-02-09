@@ -140,76 +140,78 @@ def updateInfo():
             valueIndex = int(infoList[2])
             if infoList[0] == 'Axis Status':
                axesList[ axisName ].statusValues[ valueIndex ] = int(infoList[3])
+               if axisName == axisDisplayName.get():
+                  statusEntryValues[ valueIndex ].set( axesList[ axisName ].statusValues[ valueIndex ] )
             elif infoList[0] == 'Axis Parameter':
-               axesList[ axisName ].controlValues[ valueIndex ] = int(infoList[3])
+               axesList[ axisName ].controlValues[ valueIndex ] = float(infoList[3])
+               if axisName == axisDisplayName.get():
+                  controlEntryValues[ valueIndex ].set( axesList[ axisName ].controlValues[ valueIndex ] )
+            elif infoList[0] == 'Axis Control' and valueIndex == ControlWord.ENABLE_OPERATION:
+               axesList[ axisName ].controlEnabled = int(infoList[3])
+               if axisName == axisDisplayName.get():
+                  controlEnabled.set( axesList[ axisName ].controlEnabled )
                
    window.after( 1000, updateInfo )
 
 
 # Função de atualização da tela 
 def updateScreen():
-  
-   currentAxis = axesList[ axisDisplayName.get() ]
-  
-   controlEnabled.set( currentAxis.controlEnabled )
-   
-   for parameter in list(Parameter):
-      parameterValues[ parameter ].set( currentAxis.controlValues[ parameter ] )
-  
-   for status in list(StatusWord):
-      statusEntryValues[ status ].set( currentAxis.statusValues[ status ] )
-  
-   time = len(currentAxis.dimensionValues[ Dimension.Position ])
    global plotWidth
-   
-   # Plota valores de posição, velocidade, corrente e tensão no gráfico   
-   begin = int(time * scroll.get()[0])
-   end = int(time * scroll.get()[1])
+  
+   nPlots = 0
    
    figure.clear()
-   
-   nPlots = 0
-   for check in dimensionChecks.values():
-      if check.get() == 1:
-         nPlots += 1
-     
-   plotId = 0
-   for dimensionType in currentAxis.dimensionValues.keys():
-      if dimensionChecks[ dimensionType ].get() == 1:
-         plotId += 1
-         plot = figure.add_subplot( nPlots, 1, plotId, anchor = 'E' )
-         plot.set_ylabel( dimensionName[ dimensionType ], fontdict = { 'fontsize' : 8 } )
-         plot.tick_params( 'y', labelsize = 8, labelright = 'on', labelleft = 'off' )
-         plot.tick_params( 'x', labelsize = 0, labeltop = 'off', labelbottom = 'off' )
-         #plot.autoscale( axis = 'y', tight = False )
-         if time > plotWidth[0]:
-            plot.set_xlim( left = begin, right = end )
-         else:
-            plot.set_xlim( left = 0, right = plotWidth[0] )
-         interval = plotWidth[1] * dimensionScales[ dimensionType ].get()
-         plot.set_ylim( top = interval / 2, bottom = -interval / 2 )
-         plot.plot( currentAxis.dimensionValues[ dimensionType ], color = dimensionColor[ dimensionType ] )
-         #plot.axhline( 0, 0, 1, color = 'black' )
-         
-      if len(currentAxis.dimensionValues[ dimensionType ]) > 0:
-         dimensionEntries[ dimensionType ][ 'text' ] = '{:.3g} {}'.format( currentAxis.dimensionValues[ dimensionType ][-1], 
-                                                                           dimensionUnit[ dimensionType ] )
+  
+   if len(axesList) > 0:
+      currentAxis = axesList[ axisDisplayName.get() ]
       
-   if nPlots == 0:
+      time = len(currentAxis.dimensionValues[ Dimension.Position ])
+      
+      # Plota valores de posição, velocidade, corrente e tensão no gráfico   
+      begin = int(time * scroll.get()[0])
+      end = int(time * scroll.get()[1])
+      
+      for check in dimensionChecks.values():
+          if check.get() == 1:
+            nPlots += 1
+        
+      plotId = 0
+      for dimensionType in currentAxis.dimensionValues.keys():
+          if dimensionChecks[ dimensionType ].get() == 1:
+            plotId += 1
+            plot = figure.add_subplot( nPlots, 1, plotId, anchor = 'E' )
+            plot.set_ylabel( dimensionName[ dimensionType ], fontdict = { 'fontsize' : 8 } )
+            plot.tick_params( 'y', labelsize = 8, labelright = 'on', labelleft = 'off' )
+            plot.tick_params( 'x', labelsize = 0, labeltop = 'off', labelbottom = 'off' )
+            #plot.autoscale( axis = 'y', tight = False )
+            if time > plotWidth[0]:
+                plot.set_xlim( left = begin, right = end )
+            else:
+                plot.set_xlim( left = 0, right = plotWidth[0] )
+            interval = plotWidth[1] * dimensionScales[ dimensionType ].get()
+            plot.set_ylim( top = interval / 2, bottom = -interval / 2 )
+            plot.plot( currentAxis.dimensionValues[ dimensionType ], color = dimensionColor[ dimensionType ] )
+            #plot.axhline( 0, 0, 1, color = 'black' )
+            
+          if len(currentAxis.dimensionValues[ dimensionType ]) > 0:
+            dimensionEntries[ dimensionType ][ 'text' ] = '{:.3g} {}'.format( currentAxis.dimensionValues[ dimensionType ][-1], 
+                                                                              dimensionUnit[ dimensionType ] )
+          
+      figure.axes[-1].tick_params( 'x', labelsize = 8, labeltop = 'off', labelbottom = 'on' )
+      
+      # Desloca slider quando gráfico cresce além do tamanho do canvas
+      if time > plotWidth[0]:
+          if scroll.get()[1] == 1.0:
+            scroll.set( 1.0 - plotWidth[0] / time, 1.0 )
+          else:
+            scroll.set( scroll.get()[0] * (time - 1) / time, (scroll.get()[0] * (time - 1) + plotWidth[0]) / time )
+   
+   if len(axesList) == 0 or nPlots == 0:   
       plot = figure.add_subplot( 111 )
       plot.tick_params( labelsize = 8, labelright = 'on', labelleft = 'off' )
       plot.axis( [ 0, plotWidth[0], -plotWidth[1] / 2, plotWidth[1] / 2 ] )
-      #plot.axhline( 0, 0, 1, color = 'black' )
-
-   figure.axes[-1].tick_params( 'x', labelsize = 8, labeltop = 'off', labelbottom = 'on' )
-   
-   # Desloca slider quando gráfico cresce além do tamanho do canvas
-   if time > plotWidth[0]:
-      if scroll.get()[1] == 1.0:
-         scroll.set( 1.0 - plotWidth[0] / time, 1.0 )
-      else:
-         scroll.set( scroll.get()[0] * (time - 1) / time, (scroll.get()[0] * (time - 1) + plotWidth[0]) / time )
-         
+      plot.axhline( 0, 0, 1, color = 'black' )
+            
    mplCanvas.draw()
    mplCanvas.show()
    
@@ -230,7 +232,7 @@ window.columnconfigure( 3, minsize = 400 )
       
 # Frame de apresentação do programa
 headerFrame = LabelFrame( window )
-headerFrame.grid( row = 1, column = 1, columnspan = 3, pady = 5 )     
+headerFrame.grid( row = 1, column = 1, columnspan = 3, pady = 10 )     
 # Label do Título    
 titleLabel = Label( headerFrame, width = 70, height = 5 )
 titleLabel[ 'text' ] = ( 'CONTROLE DE IMPEDÂNCIA EXO-KANGUERA - EPOS CANOpen\n'
@@ -249,21 +251,25 @@ eescLabel.grid( row = 1, column = 3, padx = 10, pady = 5 )
 # Label do status de inicialização      
 initLabel = Label( window, height = 2, width = 60, relief = RIDGE )
 initLabel[ 'text' ] = 'INICIALIZE COMUNICAÇÃO COM AS EPOS'
-initLabel.grid( row = 2, column = 1, columnspan = 3, pady = 5 )
+initLabel.grid( row = 2, column = 1, columnspan = 3 )
+      
+# Frame auxiliar para melhor alinhamento
+optionsFrame = Frame( window )
+optionsFrame.grid( row = 3, column = 1, columnspan = 3, ipady = 10 )
       
 # Configurações de conexão
-serverFrame = LabelFrame( window, text = 'Configurações de Conexão' )
-serverFrame.grid( row = 3, column = 1, columnspan = 2, pady = 5, ipady = 10 )
+serverFrame = LabelFrame( optionsFrame, text = 'Configurações de Conexão' )
+serverFrame.pack( side = LEFT, padx = 20, pady = 10, ipady = 10 )
 
 # Configuração de host
 Label( serverFrame, text = 'Endereço (Domínio ou IP):' ).pack( side = LEFT, padx = 10, anchor = E )
 Entry( serverFrame, textvariable = serverHost, width = 20, fg = 'black', bg = 'white', justify = CENTER ).pack( side = LEFT, padx = 10 )
 # Botão de ativação da conexão
-ttk.Button( serverFrame, text = 'Conectar', command = setupConnection ).pack( side = LEFT, padx = 40 )
+ttk.Button( serverFrame, text = 'Conectar', command = setupConnection ).pack( side = LEFT, padx = 20 )
 
 #Frames de configuração das controladoras dos eixos
-axisFrame = LabelFrame( window, text = 'Seleção de Eixo' )
-axisFrame.grid( row = 3, column = 3, pady = 10 )
+axisFrame = LabelFrame( optionsFrame, text = 'Seleção de Eixo' )
+axisFrame.pack( side = LEFT, padx = 20, pady = 10 )
 
 axisSelector = ttk.Combobox( axisFrame, textvariable = axisDisplayName, justify = CENTER )
 axisSelector.grid( row = 1, column = 1, columnspan = 2, padx = 10 )
@@ -271,26 +277,42 @@ axisSelector.grid( row = 1, column = 1, columnspan = 2, padx = 10 )
 Label( axisFrame, text = 'Controle' ).grid( row = 1, column = 3, padx = 10 )
 controlEnabled = IntVar()
 # Função de início/término do controle (Definida para cada Eixo)
-def toggleControl(): sendMessage( infoConnectionId, 'Axis Control:{0:s}:Enable:{1:d}'.format( axisDisplayName.get(), controlEnabled.get() ) )   
+def toggleControl(): 
+   sendMessage( infoConnectionId, 'Axis Control:{0:s}:{1:d}:{2:d}'.format( axisDisplayName.get(), 
+                                                                           ControlWord.SWITCH_ON, controlEnabled.get() ) )
+   sendMessage( infoConnectionId, 'Axis Control:{0:s}:{1:d}:{2:d}'.format( axisDisplayName.get(), 
+                                                                           ControlWord.ENABLE_OPERATION, controlEnabled.get() ) )
+   
 Checkbutton( axisFrame, variable = controlEnabled, command = toggleControl, fg = 'black' ).grid( row = 1, column = 4, sticky = W )
 
 pos = 0
-parameterValues = {}
+controlEntryValues = {}
 for parameterType in list(Parameter):
-   Label( axisFrame, text = parameterName[ parameterType ] + ':', width = 10, justify = LEFT ).grid( row = 2, column = pos * 2 + 1, pady = 5 )
+   Label( axisFrame, text = parameterName[ parameterType ] + ':', width = 15, justify = LEFT ).grid( row = 2, column = pos * 2 + 1, pady = 5 )
 
-   parameterValues[ parameterType ] = DoubleVar()
+   controlEntryValues[ parameterType ] = DoubleVar()
    # Função de evento da caixa de texto
    def setParameter( event, parameterType = parameterType ):
       sendMessage( infoConnectionId, 'Axis Parameter:{0:s}:{1:d}:{2:.3g}'.format( axisDisplayName.get(), 
-                                                                                  parameterType, parameterValues[ parameterType ].get() ) )
-      axesList[ axisDisplayName.get() ].controlValues[ parameterType ] = parameterValues[ parameterType ].get()
+                                                                                  parameterType, controlEntryValues[ parameterType ].get() ) )
+      axesList[ axisDisplayName.get() ].controlValues[ parameterType ] = controlEntryValues[ parameterType ].get()
 
-   parameterEntry = Entry( axisFrame, textvariable = parameterValues[ parameterType ], width = 5, fg = 'black', bg = 'white', justify = CENTER )
+   parameterEntry = Entry( axisFrame, textvariable = controlEntryValues[ parameterType ], width = 5, fg = 'black', bg = 'white', justify = CENTER )
    parameterEntry.bind( ('<KeyPress-Return>', '<KeyRelease-Return>'), setParameter )
    parameterEntry.bind( '<FocusOut>', setParameter )
    parameterEntry.grid( row = 2, column = pos * 2 + 2, padx = 10, sticky = E )
    pos += 1
+
+
+def axisChange( event ):
+   currentAxis = axesList[ axisDisplayName.get() ]
+   for statusType in list(StatusWord):
+      statusEntryValues[ statusType ].set( currentAxis.statusValues[ statusType ] )
+   for parameterType in list(Parameter):
+      controlEntryValues[ parameterType ].set( currentAxis.controlValues[ valueIndex ] )
+   controlEnabled.set( currentAxis.controlEnabled )
+      
+axisSelector.bind( '<<ComboboxSelected>>', axisChange )
 
 # Botão de Reset de falhas
 resetButton = ttk.Button( window, text = 'Reset de Falhas', command = resetFault )

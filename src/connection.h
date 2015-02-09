@@ -39,8 +39,8 @@ extern "C"{
   #include <arpa/inet.h>
   #include <netdb.h>
 
-  #define SOCKET_ERROR -1
-  #define INVALID_SOCKET -1
+  const int SOCKET_ERROR = -1;
+  const int INVALID_SOCKET = -1;
 
   typedef int Socket;
   
@@ -57,22 +57,18 @@ extern "C"{
   #define INLINE inline        /* use standard inline */
 #endif
 
-#define QUEUE_SIZE 20
-#define BUFFER_SIZE 256
+const int QUEUE_SIZE = 20;
+const int BUFFER_SIZE = 256;
 
-#define HOST_LENGTH 40
-#define PORT_LENGTH 6
-#define ADDRESS_LENGTH (HOST_LENGTH + PORT_LENGTH)
+const int HOST_LENGTH = 40;
+const int PORT_LENGTH = 6;
+const int ADDRESS_LENGTH = HOST_LENGTH + PORT_LENGTH;
 
-#define HOST 0
-#define PORT HOST_LENGTH
+const int HOST = 0;
+const int PORT = HOST_LENGTH;
 
-#define CLIENT 0x000f
-#define SERVER 0x00f0
-#define NETWORK_ROLE 0x00ff
-#define TCP 0x0f00
-#define UDP 0xf000
-#define PROTOCOL 0xff00
+enum Property { CLIENT = 0x000f, SERVER = 0x00f0,  NETWORK_ROLE_MASK = 0x00ff, TCP = 0x0f00, UDP = 0xf000, PROTOCOL_MASK = 0xff00 };
+
 
 //////////////////////////////////////////////////////////////////////////
 /////                         DATA STRUCTURES                        /////
@@ -182,7 +178,7 @@ size_t connections_count( Connection* connection )
 {
   size_t n_connections = 0;
   
-  if( (connection->type & NETWORK_ROLE) == SERVER )
+  if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
     n_connections = *(connection->ref_connections_count);
   else
     n_connections = 1;
@@ -222,10 +218,10 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
   connection->ref_connections_count = (size_t*) malloc( sizeof(size_t) );
   *(connection->ref_connections_count) = 0;
   
-  if( (connection->type & NETWORK_ROLE) == SERVER ) // Server role connection
+  if( (connection->type & NETWORK_ROLE_MASK) == SERVER ) // Server role connection
   {
     connection->client_list = NULL;
-    connection->accept_client = ( (connection->type & PROTOCOL) == TCP ) ? accept_tcp_client : accept_udp_client;
+    connection->accept_client = ( (connection->type & PROTOCOL_MASK) == TCP ) ? accept_tcp_client : accept_udp_client;
     connection->send_message = send_message_all;
   }
   else
@@ -243,8 +239,8 @@ static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_
     #endif
     //connection->address->sin6_family = AF_INET6;
     connection->buffer = (char*) calloc( BUFFER_SIZE, sizeof(char) );
-    connection->receive_message = ( (connection->type & PROTOCOL) == TCP ) ? receive_tcp_message : receive_udp_message;
-    connection->send_message = ( (connection->type & PROTOCOL) == TCP ) ? send_tcp_message : send_udp_message;
+    connection->receive_message = ( (connection->type & PROTOCOL_MASK) == TCP ) ? receive_tcp_message : receive_udp_message;
+    connection->send_message = ( (connection->type & PROTOCOL_MASK) == TCP ) ? send_tcp_message : send_udp_message;
   }
   
   return connection;
@@ -340,7 +336,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     char address_string[ ADDRESS_LENGTH ];
     getnameinfo( p->ai_addr, sizeof(struct sockaddr), 
 		 &address_string[ HOST ], HOST_LENGTH, &address_string[ PORT ], PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
-    if( (connection_type & NETWORK_ROLE) == SERVER )
+    if( (connection_type & NETWORK_ROLE_MASK) == SERVER )
       printf( "open_connection: trying to bind to: host: %s - port: %s", &address_string[ HOST ], &address_string[ PORT ] );
     else
       printf( "open_connection: trying to connect to: host: %s - port: %s", &address_string[ HOST ], &address_string[ PORT ] );
@@ -385,7 +381,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
       return NULL;
     }
     
-    if( (connection_type & NETWORK_ROLE) == SERVER )
+    if( (connection_type & NETWORK_ROLE_MASK) == SERVER )
     {
       if( p->ai_family == AF_INET ) continue;
       
@@ -417,7 +413,7 @@ Connection* open_connection( const char* host, const char* port, int protocol )
         }
       }
     }
-    else if( (connection_type & PROTOCOL) == TCP )
+    else if( (connection_type & PROTOCOL_MASK) == TCP )
     {
       // Connect TCP client socket to given remote address
       if( connect( sockfd, p->ai_addr, p->ai_addrlen ) == SOCKET_ERROR )
@@ -710,7 +706,7 @@ void close_connection( Connection* connection )
 
     // Each TCP connection has its own socket, so we can close it without problem. But UDP connections
     // from the same server share the socket, so we need to wait for all of them to be stopped to close the socket
-    if( (connection->type & PROTOCOL) == TCP )
+    if( (connection->type & PROTOCOL_MASK) == TCP )
     {
       #ifdef DEBUG_1
       printf( "close_connection: closing TCP connection unused socket fd: %d\n", connection->sockfd );
@@ -721,7 +717,7 @@ void close_connection( Connection* connection )
     // Check number of client connections of a server (also of sharers of a socket for UDP connections)
     if( *(connection->ref_connections_count) <= 0 )
     {
-      if( (connection->type & PROTOCOL) == UDP )
+      if( (connection->type & PROTOCOL_MASK) == UDP )
       {
         #ifdef DEBUG_1
         printf( "close_connection: closing UDP connection unused socket fd: %d\n", connection->sockfd );
@@ -737,7 +733,7 @@ void close_connection( Connection* connection )
     free( connection->address );
     connection->address = NULL;
   
-    if( (connection->type & NETWORK_ROLE) == CLIENT )
+    if( (connection->type & NETWORK_ROLE_MASK) == CLIENT )
     {
       #ifdef DEBUG_1
       printf( "close_connection: freeing client connection message buffer\n" );
@@ -745,7 +741,7 @@ void close_connection( Connection* connection )
       free( connection->buffer );
       connection->buffer = NULL;
     }
-    else if( (connection->type & NETWORK_ROLE) == SERVER )
+    else if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
     {
       #ifdef DEBUG_1
       printf( "close_connection: cleaning server connection client list\n" );

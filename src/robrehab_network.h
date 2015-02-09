@@ -1,12 +1,8 @@
 #ifndef ROBREHAB_NETWORK_H
 #define ROBREHAB_NETWORK_H
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
-#include "connection.h"
-#include <string.h>
+#include "ip_network.h"
+#include "control.h"
 
 void get_axes_data()
 {
@@ -22,9 +18,5 @@ void send_data_messages()
 {
 
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif //ROBREHAB_NETWORK_H
