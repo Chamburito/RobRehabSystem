@@ -19,3 +19,10 @@ data/receive_calls_server.txt
 *.suo
 *.sdf
 *.ipch
+*.ipch
+*.sdf
+*.sln
+*.sdf
+*.vcxproj
+*.filters
+*.user
