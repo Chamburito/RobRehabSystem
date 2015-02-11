@@ -1,5 +1,5 @@
-#ifndef IP_NETWORK_H
-#define IP_NETWORK_H
+#ifndef ASYNC_IP_NETWORK_H
+#define ASYNC_IP_NETWORK_H
 
 #include <iostream>
 #include <string>
