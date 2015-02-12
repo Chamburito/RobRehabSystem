@@ -11,14 +11,14 @@ using std::string;
 class SyncConnection
 {
   protected:
-    Connection* connection = nullptr;
+    Connection* connection;
   
   private:
     const int BASE_WAIT_TIME = 1;
       
   public:
-    AsyncConnection() {}
-    ~AsyncConnection()
+    SyncConnection() { connection = nullptr; }
+    ~SyncConnection()
     {
       close_connection( connection );
       connection = nullptr;
@@ -29,8 +29,7 @@ class SyncConnection
 class ClientConnection : public SyncConnection
 {
   public:
-    ClientConnection() {}
-    ClientConnection( Connection* connection ) 
+	  ClientConnection( Connection* connection = nullptr ) : SyncConnection ()
     { 
       this->connection = connection;
     }
@@ -48,7 +47,7 @@ class ClientConnection : public SyncConnection
 class ServerConnection : public SyncConnection
 {
 public:
-  ServerConnection() {}
+  ServerConnection() : SyncConnection () {}
   ~ServerConnection() {}
   inline ClientConnection GetNewClient()
   { 
@@ -62,7 +61,7 @@ public:
 class TCPClient : public ClientConnection
 {
   public:
-    TCPClient( string hostName, int portNumber )
+    TCPClient( string hostName, int portNumber ) : ClientConnection()
     {
       connection = open_connection( hostName.data(), std::to_string( portNumber ).data(), TCP ); 
     }
@@ -71,7 +70,7 @@ class TCPClient : public ClientConnection
 class UDPClient : public ClientConnection
 {
   public:
-    UDPClient( string hostName, int portNumber )
+    UDPClient( string hostName, int portNumber ) : ClientConnection()
     {
       connection = open_connection( hostName.data(), std::to_string( portNumber ).data(), UDP ); 
     }
@@ -80,7 +79,7 @@ class UDPClient : public ClientConnection
 class TCPServer : public ServerConnection
 {
   private:
-    TCPServer( int portNumber )
+    TCPServer( int portNumber ) : ServerConnection()
     {
       connection = open_connection( NULL, std::to_string( portNumber ).data(), TCP );
     }
@@ -89,7 +88,7 @@ class TCPServer : public ServerConnection
 class UDPServer : public ServerConnection
 {
   private:
-    UDPServer( int portNumber )
+    UDPServer( int portNumber ) : ServerConnection()
     {
       connection = open_connection( NULL, std::to_string( portNumber ).data(), UDP );
     }

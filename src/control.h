@@ -21,14 +21,6 @@ enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Índices dos algoritmos de con
 /////                       DISPOSITIVOS DE CONTROLE                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-//ENDEREÇAMENTO DA BASE DE DADOS CAN
-const char* CAN_DATABASE = "database";
-const char* CAN_CLUSTER = "NETCAN";
-    
-const char* NET_ID_SERVO_01 = "1";
-const char* NET_ID_SERVO_02 = "2";
-const char* NET_ID_SERVO_03 = "3";
-
 //INICIALIZAÇÃO DA REDE CAN
 EPOSNetwork eposNetwork( CAN_DATABASE, CAN_CLUSTER );
 

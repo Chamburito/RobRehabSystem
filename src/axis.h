@@ -10,7 +10,7 @@
 #ifndef AXIS_H
 #define	AXIS_H
 
-#include "can_frame.h"
+#include "epos_network.h"
 
 #ifdef WIN32
   #include "timing_windows.h"
@@ -18,12 +18,8 @@
   #include "timing_unix.h"
 #endif
 
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <vector>
-
-using namespace std;
+#include <stdio.h>
+#include <string.h>
 
 enum OperationMode { HOMMING_MODE = 0x06, PROFILE_VELOCITY_MODE = 0x03, PROFILE_POSITION_MODE = 0x01,
 	POSITION_MODE = 0xFF, VELOCITY_MODE = 0xFE, CURRENT_MODE = 0xFD, MASTER_ENCODER_MODE = 0xFB, STEP_MODE = 0xFA };
@@ -38,7 +34,128 @@ enum Dimension { POSITION, POSITION_SETPOINT, VELOCITY, VELOCITY_SETPOINT, CURRE
 
 enum Parameter { KP, KD, N_PARAMS }; 
 
-class Axis
+enum FrameType { SDO_TX, SDO_RX, PDO01_RX, PDO01_TX, PDO02_RX, PDO02_TX, N_FRAMES };
+static const char* frame_names[ N_FRAMES ] = { "SDO_TX_0", "SDO_RX_0", "PDO01_RX_0", "PDO01_TX_0", "PDO02_RX_0", "PDO02_TX_0" };
+
+typedef struct _Axis
+{
+  CAN_Frame* frame_list[ N_FRAMES ];
+  double dimension_values[ N_DIMS ];
+  double control_values[ N_PARAMS ];
+  short unsigned int statusWord, controlWord;
+  short int output;
+  bool active;
+}
+Axis;
+
+// Created axes count
+static size_t n_axes = 0;
+
+void axis_enable( Axis* );
+void axis_disable( Axis* );
+void axis_destroy( Axis* );
+double axis_get_dimension_value( Dimension );
+void axis_set_dimension_value( Dimension, double );   
+double axis_get_control_value( Axis*, Parameter );
+void axis_set_control_value( Axis*, Parameter, double );
+void axis_set_output( Axis*, int );
+bool axis_get_status_word( Axis*, StatusWord );
+void axis_set_control_word( Axis*, ControlWord, bool );
+void axis_read_values( Axis* );
+void axis_write_values( Axis* );
+void axis_set_operation_mode( Axis* OperationMode );
+void axis_set_digital_output( Axis*, bool );
+
+// Create CAN controlled DC motor handle
+Axis* axis_create() 
+{
+  Axis* axis = (Axis*) malloc( sizeof(Axis) );
+
+  for( int i = 0; i < N_DIMS; i++ )
+    axis->dimension_values[ i ] = 0.0;
+  for( int i = 0; i < N_PARAMS; i++ )
+    axis->control_values[ i ] = 10.0;
+
+  char network_address[20];
+	
+  for( int frame_id = 0; frame_id < N_FRAMES; frame_id += 2 )
+  {
+    sprintf( network_address, "%s%u", frame_names[ frame_id ], n_axes + 1 );
+    printf( "axis_init: creating frame %s\n", network_address );
+    axis->frame_list[ frame_id ] = epos_network_init_frame( FRAME_OUT, "CAN2", network_address );
+
+    if( axis->frame_list[ frame_id ] == NULL ) axis_destroy( axis );
+		    
+    sprintf( network_address, "%s%u", frame_names[ frame_id + 1 ], n_axes + 1 );
+    printf( "axis_init: creating frame %s\n", network_address );
+    axis->frame_list[ frame_id + 1 ] = epos_network_init_frame( FRAME_IN, "CAN1", network_address );
+
+    if( axis->frame_list[ frame_id + 1 ] == NULL ) axis_destroy( axis );
+  }
+
+  if( axis != NULL )
+  {
+    axis_disable( axis );
+    n_axes++;
+  }
+
+  return axis;
+}
+
+void axis_enable( Axis* axis )
+{
+  axis_set_control_word( axis, SWITCH_ON, false );
+  axis_set_control_word( axis, ENABLE_VOLTAGE, true );
+  axis_set_control_word( axis, QUICK_STOP, true );
+  axis_set_control_word( axis, ENABLE_OPERATION, false );
+  axis_write_values( axis );
+        
+  delay( 500 );
+        
+  axis_set_control_word( axis, SWITCH_ON, true );
+  axis_set_control_word( axis, ENABLE_VOLTAGE, true );
+  axis_set_control_word( axis, QUICK_STOP, true );
+  axis_set_control_word( axis, ENABLE_OPERATION, false );
+  axis_write_values( axis );
+
+  delay( 500 );
+        
+  axis_set_control_word( axis, SWITCH_ON, true );
+  axis_set_control_word( axis, ENABLE_VOLTAGE, true );
+  axis_set_control_word( axis, QUICK_STOP, true );
+  axis_set_control_word( axis, ENABLE_OPERATION, true );
+  axis_write_values( axis );
+
+  axis->active = true;
+}
+
+void axis_disable( Axis* axis )
+{
+  axis_set_control_word( axis, SWITCH_ON, true );
+  axis_set_control_word( axis, ENABLE_VOLTAGE, true );
+  axis_set_control_word( axis, QUICK_STOP, true );
+  axis_set_control_word( axis, ENABLE_OPERATION, false );
+  axis_write_values( axis );
+        
+  delay( 500 );
+        
+  axis_set_control_word( axis, SWITCH_ON, false );
+  axis_set_control_word( axis, ENABLE_VOLTAGE, true );
+  axis_set_control_word( axis, QUICK_STOP, true );
+  axis_set_control_word( axis, ENABLE_OPERATION, false );
+  axis_write_values( axis );
+
+  axis->active = false;
+}
+
+void axis_destroy( Axis* axis )
+{
+
+  free( axis );
+  axis = NULL;
+}
+
+class Axisx
 {
   private:
 
@@ -168,10 +285,10 @@ class Axis
     }
 
 
-    Axis(){}
+    Axisx(){}
 
     //Construtor da classe
-    Axis( string selectedDatabase, string selectedCluster, string netAddress ) 
+    Axisx( string selectedDatabase, string selectedCluster, string netAddress ) 
     {
       //Inicializa variaveis
       for( int i = 0; i < N_DIMS; i++ )

@@ -4,6 +4,8 @@
 #include "async_ip_network.h"
 #include "control.h"
 
+class NetworkAxis
+
 void get_axes_data()
 {
 

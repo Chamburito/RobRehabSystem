@@ -11,132 +11,86 @@
 #include "can_frame.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <sstream>
-#include <string>
+#include <string.h>
 
-class EPOSNetwork
+//CAN database addressing
+static char* CAN_DATABASE = NULL;
+static char* CAN_CLUSTER = NULL;
+
+// Network control frames
+static CAN_Frame* NMT = NULL;
+static CAN_Frame* SYNC = NULL;
+
+// List of user created frames
+static CAN_Frame** frame_list = NULL;
+static size_t n_frames = 0;
+
+void epos_network_start( const char* database_name, const char* cluster_name, int nodeId )
 {
+  // Stores default database name and cluster name for initialized CAN network
+  CAN_DATABASE = (char*) calloc( strlen( database_name ) + 1, sizeof(char) );
+  strcpy( CAN_DATABASE, database_name );
+  CAN_CLUSTER = (char*) calloc( strlen( cluster_name ) + 1, sizeof(char) );
+  strcpy( CAN_CLUSTER, cluster_name );
 
-private:
-  
-  //FRAMES NMT E SYNC DA REDE
-  CANFrame NMT;
-  CANFrame SYNC;
-  
-  
-public:
-  
-  //Construtor da classe
-  EPOSNetwork(){}
-  
-  
-  //Construtor da classe
-  EPOSNetwork( string selectedDatabase, string selectedCluster ){
-    
-    //ENDEREÇA E INICIALIZA O FRAME NMT
-    NMT.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, "NMT" ); //11
-    
-    //ENDEREÇA E INICIALIZA O FRAME SYNC
-    SYNC.Init( nxMode_FrameOutSinglePoint, "CAN2", selectedDatabase, selectedCluster, "SYNC" ); //11
-    
-  }
-  
-  //M…TODO QUE ENVIA O START PARA A TRANSMISS√O DOS PDOS PARA A REDE CAN
-  void StartPDOS( int nodeId )
-  {
-    //MONTA O PAYLOAD DE WRITE
-    static u8 writePayload[8];
-    writePayload[0] = 0x01;
-    writePayload[1] = nodeId;
-    writePayload[2] = 0x0;
-    writePayload[3] = 0x0;
-    writePayload[4] = 0x0;
-    writePayload[5] = 0x0;
-    writePayload[6] = 0x0;
-    writePayload[7] = 0x0;
-    
-    //ENVIA COMANDO DE START PDOS PARA A REDE
-    NMT.Write( writePayload );
-  }
-  
-  void Sync()
-  {
-    //MONTA O PAYLOAD DE WRITE
-    static u8 writePayload[8];
-    writePayload[0] = 0x0;
-    writePayload[1] = 0x0;
-    writePayload[2] = 0x0;
-    writePayload[3] = 0x0;
-    writePayload[4] = 0x0;
-    writePayload[5] = 0x0;
-    writePayload[6] = 0x0;
-    writePayload[7] = 0x0;
-    
-    SYNC.Write( writePayload );
-  }
-  
-  
-  //M…TODO QUE ENVIA O STOP PARA A TRANSMISS√O DOS PDOS PARA A REDE CAN
-  void StopPDOS( int nodeId )
-  {
-    //ENVIA COMANDO DE STOP PDOS PARA A REDE
-    //MONTA O PAYLOAD DE WRITE
-    static u8 writePayload[8];
-    writePayload[0] = 0x80;
-    writePayload[1] = nodeId;
-    writePayload[2] = 0x0;
-    writePayload[3] = 0x0;
-    writePayload[4] = 0x0;
-    writePayload[5] = 0x0;
-    writePayload[6] = 0x0;
-    writePayload[7] = 0x0;
-    
-    //ENVIA COMANDO DE START PDOS PARA A REDE
-    NMT.Write( writePayload );
-  }
-  
-  //M…TODO QUE ENVIA O RESET TODA A COMUNICA«√O DA REDE
-  void ResetComm()
-  {
-    //ENVIA COMANDO DE RESET PDOS PARA A REDE
-    //MONTA O PAYLOAD DE WRITE
-    static u8 writePayload[8];
-    writePayload[0] = 0x82;
-    writePayload[1] = 0x0;
-    writePayload[2] = 0x0;
-    writePayload[3] = 0x0;
-    writePayload[4] = 0x0;
-    writePayload[5] = 0x0;
-    writePayload[6] = 0x0;
-    writePayload[7] = 0x0;
-    
-    //ENVIA COMANDO DE START PDOS PARA A REDE
-    NMT.Write( writePayload );
-  }
-  
-  //M…TODO QUE ENVIA O RESET PARA TODOS OS NOS DA REDE
-  void ResetNodes()
-  {
-    //ENVIA COMANDO DE RESET PDOS PARA A REDE
-    //MONTA O PAYLOAD DE WRITE
-    static u8 writePayload[8];
-    writePayload[0] = 0x81;
-    writePayload[1] = 0x0;
-    writePayload[2] = 0x0;
-    writePayload[3] = 0x0;
-    writePayload[4] = 0x0;
-    writePayload[5] = 0x0;
-    writePayload[6] = 0x0;
-    writePayload[7] = 0x0;
-    
-    //ENVIA COMANDO DE START PDOS PARA A REDE
-    NMT.Write( writePayload );
-  }
-  
-  //MÈtodo de destruiÁ„o da classe
-  ~EPOSNetwork(){}
+  // Address and initialize NMT (Network Master) frame
+  NMT = can_frame_init( FRAME_OUT, "CAN2", CAN_DATABASE, CAN_CLUSTER, "NMT" );
+  // Address and initialize SYNC (Syncronization) frame
+  SYNC = can_frame_init( FRAME_OUT, "CAN2", CAN_DATABASE, CAN_CLUSTER, "SYNC" );
 
-};
+  // Start PDOs sending Start payload to the network
+  u8 payload[8] = { 0x01, nodeId }; // Rest of the array as 0x0
+  can_frame_write( NMT, payload );
+}
+
+CAN_Frame* epos_network_init_frame( Frame_Mode mode, const char* interface_name, const char* frame_name )
+{
+  frame_list = (CAN_Frame**) realloc( frame_list, ( n_frames + 1 ) * sizeof(CAN_Frame*) );
+
+  if( (frame_list[ n_frames ] = can_frame_init( mode, interface_name, CAN_DATABASE, CAN_CLUSTER, frame_name )) == NULL )
+    return NULL;
+
+  return frame_list[ n_frames++ ];
+}
+
+void epos_network_sync()
+{
+  // Build Sync pauload (all 0x0) 
+  static u8 payload[8];
+    
+  can_frame_write( SYNC, payload );
+}
+
+// Stop CAN network communications
+void epos_network_stop( int nodeId )
+{
+  free( CAN_DATABASE );
+  free( CAN_CLUSTER );
+
+  // Stop PDOs sending Stop payload to the network
+  u8 payload[8] = { 0x80, nodeId }; // Rest of the array as 0x0
+  can_frame_write( NMT, payload );
+
+  can_frame_end( NMT );
+  can_frame_end( SYNC );
+
+  for( int frame_id = 0; frame_id < n_frames; frame_id++ )
+    can_frame_end( frame_list[ frame_id ] );
+
+  free( frame_list );
+}
+
+void epos_network_reset_comm()
+{
+  u8 payload[8] = { 0x82 }; // Rest of the array as 0x0
+  can_frame_write( NMT, payload );
+}
+
+void epos_network_reset_nodes()
+{
+  u8 payload[8] = { 0x821 }; // Rest of the array as 0x0
+  can_frame_write( NMT, payload );
+}
 
 #endif	/* EPOS_NETWORK_H */
 

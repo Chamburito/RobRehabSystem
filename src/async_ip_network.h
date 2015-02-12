@@ -15,7 +15,8 @@ using std::string;
 class AsyncConnection
 {
   protected:
-    Connection* connection = nullptr;
+    Connection* connection;
+	const int BASE_WAIT_TIME = 1;
     virtual void SetupConnection() = 0;
     
     template< typename DataType >
@@ -45,12 +46,9 @@ class AsyncConnection
         }
         size_t DataCount() { return cache.size(); }
     };
-  
-  private:
-    const int BASE_WAIT_TIME = 1;
       
   public:
-    AsyncConnection() {}
+    AsyncConnection() { connection = nullptr; }
     ~AsyncConnection() {}
     string GetAddress() { return string( get_address( connection ); }
 };
@@ -78,7 +76,7 @@ class ClientConnection : public AsyncConnection
         }
         
         // Do not proceed if queue is full
-        if( readQueue.DataCount() == AsyncDataQueue::MAX_DATA )
+        if( readQueue.DataCount() == AsyncDataQueue<string>::MAX_DATA )
         {
           //#ifdef DEBUG_2
           //printf( "async_read_queue: connection socket %d read cache full\n", reader_buffer->connection->sockfd );
@@ -154,8 +152,7 @@ class ClientConnection : public AsyncConnection
     }
     
   public:
-    ClientConnection() {}
-    ClientConnection( Connection* connection ) 
+    ClientConnection( Connection* connection = nullptr ) 
     { 
       this->connection = connection;
       SetupConnection();
@@ -184,7 +181,7 @@ class ServerConnection : public AsyncConnection
       {
         // Give CPU time to the other read/write threads based on how much of our queue is filled
         if( clientQueue.DataCount() > 0 )
-          std::this_thread::sleep_for( std::chrono::milliseconds( BASE_WAIT_TIME * readQueue.DataCount() ) );
+          std::this_thread::sleep_for( std::chrono::milliseconds( BASE_WAIT_TIME * clientQueue.DataCount() ) );
         
         if( connection == nullptr )
         {
@@ -195,7 +192,7 @@ class ServerConnection : public AsyncConnection
         }
         
         // Do not proceed if queue is full
-        if( clientQueue.DataCount() >= AsyncDataQueue::MAX_DATA )
+        if( clientQueue.DataCount() >= AsyncDataQueue<ClientConnection>::MAX_DATA )
         {
           //#ifdef DEBUG_2
           //printf( "async_accept_clients: connection socket %d read cache full\n", server_buffer->connection->sockfd );
@@ -238,7 +235,7 @@ protected:
   }
     
 public:
-  ServerConnection() {}
+  ServerConnection() : AsyncConnection() {}
   ~ServerConnection()
   {
     close_connection( connection );
@@ -252,7 +249,7 @@ public:
 class TCPClient : public ClientConnection
 {
   public:
-    TCPClient( string hostName, int portNumber )
+    TCPClient( string hostName, int portNumber ) : ClientConnection()
     {
       connection = open_connection( hostName.data(), std::to_string( portNumber ).data(), TCP ); 
       SetupConnection();
@@ -262,7 +259,7 @@ class TCPClient : public ClientConnection
 class UDPClient : public ClientConnection
 {
   public:
-    UDPClient( string hostName, int portNumber )
+    UDPClient( string hostName, int portNumber ) : ClientConnection()
     {
       connection = open_connection( hostName.data(), std::to_string( portNumber ).data(), UDP ); 
       SetupConnection();
@@ -272,7 +269,7 @@ class UDPClient : public ClientConnection
 class TCPServer : public ServerConnection
 {
   private:
-    TCPServer( int portNumber )
+    TCPServer( int portNumber ) : ServerConnection()
     {
       connection = open_connection( NULL, std::to_string( portNumber ).data(), TCP );
       SetupConnection();
@@ -282,7 +279,7 @@ class TCPServer : public ServerConnection
 class UDPServer : public ServerConnection
 {
   private:
-    UDPServer( int portNumber )
+    UDPServer( int portNumber ) : ServerConnection()
     {
       connection = open_connection( NULL, std::to_string( portNumber ).data(), UDP );
       SetupConnection();

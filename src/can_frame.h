@@ -19,120 +19,102 @@
   #include "nixnet_stub.h"
 #endif
 
-#include <iostream>
-#include <string>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-using namespace std;
+enum Frame_Mode { FRAME_IN = nxMode_FrameInSinglePoint, FRAME_OUT = nxMode_FrameOutSinglePoint };
 
-class CANFrame{
-
-private:
-
-  //Variáveis da classe
-  nxSessionRef_t  g_SessionRef;
-
-  // Declare all variables for function 
-  string frameArray;
+// CAN Frame data structure
+typedef struct _CAN_Frame
+{
+  nxSessionRef_t session_ref;
+  char* name;
   u8 flags;
-  u8 frameType;
+  u8 type;
   u8 buffer[ sizeof(nxFrameVar_t) ];
-  nxFrameVar_t * ptrFrame;
+} 
+CAN_Frame;
 
-public:
-  
-  //INICIALIZADOR DO FRAME CAN
-  void Init( int type, string sInterface, string& sDatabase, string& sCluster, string sFrame )
-  {
-    //INICIALIZA VARIAVEIS
-    nxStatus_t g_Status = 0;
-    flags = 0;
-    frameType = nxFrameType_CAN_Data;	//MACRO
+// Display CAN error string based on status code
+static void print_frame_status( nxStatus_t status_code, const char* frame_name, const char* source )
+{
+  static char status_string[1024];
     
-    frameArray = sFrame;
-    
-    //Create an xnet session for Signal Input
-    g_Status = nxCreateSession( sDatabase.c_str(), sCluster.c_str(), frameArray.c_str(), sInterface.c_str(), type, &g_SessionRef );
-    
-    PrintStatus( g_Status, frameArray + "(nxCreateSession)" );
-  }
-  
-  //CONSTRUTOR DA CLASSE - default
-  CANFrame() {}
-  
-  //=============================================================================  
-  // Display Error Function 
-  //============================================================================= 
-  void PrintStatus( nxStatus_t status, string source ) 
-  {
-    char statusString[1024];
-    
-    if( status != nxSuccess ) 
-    {  
-      nxStatusToString( status, sizeof(statusString), statusString );
-      cout << source << " - NI-XNET Status: " << statusString << endl;
-      nxClear( g_SessionRef );
-      cout << "------------------" << endl;
-    }
-  }
-  
-  //Método de leitura de um frame
-  void Write( u8 payload[8] )
-  {
-    ptrFrame = (nxFrameVar_t*)buffer;
-    nxStatus_t g_Status;
-    g_Status = 0;
-    
-    //Configura o valor dos FRAMES
-    ptrFrame->Timestamp = 0;
-    ptrFrame->Flags = flags;
-    ptrFrame->Identifier = 66; 
-    ptrFrame->Type = frameType;
-    ptrFrame->PayloadLength= 8;
-    
-    //Configura o valor do FRAME
-    ptrFrame->Payload[0] = payload[0];
-    ptrFrame->Payload[1] = payload[1];
-    ptrFrame->Payload[2] = payload[2];
-    ptrFrame->Payload[3] = payload[3];
-    ptrFrame->Payload[4] = payload[4];
-    ptrFrame->Payload[5] = payload[5];
-    ptrFrame->Payload[6] = payload[6];
-    ptrFrame->Payload[7] = payload[7];
-    
-    //ENVIA FRAME PARA A INTERFACE CAN
-    g_Status = nxWriteFrame( g_SessionRef, &buffer, sizeof(nxFrameVar_t), 10 );
-    
-    PrintStatus( g_Status, frameArray + "(nxWriteFrame)" );  
-  }
-  
-  //Método de leitura de um frame
-  void Read( u8 payload[8] ){
-    
-    //DECLARAÇÃO DE VARIAVEIS
-    u32 temp;
-    nxStatus_t g_Status;
-    g_Status = 0;
-    
-    g_Status = nxReadFrame( g_SessionRef, buffer, sizeof(buffer), 0, &temp );
-    
-    if( g_Status == nxSuccess )
-    {
-      ptrFrame = (nxFrameVar_t*)buffer;
-      payload[0] = ptrFrame->Payload[0]; 
-      payload[1] = ptrFrame->Payload[1]; 
-      payload[2] = ptrFrame->Payload[2]; 
-      payload[3] = ptrFrame->Payload[3]; 
-      payload[4] = ptrFrame->Payload[4]; 
-      payload[5] = ptrFrame->Payload[5]; 
-      payload[6] = ptrFrame->Payload[6]; 
-      payload[7] = ptrFrame->Payload[7];
-    }
-    
-    PrintStatus( g_Status, frameArray + "(nxReadFrame)" );  
-  }
-  
-};
+  nxStatusToString( status_code, sizeof(status_string), status_string );
+  fprintf( stderr, "%s - NI-XNET Status: %s\n", source, status_string );
+  fprintf( stderr, "------------------\n" );
+}
 
+// CAN Frame initializer
+CAN_Frame* can_frame_init( Frame_Mode mode, const char* interface_name, const char* database_name, const char* cluster_name, const char* frame_name )
+{
+  CAN_Frame* frame = (CAN_Frame*) malloc( sizeof(CAN_Frame) );
+
+  frame->flags = 0;
+  frame->type = nxFrameType_CAN_Data;	//MACRO
+
+  frame->name = (char*) calloc( strlen(frame_name) + 1, sizeof(char) );
+  strcpy( frame->name, frame_name );
+
+  //Create an xnet session for Signal Input
+  nxStatus_t status_code = nxCreateSession( database_name, cluster_name, frame_name, interface_name, (u32) mode, &(frame->session_ref) );
+  if( status_code != nxSuccess )
+  {
+    print_frame_status( status_code, frame_name, "(nxCreateSession)" );
+    nxClear( frame->session_ref );
+    return NULL;
+  }
+
+  return frame;
+}
+
+// Read data from CAN frame to array
+void can_frame_read( CAN_Frame* frame, u8 payload[8] )
+{
+  nxFrameVar_t* ptr_frame = (nxFrameVar_t*) frame->buffer;
+
+  u32 temp;
+  nxStatus_t status_code = nxReadFrame( frame->session_ref, frame->buffer, sizeof(frame->buffer), 0, &temp );   
+  if( status_code != nxSuccess )
+  {
+    print_frame_status( status_code, frame->name, "(nxReadFrame)" );
+    nxClear( frame->session_ref );
+  }
+  else
+    memcpy( payload, ptr_frame->Payload, sizeof(u8) * 8/*ptr_frame->PayloadLength*/ );
+}
+
+// Write data from payload to CAN frame
+void can_frame_write( CAN_Frame* frame, u8 payload[8] )
+{
+  nxFrameVar_t* ptr_frame = (nxFrameVar_t*) frame->buffer;
+
+  ptr_frame->Timestamp = 0;
+  ptr_frame->Flags = frame->flags;
+  ptr_frame->Identifier = 66; 
+  ptr_frame->Type = frame->type;
+  ptr_frame->PayloadLength= 8;
+
+  memcpy( ptr_frame->Payload, payload, sizeof(u8) * 8/*ptr_frame->PayloadLength*/ );
+
+  nxStatus_t status_code = nxWriteFrame( frame->session_ref, &(frame->buffer), sizeof(nxFrameVar_t), 10 );
+  if( status_code != nxSuccess )
+  {
+    print_frame_status( status_code, frame->name, "(nxWriteFrame)" );
+    nxClear( frame->session_ref );
+  }
+}
+
+void can_frame_end( CAN_Frame* frame )
+{
+  if( frame != NULL )
+  {
+    free( frame->name );
+    free( frame );
+    frame = NULL;
+  }
+}
 
 #endif	/* CAN_FRAME_H */
 
