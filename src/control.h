@@ -21,6 +21,7 @@ enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Índices dos algoritmos de con
 /////                       DISPOSITIVOS DE CONTROLE                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
+
 //INICIALIZAÇÃO DA REDE CAN
 EPOSNetwork eposNetwork( CAN_DATABASE, CAN_CLUSTER );
 
