@@ -21,16 +21,11 @@ enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Índices dos algoritmos de con
 /////                       DISPOSITIVOS DE CONTROLE                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-
-//INICIALIZAÇÃO DA REDE CAN
-EPOSNetwork eposNetwork( CAN_DATABASE, CAN_CLUSTER );
-
 //INICIALIZAÇÃO DAS EPOS
-const int N_EPOS = 3;
-Axis EPOS[ N_EPOS ] = { Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_01 ),
-                      Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_02 ),
-                      Axis( CAN_DATABASE, CAN_CLUSTER, NET_ID_SERVO_03 ) };
-
+const int N_AXES = 3;
+Axis* axis_list[ N_AXES ];
+for( int axis_id = 0; axis_id < N_AXES; axis_id++ )
+  axis_list[ axis_id ] = axis_create();
 
 /////////////////////////////////////////////////////////////////////////////////
 ////////// CONSTANTES GERAIS ////////////////////////////////////////////////////
