@@ -19,6 +19,8 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <malloc.h>
 #include <string.h>
 
 enum OperationMode { HOMMING_MODE = 0x06, PROFILE_VELOCITY_MODE = 0x03, PROFILE_POSITION_MODE = 0x01,
@@ -153,6 +155,8 @@ void axis_disable( Axis* axis )
 
 void axis_destroy( Axis* axis )
 {
+  for( size_t frame_id = 0; frame_id < N_FRAMES; frame_id++ )
+    can_frame_end( axis->frame_list[ frame_id ] );
 
   free( axis );
   axis = NULL;
