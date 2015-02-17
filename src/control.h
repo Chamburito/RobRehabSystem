@@ -21,11 +21,37 @@ enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Índices dos algoritmos de con
 /////                       DISPOSITIVOS DE CONTROLE                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-//INICIALIZAÇÃO DAS EPOS
+//CAN database addressing
+const char* CAN_DATABASE = "database";
+const char* CAN_CLUSTER = "NETCAN";
+
+// EPOS axes list
 const int N_AXES = 3;
 Axis* axis_list[ N_AXES ];
-for( int axis_id = 0; axis_id < N_AXES; axis_id++ )
-  axis_list[ axis_id ] = axis_create();
+
+// EPOS devices and CAN network initialization
+void control_init()
+{
+  // Start CAN network transmission
+  for( int node_id = 1; node_id <= N_AXES; node_id++ )
+    epos_network_start( CAN_DATABASE, CAN_CLUSTER, node_id );
+  
+  // Create axes structures
+  for( int axis_id = 0; axis_id < N_AXES; axis_id++ )
+    axis_list[ axis_id ] = axis_create();
+}
+
+// EPOS devices and CAN network shutdown
+void control_end()
+{
+  // End CAN network transmission
+    eposNetwork.StopPDOS(1);
+
+    delay( 2000 );
+    
+	  // End threading subsystem
+    end_threading();
+}
 
 /////////////////////////////////////////////////////////////////////////////////
 ////////// CONSTANTES GERAIS ////////////////////////////////////////////////////
@@ -66,7 +92,7 @@ double Bq = 10.0;
 ////////// FUNÇÂO QUADRIL ///////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
-void* hipsControl( void* args )
+static void* hipsControl( void* args )
 {
   Axis* epos = (Axis*) args;
 
@@ -200,7 +226,7 @@ double Bv = 5.0;
 ////////// FUNÇÃO JOELHO ////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
-void* kneeControl( void* args )
+static void* kneeControl( void* args )
 {
   Axis* epos = (Axis*) args;
   
@@ -307,7 +333,7 @@ void* kneeControl( void* args )
   return NULL;
 }
 
-void* ankleControl( void* args )
+static void* ankleControl( void* args )
 {
   Axis* epos = (Axis*) args;
   

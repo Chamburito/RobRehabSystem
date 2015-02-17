@@ -1,10 +1,8 @@
 #ifndef ROBREHAB_NETWORK_H
 #define ROBREHAB_NETWORK_H
 
-#include "async_ip_network.h"
+//#include "async_ip_network.h"
 #include "control.h"
-
-class NetworkAxis
 
 void get_axes_data()
 {
