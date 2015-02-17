@@ -57,13 +57,13 @@ Axis* axis_create();
 void axis_enable( Axis* );
 void axis_disable( Axis* );
 void axis_destroy( Axis* );
-double axis_get_dimension_value( Dimension );
-void axis_set_dimension_value( Dimension, double );   
+double axis_get_measure( Axis*, Dimension );
+void axis_set_reference( Axis*, Dimension, double );   
 double axis_get_parameter( Axis*, Parameter );
 void axis_set_parameter( Axis*, Parameter, double );
 void axis_set_output( Axis*, int );
-bool axis_get_status_value( Axis*, Status );
-void axis_set_control_value( Axis*, Control, bool );
+bool axis_get_status( Axis*, Status );
+void axis_set_control( Axis*, Control, bool );
 void axis_read_values( Axis* );
 void axis_write_values( Axis* );
 double axis_read_single_value( Axis*, int, u8 );
@@ -109,26 +109,26 @@ Axis* axis_create()
 
 void axis_enable( Axis* axis )
 {
-  axis_set_control_value( axis, SWITCH_ON, false );
-  axis_set_control_value( axis, ENABLE_VOLTAGE, true );
-  axis_set_control_value( axis, QUICK_STOP, true );
-  axis_set_control_value( axis, ENABLE_OPERATION, false );
+  axis_set_control( axis, SWITCH_ON, false );
+  axis_set_control( axis, ENABLE_VOLTAGE, true );
+  axis_set_control( axis, QUICK_STOP, true );
+  axis_set_control( axis, ENABLE_OPERATION, false );
   axis_write_values( axis );
         
   delay( 500 );
         
-  axis_set_control_value( axis, SWITCH_ON, true );
-  axis_set_control_value( axis, ENABLE_VOLTAGE, true );
-  axis_set_control_value( axis, QUICK_STOP, true );
-  axis_set_control_value( axis, ENABLE_OPERATION, false );
+  axis_set_control( axis, SWITCH_ON, true );
+  axis_set_control( axis, ENABLE_VOLTAGE, true );
+  axis_set_control( axis, QUICK_STOP, true );
+  axis_set_control( axis, ENABLE_OPERATION, false );
   axis_write_values( axis );
 
   delay( 500 );
         
-  axis_set_control_value( axis, SWITCH_ON, true );
-  axis_set_control_value( axis, ENABLE_VOLTAGE, true );
-  axis_set_control_value( axis, QUICK_STOP, true );
-  axis_set_control_value( axis, ENABLE_OPERATION, true );
+  axis_set_control( axis, SWITCH_ON, true );
+  axis_set_control( axis, ENABLE_VOLTAGE, true );
+  axis_set_control( axis, QUICK_STOP, true );
+  axis_set_control( axis, ENABLE_OPERATION, true );
   axis_write_values( axis );
 
   axis->active = true;
@@ -136,18 +136,18 @@ void axis_enable( Axis* axis )
 
 void axis_disable( Axis* axis )
 {
-  axis_set_control_value( axis, SWITCH_ON, true );
-  axis_set_control_value( axis, ENABLE_VOLTAGE, true );
-  axis_set_control_value( axis, QUICK_STOP, true );
-  axis_set_control_value( axis, ENABLE_OPERATION, false );
+  axis_set_control( axis, SWITCH_ON, true );
+  axis_set_control( axis, ENABLE_VOLTAGE, true );
+  axis_set_control( axis, QUICK_STOP, true );
+  axis_set_control( axis, ENABLE_OPERATION, false );
   axis_write_values( axis );
         
   delay( 500 );
         
-  axis_set_control_value( axis, SWITCH_ON, false );
-  axis_set_control_value( axis, ENABLE_VOLTAGE, true );
-  axis_set_control_value( axis, QUICK_STOP, true );
-  axis_set_control_value( axis, ENABLE_OPERATION, false );
+  axis_set_control( axis, SWITCH_ON, false );
+  axis_set_control( axis, ENABLE_VOLTAGE, true );
+  axis_set_control( axis, QUICK_STOP, true );
+  axis_set_control( axis, ENABLE_OPERATION, false );
   axis_write_values( axis );
 
   axis->active = false;
@@ -162,7 +162,7 @@ void axis_destroy( Axis* axis )
   axis = NULL;
 }
 
-double axis_get_dimension_value( Axis* axis, Dimension index )
+double axis_get_measure( Axis* axis, Dimension index )
 {
   if( index >= N_DIMS )
   {
@@ -173,7 +173,7 @@ double axis_get_dimension_value( Axis* axis, Dimension index )
   return axis->dimension_values[ index ];
 }
 
-void axis_set_dimension_value( Axis* axis, Dimension index, double value )
+void axis_set_reference( Axis* axis, Dimension index, double value )
 {
   if( index >= N_DIMS )
   {
@@ -212,13 +212,13 @@ void axis_set_output( Axis* axis, bool enabled )
   else axis->output = 0x0000;
 }
 
-bool axis_get_status_value( Axis* axis, Status index )
+bool axis_get_status( Axis* axis, Status index )
 {
   if( (axis->status_word & index) > 0 ) return true;
   else return false;
 }
 
-void axis_set_control_value( Axis* axis, Control index, bool enabled )
+void axis_set_control( Axis* axis, Control index, bool enabled )
 {
   if( enabled ) axis->control_word |= index;
   else axis->control_word &= (~index);

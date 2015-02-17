@@ -15,10 +15,10 @@
 
 using namespace std;
   
-enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Índices dos algoritmos de controle
+enum Joint { HIPS = 2, KNEE = 1, ANKLE = 0 };  // Control algorhitms indexes
 
 /////////////////////////////////////////////////////////////////////////////////
-/////                       DISPOSITIVOS DE CONTROLE                        /////
+/////                            CONTROL DEVICES                            /////
 /////////////////////////////////////////////////////////////////////////////////
 
 //CAN database addressing
@@ -45,145 +45,148 @@ void control_init()
 void control_end()
 {
   // End CAN network transmission
-    eposNetwork.StopPDOS(1);
+  epos_network_stop( 1 );
 
-    delay( 2000 );
+  delay( 2000 );
     
-	  // End threading subsystem
-    end_threading();
+	// End threading subsystem
+  end_threading();
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-////////// CONSTANTES GERAIS ////////////////////////////////////////////////////
+/////                           COMMON CONSTANTS                            /////
 /////////////////////////////////////////////////////////////////////////////////
 
 const double PI = 3.141592;
-const double Ts = 0.005;				  // tempo de amostragem
+const double Ts = 0.005;				  // sampling interval
 
 
 /////////////////////////////////////////////////////////////////////////////////
-////////// CONSTANTES QUADRIL ///////////////////////////////////////////////////
+/////                            HIPS CONSTANTS                             /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const double p1 = 0.0168;
-const double p2 = 2.5749;
+const double TNS_2_POS_RATIO = 0.0168;
+const double TNS_2_POS_OFFSET = 2.5749;
 
-const double Ks_1 = 78.9; // N/m
-const double passo_AES1 = 3e-3;
+const double HIPS_FORCE_SENSOR_STIFFNESS = 78.9; // N/m
+const double HIPS_ACTUATOR_STEP = 3e-3;
 
-const double a_q = 0.063, b_q = 0.060, c_q = 0.284, d_q = 0.117, l_zero_q = 0.348;
+enum { A, B, C, D, C2D, A2B };
+const double HIPS_STRUCT_DIMS[] = { 0.063, 0.060, 0.284, 0.117, sqrt( 0.284 * 0.284 + 0.117 * 0.117 ), sqrt( 0.063 * 0.063 + 0.060 * 0.060 ) };
 
-const double h12_q = c_q * c_q + d_q * d_q;  //onde h12_q=h1_q^2
-const double h22_q = a_q * a_q + b_q * b_q;  //onde h22_q=h2_q^2
-const double h1_q = sqrt( h12_q );
-const double h2_q = sqrt( h22_q );
+const double HIPS_EFFECTOR_BASE_LENGTH = 0.348;
 
-const double alpha_q = atan( a_q / b_q );  //ângulo entre a_quadril e h2
-const double beta_q = atan( d_q / c_q );  //ângulo entre c_quadril e h1
+enum { ALPHA, BETA };
+const double HIPS_STRUCT_ANGLES[] = { atan( HIPS_STRUCT_DIMS[ A ] / HIPS_STRUCT_DIMS[ B ] ), atan( HIPS_STRUCT_DIMS[ C ] / HIPS_STRUCT_DIMS[ D ] ) };
 
 /////////////////////////////////////////////////////////////////////////////////
-////////// GANHOS PADRÂO QUADRIL ////////////////////////////////////////////////
+/////                    HIPS CONTROL DEFAULT VALUES                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
+// GainsHIPS_FORCE_SENSOR_STIFFNESS
 double Kq = 10.0;
 double Bq = 10.0;
 
+// Sampling
+const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
+
 /////////////////////////////////////////////////////////////////////////////////
-////////// FUNÇÂO QUADRIL ///////////////////////////////////////////////////////
+/////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void* hipsControl( void* args )
+static void* hips_control( void* args )
 {
-  Axis* epos = (Axis*) args;
+  Axis* hips = axis_list[ 2 ];
 
-  double refTension = epos->PDOgetValue( TENSION ); // mV
-  double refPosition = ( p1 * refTension + p2 ); // mm
+  double tension_ref = axis_get_measure( hips, TENSION ); // mV
+  double position_ref = ( TNS_2_POS_RATIO * tension_ref + TNS_2_POS_OFFSET ); // mm
 
-  // Amostragem dos últimos valores do sinal de tensão para uso de valor médio
-  static double analogSamples[6];
+  // Sampling of last voltage signal values for filtering (average filter)
+  static double analog_samples[ HIPS_CONTROL_SAMPLING_NUMBER ];
   
-  int execTime, elapsedTime;
+  int exec_time, elapsed_time;
 
-  epos->VCS_SetOperationMode( VELOCITY_MODE );
-  
-  //epos->SetControlValue( KP, Kq );
-  //epos->SetControlValue( KD, Bq );
+  axis_set_operation_mode( hips, VELOCITY_MODE );
 
-  static double thetad_q; // ?
+  static double theta_ref; // ?
 
-  //epos->ReadSetpoints( "theta_q.txt" );
-
-  while( epos->active/*epos->PDOgetStatusWord( SWITCHED_ON )*/ )
+  while( hips->active/*axis_get_status( hips, SWITCHED_ON )*/ )
   {
-    execTime = get_exec_time_milisseconds();
+    exec_time = get_exec_time_milisseconds();
+
+    axis_read_values( hips );
     
-    analogSamples[5] = analogSamples[4];
-    analogSamples[4] = analogSamples[3];
-    analogSamples[3] = analogSamples[2];
-    analogSamples[2] = analogSamples[1];
-    analogSamples[1] = analogSamples[0];
-    analogSamples[0] = epos->PDOgetValue( TENSION ); // mV
+    double tension = 0;
+    for( int i = 0; i < HIPS_CONTROL_SAMPLING_NUMBER; i ++ )
+    {
+      if( i == 0 ) analog_samples[ i ] = axis_get_measure( hips, TENSION ); // mV
+      else analog_samples[ i ] = analog_samples[ i - 1 ];
+    
+      tension += analog_samples[ i ] / HIPS_CONTROL_SAMPLING_NUMBER; // mV;
+    } 
+
+    double position = ( TNS_2_POS_RATIO * tension + TNS_2_POS_OFFSET );	// mm
+
+    double actuator_force = -HIPS_FORCE_SENSOR_STIFFNESS * ( position_ref - position ); // N
+
+    theta_ref = axis_get_measure( hips, POSITION_SETPOINT );
+    printf( "Angle setpoint: %g\n", theta_ref );
+
+    // 4-bar (A, B, C, D, in meters) mechanism
+
+    int actuator_encoder_position = axis_get_measure( hips, POSITION );
+    double effector_delta_length = ( actuator_encoder_position / 4096 ) * HIPS_ACTUATOR_STEP + ( position_ref - position ) / 1000; // m
+
+    double effector_length = HIPS_EFFECTOR_BASE_LENGTH + effector_delta_length; // m
+
+    double cos_eta = ( effector_length * effector_length + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) - pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) ) 
+                         / ( 2 * effector_length * HIPS_STRUCT_DIMS[ A2B ] );
+    double sin_eta = sqrt( (double)( 1 - cos_eta * cos_eta ) );
+    
+    double gama = acos( ( pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) - effector_length * effector_length ) 
+                            / ( 2 * HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] ) );
+
+    double theta = HIPS_STRUCT_ANGLES[ ALPHA ] + HIPS_STRUCT_ANGLES[ BETA ] + gama - PI;
+
+    double theta_2_length_ratio = sqrt( pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) 
+                                        - 2 * HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] * cos( gama ) ) 
+                                      / ( HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] * sin( gama ) );
+
+    Kq = axis_get_parameter( hips, KP );
+    Bq = axis_get_parameter( hips, KD );
+
+    if( (int) Kq == 0 ) Kq = 1.0;
+    if( (int) Bq == 0 ) Bq = 1.0;
   
-    double tension = ( analogSamples[0] + analogSamples[1] + analogSamples[2] + analogSamples[3]+ analogSamples[4] + analogSamples[5] ) / 6; // mV
+    double actuator_stiffness = Kq * theta_2_length_ratio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
+    double actuator_damping = Bq * theta_2_length_ratio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
 
-    double position = ( p1 * tension + p2 );	// mm
+    double Fv_q = ( Kq * theta_ref ) / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta );
 
-    double Fl = -Ks_1 * ( refPosition - position ); // N
+    // Control law
 
-    //thetad_q = epos->GetSetpoint();
-    thetad_q = epos->PDOgetValue( POSITION_SETPOINT );
-    cout << "Angle setpoint: " << thetad_q << endl;
+    double velocity_ref = ( Fv_q - actuator_stiffness * ( ( actuator_encoder_position / 4096 ) * HIPS_ACTUATOR_STEP ) 
+                            + ( ( actuator_stiffness - HIPS_FORCE_SENSOR_STIFFNESS ) / HIPS_FORCE_SENSOR_STIFFNESS ) * actuator_force ) / actuator_damping;
 
-    //-------- Mecanismo de 4 barras do quadril [metros] --------
-
-    int encoder_AES1 = epos->PDOgetValue( POSITION );
-    double l_efetuador = ( encoder_AES1 / 4096 ) * passo_AES1 + ( refPosition - position ) / 1000; // m
-
-    double l_real_q = l_zero_q + l_efetuador; // m
-
-    double cos_eta_q = ( l_real_q * l_real_q + h2_q * h2_q - h1_q * h1_q ) / ( 2 * l_real_q * h2_q );
-    double sin_eta_q = sqrt( (double)( 1 - cos_eta_q * cos_eta_q ) );
+    int velocity_ref_rpm = ( velocity_ref / HIPS_ACTUATOR_STEP ) * 60 / ( 2 * PI ); // rpm
     
-    double gama_q = acos( ( h1_q * h1_q + h2_q * h2_q - l_real_q * l_real_q ) / ( 2 * h1_q * h2_q ) );
+    //cout << "angle: " << theta << "  vel ref: " << velocity_ref_rpm << "  force: " << actuator_force << endl;  
 
-    double theta_q = alpha_q + beta_q + gama_q - PI;
-
-    double dthetadl = sqrt( h12_q + h22_q - 2 * h1_q * h2_q * cos(gama_q) ) / ( h1_q * h2_q * sin(gama_q) );
-
-    Kq = epos->GetControlValue( KP );
-    Bq = epos->GetControlValue( KD );
-
-    if( (int)Kq == 0 ) Kq = 1.0;
-    if( (int)Bq == 0 ) Bq = 1.0;
-  
-    double K_AES1 = Kq * dthetadl * ( 1 / ( h2_q * sin_eta_q ) );
-    double B_AES1 = Bq * dthetadl * ( 1 / ( h2_q * sin_eta_q ) );
-
-    double Fv_q = ( Kq * thetad_q ) / ( h2_q * sin_eta_q );
-
-    //-------- Lei de Controle --------
-
-    double Vel_d = ( Fv_q - K_AES1 * ( ( encoder_AES1 / 4096 ) * passo_AES1 ) + ( ( K_AES1 - Ks_1 ) / Ks_1 ) * Fl ) / B_AES1;
-
-    int Vel_d_rpm = ( Vel_d / passo_AES1 ) * 60 / ( 2 * PI ); // rpm
+    axis_set_reference( hips, ANGLE, 180 * theta / PI );
+    axis_set_reference( hips, ANGLE_SETPOINT, 180 * theta_ref / PI );
+    axis_set_reference( hips, VELOCITY_SETPOINT, velocity_ref_rpm );
+    axis_set_reference( hips, FORCE, actuator_force );
+    axis_write_values( hips );
     
-    //cout << "angle: " << theta_q << "  vel ref: " << Vel_d_rpm << "  force: " << Fl << endl;  
-
-    epos->PDOsetValue( ANGLE, 180 * theta_q / PI );
-    epos->PDOsetValue( ANGLE_SETPOINT, 180 * thetad_q / PI );
-    epos->PDOsetValue( VELOCITY_SETPOINT, Vel_d_rpm );
-    epos->PDOsetValue( FORCE, Fl );
-    epos->WritePDO02();
-    
-    elapsedTime = get_exec_time_milisseconds() - execTime;
-    cout << "elapsed time: " << elapsedTime << endl;
-    if( elapsedTime < (int) ( 1000 * Ts ) ) delay( 1000 * Ts - elapsedTime );
-    cout << "elapsed time: " << get_exec_time_milisseconds() - execTime << endl;
+    elapsed_time = get_exec_time_milisseconds() - exec_time;
+    printf( "hips_control: elapsed time: %d\n", elapsed_time );
+    if( elapsed_time < (int) ( 1000 * Ts ) ) delay( 1000 * Ts - elapsed_time );
+    printf( "hips_control: elapsed time: %d\n", get_exec_time_milisseconds() - exec_time );
     cout << endl;
   }
 
-  epos->PDOsetValue( VELOCITY_SETPOINT, 0 );
-  epos->WritePDO02();
+  axis_set_reference( hips, VELOCITY_SETPOINT, 0 );
+  axis_write_values( hips );
 
   exit_thread( 0 );
   return NULL;
