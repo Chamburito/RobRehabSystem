@@ -53,7 +53,7 @@ Axis;
 // Created axes count
 static size_t n_axes = 0;
 
-Axis* axis_create();
+Axis* axis_create( unsigned int );
 void axis_enable( Axis* );
 void axis_disable( Axis* );
 void axis_destroy( Axis* );
@@ -72,7 +72,7 @@ void axis_set_operation_mode( Axis*, OperationMode );
 void axis_set_digital_output( Axis*, bool );
 
 // Create CAN controlled DC motor handle
-Axis* axis_create() 
+Axis* axis_create( unsigned int network_index ) 
 {
   Axis* axis = (Axis*) malloc( sizeof(Axis) );
 
@@ -81,30 +81,44 @@ Axis* axis_create()
   for( int i = 0; i < N_PARAMS; i++ )
     axis->control_values[ i ] = 10.0;
 
-  char network_address[20];
-	
+  char network_address[ 20 ];
+
   for( int frame_id = 0; frame_id < N_FRAMES; frame_id += 2 )
   {
-    sprintf( network_address, "%s%u", frame_names[ frame_id ], n_axes + 1 );
+    sprintf( network_address, "%s%u", frame_names[ frame_id ], network_index );
     printf( "axis_init: creating frame %s\n", network_address );
     axis->frame_list[ frame_id ] = epos_network_init_frame( FRAME_OUT, "CAN2", network_address );
 
     if( axis->frame_list[ frame_id ] == NULL ) axis_destroy( axis );
-		    
-    sprintf( network_address, "%s%u", frame_names[ frame_id + 1 ], n_axes + 1 );
+    
+    sprintf( network_address, "%s%u", frame_names[ frame_id + 1 ], network_index );
     printf( "axis_init: creating frame %s\n", network_address );
     axis->frame_list[ frame_id + 1 ] = epos_network_init_frame( FRAME_IN, "CAN1", network_address );
 
     if( axis->frame_list[ frame_id + 1 ] == NULL ) axis_destroy( axis );
   }
 
-  if( axis != NULL )
-  {
-    axis_disable( axis );
-    n_axes++;
-  }
+  if( axis != NULL ) axis_disable( axis );
 
   return axis;
+}
+
+void axis_destroy( Axis* axis )
+{
+  if( axis != NULL )
+  {
+    if( axis->active) axis_disable( axis );
+    
+    for( size_t dim_index; dim_index < N_DIMS; dim_index++ )
+      axis_set_reference( axis, dim_index, 0 );
+    axis_write_values( axis );
+    
+    for( size_t frame_id = 0; frame_id < N_FRAMES; frame_id++ )
+      can_frame_end( axis->frame_list[ frame_id ] );
+
+    free( axis );
+    axis = NULL;
+  }
 }
 
 void axis_enable( Axis* axis )
@@ -151,15 +165,6 @@ void axis_disable( Axis* axis )
   axis_write_values( axis );
 
   axis->active = false;
-}
-
-void axis_destroy( Axis* axis )
-{
-  for( size_t frame_id = 0; frame_id < N_FRAMES; frame_id++ )
-    can_frame_end( axis->frame_list[ frame_id ] );
-
-  free( axis );
-  axis = NULL;
 }
 
 double axis_get_measure( Axis* axis, Dimension index )

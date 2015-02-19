@@ -69,8 +69,8 @@ void epos_network_stop( int nodeId )
   can_frame_end( NMT );
   can_frame_end( SYNC );
 
-  for( int frame_id = 0; frame_id < n_frames; frame_id++ )
-    can_frame_end( frame_list[ frame_id ] );
+  //for( int frame_id = 0; frame_id < n_frames; frame_id++ )
+  //  can_frame_end( frame_list[ frame_id ] );
 
   free( frame_list );
 }

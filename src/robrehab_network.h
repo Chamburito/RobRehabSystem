@@ -6,7 +6,8 @@
 
 void get_axes_data()
 {
-
+  for( int axis_id = 0; 
+   axis_read_values( hips );
 }
 
 void proccess_incoming_messages()
