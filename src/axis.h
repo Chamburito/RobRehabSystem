@@ -32,42 +32,51 @@ enum Status { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAU
 enum Control { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, NEW_SETPOINT = 16,
 	CHANGE_IMMEDIATEDLY = 32, ABS_REL = 64, FAULT_RESET = 128, HALT = 256 };
 
-enum Dimension { POSITION, POSITION_SETPOINT, VELOCITY, VELOCITY_SETPOINT, CURRENT, TENSION, ANGLE, ANGLE_SETPOINT, FORCE, N_DIMS }; 
+//enum Dimension { POSITION, POSITION_SETPOINT, VELOCITY, VELOCITY_SETPOINT, CURRENT, TENSION, ANGLE, ANGLE_SETPOINT, FORCE, N_DIMS }; 
 
-enum Parameter { KP, KD, N_PARAMS }; 
+enum Dimension { POSITION, VELOCITY, CURRENT, TENSION, ANGLE, FORCE, N_DIMS }; 
+
+enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, CURRENT_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, N_PARAMS }; 
 
 enum FrameType { SDO_TX, SDO_RX, PDO01_RX, PDO01_TX, PDO02_RX, PDO02_TX, N_FRAMES };
 static const char* frame_names[ N_FRAMES ] = { "SDO_TX_0", "SDO_RX_0", "PDO01_RX_0", "PDO01_TX_0", "PDO02_RX_0", "PDO02_TX_0" };
 
-typedef struct _Axis
+typedef struct _Axis_Sensor
 {
   CAN_Frame* frame_list[ N_FRAMES ];
-  double dimension_values[ N_DIMS ];
-  double control_values[ N_PARAMS ];
+  double measures[ N_DIMS ];
   short unsigned int status_word, control_word;
   short int output;
+}
+Axis_Sensor;
+
+typedef struct _Axis
+{
+  Axis_Sensor* sensor;
+  double parameters[ N_PARAMS ];
   bool active;
 }
 Axis;
 
-// Created axes count
-static size_t n_axes = 0;
-
 Axis* axis_create( unsigned int );
+Axis_Sensor* axis_sensor_create( unsigned int );
 void axis_enable( Axis* );
 void axis_disable( Axis* );
 void axis_destroy( Axis* );
-double axis_get_measure( Axis*, Dimension );
-void axis_set_reference( Axis*, Dimension, double );   
+void axis_sensor_destroy( Axis_Sensor* );
+double axis_sensor_get_measure( Axis_Sensor*, Dimension );
+//void axis_set_reference( Axis*, Dimension, double );   
 double axis_get_parameter( Axis*, Parameter );
 void axis_set_parameter( Axis*, Parameter, double );
-void axis_set_output( Axis*, int );
-bool axis_get_status( Axis*, Status );
-void axis_set_control( Axis*, Control, bool );
-void axis_read_values( Axis* );
-void axis_write_values( Axis* );
-double axis_read_single_value( Axis*, int, u8 );
-void axis_write_single_value( Axis*, int, u8, short int );
+void axis_sensor_set_output( Axis_Sensor*, int );
+bool axis_sensor_get_status( Axis_Sensor*, Status );
+void axis_sensor_reset( Axis_Sensor* );
+static void axis_sensor_set_control( Axis_Sensor*, Control, bool );
+void axis_sensor_read( Axis_Sensor* );
+static void axis_sensor_write( Axis_Sensor* );
+void axis_control_write( Axis* );
+static double sensor_read_single_value( Axis_Sensor*, int, u8 );
+static void sensor_write_single_value( Axis_Sensor*, int, u8, short int );
 void axis_set_operation_mode( Axis*, OperationMode );
 void axis_set_digital_output( Axis*, bool );
 
@@ -76,10 +85,23 @@ Axis* axis_create( unsigned int network_index )
 {
   Axis* axis = (Axis*) malloc( sizeof(Axis) );
 
-  for( int i = 0; i < N_DIMS; i++ )
-    axis->dimension_values[ i ] = 0.0;
   for( int i = 0; i < N_PARAMS; i++ )
-    axis->control_values[ i ] = 10.0;
+    axis->parameters[ i ] = 0.0;
+
+  axis->sensor = axis_sensor_create( network_index );
+
+  if( axis->sensor != NULL ) axis_disable( axis );
+  else axis_destroy( axis );
+
+  return axis;
+}
+
+Axis_Sensor* axis_sensor_create( unsigned int network_index )
+{
+  Axis_Sensor* sensor = (Axis_Sensor*) malloc( sizeof(Axis_Sensor) );
+
+  for( int i = 0; i < N_DIMS; i++ )
+    sensor->measures[ i ] = 10.0;
 
   char network_address[ 20 ];
 
@@ -87,20 +109,18 @@ Axis* axis_create( unsigned int network_index )
   {
     sprintf( network_address, "%s%u", frame_names[ frame_id ], network_index );
     printf( "axis_init: creating frame %s\n", network_address );
-    axis->frame_list[ frame_id ] = epos_network_init_frame( FRAME_OUT, "CAN2", network_address );
+    sensor->frame_list[ frame_id ] = epos_network_init_frame( FRAME_OUT, "CAN2", network_address );
 
-    if( axis->frame_list[ frame_id ] == NULL ) axis_destroy( axis );
+    if( sensor->frame_list[ frame_id ] == NULL ) axis_sensor_destroy( sensor );
     
     sprintf( network_address, "%s%u", frame_names[ frame_id + 1 ], network_index );
     printf( "axis_init: creating frame %s\n", network_address );
-    axis->frame_list[ frame_id + 1 ] = epos_network_init_frame( FRAME_IN, "CAN1", network_address );
+    sensor->frame_list[ frame_id + 1 ] = epos_network_init_frame( FRAME_IN, "CAN1", network_address );
 
-    if( axis->frame_list[ frame_id + 1 ] == NULL ) axis_destroy( axis );
+    if( sensor->frame_list[ frame_id + 1 ] == NULL ) axis_sensor_destroy( sensor );
   }
 
-  if( axis != NULL ) axis_disable( axis );
-
-  return axis;
+  return sensor;
 }
 
 void axis_destroy( Axis* axis )
@@ -109,76 +129,87 @@ void axis_destroy( Axis* axis )
   {
     if( axis->active) axis_disable( axis );
     
-    for( size_t dim_index; dim_index < N_DIMS; dim_index++ )
-      axis_set_reference( axis, dim_index, 0 );
-    axis_write_values( axis );
-    
-    for( size_t frame_id = 0; frame_id < N_FRAMES; frame_id++ )
-      can_frame_end( axis->frame_list[ frame_id ] );
+    axis_sensor_destroy( axis->sensor );
 
     free( axis );
     axis = NULL;
   }
 }
 
+void axis_sensor_destroy( Axis_Sensor* sensor )
+{
+  if( sensor != NULL )
+  {
+    for( size_t frame_id = 0; frame_id < N_FRAMES; frame_id++ )
+      can_frame_end( sensor->frame_list[ frame_id ] );
+
+    free( sensor );
+    sensor = NULL;
+  }
+}
+
 void axis_enable( Axis* axis )
 {
-  axis_set_control( axis, SWITCH_ON, false );
-  axis_set_control( axis, ENABLE_VOLTAGE, true );
-  axis_set_control( axis, QUICK_STOP, true );
-  axis_set_control( axis, ENABLE_OPERATION, false );
-  axis_write_values( axis );
+  axis_sensor_set_control( axis->sensor, SWITCH_ON, false );
+  axis_sensor_set_control( axis->sensor, ENABLE_VOLTAGE, true );
+  axis_sensor_set_control( axis->sensor, QUICK_STOP, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_OPERATION, false );
+  axis_sensor_write( axis->sensor );
         
   delay( 500 );
         
-  axis_set_control( axis, SWITCH_ON, true );
-  axis_set_control( axis, ENABLE_VOLTAGE, true );
-  axis_set_control( axis, QUICK_STOP, true );
-  axis_set_control( axis, ENABLE_OPERATION, false );
-  axis_write_values( axis );
+  axis_sensor_set_control( axis->sensor, SWITCH_ON, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_VOLTAGE, true );
+  axis_sensor_set_control( axis->sensor, QUICK_STOP, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_OPERATION, false );
+  axis_sensor_write( axis->sensor );
 
   delay( 500 );
         
-  axis_set_control( axis, SWITCH_ON, true );
-  axis_set_control( axis, ENABLE_VOLTAGE, true );
-  axis_set_control( axis, QUICK_STOP, true );
-  axis_set_control( axis, ENABLE_OPERATION, true );
-  axis_write_values( axis );
+  axis_sensor_set_control( axis->sensor, SWITCH_ON, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_VOLTAGE, true );
+  axis_sensor_set_control( axis->sensor, QUICK_STOP, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_OPERATION, true );
+  axis_sensor_write( axis->sensor );
 
   axis->active = true;
 }
 
 void axis_disable( Axis* axis )
 {
-  axis_set_control( axis, SWITCH_ON, true );
-  axis_set_control( axis, ENABLE_VOLTAGE, true );
-  axis_set_control( axis, QUICK_STOP, true );
-  axis_set_control( axis, ENABLE_OPERATION, false );
-  axis_write_values( axis );
+  axis_sensor_set_control( axis->sensor, SWITCH_ON, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_VOLTAGE, true );
+  axis_sensor_set_control( axis->sensor, QUICK_STOP, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_OPERATION, false );
+  axis_sensor_write( axis->sensor );
         
   delay( 500 );
         
-  axis_set_control( axis, SWITCH_ON, false );
-  axis_set_control( axis, ENABLE_VOLTAGE, true );
-  axis_set_control( axis, QUICK_STOP, true );
-  axis_set_control( axis, ENABLE_OPERATION, false );
-  axis_write_values( axis );
+  axis_sensor_set_control( axis->sensor, SWITCH_ON, false );
+  axis_sensor_set_control( axis->sensor, ENABLE_VOLTAGE, true );
+  axis_sensor_set_control( axis->sensor, QUICK_STOP, true );
+  axis_sensor_set_control( axis->sensor, ENABLE_OPERATION, false );
+  axis_sensor_write( axis->sensor );
+
+  for( size_t param_index; param_index < N_PARAMS; param_index++ )
+    axis_set_parameter( axis, (Parameter) param_index, 0 );
+  axis_control_write( axis );
 
   axis->active = false;
 }
 
-double axis_get_measure( Axis* axis, Dimension index )
+double axis_sensor_get_measure( Axis_Sensor* sensor, Dimension index )
 {
   if( index >= N_DIMS )
   {
-    fprintf( stderr, "PDOgetValue: invalid value index: %d\n", index );
+    fprintf( stderr, "axis_sensor_get_measure: invalid value index: %d\n", index );
     return 0;
   }
       
-  return axis->dimension_values[ index ];
+  return sensor->measures[ index ];
 }
 
-void axis_set_reference( Axis* axis, Dimension index, double value )
+/*void axis_set_reference( Axis* axis, Dimension index, double value )
 {
   if( index >= N_DIMS )
   {
@@ -187,49 +218,56 @@ void axis_set_reference( Axis* axis, Dimension index, double value )
   }
 
   axis->dimension_values[ index ] = value;
-}
+}*/
  
 double axis_get_parameter( Axis* axis, Parameter index )
 {
   if( index >= N_PARAMS )
   {
-    fprintf( stderr, "GetParameterValue: invalid value index: %d\n", index );
+    fprintf( stderr, "axis_get_parameter: invalid value index: %d\n", index );
     return 0;
   }
       
-  return axis->control_values[ index ];
+  return axis->parameters[ index ];
 }
 
 void axis_set_parameter( Axis* axis, Parameter index, double value )
 {
   if( index >= N_PARAMS )
   {
-    fprintf( stderr, "SetParameterValue: invalid value index: %d\n", index );
+    fprintf( stderr, "axis_set_parameter: invalid value index: %d\n", index );
     return;
   }
       
-  axis->control_values[ index ] = value;
+  axis->parameters[ index ] = value;
 }
 
-void axis_set_output( Axis* axis, bool enabled )
+void axis_sensor_set_output( Axis_Sensor* sensor, bool enabled )
 {
-  if( enabled ) axis->output = 0x2000;
-  else axis->output = 0x0000;
+  if( enabled ) sensor->output = 0x2000;
+  else sensor->output = 0x0000;
 }
 
-bool axis_get_status( Axis* axis, Status index )
+bool axis_sensor_get_status( Axis_Sensor* sensor, Status index )
 {
-  if( (axis->status_word & index) > 0 ) return true;
+  if( (sensor->status_word & index) > 0 ) return true;
   else return false;
 }
 
-void axis_set_control( Axis* axis, Control index, bool enabled )
+void axis_sensor_reset( Axis_Sensor* sensor )
 {
-  if( enabled ) axis->control_word |= index;
-  else axis->control_word &= (~index);
+  axis_sensor_set_control( sensor, FAULT_RESET, true );
+  delay( 100 );
+  axis_sensor_set_control( sensor, FAULT_RESET, false );
 }
 
-void axis_read_values( Axis* axis )
+static void axis_sensor_set_control( Axis_Sensor* sensor, Control index, bool enabled )
+{
+  if( enabled ) sensor->control_word |= index;
+  else sensor->control_word &= (~index);
+}
+
+void axis_sensor_read( Axis_Sensor* sensor )
 {
   // Create reading buffer
   static u8 payload[8];
@@ -237,50 +275,61 @@ void axis_read_values( Axis* axis )
   // Read values from PDO01 (Position, Current and Status Word) to buffer
   can_frame_read( frame_list[ PDO01_RX ], payload );  
   // Update values from PDO01
-  axis->dimension_values[ POSITION ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
-  axis->dimension_values[ CURRENT ] = payload[5] * 0x100 + payload[4];
-  axis->status_word = payload[7] * 0x100 + payload[6];
+  sensor->measures[ POSITION ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
+  sensor->measures[ CURRENT ] = payload[5] * 0x100 + payload[4];
+  sensor->status_word = payload[7] * 0x100 + payload[6];
 
   // Read values from PDO02 (Position, Current and Status Word) to buffer
-  can_frame_read( frame_list[ PDO01_RX ], payload );  
+  can_frame_read( frame_list[ PDO02_RX ], payload );  
   // Update values from PDO02
-	axis->dimension_values[ VELOCITY ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
-	axis->dimension_values[ TENSION ] = payload[5] * 0x100 + payload[4];
+	sensor->measures[ VELOCITY ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
+	sensor->measures[ TENSION ] = payload[5] * 0x100 + payload[4];
 }
 
-void axis_write_values( Axis* axis )
+static void axis_sensor_write( Axis_Sensor* sensor )
+{
+  // Build writing buffer
+  static u8 payload[8];
+  payload[6] = ( sensor->control_word & 0x000000ff );
+  payload[7] = ( sensor->control_word & 0x0000ff00 ) / 0x100;
+
+  // Write values from buffer to PDO01 
+  can_frame_write( sensor->frame_list[ PDO01_TX ], payload );
+}
+
+void axis_control_write( Axis* axis )
 {
   // Create writing buffer
   static u8 payload[8];
 
   // Set values for PDO01 (Position Setpoint and Control Word)
-  payload[0] = ( (int) axis->dimension_values[ POSITION_SETPOINT ] & 0x000000ff );
-  payload[1] = ( (int) axis->dimension_values[ POSITION_SETPOINT ] & 0x0000ff00 ) / 0x100;
-  payload[2] = ( (int) axis->dimension_values[ POSITION_SETPOINT ] & 0x00ff0000 ) / 0x10000;
-  payload[3] = ( (int) axis->dimension_values[ POSITION_SETPOINT ] & 0xff000000 ) / 0x1000000;
+  payload[0] = ( (int) axis->parameters[ POSITION_SETPOINT ] & 0x000000ff );
+  payload[1] = ( (int) axis->parameters[ POSITION_SETPOINT ] & 0x0000ff00 ) / 0x100;
+  payload[2] = ( (int) axis->parameters[ POSITION_SETPOINT ] & 0x00ff0000 ) / 0x10000;
+  payload[3] = ( (int) axis->parameters[ POSITION_SETPOINT ] & 0xff000000 ) / 0x1000000;
   payload[4] = ( 0 & 0x000000ff );
   payload[5] = ( 0 & 0x0000ff00 ) / 0x100; 
-  payload[6] = ( axis->control_word & 0x000000ff );
-  payload[7] = ( axis->control_word & 0x0000ff00 ) / 0x100; 
+  payload[6] = ( axis->sensor->control_word & 0x000000ff );
+  payload[7] = ( axis->sensor->control_word & 0x0000ff00 ) / 0x100; 
 
   // Write values from buffer to PDO01 
-  can_frame_write( frame_list[ PDO01_TX ], payload );
+  can_frame_write( axis->sensor->frame_list[ PDO01_TX ], payload );
 
   // Set values for PDO02 (Velocity Setpoint and Output)
-  payload[0] = ( (int) axis->dimension_values[ VELOCITY_SETPOINT ] & 0x000000ff );
-  payload[1] = ( (int) axis->dimension_values[ VELOCITY_SETPOINT ] & 0x0000ff00 ) / 0x100;
-  payload[2] = ( (int) axis->dimension_values[ VELOCITY_SETPOINT ] & 0x00ff0000 ) / 0x10000;
-  payload[3] = ( (int) axis->dimension_values[ VELOCITY_SETPOINT ] & 0xff000000 ) / 0x1000000;
-  payload[4] = ( axis->output & 0x000000ff );
-  payload[5] = ( axis->output & 0x0000ff00 ) / 0x100; 
+  payload[0] = ( (int) axis->parameters[ VELOCITY_SETPOINT ] & 0x000000ff );
+  payload[1] = ( (int) axis->parameters[ VELOCITY_SETPOINT ] & 0x0000ff00 ) / 0x100;
+  payload[2] = ( (int) axis->parameters[ VELOCITY_SETPOINT ] & 0x00ff0000 ) / 0x10000;
+  payload[3] = ( (int) axis->parameters[ VELOCITY_SETPOINT ] & 0xff000000 ) / 0x1000000;
+  payload[4] = ( axis->sensor->output & 0x000000ff );
+  payload[5] = ( axis->sensor->output & 0x0000ff00 ) / 0x100; 
   payload[6] = ( 0 & 0x000000ff );
   payload[7] = ( 0 & 0x0000ff00 ) / 0x100; 
 
   // Write values from buffer to PDO01 E
-  can_frame_write( frame_list[ PDO02_TX ], payload );
+  can_frame_write( axis->sensor->frame_list[ PDO02_TX ], payload );
 }
 
-double axis_read_single_value( Axis* axis, int index, u8 sub_index )
+static double sensor_read_single_value( Axis_Sensor* sensor, int index, u8 sub_index )
 {
   // Build read requisition buffer for defined value
   static u8 payload[8];
@@ -294,19 +343,19 @@ double axis_read_single_value( Axis* axis, int index, u8 sub_index )
   payload[7] = 0x0;
 
   // Write value requisition to SDO frame 
-  can_frame_write( axis->frame_list[ SDO_TX ], payload );
+  can_frame_write( sensor->frame_list[ SDO_TX ], payload );
 
   delay( 100 );
 
   // Read requested value from SDO frame
-  can_frame_read( axis->frame_list[ SDO_RX ], payload );
+  can_frame_read( sensor->frame_list[ SDO_RX ], payload );
 
   double value = payload[7] * 0x1000000 + payload[6] * 0x10000 + payload[5] * 0x100 + payload[4];
 
   return value; 
 }
 
-void axis_write_single_value( Axis* axis, int index, u8 sub_index, short int value )
+static void sensor_write_single_value( Axis_Sensor* sensor, int index, u8 sub_index, short int value )
 {
   // Build write buffer
   static u8 payload[8];
@@ -320,18 +369,18 @@ void axis_write_single_value( Axis* axis, int index, u8 sub_index, short int val
   payload[7] = ( value & 0xff000000 ) / 0x1000000;
 
   // Write value to SDO frame 
-  can_frame_write( axis->frame_list[ SDO_TX ], payload );
+  can_frame_write( sensor->frame_list[ SDO_TX ], payload );
 }
 
 void axis_set_operation_mode( Axis* axis , OperationMode mode )
 {
-  axis_write_single_value( axis, 0x6060, 0x00, mode );
+  sensor_write_single_value( axis->sensor, 0x6060, 0x00, mode );
 }
 
-void axis_set_digital_output( Axis* axis, bool enabled )
+void axis_sensor_set_digital_output( Axis_Sensor* sensor, bool enabled )
 {
-  if( enabled ) axis_write_single_value( axis, 0x6060, 0x00, 0xff );
-  else axis_write_single_value( axis, 0x6060, 0x00, 0x00 );
+  if( enabled ) sensor_write_single_value( sensor, 0x6060, 0x00, 0xff );
+  else sensor_write_single_value( sensor, 0x6060, 0x00, 0x00 );
 }
 
 

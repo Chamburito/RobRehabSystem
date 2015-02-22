@@ -87,6 +87,8 @@ static void* async_control( void* args )
   while( axis_list[ axis_id ] != NULL )
   {
     exec_time = get_exec_time_milisseconds();
+
+    axis_read_values( axis_list[ axis_id ] );
     
     if( axis_list[ axis_id ]->active ) (control_functions[ axis_id ])( NULL );
     
@@ -100,13 +102,15 @@ static void* async_control( void* args )
   return NULL;
 }
 
-extern inline void run_control( Joint mode )
+extern inline void control_mode_start( Joint mode )
 {
   if( mode >= 0 && mode < N_JOINTS )
-    run_thread( async_control, (void*) mode, DETACHED );
+    axis_enable( axis_list[ mode ] );
+
+    //run_thread( async_control, (void*) mode, DETACHED );
 }
 
-extern inline void stop_control( Joint mode )
+extern inline void control_mode_stop( Joint mode )
 {
   if( mode >= 0 && mode < N_JOINTS )
     axis_disable( axis_list[ mode ] );
@@ -243,13 +247,13 @@ static void* hips_control( void* args )
 
 
 /////////////////////////////////////////////////////////////////////////////////
-/////                             KNEE CONSTANTS                             /////
+/////                            KNEE CONSTANTS                             /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const int KNEE_JOINT_REDUCTION = 150;  // Redução da junta
-const int ENCODER_IN_RES = 4096;               // Resolução do encoder do motor
+const int KNEE_JOINT_REDUCTION = 150;       // Redução da junta
+const int ENCODER_IN_RES = 4096;            // Resolução do encoder do motor
 const int ENCODER_OUT_RES = 2000;           // Resolução do encoder de saída
-const int KNEE_BASE_STIFFNESS = 104;       // Constante elástica
+const int KNEE_BASE_STIFFNESS = 104;        // Constante elástica
 
 const double a2 = -0.9428;
 const double a3 = 0.3333;
