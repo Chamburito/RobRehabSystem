@@ -26,3 +26,13 @@ data/receive_calls_server.txt
 *.vcxproj
 *.filters
 *.user
+*.bat
+cvibuild.RobRehabControlGui/Debug/CC_no_dep_options.txt
+cvibuild.RobRehabControlGui/Debug/dlldependencies.txt
+*.txt
+*.exe
+*.cvidefprots
+*.rc
+*.res
+cvibuild.RobRehabControlRT/Debug/NetworkVariableRT.obj
+*.out
