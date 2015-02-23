@@ -13,7 +13,9 @@
 #ifndef CAN_FRAME_H
 #define	CAN_FRAME_H
 
-#ifdef NIXNET
+#ifdef _CVI_
+  #include <nixnet.h>
+#elif NIXNET
   #include "nixnet.h"
 #else
   #include "nixnet_stub.h"
