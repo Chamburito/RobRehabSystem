@@ -33,8 +33,6 @@ enum Status { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAU
 enum Control { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, NEW_SETPOINT = 16,
 	CHANGE_IMMEDIATEDLY = 32, ABS_REL = 64, FAULT_RESET = 128, HALT = 256 };
 
-//enum Dimension { POSITION, POSITION_SETPOINT, VELOCITY, VELOCITY_SETPOINT, CURRENT, TENSION, ANGLE, ANGLE_SETPOINT, FORCE, N_DIMS }; 
-
 enum Dimension { POSITION, VELOCITY, CURRENT, TENSION, ANGLE, FORCE, N_DIMS }; 
 
 enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, CURRENT_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, N_PARAMS }; 
@@ -74,7 +72,7 @@ bool encoder_get_status( Encoder*, Status );
 void encoder_reset( Encoder* );
 static void encoder_set_control( Encoder*, Control, bool );
 void encoder_read( Encoder* );
-static void encoder_configure( Encoder* );
+static void encoder_config_write( Encoder* );
 void motor_control_write( Motor* );
 static double encoder_read_single_value( Encoder*, int, u8 );
 static void encoder_config_single_value( Encoder*, int, u8, short int );
@@ -159,7 +157,7 @@ void motor_enable( Motor* motor )
   encoder_set_control( motor->encoder, ENABLE_VOLTAGE, true );
   encoder_set_control( motor->encoder, QUICK_STOP, true );
   encoder_set_control( motor->encoder, ENABLE_OPERATION, false );
-  encoder_configure( motor->encoder );
+  encoder_config_write( motor->encoder );
         
   delay( 500 );
         
@@ -167,7 +165,7 @@ void motor_enable( Motor* motor )
   encoder_set_control( motor->encoder, ENABLE_VOLTAGE, true );
   encoder_set_control( motor->encoder, QUICK_STOP, true );
   encoder_set_control( motor->encoder, ENABLE_OPERATION, false );
-  encoder_configure( motor->encoder );
+  encoder_config_write( motor->encoder );
 
   delay( 500 );
         
@@ -175,7 +173,7 @@ void motor_enable( Motor* motor )
   encoder_set_control( motor->encoder, ENABLE_VOLTAGE, true );
   encoder_set_control( motor->encoder, QUICK_STOP, true );
   encoder_set_control( motor->encoder, ENABLE_OPERATION, true );
-  encoder_configure( motor->encoder );
+  encoder_config_write( motor->encoder );
 
   motor->active = true;
 }
@@ -186,7 +184,7 @@ void motor_disable( Motor* motor )
   encoder_set_control( motor->encoder, ENABLE_VOLTAGE, true );
   encoder_set_control( motor->encoder, QUICK_STOP, true );
   encoder_set_control( motor->encoder, ENABLE_OPERATION, false );
-  encoder_configure( motor->encoder );
+  encoder_config_write( motor->encoder );
         
   delay( 500 );
         
@@ -194,7 +192,7 @@ void motor_disable( Motor* motor )
   encoder_set_control( motor->encoder, ENABLE_VOLTAGE, true );
   encoder_set_control( motor->encoder, QUICK_STOP, true );
   encoder_set_control( motor->encoder, ENABLE_OPERATION, false );
-  encoder_configure( motor->encoder );
+  encoder_config_write( motor->encoder );
 
   for( size_t param_index; param_index < N_PARAMS; param_index++ )
     motor_set_parameter( motor, (Parameter) param_index, 0 );
@@ -265,7 +263,7 @@ static inline void encoder_set_control( Encoder* encoder, Control index, bool en
   else encoder->control_word &= (~index);
 }
 
-static void encoder_configure( Encoder* encoder )
+static void encoder_config_write( Encoder* encoder )
 {
   // Build writing buffer
   static u8 payload[8];

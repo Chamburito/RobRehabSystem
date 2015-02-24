@@ -16,7 +16,7 @@
 
 using namespace std;
   
-enum Joint { ANKLE, KNEE, HIPS, N_JOINTS, KNEE_AUX = 3 };  // Control algorhitms/axes indexes
+enum Joint { ANKLE, KNEE, HIPS, N_JOINTS };  // Control algorhitms/axes indexes
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                            CONTROL DEVICES                            /////
@@ -26,34 +26,33 @@ enum Joint { ANKLE, KNEE, HIPS, N_JOINTS, KNEE_AUX = 3 };  // Control algorhitms
 const char* CAN_DATABASE = "database";
 const char* CAN_CLUSTER = "NETCAN";
 
-// EPOS active axes list
-static Motor* motor_list[ N_JOINTS ];
-// EPOS passive (measurement) axes list
-static Axis_Sensor* sensor_list[ N_JOINTS ];
+static Motor* motor_list[ N_JOINTS ];                     // EPOS active axes list
+static Encoder* sensor_list[ N_JOINTS ];        // EPOS passive (measurement) axes list
 
 // Control algorhitms
-static void ankle_control( void );
-static void knee_control( void );
-static void hips_control( void );
+static void ankle_control( Motor*, Encoder* );
+static void knee_control( Motor*, Encoder* );
+static void hips_control( Motor*, Encoder* );
 
-typedef void (*Control_Function)( void ); // Use "async_function" type as "void* (*)( void )" type
-static Control_Function control_functions[ N_JOINTS ]; // Array of function pointers. Equivalent to void* (*control_functions[ N_JOINTS ])( void )
+typedef void (*Control_Function)( Motor*, Encoder* ); // Use "async_function" type as "void (*)( Motor*, Encoder* )" type
+// Array of function pointers. Equivalent to void (*control_functions[ N_JOINTS ])( Motor*, Encoder* )
+static Control_Function control_functions[ N_JOINTS ] = { ankle_control, knee_control, hips_control }; 
 
 // EPOS devices and CAN network initialization
 void control_init()
 {
   // Start CAN network transmission
-  for( int node_id = 1; node_id <= N_AXES; node_id++ )
+  for( int node_id = 1; node_id <= N_JOINTS; node_id++ )
     epos_network_start( CAN_DATABASE, CAN_CLUSTER, node_id );
   
   // motor_list[ ANKLE ] = motor_create( 4 ); // ?
-  motor_list[ KNEE ] = motor_create( 2, 4096 );
-  sensor_list[ KNEE ] = encoder_create( 1, 2000 );
-  motor_list[ HIPS ] = motor_create( 3, 4096 );  
+  motor_list[ KNEE ] = motor_connect( 2, 4096 );
+  sensor_list[ KNEE ] = encoder_connect( 1, 2000 );
+  motor_list[ HIPS ] = motor_connect( 3, 4096 );  
   
-  control_functions[ ANKLE ] = ankle_control;
-  control_functions[ KNEE ] = knee_control;
-  control_functions[ HIPS ] = hips_control;
+  // Start a control thread for each motor
+  for( int control_mode = 0; control_mode < N_JOINTS; control_mode++ )
+    (void) run_thread( async_control, (void*) control_mode, DETACHED );
 }
 
 // EPOS devices and CAN network shutdown
@@ -64,8 +63,12 @@ void control_end()
 
   delay( 2000 );
   
-  for( size_t motor_id = 0; motor_id < N_AXES; motor_id++ )
-    motor_destroy( motor_list[ motor_id ] );
+  // Destroy axes data structures
+  for( size_t axis_id = 0; axis_id < N_JOINTS; axis_id++ )
+  {
+    motor_disconnect( motor_list[ axis_id ] );
+    encoder_disconnect( sensor_list[ axis_id ] );
+  }
     
   // End threading subsystem
   end_threading();
@@ -75,31 +78,35 @@ void control_end()
 /////                           COMMON CONSTANTS                            /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const double PI = 3.141592;
-const double Ts = 0.005; // sampling interval
+const double PI = 3.141592;        // Duh...
+const double Ts = 0.005;                // Sampling interval
 
+// Method that runs the control functions asyncronously
 static void* async_control( void* args )
 {
-  unsigned long motor_id = (unsigned long) args;
+  unsigned long control_mode = (unsigned long) args;
   
-  motor_enable( motor_list[ motor_id ] );
+  Control_Function control_function = control_functions[ control_mode ];
+  
+  motor_enable( motor_list[ control_mode ] );
   
   unsigned int exec_time, elapsed_time;
   
-  while( motor_list[ motor_id ] != NULL )
+  while( motor_list[ control_mode ] != NULL )
   {
     exec_time = get_exec_time_milisseconds();
 
-    motor_read_values( motor_list[ motor_id ] );
+    encoder_read( motor_list[ control_mode ]->encoder );
     
-    if( motor_list[ motor_id ]->active ) (control_functions[ motor_id ])();
-	
-	motor_write_values( motor_list[ motor_id ] );
+    // If the motor is being actually controlled, call control pass algorhitm
+    if( motor_list[ control_mode ]->active ) control_function( motor_list[ control_mode ], sensor_list[ control_mode ] );
+
+    motor_control_write( motor_list[ control_mode ] );
     
     elapsed_time = get_exec_time_milisseconds() - exec_time;
-    printf( "async_control (Axis %u): elapsed time: %u\n", motor_id, elapsed_time );
+    printf( "async_control (Axis %u): elapsed time: %u\n", control_mode, elapsed_time );
     if( elapsed_time < (int) ( 1000 * Ts ) ) delay( 1000 * Ts - elapsed_time );
-    printf( "async_control (Axis %u): elapsed time: %u\n\n", motor_id, get_exec_time_milisseconds() - exec_time );
+    printf( "async_control (Axis %u): elapsed time: %u\n\n", control_mode, get_exec_time_milisseconds() - exec_time );
   }
   
   exit_thread( 0 );
@@ -110,8 +117,6 @@ extern inline void control_mode_start( Joint mode )
 {
   if( mode >= 0 && mode < N_JOINTS )
     motor_enable( motor_list[ mode ] );
-
-    //run_thread( async_control, (void*) mode, DETACHED );
 }
 
 extern inline void control_mode_stop( Joint mode )
@@ -155,42 +160,40 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void hips_control( void )
+static void hips_control( Motor* hips_actuator, Encoder* hips_sensor )
 {
-  Motor* hips = motor_list[ HIPS ];
-
   static double sensor_tension_zero, sensor_position_zero;
 
   // Sampling of last voltage signal values for filtering (average filter)
   static double analog_samples[ HIPS_CONTROL_SAMPLING_NUMBER ];
 
-  static double ang_position_in_ref; // ?
+  static double ang_position_in_ref;
     
   if( sensor_tension_zero == 0 )
   {
-	motor_set_operation_mode( hips, VELOCITY_MODE );
-	  
-	double sensor_tension_zero = encoder_get_measure( hips->encoder, TENSION ); // mV
-  	double sensor_position_zero = ( TNS_2_POS_RATIO * sensor_tension_zero + TNS_2_POS_OFFSET ); // mm  
+    motor_set_operation_mode( hips_actuator, VELOCITY_MODE );
+    
+    double sensor_tension_zero = encoder_get_measure( hips_actuator->encoder, TENSION ); // mV
+    double sensor_position_zero = ( TNS_2_POS_RATIO * sensor_tension_zero + TNS_2_POS_OFFSET ); // mm  
   }
   
   double sensor_tension = 0;
   for( int i = 0; i < HIPS_CONTROL_SAMPLING_NUMBER; i ++ )
   {
-	  analog_samples[ i ] = ( i == 0 ) ? encoder_get_measure( hips->encoder, TENSION ) : analog_samples[ i - 1 ]; // mV
-	  sensor_tension += analog_samples[ i ] / HIPS_CONTROL_SAMPLING_NUMBER;
+    analog_samples[ i ] = ( i == 0 ) ? encoder_get_measure( hips_actuator->encoder, TENSION ) : analog_samples[ i - 1 ]; // mV
+    sensor_tension += analog_samples[ i ] / HIPS_CONTROL_SAMPLING_NUMBER;
   }
 
   double sensor_position = ( TNS_2_POS_RATIO * sensor_tension + TNS_2_POS_OFFSET );	// mm
 
   double actuator_force = -HIPS_FORCE_SENSOR_STIFFNESS * ( sensor_position_zero - sensor_position ); // N
 
-  ang_position_in_ref = motor_get_parameter( hips, POSITION_SETPOINT );
+  ang_position_in_ref = motor_get_parameter( hips_actuator, POSITION_SETPOINT );
   printf( "Angle setpoint: %g\n", ang_position_in_ref );
 
   // Relation between axis rotation and effector linear displacement
-  double actuator_encoder_position = encoder_get_measure( hips, POSITION );
-  double effector_delta_length = ( actuator_encoder_position / hips->encoder->resolution ) * HIPS_ACTUATOR_STEP + ( sensor_position_zero - sensor_position ) / 1000; // m
+  double actuator_encoder_position = encoder_get_measure( hips_actuator, POSITION );
+  double effector_delta_length = ( actuator_encoder_position / hips_actuator->encoder->resolution ) * HIPS_ACTUATOR_STEP + ( sensor_position_zero - sensor_position ) / 1000; // m
 
   double effector_length = HIPS_EFFECTOR_BASE_LENGTH + effector_delta_length; // m
 
@@ -208,8 +211,8 @@ static void hips_control( void )
 									  - 2 * HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] * cos( gama ) )
 								/ ( HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] * sin( gama ) );
 
-  Kq = motor_get_parameter( hips, PROPORTIONAL_GAIN );
-  Bq = motor_get_parameter( hips, DERIVATIVE_GAIN );
+  Kq = motor_get_parameter( hips_actuator, PROPORTIONAL_GAIN );
+  Bq = motor_get_parameter( hips_actuator, DERIVATIVE_GAIN );
 
   if( (int) Kq <= 0 ) Kq = 1.0;
   if( (int) Bq <= 0 ) Bq = 1.0;
@@ -220,14 +223,14 @@ static void hips_control( void )
   double Fv_q = ( Kq * ang_position_in_ref ) / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta );
 
   // Control law
-  double velocity_ref = ( Fv_q - actuator_stiffness * ( ( actuator_encoder_position / hips->encoder->resolution ) * HIPS_ACTUATOR_STEP )
+  double velocity_ref = ( Fv_q - actuator_stiffness * ( ( actuator_encoder_position / hips_actuator->encoder->resolution ) * HIPS_ACTUATOR_STEP )
 						  + ( ( actuator_stiffness - HIPS_FORCE_SENSOR_STIFFNESS ) / HIPS_FORCE_SENSOR_STIFFNESS ) * actuator_force ) / actuator_damping;
 
   int velocity_ref_rpm = ( velocity_ref / HIPS_ACTUATOR_STEP ) * 60 / ( 2 * PI ); // rpm
 
-  //motor_set_parameter( hips, ANGLE, 180 * theta / PI );
-  motor_set_parameter( hips, VELOCITY_SETPOINT, velocity_ref_rpm );
-  //motor_set_parameter( hips, FORCE, actuator_force );
+  //motor_set_reference( hips, ANGLE, 180 * theta / PI );
+  motor_set_parameter( hips_actuator, VELOCITY_SETPOINT, velocity_ref_rpm );
+  //motor_set_reference( hips, FORCE, actuator_force );
 }
 
 
@@ -235,8 +238,8 @@ static void hips_control( void )
 /////                            KNEE CONSTANTS                             /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const int KNEE_JOINT_REDUCTION = 150;       // Reducao da junta
-const int KNEE_BASE_STIFFNESS = 104;        // Constante elástica
+const int KNEE_JOINT_REDUCTION = 150;       // Joint gear reduction ratio
+const int KNEE_BASE_STIFFNESS = 104;        // Elastic constant for knee joint spring
 
 const double a2 = -0.9428;
 const double a3 = 0.3333;
@@ -267,13 +270,8 @@ double Bv = 5.0; // Damping
 /////                          KNEE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void knee_control()
+static void knee_control( Motor* knee_in, Encoder* knee_out )
 {
-  Encoder* knee_out = sensor_list[ KNEE ];
-  Motor* knee_in = motor_list[ KNEE ];
-
-  motor_set_operation_mode( knee_in, VELOCITY_MODE );
-
   static double ang_position_out[2];
   
   static double ang_velocity_out[3];
@@ -282,14 +280,16 @@ static void knee_control()
   static double torque_weighted[3];
   static double error[3];
 
-  static double ang_position_in_ref, ang_velocity_in_ref; // ?
+  static double ang_position_in, ang_pos_in_reduced, ang_position_in_ref, ang_velocity_in, ang_velocity_in_ref;
+  
+  if( ang_position_in == 0 ) motor_set_operation_mode( knee_in, VELOCITY_MODE );
 
   //ang_position_in_ref = ( encoder_get_measure( knee_in, POSITION_SETPOINT ) * 2 * PI ) / ENCODER_IN_RES;
 
-  double ang_position_in = ( ( encoder_get_measure( knee_in->encoder, POSITION ) /*- ang_position_in_ref*/ ) * 2 * PI ) / knee_in->encoder->resolution;
-  double ang_pos_in_reduced = ang_position_in / KNEE_JOINT_REDUCTION;
+  ang_position_in = ( ( encoder_get_measure( knee_in->encoder, POSITION ) /*- ang_position_in_ref*/ ) * 2 * PI ) / knee_in->encoder->resolution;
+  ang_pos_in_reduced = ang_position_in / KNEE_JOINT_REDUCTION;
 
-  double ang_velocity_in = encoder_get_measure( knee_in->encoder, VELOCITY );
+  ang_velocity_in = encoder_get_measure( knee_in->encoder, VELOCITY );
 
   // Impedance control
 
@@ -320,61 +320,33 @@ static void knee_control()
 
   for( int i = 1; i <= 2; i++ )
   {
-	  error[ i ] = error[ i - 1 ];
-	  ang_velocity_out[ i ] = ang_velocity_out[ i - 1 ];
-	  ang_vel_out_weighted[ i ] = ang_vel_out_weighted[ i - 1 ];
-	  torque_weighted[ i ] = torque_weighted[ i - 1 ];
+    error[ i ] = error[ i - 1 ];
+    ang_velocity_out[ i ] = ang_velocity_out[ i - 1 ];
+    ang_vel_out_weighted[ i ] = ang_vel_out_weighted[ i - 1 ];
+    torque_weighted[ i ] = torque_weighted[ i - 1 ];
   }
 
   //motor_set_parameter( knee_in, ANGLE, 180 * ang_position_out[0] / PI );
   //motor_set_parameter( knee_in, ANGLE_SETPOINT, 180 * ang_position_in_ref / PI );
   motor_set_parameter( knee_in, VELOCITY_SETPOINT, (int) ang_velocity_in_ref );
-  motor_write_values( knee_in );
-
-  exit_thread( 0 );
-  return NULL;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                         ANKLE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void* ankle_control( void* args )
+static void ankle_control( Motor* ankle_actuator, Encoder* ankle_sensor )
 {
-  Motor* ankle = motor_list[ 0 ]; // Hack. Should be ANKLE
+  static int velocity_ref;  
+    
+  if( velocity_ref == 0 ) motor_set_operation_mode( ankle_actuator, VELOCITY_MODE );
+
+  if( encoder_get_measure( ankle_actuator, POSITION_SETPOINT ) > 2000 ) motor_set_parameter( ankle_actuator, POSITION_SETPOINT, 2000 );
+  else if( encoder_get_measure( ankle_actuator, POSITION_SETPOINT ) < -2000 ) motor_set_parameter( ankle_actuator, POSITION_SETPOINT, -2000 );
   
-  motor_enable( ankle );
+  velocity_ref = -( encoder_get_measure( ankle_actuator, POSITION ) - encoder_get_measure( ankle_actuator, POSITION_SETPOINT ) ) / 20;
   
-  int exec_time, elapsed_time;
-  
-  motor_set_operation_mode( ankle, VELOCITY_MODE );
-
-  int velocity_ref;
-
-  while( ankle->active ) 
-  {
-     exec_time = get_exec_time_milisseconds();
-
-    if( encoder_get_measure( ankle, POSITION_SETPOINT ) > 2000 ) motor_set_parameter( ankle, POSITION_SETPOINT, 2000 );
-    else if( encoder_get_measure( ankle, POSITION_SETPOINT ) < -2000 ) motor_set_parameter( ankle, POSITION_SETPOINT, -2000 );
-
-    velocity_ref = -( encoder_get_measure( ankle, POSITION ) - encoder_get_measure( ankle, POSITION_SETPOINT ) ) / 20;
-
-    motor_set_parameter( ankle, VELOCITY_SETPOINT, velocity_ref );
-     motor_write_values( ankle );
-
-    elapsed_time = get_exec_time_milisseconds() - exec_time;
-     //cout << "ankleControl: elapsed time: " << elapsed_time << endl;
-     if( elapsed_time < (int) ( 1000 * Ts ) ) delay( 1000 * Ts - elapsed_time );
-     //cout << "ankleControl: elapsed time + sleep: " << get_exec_time_milisseconds() - exec_time << endl;
-     //cout << endl;
-  }
-
-  motor_set_parameter( ankle, VELOCITY_SETPOINT, 0 );
-  motor_write_values( ankle );
-
-  exit_thread( 0 );
-  return NULL;
+  motor_set_parameter( ankle_actuator, VELOCITY_SETPOINT, velocity_ref );
 }
 
 #endif /* CONTROL_H */ 
