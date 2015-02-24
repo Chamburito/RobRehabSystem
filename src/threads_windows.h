@@ -15,6 +15,11 @@ extern "C"{
 #include <stdio.h>
 #include <stdint.h>
 
+	
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                     THREADING BASICS										  /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+	
 // Mutex aquisition and release
 #define LOCK_THREAD( lock ) TryEnterCriticalSection( lock )
 #define UNLOCK_THREAD( lock ) LeaveCriticalSection( lock )
@@ -151,6 +156,84 @@ void end_threading()
   }*/
   
   return;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                     THREAD SAFE QUEUE										  /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef struct _Data_Queue
+{
+  void** cache;
+  size_t first, last, max_length;
+  size_t element_size;
+  Thread_Lock lock;
+}
+Data_Queue;
+
+Data_Queue* data_queue_init( size_t max_length, size_t element_size )
+{
+  Data_Queue* queue = (Data_Queue*) malloc( sizeof(Data_Queue) );
+  
+  queue->length = max_length;
+  queue->element_size = element_size;
+  queue->cache = (void**) calloc( queue->max_length, sizeof(void*) );
+  for( size_t i = 0; i < queue->max_length; i++ )
+	queue->cache[ i ] = (void*) malloc( element_size );
+  
+  queue->first = queue->last = 0;
+  
+  queue->lock = get_new_thread_lock();
+  
+  return queue;
+}
+
+void data_queue_end( Data_queue* queue )
+{
+  if( queue != NULL )
+  {
+	for( size_t i = 0; i < queue->max_length; i++ )
+	  free( queue->cache[ i ] );
+	free( queue->cache );
+	
+	free( queue );
+	queue = NULL;
+  }
+}
+
+extern inline size_t data_queue_count( Data_Queue* queue )
+{
+  return ( queue->last - queue->first );
+}
+
+void* dequeue_data( Data_Queue* queue, void* buffer )
+{
+  static void* data_out = NULL;
+	
+  if( data_queue_count( queue ) > 0 )
+  {
+	LOCK_THREAD( queue->lock );
+	data_out = queue->cache[ queue->first % queue->max_length ];
+	buffer = memcpy( buffer, data_out, queue->element_size );
+	queue->first++;
+	UNLOCK_THREAD( queue->lock );
+  }
+  
+  return buffer;
+}
+
+void* enqueue_data( Data_Queue* queue, void* buffer )
+{
+  static void* data_in = NULL;
+  
+  LOCK_THREAD( queue->lock );
+  data_in = queue->cache[ queue->last % queue->max_length ];
+  data_in = memcpy( data_in, buffer, queue->element_size );
+  queue->last++;
+  UNLOCK_THREAD( queue->lock );
+  
+  return data_in;
 }
 
 #ifdef __cplusplus

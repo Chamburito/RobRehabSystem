@@ -11,8 +11,11 @@ extern "C"{
 #endif
 
 #include "connection.h"
-  
-#ifdef WIN32
+
+#ifdef _CVI_DLL_
+  #include "timing_realtime.h"
+  #include "threads_realtime.h"
+#elif WIN32
   #include "timing_windows.h"
   #include "threads_windows.h"
 #else

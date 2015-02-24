@@ -95,6 +95,9 @@ void CVIFUNC_C RTmain( void )
 	
 	printf( "System process started !\n\n" );
 	
+	SleepUS( 1000000 );
+	Cls();
+	
 	
 	status = CNVNewVariable( PROCESS, AMPLITUDE_VARIABLE );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
