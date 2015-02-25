@@ -10,7 +10,7 @@ IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
 Number of Projects = 2
-Active Project = 2
+Active Project = 1
 Project 0001 = "RobRehabControlGui.prj"
 Project 0002 = "RobRehabControlRT.prj"
 Drag Bar Left = 273
@@ -31,7 +31,7 @@ Save Changes Before Compiling = "Always"
 Hide Windows = False
 Break At First Statement = False
 Sort Type = "File Name"
-Number of Opened Files = 12
+Number of Opened Files = 13
 Window Confinement Region Enabled = True
 MainColumnWidth = 256
 FileDateColumnWidth = 70
@@ -61,7 +61,7 @@ File Type = "Include"
 Disk Date = 3507550934
 In Projects = "1,2,"
 Window Top = 31
-Window Z-Order = 12
+Window Z-Order = 13
 Source Window State = "1,0,0,0,0,0,0,0,0,70,0,0,0,0,0,28,0,0,0,0,400,600,1,0,"
 
 [File 0002]
@@ -72,7 +72,7 @@ Disk Date = 3507553734
 In Projects = "1,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 11
+Window Z-Order = 12
 Source Window State = "1,0,0,0,0,0,0,0,0,80,0,0,0,0,0,25,21,0,40,15,349,683,1,0,"
 
 [File 0003]
@@ -82,8 +82,8 @@ Disk Date = 3507635812
 In Projects = "2,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 4
-Source Window State = "1,41,41,41,0,19,19,0,0,80,0,0,0,0,0,25,20,0,39,43,349,683,1,0,"
+Window Z-Order = 5
+Source Window State = "1,101,108,101,4,64,4,0,0,80,0,0,0,0,0,25,87,0,102,48,349,683,1,0,"
 
 [File 0004]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.h"
@@ -92,7 +92,7 @@ Disk Date = 3486571502
 In Projects = "1,2,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 10
+Window Z-Order = 11
 Source Window State = "1,0,0,0,0,0,0,0,0,80,0,0,0,0,0,25,0,0,20,41,349,683,1,0,"
 
 [File 0005]
@@ -102,7 +102,7 @@ Disk Date = 3507635094
 In Projects = "2,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 8
+Window Z-Order = 9
 Source Window State = "1,39,39,39,73,90,73,0,0,80,0,0,0,0,0,25,10,0,31,50,349,683,1,0,"
 
 [File 0006]
@@ -111,7 +111,7 @@ File Type = "Include"
 Disk Date = 3507558539
 In Projects = "2,"
 Window Top = 31
-Window Z-Order = 9
+Window Z-Order = 10
 Source Window State = "1,0,0,0,0,0,0,0,0,70,0,0,0,0,0,28,10,0,46,85,400,600,1,0,"
 
 [File 0007]
@@ -121,85 +121,95 @@ Disk Date = 3507635094
 In Projects = "2,"
 Window Top = 343
 Window Left = 170
-Window Z-Order = 7
+Window Z-Order = 8
 Source Window State = "1,5,6,6,0,31,31,0,0,80,0,0,0,0,0,25,0,0,12,31,349,683,1,0,"
 
 [File 0008]
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/data/NetworkVariable.uir"
-File Type = "User Interface Resource"
-Disk Date = 3486571502
-In Projects = "1,"
-
-[File 0009]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/async_connection.h"
 File Type = "Include"
-Disk Date = 3507635363
+Disk Date = 3507723586
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 3
-Source Window State = "1,40,46,46,2,3,3,0,0,85,0,0,0,0,0,25,278,0,441,66,349,723,1,0,"
+Window Z-Order = 1
+Source Window State = "1,391,429,429,0,3,3,0,0,201,0,0,0,0,0,42,330,0,345,13,349,723,1,0,"
 
-[File 0010]
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/connection.h"
-File Type = "Include"
-Disk Date = 3507271665
-In Projects = "2,"
-Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
-
-[File 0011]
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/epos_network.h"
-File Type = "Include"
-Disk Date = 3507271665
-In Projects = "2,"
-Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
-
-[File 0012]
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"
-File Type = "Include"
-Disk Date = 3507271665
-In Projects = "2,"
-Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
-
-[File 0013]
+[File 0009]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_realtime.h"
 File Type = "Include"
 Disk Date = 3507636225
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 5
+Window Z-Order = 6
 Source Window State = "1,8,8,8,0,20,20,0,0,85,0,0,0,0,0,25,0,0,22,42,349,723,1,0,"
 
-[File 0014]
+[File 0010]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_windows.h"
 File Type = "Include"
-Disk Date = 3507652138
+Disk Date = 3507720160
 In Projects = "2,"
 Window Top = 219
 Window Left = 106
 Window Z-Order = 2
-Source Window State = "1,161,236,236,0,1,1,0,0,85,0,182,0,0,0,25,148,0,172,95,349,723,1,17,"
+Source Window State = "1,209,209,209,17,29,29,0,0,85,0,182,0,0,0,25,200,0,228,2,349,723,1,17,"
 
-[File 0015]
+[File 0011]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
 File Type = "Include"
 Disk Date = 3507271665
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 6
+Window Z-Order = 7
 Source Window State = "1,0,48,0,0,32,0,0,0,85,0,0,0,0,0,25,0,0,40,32,349,723,1,0,"
 
-[File 0016]
+[File 0012]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_realtime.h"
 File Type = "Include"
-Disk Date = 3507653036
+Disk Date = 3507719156
 In Projects = "2,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 1
-Source Window State = "1,170,172,172,0,2,2,0,0,201,0,190,0,190,0,42,149,0,171,46,349,723,1,0,"
+Window Z-Order = 3
+Source Window State = "1,176,176,176,30,42,42,0,0,85,0,182,0,182,0,25,141,0,176,35,349,723,1,0,"
+
+[File 0013]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/data/NetworkVariable.uir"
+File Type = "User Interface Resource"
+Disk Date = 3486571502
+In Projects = "1,"
+
+[File 0014]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/connection.h"
+File Type = "Include"
+Disk Date = 3507271665
+In Projects = "2,"
+Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+
+[File 0015]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/epos_network.h"
+File Type = "Include"
+Disk Date = 3507271665
+In Projects = "2,"
+Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+
+[File 0016]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"
+File Type = "Include"
+Disk Date = 3507271665
+In Projects = "2,"
+Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
+
+[File 0017]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug.h"
+File Type = "Include"
+Disk Date = 3507719028
+In Projects = "2,"
+Window Top = 33
+Window Left = 10
+Window Z-Order = 4
+Source Window State = "1,23,23,23,10,14,10,0,0,85,0,0,0,0,0,25,0,0,23,15,349,723,1,0,"
 
 [Tab Order]
 Tab 0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/Common.h"
@@ -215,6 +225,7 @@ Tab 0009 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_r
 Tab 0010 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
 Tab 0011 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_realtime.h"
 Tab 0012 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_windows.h"
+Tab 0013 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug.h"
 
 [Default Build Config 0001 Debug]
 Generate Browse Info = True

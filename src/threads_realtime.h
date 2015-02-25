@@ -166,7 +166,7 @@ extern inline size_t data_queue_count( Data_Queue* queue )
   return count;
 }
 
-void* dequeue_data( Data_Queue* queue, void* buffer )
+void* data_queue_read( Data_Queue* queue, void* buffer )
 {
   if( data_queue_count( queue ) > 0 )
     CmtReadTSQData( *queue, buffer, 1, 0, 0 );
@@ -174,17 +174,9 @@ void* dequeue_data( Data_Queue* queue, void* buffer )
   return buffer;
 }
 
-void* enqueue_data( Data_Queue* queue, void* buffer )
+extern inline void data_queue_write( Data_Queue* queue, void* buffer )
 {
-  static void* data_in = NULL;
-  
-  LOCK_THREAD( queue->lock );
-  data_in = queue->cache[ queue->last % queue->max_length ];
-  data_in = memcpy( data_in, buffer, queue->element_size );
-  queue->last++;
-  UNLOCK_THREAD( queue->lock );
-  
-  return data_in;
+  CmtWriteTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, NULL );
 }
 
 #endif /* THREADS_H */ 

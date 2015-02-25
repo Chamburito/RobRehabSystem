@@ -37,6 +37,7 @@ LOCATE on "can_frame.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobReha
 LOCATE on "Common.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "connection.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "epos_network.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "NetworkVariable.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "NetworkVariableRT.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;

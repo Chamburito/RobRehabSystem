@@ -207,14 +207,14 @@ extern inline size_t data_queue_count( Data_Queue* queue )
   return ( queue->last - queue->first );
 }
 
-void* dequeue_data( Data_Queue* queue, void* buffer )
+void* data_queue_read( Data_Queue* queue, void* buffer )
 {
   static void* data_out = NULL;
 	
   if( data_queue_count( queue ) > 0 )
   {
 	LOCK_THREAD( queue->lock );
-	data_out = queue->cache[ queue->first % queue->max_length ];
+	data_out = queue->cache[ queue->first % queue->max_length ]; // Always keep access index between 0 and MAX_MESSAGES
 	buffer = memcpy( buffer, data_out, queue->element_size );
 	queue->first++;
 	UNLOCK_THREAD( queue->lock );
@@ -223,17 +223,15 @@ void* dequeue_data( Data_Queue* queue, void* buffer )
   return buffer;
 }
 
-void* enqueue_data( Data_Queue* queue, void* buffer )
+void data_queue_write( Data_Queue* queue, void* buffer )
 {
   static void* data_in = NULL;
   
   LOCK_THREAD( queue->lock );
-  data_in = queue->cache[ queue->last % queue->max_length ];
-  data_in = memcpy( data_in, buffer, queue->element_size );
+  data_in = queue->cache[ queue->last % queue->max_length ]; // Always keep access index between 0 and MAX_MESSAGES
+  memcpy( data_in, buffer, queue->element_size );
   queue->last++;
   UNLOCK_THREAD( queue->lock );
-  
-  return data_in;
 }
 
 #ifdef __cplusplus

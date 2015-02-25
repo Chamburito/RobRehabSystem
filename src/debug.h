@@ -5,10 +5,6 @@
 #ifndef ERROR_H
 #define ERROR_H
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
   
@@ -16,6 +12,17 @@ extern "C"{
   #define INLINE __forceinline /* use __forceinline (VC++ specific) */
 #else
   #define INLINE inline        /* use standard inline */
+#endif
+
+#ifdef DEEP_DEBUG
+  #define EVENT_DEBUG( format, ... ) printf( "%s: ", __func__ ); printf( format,  __VA_ARGS__ );
+  #define LOOP_DEBUG( format, ... ) printf( "%s: ", __func__ ); printf( format,  __VA_ARGS__ );
+#elif SIMPLE_DEBUG
+  #define EVENT_DEBUG( format, ... ) printf( "%s: ", __func__ ); printf( format,  __VA_ARGS__ );
+  #define LOOP_DEBUG( format, ... ) do { } while( 0 )
+#else
+  #define EVENT_DEBUG( format, ... ) do { } while( 0 )
+  #define LOOP_DEBUG( format, ... ) do { } while( 0 )
 #endif
 
 extern INLINE void print_platform_error( const char* message )
@@ -26,11 +33,5 @@ extern INLINE void print_platform_error( const char* message )
   perror( message );
   #endif
 }
-
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ERROR_H
