@@ -32,17 +32,15 @@ extern "C"{
 const size_t MAX_MESSAGES = 10;
 const unsigned int BASE_WAIT_TIME = 1;
   
-typedef struct _Connection_Buffer Connection_Buffer;
-typedef char Message[ BUFFER_SIZE ];
-
 // Structure that stores read and write message queues for a Connection struct used asyncronously
-struct _Connection_Buffer
+typedef struct _Connection_Buffer
 {
   Connection* connection;
   Data_Queue* read_queue, write_queue;
   Thread_Handle read_thread, write_thread;
   char address[ ADDRESS_LENGTH ];
-};
+}
+Connection_Buffer;
 
 // Internal (private) list of asyncronous connections created (accessible only by index)
 static Connection_Buffer** buffer_list = NULL;
@@ -117,14 +115,18 @@ static int add_async_connection( Connection* connection )
   strcpy( &(connection_buffer->address[ HOST ]), &address_string[ HOST ] );
   strcpy( &(connection_buffer->address[ PORT ]), &address_string[ PORT ] );
   
-  connection_buffer->write_queue = data_queue_init( MAX_MESSAGES, sizeof(Message) );
-  connection_buffer->read_queue = data_queue_init( MAX_MESSAGES, sizeof(Message) );
-  
   if( (connection->type & NETWORK_ROLE_MASK) == CLIENT )
+  {
+    connection_buffer->read_queue = data_queue_init( MAX_MESSAGES, BUFFER_SIZE );  
     connection_buffer->read_thread = run_thread( async_read_queue, (void*) connection_buffer, JOINABLE );
+  }
   else if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
+  {
+    connection_buffer->read_queue = data_queue_init( MAX_MESSAGES, sizeof(int) );
     connection_buffer->read_thread = run_thread( async_accept_clients, (void*) connection_buffer, JOINABLE );
+  }
 
+  connection_buffer->write_queue = data_queue_init( MAX_MESSAGES, BUFFER_SIZE );
   connection_buffer->write_thread = run_thread( async_write_queue, (void*) connection_buffer, JOINABLE );
   
   EVENT_DEBUG( "last connection index: %d - socket fd: %d\n", n_connections, connection->sockfd );
@@ -278,8 +280,7 @@ static void* async_accept_clients( void* args )
   Connection* client;
   Data_Queue* client_queue = server_buffer->read_queue;
 
-  char* client_address;
-  char last_message[ BUFFER_SIZE ];
+  int last_client;
   size_t message_count;
   
   EVENT_DEBUG( "connection socket %d trying to add clients on thread %x\n", server_buffer->connection->sockfd, THREAD_ID );
@@ -312,14 +313,12 @@ static void* async_accept_clients( void* args )
       {
         if( client->sockfd == 0 ) continue;
         
-        client_address = get_address( client );
-        
 		EVENT_DEBUG( "client accepted: socket: %d - type: %x\n", client->sockfd, client->type );
-		EVENT_DEBUG( "host: %s - port: %s\n", &client_address[ HOST ], &client_address[ PORT ] );
+		EVENT_DEBUG( "host: %s - port: %s\n", &( get_address( client ) )[ HOST ], &( get_address( client ) )[ PORT ] );
         
-        sprintf( last_message, "%u %s %s", n_connections, &client_address[ HOST ], &client_address[ PORT ] );
+        last_client = n_connections;
         
-        data_queue_write( client_queue, last_message );
+        data_queue_write( client_queue, &last_client );
         
 		LOOP_DEBUG( "clients number before: %d\n", n_connections );
         
@@ -350,8 +349,14 @@ char* dequeue_message( int connection_id )
 
   if( connection_id < 0 || connection_id >= (int) n_connections )
   {
-    fprintf( stderr, "dequeue_message: no queue available for this connection: index %d\n", connection_id );
+    fprintf( stderr, "%s: no queue available for this connection: index %d\n", __func__, connection_id );
     return NULL;
+  }
+  
+  if( (buffer_list[ connection_id ]->connection->type & NETWORK_ROLE_MASK) != CLIENT )
+  {
+    fprintf( stderr, "%s: not a client connection: index %d\n", __func__, connection_id );  
+	return NULL;
   }
   
   read_queue = buffer_list[ connection_id ]->read_queue;
@@ -376,7 +381,7 @@ int enqueue_message( int connection_id, const char* message )
 
   if( connection_id < 0 || connection_id >= (int) n_connections )
   {
-    fprintf( stderr, "enqueue_message: no queue available for this connection: index %d\n", connection_id );    
+    fprintf( stderr, "%s: no queue available for this connection: index %d\n", __func__, connection_id );    
     return -1;
   }
   
@@ -388,6 +393,38 @@ int enqueue_message( int connection_id, const char* message )
   data_queue_write( write_queue, message );
   
   return 0;
+}
+
+int get_last_client( int connection_id )
+{
+  static Data_Queue* client_queue;
+  static int first_client;
+
+  if( connection_id < 0 || connection_id >= (int) n_connections )
+  {
+    fprintf( stderr, "%s: no queue available for this connection: index %d\n", __func__, connection_id );
+    return -1;
+  }
+  
+  if( (buffer_list[ connection_id ]->connection->type & NETWORK_ROLE_MASK) != SERVER )
+  {
+    fprintf( stderr, "%s: not a server connection: index %d\n", __func__, connection_id );  
+	return -1;
+  }
+  
+  client_queue = buffer_list[ connection_id ]->read_queue;
+  
+  if( data_queue_count( read_queue ) <= 0 )
+  {
+	LOOP_DEBUG( "no new clients available for this connection: index %d\n", connection_id );
+    return -1;
+  }
+  
+  data_queue_read( read_queue, &first_client );
+  
+  LOOP_DEBUG( "new client index from connection index %d: %d\n", connection_id, first_client );  
+  
+  return first_client; 
 }
 
 
