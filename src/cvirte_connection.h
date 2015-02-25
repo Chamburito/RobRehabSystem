@@ -1,25 +1,33 @@
-////////////////////////////////////////////////////////////////////////////////////////
-///// Library that combines threading utilities with the socket connection library /////
-///// to provide asyncronous network communication methods                         /////
-////////////////////////////////////////////////////////////////////////////////////////
+//==============================================================================
+//
+// Title:		cvirte_connection.h
+// Purpose:		A short description of the interface.
+//
+// Created on:	25/02/2015 at 16:41:39 by .
+// Copyright:	. All Rights Reserved.
+//
+//==============================================================================
 
 #ifndef ASYNC_CONNECT_H
 #define ASYNC_CONNECT_H
 
 #ifdef __cplusplus
-extern "C"{
+    extern "C" {
 #endif
 
-#include "connection.h"
+#include "cvidef.h"
 #include "debug.h"
 
-#ifdef WIN32
+/*#ifdef _CVI_DLL_
+  #include "timing_realtime.h"
+  #include "threads_realtime.h"
+#elif WIN32
   #include "timing_windows.h"
   #include "threads_windows.h"
 #else
   #include "timing_unix.h"
   #include "threads_unix.h"
-#endif
+#endif*/
 
   
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +486,7 @@ void close_all_connections()
 }
 
 #ifdef __cplusplus
-}
+    }
 #endif
 
-#endif /* ASYNC_CONNECT_H */
+#endif  /* ndef ASYNC_CONNECT_H */

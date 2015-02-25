@@ -21,10 +21,6 @@ static char CAN_cluster[ 256 ];
 static CAN_Frame* NMT = NULL;
 static CAN_Frame* SYNC = NULL;
 
-// List of user created frames
-static CAN_Frame** frame_list = NULL;
-static size_t n_frames = 0;
-
 void epos_network_start( const char* database_name, const char* cluster_name, int nodeId )
 {
   // Stores default database name and cluster name for initialized CAN network
@@ -43,17 +39,22 @@ void epos_network_start( const char* database_name, const char* cluster_name, in
 
 CAN_Frame* epos_network_init_frame( Frame_Mode mode, const char* interface_name, const char* frame_name )
 {
-  frame_list = (CAN_Frame**) realloc( frame_list, ( n_frames + 1 ) * sizeof(CAN_Frame*) );
+  CAN_Frame* epos_network_frame = (CAN_Frame*) malloc( sizeof(CAN_Frame*) );
 
-  if( (frame_list[ n_frames ] = can_frame_init( mode, interface_name, CAN_database, CAN_cluster, frame_name )) == NULL )
+  if( (epos_network_frame = can_frame_init( mode, interface_name, CAN_database, CAN_cluster, frame_name )) == NULL )
     return NULL;
 
-  return frame_list[ n_frames++ ];
+  return epos_network_frame;
+}
+
+extern inline void epos_network_end_frame( CAN_Frame* frame )
+{
+  can_frame_end( frame );
 }
 
 void epos_network_sync()
 {
-  // Build Sync pauload (all 0x0) 
+  // Build Sync payload (all 0x0) 
   static u8 payload[8];
     
   can_frame_write( SYNC, payload );
@@ -68,11 +69,6 @@ void epos_network_stop( int nodeId )
 
   can_frame_end( NMT );
   can_frame_end( SYNC );
-
-  //for( int frame_id = 0; frame_id < n_frames; frame_id++ )
-  //  can_frame_end( frame_list[ frame_id ] );
-
-  free( frame_list );
 }
 
 void epos_network_reset_comm()

@@ -26,7 +26,7 @@ enum Joint { ANKLE, KNEE, HIPS, N_JOINTS };  // Control algorhitms/axes indexes
 const char* CAN_DATABASE = "database";
 const char* CAN_CLUSTER = "NETCAN";
 
-static Motor* motor_list[ N_JOINTS ];                     // EPOS active axes list
+static Motor* motor_list[ N_JOINTS ];           // EPOS active axes list
 static Encoder* sensor_list[ N_JOINTS ];        // EPOS passive (measurement) axes list
 
 // Control algorhitms
@@ -69,9 +69,6 @@ void control_end()
     motor_disconnect( motor_list[ axis_id ] );
     encoder_disconnect( sensor_list[ axis_id ] );
   }
-    
-  // End threading subsystem
-  end_threading();
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +76,7 @@ void control_end()
 /////////////////////////////////////////////////////////////////////////////////
 
 const double PI = 3.141592;        // Duh...
-const double Ts = 0.005;                // Sampling interval
+const double Ts = 0.005;           // Sampling interval
 
 // Method that runs the control functions asyncronously
 static void* async_control( void* args )
@@ -88,8 +85,6 @@ static void* async_control( void* args )
   
   Control_Function control_function = control_functions[ control_mode ];
   
-  motor_enable( motor_list[ control_mode ] );
-  
   unsigned int exec_time, elapsed_time;
   
   while( motor_list[ control_mode ] != NULL )
@@ -97,6 +92,15 @@ static void* async_control( void* args )
     exec_time = get_exec_time_milisseconds();
 
     encoder_read( motor_list[ control_mode ]->encoder );
+	
+  	// Verify and try to correct errors
+  	if( encoder_get_status( motor_list[ control_mode ]->encoder, FAULT ) == true )
+  	  encoder_reset( motor_list[ control_mode ]->encoder );
+  	if( sensor_list[ control_mode ] != NULL )
+  	{
+  	  if( encoder_get_status( sensor_list[ control_mode ], FAULT ) == true ) 
+          encoder_reset( sensor_list[ control_mode ] );
+  	}
     
     // If the motor is being actually controlled, call control pass algorhitm
     if( motor_list[ control_mode ]->active ) control_function( motor_list[ control_mode ], sensor_list[ control_mode ] );
@@ -173,8 +177,8 @@ static void hips_control( Motor* hips_actuator, Encoder* hips_sensor )
   {
     motor_set_operation_mode( hips_actuator, VELOCITY_MODE );
     
-    double sensor_tension_zero = encoder_get_measure( hips_actuator->encoder, TENSION ); // mV
-    double sensor_position_zero = ( TNS_2_POS_RATIO * sensor_tension_zero + TNS_2_POS_OFFSET ); // mm  
+    sensor_tension_zero = encoder_get_measure( hips_actuator->encoder, TENSION ); // mV
+    sensor_position_zero = ( TNS_2_POS_RATIO * sensor_tension_zero + TNS_2_POS_OFFSET ); // mm  
   }
   
   double sensor_tension = 0;
@@ -254,7 +258,7 @@ const double d2 = 0.0029;
 const double d3 = 0.0015;
 
 /////////////////////////////////////////////////////////////////////////////////
-/////                     KNEE CONTROL DEFAULT VALUES                        /////
+/////                     KNEE CONTROL DEFAULT VALUES                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
 // PID control gains
