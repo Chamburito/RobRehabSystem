@@ -14,6 +14,8 @@
   #define INLINE inline        /* use standard inline */
 #endif
 
+#define ERROR_PRINT( format, ... ) fprintf( stderr, "%s: ", __func__ ); fprintf( stderr, format,  __VA_ARGS__ );
+
 #ifdef DEEP_DEBUG
   #define EVENT_DEBUG( format, ... ) printf( "%s: ", __func__ ); printf( format,  __VA_ARGS__ );
   #define LOOP_DEBUG( format, ... ) printf( "%s: ", __func__ ); printf( format,  __VA_ARGS__ );
