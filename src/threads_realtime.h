@@ -19,7 +19,7 @@ enum { DETACHED, JOINABLE };
 
 // Aliases for platform abstraction
 typedef CmtThreadFunctionID Thread_Handle;
-typedef CmtThreadLockHandle Thread_Lock;
+typedef CmtThreadLockHandle* Thread_Lock;
 
 // List of created mutexes
 static CmtThreadLockHandle* lock_list;
@@ -37,12 +37,12 @@ Thread_Lock get_new_thread_lock()
 {
   lock_list = (CmtThreadLockHandle*) realloc( lock_list, ( n_locks + 1 ) * sizeof(CmtThreadLockHandle) );
   CmtNewLock( NULL, 0, &lock_list[ n_locks ] );
-  return lock_list[ n_locks++ ];
+  return &lock_list[ n_locks++ ];
 }
 
 // Mutex aquisition and release
-extern inline LOCK_THREAD( CmtThreadLockHandle lock ) { CmtGetLock( lock ); }
-extern inline UNLOCK_THREAD( CmtThreadLockHandle lock ) { CmtReleaseLock( lock ); }
+extern inline void LOCK_THREAD( CmtThreadLockHandle* lock ) { CmtGetLock( *lock ); }
+extern inline void UNLOCK_THREAD( CmtThreadLockHandle* lock ) { CmtReleaseLock( *lock ); }
 
 // Setup new thread to run the given method asyncronously
 Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
@@ -50,26 +50,29 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
   static CmtThreadFunctionID thread_id;
   static int status;
   
+  static char error_buffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
+  
   if( (status = CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, (int (CVICALLBACK *) (void*)) function, args, &thread_id )) < 0 )
   {
-    fprintf( stderr, "%s: %s\n", __func__, CmtGetErrorMessage( status ) );
+    CmtGetErrorMessage( status, error_buffer );
+    fprintf( stderr, "%s: %s\n", __func__, error_buffer );
     return 0;
   }
   
   #ifdef DEBUG_2
-  printf( "%s: created thread %x successfully\n", __func__, handle_list[ n_handles ] );
+  printf( "%s: created thread %x successfully\n", __func__, thread_id );
   #endif
 
   n_threads++;
   
   if( mode == JOINABLE )
   {
-	handle_list = (HANDLE*) realloc( handle_list, ( n_handles + 1 ) * sizeof(HANDLE) );
-	handle_list[ n_handles ] = thread_id;
-	n_handles++;
+  	handle_list = (CmtThreadFunctionID*) realloc( handle_list, ( n_handles + 1 ) * sizeof(CmtThreadFunctionID) );
+  	handle_list[ n_handles ] = thread_id;
+  	n_handles++;
   }
   else if( mode == DETACHED ) 
-	CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, thread_id );
+	  CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, thread_id );
 
   return thread_id;
 }
@@ -91,15 +94,18 @@ uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
 {
   static uint32_t exit_code = 0;
   static int exit_status = 0;
+  
+  static char error_buffer[ CMT_MAX_MESSAGE_BUF_SIZE ]; 
 
   #ifdef DEBUG_1
   printf( "%s: waiting thread %x\n", __func__, handle );
   #endif
 
-  if( (exit_status = CmtWaitForThreadPoolFunctionCompletionEx( DEFAULT_THREAD_POOL_HANDLE, handle, 0, timeout )) < 0 )
+  if( (exit_status = CmtWaitForThreadPoolFunctionCompletionEx( DEFAULT_THREAD_POOL_HANDLE, handle, 0, milisseconds )) < 0 )
   {
-	fprintf( stderr, "%s: %s\n", __func__, CmtGetErrorMessage( exit_status ) );
-	return 0;
+    CmtGetErrorMessage( exit_status, error_buffer );
+	  fprintf( stderr, "%s: %s\n", __func__, error_buffer );
+	  return 0;
   }
 
   #ifdef DEBUG_1
@@ -128,9 +134,12 @@ size_t get_threads_number()
 void end_threading()
 {
   for( size_t lock_id = 0; lock_id < n_locks; lock_id++ )
+  {
     CmtDiscardLock( lock_list[ lock_id ] );
+    lock_list[ lock_id ] = 0;
+  }
   
-  for( thread_id = 0; thread_id < n_handles; thread_id++ )
+  for( size_t thread_id = 0; thread_id < n_handles; thread_id++ )
     CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, thread_id );
   
   return;
@@ -141,7 +150,7 @@ void end_threading()
 /////                                     THREAD SAFE QUEUE										  /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct Data_Queue CmtTSQHandle;
+typedef CmtTSQHandle Data_Queue;
 
 Data_Queue* data_queue_init( size_t max_length, size_t element_size )
 {
@@ -152,7 +161,7 @@ Data_Queue* data_queue_init( size_t max_length, size_t element_size )
   return queue;
 }
 
-extern inline void data_queue_end( Data_queue* queue )
+extern inline void data_queue_end( Data_Queue* queue )
 {
   CmtDiscardTSQ( *queue );
 }

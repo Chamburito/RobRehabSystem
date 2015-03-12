@@ -7,16 +7,18 @@
 #define CONNECT_H
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
-      
+#include "cvidef.h"
+#include "debug.h"
+  
 #include <tcpsupp.h>
 #include <udpsupp.h>
 #include <utility.h>
-      
-#include "cvidef.h"
-#include "debug.h"
+#include <toolbox.h>
+
+#include <ansi_c.h>
 
   
 //////////////////////////////////////////////////////////////////////////
@@ -26,71 +28,130 @@
 const size_t MESSAGE_BUFFER_SIZE = CMT_MAX_MESSAGE_BUF_SIZE; // 256
 
 const int MAX_DATA = 10;
-const unsigned int BASE_WAIT_TIME = 1;
 
 const size_t HOST_LENGTH = 40;
 const size_t PORT_LENGTH = 6;
 const size_t ADDRESS_LENGTH = HOST_LENGTH + PORT_LENGTH;
 
-const size_t HOST = 0;
-const size_t PORT = HOST_LENGTH;
-
-enum Property { CLIENT = 0x000f, SERVER = 0x00f0,  NETWORK_ROLE_MASK = 0x00ff, TCP = 0x0f00, UDP = 0xf000, PROTOCOL_MASK = 0xff00 };
-
-typedef int (CVICALLBACK *connection_callback)( unsigned, int, int, void* );
-
-typedef struct _Async_Connection Async_Connection;
+enum Property { CLIENT = 0x01, SERVER = 0x02, NETWORK_ROLE_MASK = 0x0f, TCP = 0x10, UDP = 0x20, PROTOCOL_MASK = 0xf0, DISCONNECTED = 0x00 };
 
 // Generic structure to store methods and data of any connection type handled by the library
+typedef struct _Async_Connection Async_Connection;
+
 struct _Async_Connection
 {
-  unsigned handle;
+  unsigned int handle;
+  uint8_t protocol, network_role;
+  CmtThreadFunctionID callback_thread_id;
+  int (CVICALLBACK *send_message)( void* );
   struct
   {
-    unsigned port;
+    unsigned int port;
     char host[ HOST_LENGTH ];
-    char string[ ADDRESS_LENGTH ];
   } address;
-  uint16_t type;
-  union {
-    char* buffer;
-    Connection** client_list;
+  CmtTSQHandle read_queue;
+  char write_buffer[ MESSAGE_BUFFER_SIZE ];
+  union
+  {
+    ListType client_list;
+    Async_Connection* server_ref;
   };
-  CmtTSQHandle read_queue, write_queue;
-  size_t* ref_connections_count;
 };
 
+// Internal (private) list of asyncronous connections created (accessible only by ID)
+static ListType global_connection_list = NULL;
 
 
 /////////////////////////////////////////////////////////////////////////////
 /////                         NETWORK UTILITIES                         /////
 /////////////////////////////////////////////////////////////////////////////
 
-// Utility method to request an address (host and port) string for client connections (returns default values for server connections)
-char* get_address( Connection* connection )
+// Connection comparison auxiliary function
+static int CVICALLBACK compare_connections( void* item_1, void* item_2 )
+{
+  Async_Connection* connection_1 = (*((Async_Connection**) item_1));
+  Async_Connection* connection_2 = (*((Async_Connection**) item_2));
+  
+  //if( connection_1 == NULL ) return -1;
+  //else if( connection_2 == NULL ) return 1;
+  
+  LOOP_DEBUG( "comparing handles: %u - %u", connection_1->handle, connection_2->handle );
+  
+  return ( connection_1->handle - connection_2->handle );
+}
+
+enum { PEEK, REMOVE };
+// Looks for a connection with given ID, and returns it if something is found
+static Async_Connection* find_connection( ListType connection_list, unsigned int connection_id, uint8_t remove )
+{
+  Async_Connection connection_data = { .handle = connection_id };
+  Async_Connection* connection = &connection_data;
+  
+  size_t index = ListFindItem( connection_list, &connection, FRONT_OF_LIST, compare_connections );
+      
+  if( index > 0 )
+  {
+    if( remove == 1 )
+      ListRemoveItem( connection_list, &connection, index );
+    else
+      ListGetItem( connection_list, &connection, index );
+    return connection;
+  }
+  
+  return NULL;
+}
+
+// Utility method to request an address (host and port) string for a connection structure
+static char* get_address( Async_Connection* connection )
 {
   static char address_string[ ADDRESS_LENGTH ];
   
-  EVENT_DEBUG( "getting address string for connection handle: %u\n", connection->handle );
+  EVENT_DEBUG( "getting address string for connection handle: %u", connection->handle );
   
   sprintf( address_string, "%s/%u", connection->address.host, connection->address.port );
   
   return address_string;
 }
-
-// Returns number of active clients for a connection 
-size_t connections_count( Connection* connection )
+// Returns the address string relative to the given connection ID
+char* get_id_address( ssize_t connection_id )
 {
-  size_t n_connections = 0;
+  static Async_Connection* connection;
   
-  if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
-    n_connections = *(connection->ref_connections_count);
-  else
-    n_connections = 1;
+  connection = find_connection( global_connection_list, (unsigned int) connection_id, PEEK ); 
+
+  if( connection_id < 0 || connection == NULL )
+  {
+    ERROR_PRINT( "invalid connection ID: %d", connection_id );
+    return NULL;
+  }
   
-  return n_connections;
+  return get_address( connection );
 }
 
+// Returns total number of active connections
+extern inline size_t get_connections_number()
+{
+  return ListNumItems( global_connection_list );
+}
+
+// Returns number of active clients for a connection 
+size_t clients_number( ssize_t connection_id )
+{
+  static Async_Connection* connection;
+  
+  connection = find_connection( global_connection_list, (unsigned int) connection_id, PEEK ); 
+
+  if( connection_id < 0 || connection == NULL )
+  {
+    ERROR_PRINT( "invalid connection ID: %d", connection_id );
+    return -1;
+  }
+  
+  if( connection->network_role == SERVER )
+    return ListNumItems( connection->client_list );
+  
+  return 1;
+}
 
 //////////////////////////////////////////////////////////////////////////////////
 /////                             INITIALIZATION                             /////
@@ -101,190 +162,217 @@ static int CVICALLBACK accept_tcp_client( unsigned, int, int, void* );
 static int CVICALLBACK accept_udp_client( unsigned, int, int, void* );
 static int CVICALLBACK receive_tcp_message( unsigned, int, int, void* );
 static int CVICALLBACK receive_udp_message( unsigned, int, int, void* );
-static int CVICALLBACK send_tcp_messages( void* );
-static int CVICALLBACK send_udp_messages( void* );
-static int CVICALLBACK send_messages_all( void* );
+static int CVICALLBACK send_tcp_message( void* );
+static int CVICALLBACK send_udp_message( void* );
+static int CVICALLBACK send_message_all( void* );
 
+static int CVICALLBACK close_connection( int, void*, void* );
 
 // Asyncronous callback for ip connection setup and event processing
-static int CVICALLBACK async_connect( void* connection_data );
+static int CVICALLBACK async_connect( void* connection_data )
 {
   Async_Connection* connection = (Async_Connection*) connection_data;
   
   static int status_code;
   
-  switch( connection->type )
+  switch( connection->protocol | connection->network_role )
   {
     case ( TCP | SERVER ):
       
       if( (status_code = RegisterTCPServer( connection->address.port, accept_tcp_client, connection )) < 0 )
-        ERROR_PRINT( "%s: %s\n", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
+        ERROR_PRINT( "%s: %s", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
       else
-        connection->handle = 0;
+        connection->handle = connection->address.port;
       
       break;
       
     case ( TCP | CLIENT ):
       
       if( (status_code = ConnectToTCPServer( &(connection->handle), connection->address.port, connection->address.host, receive_tcp_message, connection, 100 )) < 0 )
-        ERROR_PRINT( "%s: %s\n", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
+        ERROR_PRINT( "%s: %s", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
       
       break;
       
     case ( UDP | SERVER ):
       
-      if( (status_code = CreateUDPChannelConfig( connection->address.port, UDP_ANY_ADDRESS, 0, accept_udp_client, &(connection->handle) )) < 0 )
-        ERROR_PRINT( "%s\n", GetUDPErrorString( status_code ) );
+      if( (status_code = CreateUDPChannelConfig( connection->address.port, UDP_ANY_ADDRESS, 0, accept_udp_client, connection, &(connection->handle) )) < 0 )
+        ERROR_PRINT( "%s", GetUDPErrorString( status_code ) );
       
       break;
       
     case ( UDP | CLIENT ):
       
-      if( (status_code = CreateUDPChannelConfig( UDP_ANY_LOCAL_PORT, UDP_ANY_ADDRESS, 0, receive_udp_message, &(connection->handle) )) < 0 )
-        ERROR_PRINT( "%s\n", GetUDPErrorString( status_code ) );
+      if( (status_code = CreateUDPChannelConfig( UDP_ANY_LOCAL_PORT, UDP_ANY_ADDRESS, 0, receive_udp_message, connection, &(connection->handle) )) < 0 )
+        ERROR_PRINT( "%s", GetUDPErrorString( status_code ) );
       
       break;
+      
+      default: break;
   }
   
-  if( status_code < 0 ) connection->handle = (unsigned int) -1;
+  if( status_code < 0 ) connection->network_role = DISCONNECTED;
+  else
+  {
+    EVENT_DEBUG( "successfully created connection with handle %u", connection->handle );
+    EVENT_DEBUG( "starting to process system events for connection %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
+  }
   
-  while( (signed int) connection->handle != -1 ) ProcessSystemEvents();
+  while( connection->network_role != DISCONNECTED ) 
+  {
+    ProcessSystemEvents();
+    #ifdef _LINK_CVI_LVRT_
+    SleepUS( 100 );
+    #else
+    Sleep( 1 );
+    #endif
+  }
+  
+  EVENT_DEBUG( "connection handle %u closed. exiting event loop on thread %x", connection->handle, CmtGetCurrentThreadID() );
   
   CmtExitThreadPoolThread( status_code );
+  
+  return status_code;
 }
 
-// Add defined connection to the client list of the given server connection
-static INLINE void add_client( Connection* server, Connection* client )
+// Generate connection data structure based on input arguments
+static Async_Connection* add_connection( unsigned int connection_handle, unsigned int address_port, const char* address_host, uint8_t connection_type )
 {
-  static size_t n_clients, client_index = 0, client_list_size = 0;
+  Async_Connection* connection = (Async_Connection*) malloc( sizeof(Async_Connection) );
   
-  free( client->ref_connections_count );
-  client->ref_connections_count = server->ref_connections_count;
+  connection->handle = connection_handle;
+  connection->protocol = (connection_type & NETWORK_ROLE_MASK);
+  connection->network_role = (connection_type & PROTOCOL_MASK);
   
-  n_clients = *(server->ref_connections_count);
-  while( client_index < n_clients )
+  connection->callback_thread_id = -1;
+  
+  connection->address.port = address_port;
+  strncpy( connection->address.host, address_host, HOST_LENGTH );
+  
+  if( connection->protocol == SERVER )
   {
-    client_list_size++;
-    if( server->client_list[ client_index ] != NULL )
-      client_index++;
+    connection->client_list = NULL;
+    
+    CmtNewTSQ( MAX_DATA, sizeof(Async_Connection*), 0, &(connection->read_queue) );
+    
+    connection->send_message = send_message_all;
+    
+    connection->client_list = ListCreate( sizeof(Async_Connection*) );
+  }
+  else
+  {
+    if( connection->network_role == TCP )
+      connection->send_message = send_tcp_message;
     else
-      break;
+      connection->send_message = send_udp_message;
+    
+    connection->server_ref = NULL;
+    
+    CmtNewTSQ( MAX_DATA, MESSAGE_BUFFER_SIZE, 0, &(connection->read_queue) );
   }
   
-  if( client_index == client_list_size )
-    server->client_list = (Connection**) realloc( server->client_list, ( client_index + 1 ) * sizeof(Connection*) );
-  server->client_list[ client_index ] = client;
+  if( global_connection_list == NULL )
+    global_connection_list = ListCreate( sizeof(Async_Connection*) ); 
   
-  (*(server->ref_connections_count))++;
-
-  return;
+  ListInsertItem( global_connection_list, &connection, END_OF_LIST );
+  
+  EVENT_DEBUG( "%u active connections listed", ListNumItems( global_connection_list ) );
+  
+  return connection;
 }
 
 // Generic method for opening a new socket and providing a corresponding Connection structure for use
-Connection* open_connection( const char* host, const char* port, uint16_t protocol )
+ssize_t open_async_connection( const char* host, const char* port, uint8_t protocol )
 {
-  static Connection* connection;
-
+  static Async_Connection* new_connection;
+  
   static unsigned int port_number;
+  
+  EVENT_DEBUG( "trying to open %s connection for host %s and port %s\n", ( protocol == TCP ) ? "TCP" : "UDP", 
+                                                                         ( host != NULL ) ? host : "0.0.0.0", port );
   
   // Assure that the port number is in the Dynamic/Private range (49152-65535)
   port_number = (unsigned int) strtoul( port, NULL, 0 );
   if( port_number < 49152 || port_number > 65535 )
   {
-    fprintf( stderr, "%s: invalid port number value: %s\n", __func__, port );
-    return NULL;
+    ERROR_PRINT( "invalid port number value: %s", port );
+    return -1;
   }
   
   if( ( protocol != TCP ) && ( protocol != UDP ) )
   {
-    ERROR_PRINT( "invalid protocol option: %x\n", protocol );
-    return NULL;
+    ERROR_PRINT( "invalid protocol option: %x", protocol );
+    return -1;
   }
   
-  connection = (Async_Connection*) malloc( sizeof(Async_Connection) );
+  new_connection = add_connection( 0, port_number, 
+                                   ( host != NULL ) ? host : "0.0.0.0",
+                                   ( ( host == NULL ) ? SERVER : CLIENT ) | protocol );
   
-  connection->address.port = port_number;
-  strncpy( connection->address.host, ( host != NULL ) ? host : "0.0.0.0", HOST_LENGTH );
-  sprintf( connection->address.string, "%s/%u", connection->address.host, connection->address.port );
+  CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, async_connect, new_connection, &(new_connection->callback_thread_id) );
   
-  connection->type = ( ( host == NULL ) ? SERVER : CLIENT ) | protocol;
+  SetBreakOnLibraryErrors( 0 );
+  (void) CmtWaitForThreadPoolFunctionCompletionEx( DEFAULT_THREAD_POOL_HANDLE, new_connection->callback_thread_id, 0, 1000 );
+  SetBreakOnLibraryErrors( 1 );
   
-  static CmtThreadFunctionID connect_thread_id;
-  
-  CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, async_connect, connection, &connect_thread_id );
-  
-  CmtWaitForThreadPoolFunctionCompletionEx( DEFAULT_THREAD_POOL_HANDLE, connect_thread_id, 0, 1000 );
-  
-  if( (signed int) connection->handle != -1 )
+  if( new_connection->network_role == DISCONNECTED )
   {
-    free( connection );
-    return NULL;
-  }
-  
-  EVENT_DEBUG( "connection added: address: %s\n", connection->address.string );
-  
-  if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
-  {
-    connection->client_list = NULL;
-    CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, send_messages_all, connection, NULL );
+    ListRemoveItem( global_connection_list, NULL, END_OF_LIST );
     
-    CmtNewTSQ( MAX_DATA, sizeof(Async_Connection), 0, connection->read_queue );
-  }
-  else
-  {
-    if( (connection->type & PROTOCOL_MASK) == TCP )
-      CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, send_tcp_messages, connection, NULL );
-    else
-      CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, send_udp_messages, connection, NULL );
+    CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, new_connection->callback_thread_id );
+    new_connection->callback_thread_id = -1;
     
-    CmtNewTSQ( MAX_DATA, MESSAGE_BUFFER_SIZE, 0, connection->read_queue );
+    close_connection( 0, new_connection, NULL );
+    
+    return -1;
   }
 
-  CmtNewTSQ( MAX_DATA, MESSAGE_BUFFER_SIZE, OPT_TSQ_AUTO_FLUSH_EXACT, connection->write_queue );
+  EVENT_DEBUG( "new connection opened: address: %s", get_address( new_connection ) );
   
-  connection->ref_connections_count = (size_t*) malloc( sizeof(size_t) );
-  *(connection->ref_connections_count) = 0;
-
-  return connection;
+  return (ssize_t) new_connection->handle;
 }
 
 
 /////////////////////////////////////////////////////////////////////////////////
-/////                             COMMUNICATION                             /////
+/////                       ASYNCRONOUS COMMUNICATION                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
 // Try to receive incoming message from the given TCP client connection and store it on its buffer
-static int CVICALLBACK receive_tcp_message( unsigned int connection_handle, int event_type, int error_code, void* connection_data );
+static int CVICALLBACK receive_tcp_message( unsigned int connection_handle, int event_type, int error_code, void* connection_data )
 {
   Async_Connection* connection = (Async_Connection*) connection_data;
   
   char message_buffer[ MESSAGE_BUFFER_SIZE ];
   
+  LOOP_DEBUG( "called for connection handle %u on thread %x", connection_handle, CmtGetCurrentThreadID() );
+  
   switch( event_type )
 	{
 		case TCP_DISCONNECT:
 			
-      close_connection( connection );
+      if( connection_handle == connection->handle )
+        close_connection( 0, &connection, NULL );
 			break;
       
 		case TCP_DATAREADY:
         
 			if( (error_code = ClientTCPRead( connection_handle, message_buffer, MESSAGE_BUFFER_SIZE, 0 )) < 0 )
       {
-        ERROR_PRINT( "%s: %s\n", GetTCPErrorString( error_code ), GetTCPSystemErrorString() );
-        close_connection( connection );
+        ERROR_PRINT( "%s: %s", GetTCPErrorString( error_code ), GetTCPSystemErrorString() );
+        if( connection_handle == connection->handle )
+          close_connection( 0, &connection, NULL );
         break;
       }
       
       if( (error_code = CmtWriteTSQData( connection->read_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
       {
         CmtGetErrorMessage( error_code, message_buffer );
-        ERROR_PRINT( "%s\n", message_buffer );
-        close_connection( connection );
+        ERROR_PRINT( "%s", message_buffer );
+        if( connection_handle == connection->handle )
+          close_connection( 0, &connection, NULL );
         break;
       }
       
-      LOOP_DEBUG( "connection handle %u received message: %s\n", connection->handle, connection->buffer );
+      LOOP_DEBUG( "TCP connection handle %u received message: %s", connection->handle, message_buffer );
 		  
       break;
 	}
@@ -293,215 +381,379 @@ static int CVICALLBACK receive_tcp_message( unsigned int connection_handle, int 
 }
 
 // Send given message through the given TCP connection
-static int CVICALLBACK send_tcp_messages( void* connection_data )
+static int CVICALLBACK send_tcp_message( void* connection_data )
 {
   Async_Connection* connection = (Async_Connection*) connection_data;
   
   int error_code;
   
-  char message_buffer[ MESSAGE_BUFFER_SIZE ];
+  LOOP_DEBUG( "called for connection handle %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
   
-  while( (signed int) connection->handle != -1 )
+  if( connection->network_role != CLIENT )
   {
-    if( (error_code = CmtReadTSQData( connection->write_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, 0 )) < 0 )
+    LOOP_DEBUG( "TCP connection handle %u sending message: %s", connection->handle, connection->write_buffer );
+    
+  	if( (error_code = ClientTCPWrite( connection->handle, connection->write_buffer, MESSAGE_BUFFER_SIZE, 0 )) < 0 )
     {
-      CmtGetErrorMessage( error_code, message_buffer );
-      ERROR_PRINT( "%s\n", message_buffer );
-      close_connection( connection );
-      break;
-    }
-      
-  	if( (error_code = ClientTCPWrite( connection->handle, message_buffer, MESSAGE_BUFFER_SIZE, 0 )) < 0 )
-    {
-      ERROR_PRINT( "%s: %s\n", GetTCPErrorString( error_code ), GetTCPSystemErrorString() );
-      close_connection( connection );
-      break;
+      ERROR_PRINT( "%s: %s", GetTCPErrorString( error_code ), GetTCPSystemErrorString() );
+      close_connection( 0, &connection, NULL );
+      CmtExitThreadPoolThread( error_code );
+      return error_code;
     }
   }
+  else
+  {
+    EVENT_DEBUG( "connection handle %u is closed", connection->handle );
+    CmtExitThreadPoolThread( -1 );
+    return -1;
+  }
   
-  CmtExitThreadPoolThread( error_code );
+  CmtExitThreadPoolThread( 0 );
+  return 0;
 }
 
 // Try to receive incoming message from the given UDP client connection and store it on its buffer
-static int CVICALLBACK receive_udp_message( unsigned int connection_handle, int event_type, int error_code, void* connection_data );
+static int CVICALLBACK receive_udp_message( unsigned int connection_handle, int event_type, int error_code, void* connection_data )
 {
   Async_Connection* connection = (Async_Connection*) connection_data;
   
   char message_buffer[ MESSAGE_BUFFER_SIZE ];
   
-  switch( event_type )
-	{
-		case TCP_DISCONNECT:
-			
-      close_connection( connection );
-			break;
-      
-		case TCP_DATAREADY:
-        
-			if( (error_code = ClientTCPRead( connection_handle, message_buffer, MESSAGE_BUFFER_SIZE, 0 )) < 0 )
-      {
-        ERROR_PRINT( "%s: %s\n", GetTCPErrorString( error_code ), GetTCPSystemErrorString() );
-        close_connection( connection );
-        break;
-      }
-      
-      if( (error_code = CmtWriteTSQData( connection->read_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-      {
-        CmtGetErrorMessage( error_code, message_buffer );
-        ERROR_PRINT( "%s\n", message_buffer );
-        close_connection( connection );
-        break;
-      }
-      
-      LOOP_DEBUG( "connection handle %u received message: %s\n", connection->handle, connection->buffer );
-		  
-      break;
-	}
-
-  memset( connection->buffer, 0, BUFFER_SIZE );
-  // Blocks until there is something to be read in the socket
-  if( recvfrom( connection->sockfd, connection->buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &address, &addr_len ) == SOCKET_ERROR )
-  {
-    print_socket_error( "receive_udp_message: recvfrom: error reading from socket" );
-    return NULL;
-  }
-
-  // Verify if incoming message is destined to this connection (and returns the message if it is)
-  if( connection->address->sin6_port == address.sin6_port )
-  {
-    address_string[0] = connection->address->sin6_addr.s6_addr;
-    address_string[1] = address.sin6_addr.s6_addr;
-    if( strncmp( (const char*) address_string[0], (const char*) address_string[1], sizeof(struct in6_addr) ) == 0 )
-    {
-      recv( connection->sockfd, NULL, 0, 0 );
-    
-      #ifdef DEBUG_2
-      printf( "receive_udp_message: socket %d received right message: %s\n", connection->sockfd, connection->buffer );
-      #endif
-    
-      return connection->buffer;
-    }
-  }
+  unsigned int source_port;
+  char source_host[ HOST_LENGTH ];
   
-  // Default return message (the received one was not destined to this connection) 
+  LOOP_DEBUG( "called for connection handle %u on thread %x", connection_handle, CmtGetCurrentThreadID() );
+  
+  if( event_type == UDP_DATAREADY )
+	{
+		if( (error_code = UDPRead( connection_handle, NULL, MESSAGE_BUFFER_SIZE, UDP_DO_NOT_WAIT, &source_port, source_host )) < 0 )
+    {
+      ERROR_PRINT( "%s", GetUDPErrorString( error_code ) );
+      if( connection_handle == connection->handle )
+        close_connection( 0, &connection, NULL ); 
+      return -1;
+    }
+    
+    if( connection->address.port == source_port )
+    {
+      if( strncmp( connection->address.host, source_host, HOST_LENGTH ) == 0 )
+      {
+        UDPRead( connection_handle, message_buffer, MESSAGE_BUFFER_SIZE, UDP_DO_NOT_WAIT, NULL, NULL );
+    
+        if( (error_code = CmtWriteTSQData( connection->read_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
+        {
+          CmtGetErrorMessage( error_code, message_buffer );
+          ERROR_PRINT( "%s", message_buffer );
+          close_connection( 0, &connection, NULL );
+          return -1;
+        }
+        
+        LOOP_DEBUG( "UDP connection handle %u (received %u) received right message: %s", connection->handle, connection_handle, message_buffer );
+      }
+    }
+	}
+  
+  // Default return value (the received one was not destined to this connection) 
   return 0; 
 }
 
 // Send given message through the given UDP connection
-static int send_udp_message( Connection* connection, const char* message )
+static int CVICALLBACK send_udp_message( void* connection_data )
 {
-  if( strlen( message ) + 1 > BUFFER_SIZE )
+  Async_Connection* connection = (Async_Connection*) connection_data;
+  
+  int error_code;
+  
+  LOOP_DEBUG( "called for connection handle %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
+  
+  if( connection->network_role == CLIENT )
   {
-    fprintf( stderr, "send_udp_message: message too long !\n" );
-    return 0;
+    LOOP_DEBUG( "UDP connection handle %u sending message: %s", connection->handle, connection->write_buffer );
+    
+    if( (error_code = UDPWrite( connection->handle, connection->address.port, connection->address.host, connection->write_buffer, MESSAGE_BUFFER_SIZE )) )
+    {
+      ERROR_PRINT( "%s", GetUDPErrorString( error_code ) );
+      close_connection( 0, &connection, NULL );
+      CmtExitThreadPoolThread( error_code );
+      return error_code;
+    }
   }
-  
-  #ifdef DEBUG_2
-  printf( "send_udp_message: connection socket %d sending message: %s\n", connection->sockfd, message );
-  #endif
-  
-  if( sendto( connection->sockfd, message, BUFFER_SIZE, 0, (struct sockaddr *) connection->address, sizeof(struct sockaddr_in6) ) == SOCKET_ERROR )
+  else
   {
-    print_socket_error( "send_udp_message: sendto: error writing to socket" );
+    EVENT_DEBUG( "connection handle %u is closed", connection->handle );
+    CmtExitThreadPoolThread( -1 );
     return -1;
-  }
+  } 
   
+  CmtExitThreadPoolThread( 0 );
   return 0;
+}
+
+static int CVICALLBACK send_message_client( size_t index, void* client_ref, void* message_data )
+{
+  Async_Connection* client = *((Async_Connection**) client_ref);
+  
+  strncpy( client->write_buffer, (const char*) message_data, MESSAGE_BUFFER_SIZE );
+  
+  return client->send_message( client );
 }
 
 // Send given message to all the clients of the given server connection
-static int send_message_all( Connection* connection, const char* message )
+static int CVICALLBACK send_message_all( void* connection_data )
 {
-  static size_t client_id = 0, n_clients;
-  n_clients = *(connection->ref_connections_count);
-  while( client_id < n_clients )
+  Async_Connection* connection = (Async_Connection*) connection_data;
+  
+  static int status_code;
+  
+  LOOP_DEBUG( "called for connection handle %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
+  
+  status_code = ListApplyToEachEx( connection->client_list, 1, send_message_client, (void*) connection->write_buffer );
+  
+  CmtExitThreadPoolThread( status_code );
+  
+  return status_code;
+}
+
+// Waits for a remote connection to be added to the client list of the given TCP server connection
+static int CVICALLBACK accept_tcp_client( unsigned int client_handle, int event_type, int error_code, void* connection_data )
+{
+  Async_Connection* connection = (Async_Connection*) connection_data;
+  
+  Async_Connection* client;
+  
+  char message_buffer[ MESSAGE_BUFFER_SIZE ];
+  
+  //LOOP_DEBUG( "called for connection handle %u on server %u on thread %x\n", client_handle, connection->handle, CmtGetCurrentThreadID() );
+  
+  switch( event_type )
+	{
+		case TCP_DISCONNECT:
+			
+      if( (client = find_connection( connection->client_list, client_handle, REMOVE )) != NULL )
+      {
+        EVENT_DEBUG( "TCP client handle %u disconnected", client->handle );
+        
+        (void) close_connection( 0, &client, NULL );
+      }
+      
+			break;
+      
+		case TCP_CONNECT:
+      
+      if( connection->network_role == SERVER )
+      {
+  			client = add_connection( client_handle, 0, NULL, TCP | CLIENT );
+        GetTCPPeerAddr( client->handle, client->address.host, HOST_LENGTH );
+        client->server_ref = connection;
+      
+        ListInsertItem( connection->client_list, &client, END_OF_LIST );
+      
+        if( (error_code = CmtWriteTSQData( connection->read_queue, &client, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
+        {
+          CmtGetErrorMessage( error_code, message_buffer );
+          ERROR_PRINT( "%s", message_buffer );
+          break;
+        }
+      
+        EVENT_DEBUG( "TCP connection handle %u accepted client: %u (%s/%u)", connection->handle, client->handle, client->address.host, client->address.port );
+      }
+		  
+      break;
+      
+    case TCP_DATAREADY:
+      
+			if( (client = find_connection( connection->client_list, client_handle, PEEK )) != NULL )
+      {
+        if( (error_code = ServerTCPRead( client->handle, message_buffer, MESSAGE_BUFFER_SIZE, 0 )) < 0 )
+        {
+          ERROR_PRINT( "%s: %s", GetTCPErrorString( error_code ), GetTCPSystemErrorString() );
+          (void) close_connection( 0, &client, NULL );
+          break;
+        }
+      
+        if( (error_code = CmtWriteTSQData( client->read_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
+        { 
+          CmtGetErrorMessage( error_code, message_buffer );
+          ERROR_PRINT( "%s", message_buffer );
+          break;
+        }
+      }
+      
+      //LOOP_DEBUG( "TCP connection handle %u (server_handle %u) received message: %s\n", client_handle, connection->handle, message_buffer );
+		  
+      break;
+	}
+  
+  return error_code;
+}
+
+// Waits for a remote connection to be added to the client list of the given UDP server connection
+static int CVICALLBACK accept_udp_client( unsigned int channel, int event_type, int error_code, void* connection_data )
+{
+  Async_Connection* connection = (Async_Connection*) connection_data;
+  
+  Async_Connection* client = NULL;
+  
+  char message_buffer[ MESSAGE_BUFFER_SIZE ];
+  
+  //LOOP_DEBUG( "called for connection handle %u on server %u on thread %x\n", channel, connection->handle, CmtGetCurrentThreadID() );
+  
+  if( event_type == UDP_DATAREADY )
   {
-    if( connection->client_list[ client_id ] != NULL )
+    if( connection->network_role == SERVER )
     {
-      send_message( connection->client_list[ client_id ], message );
-      client_id++;
+      if( (client = find_connection( connection->client_list, channel, PEEK )) == NULL )
+      {
+        client = add_connection( channel, client->address.port, client->address.host, UDP | CLIENT );
+        ListInsertItem( connection->client_list, &client, END_OF_LIST );
+      
+        //EVENT_DEBUG( "client accepted !\n" );
+      }
     }
+    
+    if( (error_code = UDPRead( channel, message_buffer, MESSAGE_BUFFER_SIZE, UDP_DO_NOT_WAIT, &(client->address.port), client->address.host )) < 0 )
+    {
+      ERROR_PRINT( "%s", GetUDPErrorString( error_code ) );
+      (void) close_connection( 0, &client, NULL );
+      return -1;
+    }
+    
+    if( (error_code = CmtWriteTSQData( client->read_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
+    {
+      CmtGetErrorMessage( error_code, message_buffer );
+      ERROR_PRINT( "%s", message_buffer );
+      return -1;
+    }
+
+    LOOP_DEBUG( "UDP connection handle %u (server handle %u) received message: %s", channel, connection->handle, message_buffer );
   }
   
   return 0;
 }
 
-// Waits for a remote connection to be added to the client list of the given TCP server connection
-static Connection* accept_tcp_client( Connection* server )
-{
-  Connection* client;
-  int client_sockfd;
-  static struct sockaddr_storage client_address;
-  static socklen_t addr_len = sizeof(client_address);
-  
-  client_sockfd = accept( server->sockfd, (struct sockaddr *) &client_address, &addr_len );
 
-  if( client_sockfd == INVALID_SOCKET )
+//////////////////////////////////////////////////////////////////////////////////
+/////                        SYNCRONOUS COMMUNICATION                        /////
+//////////////////////////////////////////////////////////////////////////////////
+
+// Get (and remove) message from the beginning (oldest) of the given index corresponding read queue
+// Method to be called from the main thread
+char* read_message( ssize_t connection_id )
+{
+  static char message_buffer[ MESSAGE_BUFFER_SIZE ];
+  
+  static Async_Connection* connection;
+  static size_t n_messages;
+  static int error_code;
+  
+  connection = find_connection( global_connection_list, (unsigned int) connection_id, PEEK ); 
+
+  if( connection_id < 0 || connection == NULL )
   {
-    print_socket_error( "accept_tcp_client: accept: error accepting connection" );
+    ERROR_PRINT( "no queue available for this connection: ID %d", connection_id );
     return NULL;
   }
   
-  #ifdef DEBUG_1
-  printf( "accept_tcp_client: client accepted: socket fd: %d\n", client_sockfd );
-  #endif
+  if( connection->network_role != CLIENT )
+  {
+    ERROR_PRINT( "not a client connection: ID %d", connection_id );  
+	  return NULL;
+  }
+
+  if( (error_code = CmtGetTSQAttribute( connection->read_queue, ATTR_TSQ_ITEMS_IN_QUEUE, &n_messages )) < 0 )
+  {
+    CmtGetErrorMessage( error_code, message_buffer );
+    ERROR_PRINT( "%s", message_buffer );
+    return NULL;
+  }
   
-  client =  add_connection( client_sockfd, (struct sockaddr *) &client_address, CLIENT | TCP );
-
-  add_client( server, client );
-
-  return client;
+  if( n_messages <= 0 )
+  {
+	  LOOP_DEBUG( "no messages available for this connection: ID %d", connection_id );
+    return NULL;
+  }
+  
+  if( (error_code = CmtReadTSQData( connection->read_queue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, 0 )) < 0 )
+  {
+    CmtGetErrorMessage( error_code, message_buffer );
+    ERROR_PRINT( "%s", message_buffer );
+    connection->handle = (unsigned int) -1;
+    return NULL;
+  }
+  
+  LOOP_DEBUG( "message from connection ID %d: %s", connection_id, message_buffer );  
+  
+  return message_buffer;
 }
 
-// Waits for a remote connection to be added to the client list of the given UDP server connection
-static Connection* accept_udp_client( Connection* server )
+int write_message( ssize_t connection_id, const char* message )
 {
-  size_t client_id, n_clients;
-  Connection* client;
-  static struct sockaddr_storage client_address;
-  static socklen_t addr_len = sizeof(client_address);
-  static char buffer[ BUFFER_SIZE ];
-  static uint8_t* address_string[2];
-  static Connection dummy_connection;
-  int bytes_received;
+  static Async_Connection* connection;
 
-  if( recvfrom( server->sockfd, buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &client_address, &addr_len ) == SOCKET_ERROR )
+  connection = find_connection( global_connection_list, (unsigned int) connection_id, PEEK ); 
+
+  if( connection_id < 0 || connection == NULL )
   {
-    print_socket_error( "accept_udp_client: recvfrom: error reading from socket" );
-    return NULL;
+    ERROR_PRINT( "no queue available for this connection: ID %d", connection_id );    
+    return -1;
   }
   
-  // Verify if incoming message belongs to unregistered client (returns default value if not)
-  n_clients = *(server->ref_connections_count);
-  for( client_id = 0; client_id < n_clients; client_id++ )
+  strncpy( connection->write_buffer, message, MESSAGE_BUFFER_SIZE );
+  
+  if( CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, connection->send_message, connection, NULL ) < 0 )
+    return -1;
+  
+  return 0;
+}
+
+int get_new_client_id( ssize_t connection_id )
+{
+  static int client_id;
+
+  static Async_Connection* connection;
+  static size_t n_clients;
+  static int error_code;
+  
+  connection = find_connection( global_connection_list, (unsigned int) connection_id, PEEK ); 
+
+  if( connection_id < 0 || connection == NULL )
   {
-    #ifdef DEBUG_2
-    printf( "accept_udp_client: comparing ports: %u - %u\n", server->client_list[ client_id ]->address->sin6_port, ((struct sockaddr_in6*) &client_address)->sin6_port );
-    #endif
-    if( server->client_list[ client_id ]->address->sin6_port == ((struct sockaddr_in6*) &client_address)->sin6_port )
-    {
-      address_string[0] = server->client_list[ client_id ]->address->sin6_addr.s6_addr;
-      address_string[1] = ((struct sockaddr_in6*) &client_address)->sin6_addr.s6_addr;
-      if( strncmp( (const char*) address_string[0], (const char*) address_string[1], sizeof(struct in6_addr) ) == 0 )
-        return &dummy_connection;
-    }
+    ERROR_PRINT( "no queue available for connection ID %d", connection_id );
+    return -1;
   }
   
-  #ifdef DEBUG_1
-  printf( "accept_udp_client: client accepted\n" );
+  if( connection->network_role != SERVER )
+  {
+    ERROR_PRINT( "connection ID %d is not a server connection ID", connection_id );  
+	  return -1;
+  }
   
-  printf( "\tdatagram clients before: %u\n", *(server->ref_connections_count) );
-  #endif
+  if( (error_code = CmtGetTSQAttribute( connection->read_queue, ATTR_TSQ_ITEMS_IN_QUEUE, &n_clients )) < 0 )
+  {
+    char error_message[ MESSAGE_BUFFER_SIZE ]; 
+    CmtGetErrorMessage( error_code, error_message );
+    ERROR_PRINT( "%s", error_message );
+    return -1;
+  }
   
-  client = add_connection( server->sockfd, (struct sockaddr*) &client_address, CLIENT | UDP );
-
-  add_client( server, client );
+  if( n_clients <= 0 )
+  {
+	  LOOP_DEBUG( "no new clients available for server connection ID %d", connection_id );
+    return -1;
+  }
   
-  #ifdef DEBUG_1
-  printf( "\tdatagram clients after: %u\n",  *(server->ref_connections_count) );
-  #endif
   
-  return client;
+  if( (error_code = CmtReadTSQData( connection->read_queue, &client_id, 1, TSQ_INFINITE_TIMEOUT, 0 )) < 0 )
+  {
+    char error_message[ MESSAGE_BUFFER_SIZE ]; 
+    CmtGetErrorMessage( error_code, error_message );
+    ERROR_PRINT( "%s", error_message );
+    return -1;
+  }
+  
+  LOOP_DEBUG( "new client connection ID %d from server connection ID %d", client_id , connection_id );  
+  
+  return client_id; 
 }
 
 
@@ -510,73 +762,134 @@ static Connection* accept_udp_client( Connection* server )
 //////////////////////////////////////////////////////////////////////////////////
 
 // Handle proper destruction of any given connection type
-void close_connection( Connection* connection )
+static int CVICALLBACK close_connection( int index, void* connection_ref, void* closing_data )
 {
+  Async_Connection* connection = *((Async_Connection**) connection_ref);
+  
+  static int status_code;
+  
   if( connection != NULL )
   {
-    #ifdef DEBUG_1
-    printf( "close_connection: closing connection for socket %d\n", connection->sockfd );
-    printf( "close_connection: connection users count: %u\n", *(connection->ref_connections_count) );
-    #endif
-
-    // Each TCP connection has its own socket, so we can close it without problem. But UDP connections
-    // from the same server share the socket, so we need to wait for all of them to be stopped to close the socket
-    if( (connection->type & PROTOCOL_MASK) == TCP )
+    EVENT_DEBUG( "closing connection handle %u\n", connection->handle );
+    
+    connection->network_role = DISCONNECTED;
+    
+    (void) find_connection( global_connection_list, connection->handle, REMOVE );
+    
+    switch( connection->protocol | connection->network_role )
     {
-      #ifdef DEBUG_1
-      printf( "close_connection: closing TCP connection unused socket fd: %d\n", connection->sockfd );
-      #endif
-      FD_CLR( connection->sockfd, &socket_read_fds );
-      shutdown( connection->sockfd, SHUT_RDWR );
+      case ( TCP | DISCONNECTED ):
+      case ( TCP | SERVER ):
+        
+        if( ListNumItems( connection->client_list ) <= 0 )
+        {
+          if( (status_code = UnregisterTCPServer( connection->address.port )) < 0 )
+            ERROR_PRINT( "error closing TCP server: %s: %s", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
+        
+          ListDispose( connection->client_list );
+          connection->client_list = NULL;
+        }
+        else
+          return 0;
+      
+        break;
+      
+      case ( TCP | CLIENT ):
+      
+        if( connection->server_ref == NULL )
+        {
+          if( (status_code = DisconnectFromTCPServer( connection->handle )) < 0 )
+            ERROR_PRINT( "error closing TCP server: %s: %s", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
+        }
+        else
+        {
+          if( (status_code = DisconnectTCPClient( connection->handle )) < 0 )
+            ERROR_PRINT( "%s: %s", GetTCPErrorString( status_code ), GetTCPSystemErrorString() );
+          
+          (void) find_connection( connection->server_ref->client_list, connection->handle, REMOVE );
+          
+          close_connection( 0, &(connection->server_ref), NULL );
+        }
+      
+        break;
+      
+      case ( UDP | DISCONNECTED ):
+      case ( UDP | SERVER ):
+      
+        if( ListNumItems( connection->client_list ) <= 0 )
+        {
+          if( (status_code = DisposeUDPChannel( connection->handle )) < 0 )
+            ERROR_PRINT( "%s", GetUDPErrorString( status_code ) );
+        
+          ListDispose( connection->client_list );
+          connection->client_list = NULL;
+        }
+        else
+          return 0;
+      
+        break;
+      
+      case ( UDP | CLIENT ):
+      
+        if( (status_code = DisposeUDPChannel( connection->handle )) < 0 )
+          ERROR_PRINT( "%s", GetUDPErrorString( status_code ) );
+        
+        if( connection->server_ref != NULL )
+        {
+          (void) find_connection( connection->server_ref->client_list, connection->handle, REMOVE );
+          
+          close_connection( 0, &(connection->server_ref), NULL );
+        }
+      
+        break;
+        
+      default: break;
     }
-    // Check number of client connections of a server (also of sharers of a socket for UDP connections)
-    if( *(connection->ref_connections_count) <= 0 )
+    
+    if( connection->callback_thread_id != -1 )
     {
-      if( (connection->type & PROTOCOL_MASK) == UDP )
-      {
-        #ifdef DEBUG_1
-        printf( "close_connection: closing UDP connection unused socket fd: %d\n", connection->sockfd );
-        #endif
-        FD_CLR( connection->sockfd, &socket_read_fds );
-        close( connection->sockfd );
-      }
-      free( connection->ref_connections_count );
+      CmtWaitForThreadPoolFunctionCompletion( DEFAULT_THREAD_POOL_HANDLE, connection->callback_thread_id, OPT_TP_PROCESS_EVENTS_WHILE_WAITING );
+      CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, connection->callback_thread_id );
+      
+      EVENT_DEBUG( "connection callback thread %x returned successfully", connection->callback_thread_id );
+      
+      connection->callback_thread_id = -1;
     }
-    else
-      (*(connection->ref_connections_count))--;
-  
-    free( connection->address );
-    connection->address = NULL;
-  
-    if( (connection->type & NETWORK_ROLE_MASK) == CLIENT )
-    {
-      #ifdef DEBUG_1
-      printf( "close_connection: freeing client connection message buffer\n" );
-      #endif
-      free( connection->buffer );
-      connection->buffer = NULL;
-    }
-    else if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
-    {
-      #ifdef DEBUG_1
-      printf( "close_connection: cleaning server connection client list\n" );
-      #endif
-      if( connection->client_list != NULL )
-      {
-        free( connection->client_list );
-        connection->client_list = NULL;
-      }
-    }
-  
+    
+    (void) CmtDiscardTSQ( connection->read_queue );
+    
     free( connection );
-    connection = NULL;
+    *((Async_Connection**) connection_ref) = NULL;
   }
 
-  return;
+  EVENT_DEBUG( "%u active connections listed", ListNumItems( global_connection_list ) );
+  
+  return 0;
+}
+
+void close_connection_id( ssize_t connection_id )
+{
+  static Async_Connection* connection;
+  
+  connection = find_connection( global_connection_list, (unsigned int) connection_id, PEEK ); 
+
+  if( connection_id < 0 || connection == NULL )
+  {
+    ERROR_PRINT( "invalid connection ID %d", connection_id );
+    return;
+  }
+  
+  (void) close_connection( 0, &connection, NULL );
+}
+
+void inline close_all_connections()
+{
+  if( global_connection_list != NULL )
+    ListApplyToEach( global_connection_list, 1, close_connection, NULL );
 }
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
 #endif  /* CONNECT_H */

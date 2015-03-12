@@ -34,6 +34,7 @@
 *******************************************************************************/
 
 /* Include files */
+#include "cvirte_connection.h"
 #include <ansi_c.h>
 #include <cvinetv.h>
 #include <cvirte.h>		
@@ -59,6 +60,10 @@ int main(int argc, char *argv[])
 	
 	if (InitCVIRTE(0, argv, 0) == 0)
 		return -1;
+  
+  int clientId = open_async_connection( "169.254.110.158", "50000", TCP );
+  
+  write_message( clientId, "Teste" );
 	
 	if ((panel = LoadPanel(0, "NetworkVariable.uir", PANEL)) < 0)
 		return -1;
@@ -72,6 +77,8 @@ int main(int argc, char *argv[])
 	CNVCreateScalarDataValue(&stopData, CNVBool, (char)1);
 	CNVWrite(gStopWriter, stopData, CNVDoNotWait);
 	
+  close_connection_id( clientId );
+  
 	// Cleanup
 	CNVDisposeData(stopData);
 	CNVDispose(gWaveSubscriber);
