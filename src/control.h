@@ -3,20 +3,11 @@
 
 #include "axis.h"
 
-#ifdef _CVI_DLL_
-  #include "threads_realtime.h"
-#elif WIN32
-  #include "threads_windows.h"
-#else
-  #include "threads_unix.h"
-#endif
+#include "async_debug.h"
 
-#include <cmath>
-#include <iostream>
-
-using namespace std;
+#include <math.h>
   
-enum Joint { ANKLE, KNEE, HIPS, N_JOINTS };  // Control algorhitms/axes indexes
+enum Joint { ANKLE, KNEE, HIPS, CONTROL_N_JOINTS };  // Control algorhitms/axes indexes
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                            CONTROL DEVICES                            /////
@@ -26,8 +17,8 @@ enum Joint { ANKLE, KNEE, HIPS, N_JOINTS };  // Control algorhitms/axes indexes
 const char* CAN_DATABASE = "database";
 const char* CAN_CLUSTER = "NETCAN";
 
-static Motor* motor_list[ N_JOINTS ];           // EPOS active axes list
-static Encoder* sensor_list[ N_JOINTS ];        // EPOS passive (measurement) axes list
+static Motor* motor_list[ CONTROL_N_JOINTS ];           // EPOS active axes list
+static Encoder* sensor_list[ CONTROL_N_JOINTS ];        // EPOS passive (measurement) axes list
 
 // Control algorhitms
 static void ankle_control( Motor*, Encoder* );
@@ -35,24 +26,28 @@ static void knee_control( Motor*, Encoder* );
 static void hips_control( Motor*, Encoder* );
 
 typedef void (*Control_Function)( Motor*, Encoder* ); // Use "async_function" type as "void (*)( Motor*, Encoder* )" type
-// Array of function pointers. Equivalent to void (*control_functions[ N_JOINTS ])( Motor*, Encoder* )
-static Control_Function control_functions[ N_JOINTS ] = { ankle_control, knee_control, hips_control }; 
+// Array of function pointers. Equivalent to void (*control_functions[ CONTROL_N_JOINTS ])( Motor*, Encoder* )
+static Control_Function control_functions[ CONTROL_N_JOINTS ] = { ankle_control, knee_control, hips_control }; 
 
 // EPOS devices and CAN network initialization
 void control_init()
 {
   // Start CAN network transmission
-  for( int node_id = 1; node_id <= N_JOINTS; node_id++ )
+  for( size_t node_id = 1; node_id <= CONTROL_N_JOINTS; node_id++ )
     epos_network_start( CAN_DATABASE, CAN_CLUSTER, node_id );
   
-  // motor_list[ ANKLE ] = motor_create( 4 ); // ?
-  motor_list[ KNEE ] = motor_connect( 2, 4096 );
+  for( size_t joint_id = 0; joint_id < CONTROL_N_JOINTS; joint_id++ )
+    motor_list[ joint_id ] = sensor_list[ joint_id ] = NULL;
+  
+  /* Specific initialization code */
+  // motor_list[ ANKLE ] = motor_create( "Ankle", 4, 4096 ); // ?
+  motor_list[ KNEE ] = motor_connect( "Knee", 2, 4096 );
   sensor_list[ KNEE ] = encoder_connect( 1, 2000 );
-  motor_list[ HIPS ] = motor_connect( 3, 4096 );  
+  motor_list[ HIPS ] = motor_connect( "Hips", 3, 4096 );
   
   // Start a control thread for each motor
-  for( int control_mode = 0; control_mode < N_JOINTS; control_mode++ )
-    (void) run_thread( async_control, (void*) control_mode, DETACHED );
+  for( size_t control_mode = 0; control_mode < CONTROL_N_JOINTS; control_mode++ )
+    (void) thread_start( async_control, (void*) control_mode, DETACHED );
 }
 
 // EPOS devices and CAN network shutdown
@@ -64,11 +59,85 @@ void control_end()
   delay( 2000 );
   
   // Destroy axes data structures
-  for( size_t axis_id = 0; axis_id < N_JOINTS; axis_id++ )
+  for( size_t axis_id = 0; axis_id < CONTROL_N_JOINTS; axis_id++ )
   {
     motor_disconnect( motor_list[ axis_id ] );
     encoder_disconnect( sensor_list[ axis_id ] );
   }
+}
+
+extern inline void control_enable_motor( size_t motor_id )
+{
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return;
+  
+  if( motor_list[ motor_id ] != NULL )
+    motor_enable( motor_list[ motor_id ] );
+}
+
+extern inline void control_disable_motor( size_t motor_id )
+{
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return;
+  
+  if( motor_list[ motor_id ] != NULL )
+    motor_disable( motor_list[ motor_id ] );
+}
+
+extern inline void control_reset_motor( size_t motor_id )
+{
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return;
+  
+  if( motor_list[ motor_id ] != NULL )
+    encoder_reset( motor_list[ motor_id ]->encoder );
+}
+
+extern inline void control_config_motor( size_t motor_id, double parameters_list )
+{
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return;
+  
+  if( motor_list[ motor_id ] == NULL ) return;
+  
+  for( size_t parameter_index = 0; parameter_index < AXIS_N_PARAMS; parameter_index++ )
+  {
+    if( parameters_list[ parameter_index ] != 0.0 )
+      motor_set_parameter( motor_list[ motor_id ], parameter_index, parameters_list[ parameter_index ] );
+  }
+}
+
+bool* control_get_motor_status( size_t motor_id )
+{
+  static bool states_list[ AXIS_N_STATES ];
+  
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return NULL;
+  
+  if( motor_list[ motor_id ] == NULL ) return NULL;
+  
+  for( size_t state_index = 0; state_index < AXIS_N_STATES; state_index++ )
+    states_list[ state_index ] = encoder_check_state( motor_list[ motor_id ]->encoder, state_index );
+  
+  return states_list;
+}
+
+extern inline double* control_get_motor_measures( size_t motor_id )
+{
+  static double measures_list[ AXIS_N_DIMS ];
+  
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return NULL;
+  
+  if( motor_list[ motor_id ] == NULL ) return NULL;
+  
+  for( size_t dimension_index = 0; dimension_index < AXIS_N_DIMS; dimension_index++ )
+    measures_list[ dimension_index ] = motor_get_measure( motor_list[ motor_id ], dimension_index );
+  
+  return measures_list;
+}
+
+extern inline const char* control_get_motor_name( size_t motor_id )
+{
+  if( motor_id < 0 || motor_id >= CONTROL_N_JOINTS ) return NULL;
+  
+  if( motor_list[ motor_id ] == NULL ) return NULL;
+  
+  return motor_list[ motor_id ]->name;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -113,19 +182,19 @@ static void* async_control( void* args )
     printf( "async_control (Axis %u): elapsed time: %u\n\n", control_mode, get_exec_time_milisseconds() - exec_time );
   }
   
-  exit_thread( 0 );
+  thread_exit( 0 );
   return NULL;
 }
 
 extern inline void control_mode_start( Joint mode )
 {
-  if( mode >= 0 && mode < N_JOINTS )
+  if( mode >= 0 && mode < CONTROL_N_JOINTS )
     motor_enable( motor_list[ mode ] );
 }
 
 extern inline void control_mode_stop( Joint mode )
 {
-  if( mode >= 0 && mode < N_JOINTS )
+  if( mode >= 0 && mode < CONTROL_N_JOINTS )
     motor_disable( motor_list[ mode ] );
 }
 

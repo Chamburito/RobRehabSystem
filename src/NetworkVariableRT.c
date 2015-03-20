@@ -98,9 +98,13 @@ void CVIFUNC_C RTmain( void )
 	
 	printf( "System process started !\n\n" );
   
-  int serverId = open_async_connection( NULL, "50000", TCP );
-  EVENT_DEBUG( "Received server connection ID %d", serverId );
-  //int clientId = open_async_connection( "169.254.118.91", "50000", UDP );
+  SleepUS( 1000000 );
+  
+  DEBUG_INIT;
+  
+  int serverId = async_connection_open( NULL, "50000", TCP );
+  DEBUG_EVENT( "Received server connection ID %d", serverId );
+  //int clientId = async_connection_open( "169.254.118.91", "50000", UDP );
 	
 	
 	/*status = CNVNewVariable( PROCESS, AMPLITUDE_VARIABLE );
@@ -164,8 +168,6 @@ void CVIFUNC_C RTmain( void )
 		SineWave(NUM_POINTS, GetAmplitude(), GetFrequency(), &phase, wave);
 		CNVSetArrayDataValue(data, CNVDouble, wave, 1, &arrayDims);
 		CNVPutDataInBuffer(gWavePublisher, data, 1000);
-
-    LOOP_DEBUG( "Is RT Shutting Down ?: %s", RTIsShuttingDown() ? "Yes" : "No" );
     
     SleepUS(100000); // Sleep to give the desired loop rate.
 	}
@@ -188,10 +190,10 @@ void CVIFUNC_C RTmain( void )
 	UninitializeAmplitude();
 	UninitializeFrequency();
 	
-  //close_connection_id( clientId );
-  close_connection_id( serverId );
+  //async_connection_close( clientId );
+  async_connection_close( serverId );
   
-  end_threading();
+  DEBUG_END;
   
 	/*status = CNVDeleteVariable( PROCESS, AMPLITUDE_VARIABLE );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );

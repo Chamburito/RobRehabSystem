@@ -11,21 +11,21 @@
 // Make the calling thread wait for the given time ( in milisseconds )
 extern inline void delay( unsigned long milisseconds )
 {
-    SleepUS( 1000 * milisseconds );
+  SleepUS( 1000 * milisseconds );
     
-    return;
+  return;
 }
 
 // Get system time in milisseconds
 extern inline unsigned long get_exec_time_milisseconds()
 {
-    return ( (unsigned long) ( 1000 * GetTimeUS() ) );
+  return ( (unsigned long) ( 1000 * GetTimeUS() ) );
 }
 
 // Get system time in seconds
 extern inline unsigned int get_exec_time_seconds()
 {
-    return ( (unsigned long) ( 1000000 * GetTimeUS() ) );
+  return ( (unsigned long) ( 1000000 * GetTimeUS() ) );
 }
 
 #endif /* TIMING_H */

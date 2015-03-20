@@ -10,157 +10,155 @@
 extern "C"{
 #endif
 
-#include <Windows.h>
-#include <process.h>
-#include <stdio.h>
-#include <stdint.h>
+#ifdef _CVI_
+  #include <ansi_c.h>
+#else
+  #include <Windows.h>
+  #include <process.h>
+  #include <stdio.h>
+  #include <stdint.h>
+#endif
 
 	
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                     THREADING BASICS										  /////
+/////                                      THREADS HANDLING 									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-	
-// Mutex aquisition and release
-#define LOCK_THREAD( lock ) TryEnterCriticalSection( lock )
-#define UNLOCK_THREAD( lock ) LeaveCriticalSection( lock )
 
 // Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()
 
 // Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
-// when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
+// when calling thread_wait_exit on it. DETACHED if you want it to do that by itself.
 enum { DETACHED, JOINABLE };
-
 
 // Aliases for platform abstraction
 typedef HANDLE Thread_Handle;
-typedef CRITICAL_SECTION* Thread_Lock;
-
-// List of created mutexes
-static CRITICAL_SECTION* lock_list;
-static size_t n_locks = 0;
-
-// List of manipulators for the created (joinable) threads
-static HANDLE* handle_list;
-static size_t n_handles = 0;
 
 // Number of running threads
 static size_t n_threads = 0;
 
-// Request new unique mutex for using in thread syncronization
-Thread_Lock get_new_thread_lock()
-{
-  lock_list = (CRITICAL_SECTION*) realloc( lock_list, ( n_locks + 1 ) * sizeof(CRITICAL_SECTION) );
-  InitializeCriticalSection( &lock_list[ n_locks ] );
-  return &lock_list[ n_locks++ ];
-}
-
 // Setup new thread to run the given method asyncronously
-Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
+Thread_Handle thread_start( void* (*function)( void* ), void* args, int mode )
 {
   static HANDLE handle;
   static unsigned int thread_id;
   
   if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == NULL )
   {
-    fprintf( stderr, "run_thread: _beginthreadex: error creating new thread: code: %x\n", GetLastError() );
+    ERROR_PRINT( "_beginthreadex: error creating new thread: code: %x\n", GetLastError() );
     return 0;
   }
   
-  #ifdef DEBUG_2
-  printf( "run_thread: created thread %x successfully\n", handle_list[ n_handles ] );
-  #endif
+  DEBUG_PRINT( "created thread %x successfully\n", handle );
 
   n_threads++;
   
-  if( mode == JOINABLE )
-  {
-	handle_list = (HANDLE*) realloc( handle_list, ( n_handles + 1 ) * sizeof(HANDLE) );
-	handle_list[ n_handles ] = handle;
-	n_handles++;
-  }
-  else if( mode == DETACHED ) 
-	CloseHandle( handle );
+  if( mode == DETACHED ) CloseHandle( handle );
 
   return handle;
 }
 
 // Exit the calling thread, returning the given value
-void exit_thread( uint32_t exit_code )
+extern inline void thread_exit( uint32_t exit_code )
 {
   n_threads--;
 
-  #ifdef DEBUG_2
-  printf( "exit_thread: thread exiting with code: %u\n", exit_code );
-  #endif
+  DEBUG_PRINT( "thread exiting with code: %u\n", exit_code );
 
   _endthreadex( (DWORD) exit_code );
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
+uint32_t thread_wait_exit( Thread_Handle handle, unsigned int milisseconds )
 {
   static DWORD exit_code = 0;
   static DWORD exit_status = WAIT_OBJECT_0;
 
-  #ifdef DEBUG_1
-  printf( "wait_thread_end: waiting thread %x\n", handle );
-  #endif
+  DEBUG_PRINT( "waiting thread %x\n", handle );
 
   exit_status = WaitForSingleObject( handle, (DWORD) milisseconds );
+  
   if( exit_status == WAIT_FAILED )
-  {
-    fprintf( stderr, "wait_thread_end: WaitForSingleObject: error waiting for thread end: code: %x\n", GetLastError() );
-    return 0;
-  }
+    ERROR_PRINT( "WaitForSingleObject: error waiting for thread %x end: code: %x\n", handle, GetLastError() );
   else if( exit_status == WAIT_TIMEOUT )
-  {
-    fprintf( stderr, "wait_thread_end: WaitForSingleObject: wait timed out\n" );
-    return 0;
-  }
-
-  #ifdef DEBUG_1
-  printf( "wait_thread_end: thread returned\n" );
-  #endif
-
-  if( GetExitCodeThread( handle, &exit_code ) != 0 )
-  {
-    #ifdef DEBUG_1
-    printf( "wait_thread_end: thread exit code: %u\n", exit_code );
-    #endif
-
-    return exit_code;
-  }
+    ERROR_PRINT( "WaitForSingleObject: wait for thread %x timed out\n", handle );
   else
-    return 0;
+  {
+    DEBUG_PRINT( "thread %x returned\n", handle );
+    
+    if( GetExitCodeThread( handle, &exit_code ) != 0 )
+      DEBUG_PRINT( "thread exit code: %u\n", exit_code ); 
+  }
+  
+  if( CloseHandle( handle ) == 0 )
+    ERROR_PRINT( "CloseHandle: error trying to close thread handle %x: code: %x", handle, GetLastError() );
+
+  return exit_code;
 }
 
 // Returns number of running threads (method for encapsulation purposes)
-size_t get_threads_number()
+size_t threads_get_active_count()
 {
   return n_threads;
 }
 
-// Handle the destruction of the remaining threads and mutexes when the program quits
-void end_threading()
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                     THREAD LOCK (MUTEX)									                    /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef CRITICAL_SECTION* Thread_Lock;
+
+// Request new unique mutex for using in thread syncronization
+Thread_Lock thread_lock_create()
 {
-  size_t id;
+  CRITICAL_SECTION* lock = malloc( sizeof(CRITICAL_SECTION) );
+  InitializeCriticalSection( lock );
+  return lock;
+}
+
+extern inline void thread_lock_discard( CRITICAL_SECTION* lock )
+{
+  DeleteCriticalSection( lock );
+  free( lock );
+}
+
+// Mutex aquisition and release
+extern inline void thread_lock_aquire( CRITICAL_SECTION* lock ) { EnterCriticalSection( lock ); }
+extern inline void thread_lock_release( CRITICAL_SECTION* lock ) { LeaveCriticalSection( lock ); }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                       THREAD SEMAPHORE      						                    /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef HANDLE Semaphore;
+
+Semaphore semaphore_create( size_t start_count, size_t max_count )
+{
+  Semaphore sem = CreateSemaphore( NULL, start_count, max_count, NULL );
   
-  for( id = 0; id < n_locks; id++ )
-    DeleteCriticalSection( &(lock_list[ id ]) );
-  
-  /*for( id = 0; id < n_handles; id++ )
-  {
-    if( CloseHandle( handle_list[ id ] ) == 0 )
-		fprintf( stderr, "end_threading: CloseHandle: error trying to close handle: code: %x", GetLastError() );
-  }*/
-  
-  return;
+  return sem;
+}
+
+extern inline void semaphore_discard( Semaphore sem )
+{
+  CloseHandle( sem );
+}
+
+extern inline void semaphore_increment( Semaphore sem )
+{
+  ReleaseSemaphore( sem, 1, NULL );  
+}
+
+extern inline void semaphore_decrement( Semaphore* sem )
+{
+  WaitForSingleObject( sem, INFINITE );
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                     THREAD SAFE QUEUE										  /////
+/////                                     THREAD SAFE QUEUE										                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef struct _Data_Queue
@@ -168,7 +166,8 @@ typedef struct _Data_Queue
   void** cache;
   size_t first, last, max_length;
   size_t element_size;
-  Thread_Lock lock;
+  Thread_Lock access_lock;
+  Semaphore count_lock;
 }
 Data_Queue;
 
@@ -176,7 +175,7 @@ Data_Queue* data_queue_init( size_t max_length, size_t element_size )
 {
   Data_Queue* queue = (Data_Queue*) malloc( sizeof(Data_Queue) );
   
-  queue->length = max_length;
+  queue->max_length = max_length;
   queue->element_size = element_size;
   queue->cache = (void**) calloc( queue->max_length, sizeof(void*) );
   for( size_t i = 0; i < queue->max_length; i++ )
@@ -184,7 +183,8 @@ Data_Queue* data_queue_init( size_t max_length, size_t element_size )
   
   queue->first = queue->last = 0;
   
-  queue->lock = get_new_thread_lock();
+  queue->access_lock = thread_lock_create();
+  queue->count_lock = semaphore_create( 0, queue->max_length );
   
   return queue;
 }
@@ -193,12 +193,15 @@ void data_queue_end( Data_queue* queue )
 {
   if( queue != NULL )
   {
-	for( size_t i = 0; i < queue->max_length; i++ )
-	  free( queue->cache[ i ] );
-	free( queue->cache );
+  	for( size_t i = 0; i < queue->max_length; i++ )
+  	  free( queue->cache[ i ] );
+  	free( queue->cache );
+    
+    thread_lock_discard( queue->access_lock );
+    semaphore_discard( queue->count_lock );
 	
-	free( queue );
-	queue = NULL;
+  	free( queue );
+  	queue = NULL;
   }
 }
 
@@ -211,27 +214,35 @@ void* data_queue_read( Data_Queue* queue, void* buffer )
 {
   static void* data_out = NULL;
 	
-  if( data_queue_count( queue ) > 0 )
-  {
-	LOCK_THREAD( queue->lock );
-	data_out = queue->cache[ queue->first % queue->max_length ]; // Always keep access index between 0 and MAX_MESSAGES
-	buffer = memcpy( buffer, data_out, queue->element_size );
-	queue->first++;
-	UNLOCK_THREAD( queue->lock );
-  }
+  semaphore_decrement( queue->count_lock );
+  
+  thread_lock_aquire( queue->access_lock );
+  
+  data_out = queue->cache[ queue->first % queue->max_length ]; // Always keep access index between 0 and MAX_DATA
+  buffer = memcpy( buffer, data_out, queue->element_size );
+  queue->first++;
+  
+  thread_lock_release( queue->access_lock );
   
   return buffer;
 }
 
-void data_queue_write( Data_Queue* queue, void* buffer )
+enum { WAIT = 0, REPLACE = 1 };
+
+void data_queue_write( Data_Queue* queue, void* buffer, uint8_t replace )
 {
   static void* data_in = NULL;
   
-  LOCK_THREAD( queue->lock );
-  data_in = queue->cache[ queue->last % queue->max_length ]; // Always keep access index between 0 and MAX_MESSAGES
+  if( replace == 0 ) semaphore_increment( queue->count_lock ); // Replace old data behaviour
+  
+  thread_lock_aquire( queue->access_lock );
+  
+  data_in = queue->cache[ queue->last % queue->max_length ]; // Always keep access index between 0 and MAX_DATA
   memcpy( data_in, buffer, queue->element_size );
+  if( data_queue_count( queue ) == queue->max_length ) queue->first++;
   queue->last++;
-  UNLOCK_THREAD( queue->lock );
+  
+  thread_lock_release( queue->access_lock );
 }
 
 #ifdef __cplusplus

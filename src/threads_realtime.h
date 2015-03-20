@@ -8,44 +8,32 @@
 
 #include <utility.h>
 
+#include <stdint.h>
+
+#include "debug.h"
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                      THREADS HANDLING 									                    /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #define INFINITE CMT_WAIT_FOREVER
 
 // Returns unique identifier of the calling thread
 #define THREAD_ID CmtGetCurrentThreadID()
 
 // Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
-// when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
+// when calling thread_wait_exit on it. DETACHED if you want it to do that by itself.
 enum { DETACHED, JOINABLE };
 
 // Aliases for platform abstraction
 typedef CmtThreadFunctionID Thread_Handle;
-typedef CmtThreadLockHandle* Thread_Lock;
-
-// List of created mutexes
-static CmtThreadLockHandle* lock_list;
-static size_t n_locks = 0;
-
-// List of manipulators for the created (joinable) threads
-static CmtThreadFunctionID* handle_list;
-static size_t n_handles = 0;
 
 // Number of running threads
 static size_t n_threads = 0;
 
-// Request new unique mutex for using in thread syncronization
-Thread_Lock get_new_thread_lock()
-{
-  lock_list = (CmtThreadLockHandle*) realloc( lock_list, ( n_locks + 1 ) * sizeof(CmtThreadLockHandle) );
-  CmtNewLock( NULL, 0, &lock_list[ n_locks ] );
-  return &lock_list[ n_locks++ ];
-}
-
-// Mutex aquisition and release
-extern inline void LOCK_THREAD( CmtThreadLockHandle* lock ) { CmtGetLock( *lock ); }
-extern inline void UNLOCK_THREAD( CmtThreadLockHandle* lock ) { CmtReleaseLock( *lock ); }
-
 // Setup new thread to run the given method asyncronously
-Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
+Thread_Handle thread_start( void* (*function)( void* ), void* args, int mode )
 {
   static CmtThreadFunctionID thread_id;
   static int status;
@@ -55,99 +43,132 @@ Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
   if( (status = CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, (int (CVICALLBACK *) (void*)) function, args, &thread_id )) < 0 )
   {
     CmtGetErrorMessage( status, error_buffer );
-    fprintf( stderr, "%s: %s\n", __func__, error_buffer );
+    ERROR_PRINT( "error starting new thread: %s\n", error_buffer );
     return 0;
   }
   
-  #ifdef DEBUG_2
-  printf( "%s: created thread %x successfully\n", __func__, thread_id );
-  #endif
+  DEBUG_PRINT( "created thread %x successfully\n", thread_id );
 
   n_threads++;
   
-  if( mode == JOINABLE )
-  {
-  	handle_list = (CmtThreadFunctionID*) realloc( handle_list, ( n_handles + 1 ) * sizeof(CmtThreadFunctionID) );
-  	handle_list[ n_handles ] = thread_id;
-  	n_handles++;
-  }
-  else if( mode == DETACHED ) 
+  if( mode == DETACHED ) 
 	  CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, thread_id );
 
   return thread_id;
 }
 
 // Exit the calling thread, returning the given value
-void exit_thread( uint32_t exit_code )
+void thread_exit( uint32_t exit_code )
 {
   n_threads--;
 
-  #ifdef DEBUG_2
-  printf( "%s: thread exiting with code: %u\n", __func__, exit_code );
-  #endif
+  DEBUG_PRINT( "thread exiting with code: %u\n", exit_code );
 
   CmtExitThreadPoolThread( (int) exit_code );
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
+uint32_t thread_wait_exit( Thread_Handle handle, unsigned int milisseconds )
 {
   static uint32_t exit_code = 0;
   static int exit_status = 0;
   
   static char error_buffer[ CMT_MAX_MESSAGE_BUF_SIZE ]; 
 
-  #ifdef DEBUG_1
-  printf( "%s: waiting thread %x\n", __func__, handle );
-  #endif
+  DEBUG_PRINT( "waiting thread %x\n", handle );
 
   if( (exit_status = CmtWaitForThreadPoolFunctionCompletionEx( DEFAULT_THREAD_POOL_HANDLE, handle, 0, milisseconds )) < 0 )
   {
     CmtGetErrorMessage( exit_status, error_buffer );
-	  fprintf( stderr, "%s: %s\n", __func__, error_buffer );
-	  return 0;
-  }
-
-  #ifdef DEBUG_1
-  printf( "%s: thread %x returned !\n", __func__, handle );
-  #endif
-
-  if( CmtGetThreadPoolFunctionAttribute( DEFAULT_THREAD_POOL_HANDLE, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exit_code ) < 0 )
-  {
-    #ifdef DEBUG_1
-    printf( "%s: %s\n", __func__, CmtGetErrorMessage( exit_status ) );
-    #endif
-
-    return exit_code;
+	  ERROR_PRINT( "error waiting for thread end: %s\n", error_buffer );
   }
   else
-    return 0;
+  {
+    DEBUG_PRINT( "thread %x returned !\n", handle );
+
+    if( (exit_status = CmtGetThreadPoolFunctionAttribute( DEFAULT_THREAD_POOL_HANDLE, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exit_code )) < 0 )
+    {
+      CmtGetErrorMessage( exit_status, error_buffer );
+      ERROR_PRINT( "error getting function return value: %s:\n", error_buffer );
+    }
+  }
+  
+  CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, handle );
+
+  return exit_code;
 }
 
 // Returns number of running threads (method for encapsulation purposes)
-size_t get_threads_number()
+size_t threads_get_active_count()
 {
   return n_threads;
 }
 
-// Handle the destruction of the remaining threads and mutexes when the program quits
-void end_threading()
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                     THREAD LOCK (MUTEX)									                    /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef CmtThreadLockHandle Thread_Lock;
+
+// Request new unique mutex for using in thread syncronization
+Thread_Lock thread_lock_create()
 {
-  for( size_t lock_id = 0; lock_id < n_locks; lock_id++ )
-  {
-    CmtDiscardLock( lock_list[ lock_id ] );
-    lock_list[ lock_id ] = 0;
-  }
+  CmtThreadLockHandle new_lock;
+  CmtNewLock( NULL, 0, &new_lock );
+  return new_lock;
+}
+
+// Properly discard mutex variable
+extern inline void thread_lock_discard( CmtThreadLockHandle lock ) { CmtDiscardLock( lock ); }
+
+// Mutex aquisition and release
+extern inline void thread_lock_aquire( CmtThreadLockHandle lock ) { CmtGetLock( lock ); }
+extern inline void thread_lock_release( CmtThreadLockHandle lock ) { CmtReleaseLock( lock ); }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                       THREAD SEMAPHORE      						                    /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef CmtTSQHandle Semaphore;
+
+extern inline void semaphore_increment( Semaphore );
+
+Semaphore semaphore_create( size_t start_count, size_t max_count )
+{
+  Semaphore sem;
   
-  for( size_t thread_id = 0; thread_id < n_handles; thread_id++ )
-    CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, thread_id );
+  CmtNewTSQ( (int) max_count, sizeof(uint8_t), 0, &sem );
   
-  return;
+  for( size_t i = 0; i < start_count; i++ )
+    semaphore_increment( sem );
+  
+  return sem;
+}
+
+extern inline void semaphore_discard( Semaphore sem )
+{
+  CmtDiscardTSQ( sem );
+}
+
+extern inline void semaphore_increment( Semaphore sem )
+{
+  static uint8_t signal = 1;
+  
+  CmtWriteTSQData( sem, &signal, 1, TSQ_INFINITE_TIMEOUT, NULL );  
+}
+
+extern inline void semaphore_decrement( Semaphore sem )
+{
+  static uint8_t signal;
+  
+  CmtReadTSQData( sem, &signal, 1, TSQ_INFINITE_TIMEOUT, 0 );
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                     THREAD SAFE QUEUE										  /////
+/////                                     THREAD SAFE QUEUE										                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef CmtTSQHandle Data_Queue;
@@ -156,7 +177,7 @@ Data_Queue* data_queue_init( size_t max_length, size_t element_size )
 {
   Data_Queue* queue = (Data_Queue*) malloc( sizeof(Data_Queue) );
   
-  CmtNewTSQ( (int) max_length, element_size, OPT_TSQ_AUTO_FLUSH_EXACT, queue );
+  CmtNewTSQ( (int) max_length, element_size, 0, queue );
   
   return queue;
 }
@@ -166,7 +187,7 @@ extern inline void data_queue_end( Data_Queue* queue )
   CmtDiscardTSQ( *queue );
 }
 
-extern inline size_t data_queue_count( Data_Queue* queue )
+extern inline size_t data_queue_get_count( Data_Queue* queue )
 {
   size_t count;
   
@@ -177,14 +198,16 @@ extern inline size_t data_queue_count( Data_Queue* queue )
 
 void* data_queue_read( Data_Queue* queue, void* buffer )
 {
-  if( data_queue_count( queue ) > 0 )
-    CmtReadTSQData( *queue, buffer, 1, 0, 0 );
+  CmtReadTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, 0 );
   
   return buffer;
 }
 
-extern inline void data_queue_write( Data_Queue* queue, void* buffer )
+extern inline void data_queue_write( Data_Queue* queue, void* buffer, uint8_t replace )
 {
+  if( replace == 1 ) CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, OPT_TSQ_AUTO_FLUSH_EXACT ); // Replace old data behaviour
+  else CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, 0 );
+  
   CmtWriteTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, NULL );
 }
 
