@@ -35,7 +35,7 @@
 
 /* Include files */
 #include <rtutil.h>
-#include "cvirte_connection.h"
+#include "robrehab_network.h"
 
 #include <analysis.h>
 #include <utility.h>
@@ -95,15 +95,10 @@ void CVIFUNC_C RTmain( void )
 		if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
 		SleepUS( 100000 );
 	}
-	
-	printf( "System process started !\n\n" );
   
   SleepUS( 1000000 );
-
-  int serverId = async_connection_open( NULL, "50000", TCP );
-  DEBUG_EVENT( "Received server connection ID %d", serverId );
-  //int clientId = async_connection_open( "169.254.118.91", "50000", UDP );
 	
+  RobRehabNetwork_Init();
 	
 	/*status = CNVNewVariable( PROCESS, AMPLITUDE_VARIABLE );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
@@ -167,6 +162,8 @@ void CVIFUNC_C RTmain( void )
 		CNVSetArrayDataValue(data, CNVDouble, wave, 1, &arrayDims);
 		CNVPutDataInBuffer(gWavePublisher, data, 1000);
     
+    RobRehabNetwork_Update();
+    
     SleepUS(100000); // Sleep to give the desired loop rate.
 	}
 
@@ -188,8 +185,7 @@ void CVIFUNC_C RTmain( void )
 	UninitializeAmplitude();
 	UninitializeFrequency();
 	
-  //async_connection_close( clientId );
-  async_connection_close( serverId );
+  RobRehabNetwork_End();
   
 	/*status = CNVDeleteVariable( PROCESS, AMPLITUDE_VARIABLE );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );

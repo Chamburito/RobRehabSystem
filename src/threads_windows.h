@@ -24,17 +24,17 @@
 #define THREAD_ID GetCurrentThreadId()
 
 // Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
-// when calling thread_wait_exit on it. DETACHED if you want it to do that by itself.
+// when calling Thread_WaitExit on it. DETACHED if you want it to do that by itself.
 enum { DETACHED, JOINABLE };
 
 // Aliases for platform abstraction
 typedef HANDLE Thread_Handle;
 
 // Number of running threads
-static size_t n_threads = 0;
+static size_t threadsNumber = 0;
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle thread_start( void* (*function)( void* ), void* args, int mode )
+Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
 {
   static HANDLE handle;
   static unsigned int thread_id;
@@ -47,7 +47,7 @@ Thread_Handle thread_start( void* (*function)( void* ), void* args, int mode )
   
   DEBUG_PRINT( "created thread %x successfully", handle );
 
-  n_threads++;
+  threadsNumber++;
   
   if( mode == DETACHED ) CloseHandle( handle );
 
@@ -55,47 +55,47 @@ Thread_Handle thread_start( void* (*function)( void* ), void* args, int mode )
 }
 
 // Exit the calling thread, returning the given value
-extern inline void thread_exit( uint32_t exit_code )
+extern inline void Thread_Exit( uint32_t exitCode )
 {
-  n_threads--;
+  threadsNumber--;
 
-  DEBUG_PRINT( "thread %x exiting with code: %u", GetCurrentThreadId(), exit_code );
+  DEBUG_PRINT( "thread %x exiting with code: %u", GetCurrentThreadId(), exitCode );
 
-  _endthreadex( (DWORD) exit_code );
+  _endthreadex( (DWORD) exitCode );
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t thread_wait_exit( Thread_Handle handle, unsigned int milisseconds )
+uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
 {
-  static DWORD exit_code = 0;
-  static DWORD exit_status = WAIT_OBJECT_0;
+  static DWORD exitCode = 0;
+  static DWORD exitStatus = WAIT_OBJECT_0;
 
   DEBUG_PRINT( "waiting thread %x\n", handle );
 
-  exit_status = WaitForSingleObject( handle, (DWORD) milisseconds );
+  exitStatus = WaitForSingleObject( handle, (DWORD) milliseconds );
   
-  if( exit_status == WAIT_FAILED )
+  if( exitStatus == WAIT_FAILED )
     ERROR_PRINT( "WaitForSingleObject: error waiting for thread %x end: code: %x\n", handle, GetLastError() );
-  else if( exit_status == WAIT_TIMEOUT )
+  else if( exitStatus == WAIT_TIMEOUT )
     ERROR_PRINT( "WaitForSingleObject: wait for thread %x timed out\n", handle );
   else
   {
     DEBUG_PRINT( "thread %x returned\n", handle );
     
-    if( GetExitCodeThread( handle, &exit_code ) != 0 )
-      DEBUG_PRINT( "thread exit code: %u\n", exit_code ); 
+    if( GetExitCodeThread( handle, &exitCode ) != 0 )
+      DEBUG_PRINT( "thread exit code: %u\n", exitCode ); 
   }
   
   if( CloseHandle( handle ) == 0 )
     ERROR_PRINT( "CloseHandle: error trying to close thread handle %x: code: %x", handle, GetLastError() );
 
-  return exit_code;
+  return exitCode;
 }
 
 // Returns number of running threads (method for encapsulation purposes)
-size_t threads_get_active_count()
+size_t Thread_GetActiveThreadsNumber()
 {
-  return n_threads;
+  return threadsNumber;
 }
 
 
@@ -103,25 +103,25 @@ size_t threads_get_active_count()
 /////                                     THREAD LOCK (MUTEX)									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef CRITICAL_SECTION* Thread_Lock;
+typedef CRITICAL_SECTION* ThreadLock;
 
 // Request new unique mutex for using in thread syncronization
-Thread_Lock thread_lock_create()
+ThreadLock ThreadLock_Create()
 {
   CRITICAL_SECTION* lock = malloc( sizeof(CRITICAL_SECTION) );
   InitializeCriticalSection( lock );
   return lock;
 }
 
-extern inline void thread_lock_discard( CRITICAL_SECTION* lock )
+extern inline void ThreadLock_Discard( CRITICAL_SECTION* lock )
 {
   DeleteCriticalSection( lock );
   free( lock );
 }
 
 // Mutex aquisition and release
-extern inline void thread_lock_aquire( CRITICAL_SECTION* lock ) { EnterCriticalSection( lock ); }
-extern inline void thread_lock_release( CRITICAL_SECTION* lock ) { LeaveCriticalSection( lock ); }
+extern inline void ThreadLock_Aquire( CRITICAL_SECTION* lock ) { EnterCriticalSection( lock ); }
+extern inline void ThreadLock_Release( CRITICAL_SECTION* lock ) { LeaveCriticalSection( lock ); }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -134,11 +134,11 @@ typedef struct {
 }
 Semaphore;
 
-Semaphore* Semaphore_Create( size_t start_count, size_t max_count )
+Semaphore* Semaphore_Create( size_t startCount, size_t maxCount )
 {
   Semaphore* sem = (Semaphore*) malloc( sizeof(Semaphore) );
-  sem->counter = CreateSemaphore( NULL, start_count, max_count, NULL );
-  sem->value = start_count;
+  sem->counter = CreateSemaphore( NULL, startCount, maxCount, NULL );
+  sem->value = startCount;
   
   return sem;
 }

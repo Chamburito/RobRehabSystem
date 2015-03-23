@@ -63,9 +63,9 @@ int main(int argc, char *argv[])
 	if (InitCVIRTE(0, argv, 0) == 0)
 		return -1;
   
-  int clientId = async_connection_open( "169.254.110.158", "50000", TCP );
+  int clientID = async_connection_open( "169.254.110.158", "50000", TCP );
   
-  async_connection_write_message( clientId, "Teste" );
+  async_connection_write_message( clientID, "Teste" );
 	
 	if ((panel = LoadPanel(0, "NetworkVariable.uir", PANEL)) < 0)
 		return -1;
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 	CNVCreateScalarDataValue(&stopData, CNVBool, (char)1);
 	CNVWrite(gStopWriter, stopData, CNVDoNotWait);
 	
-  async_connection_close( clientId );
+  async_connection_close( clientID );
   
 	// Cleanup
 	CNVDisposeData(stopData);

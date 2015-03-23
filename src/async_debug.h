@@ -27,28 +27,42 @@
 #include "debug.h" 
 
 #define NO_CODE do { } while( 0 )
-
+  
 #ifdef SIMPLE_DEBUG || DEEP_DEBUG
 
+  const size_t EVENT_NAME_LENGTH = 8;
+  const size_t SOURCE_NAME_LENGTH = 64;
   const size_t DEBUG_MESSAGE_LENGTH = 256;
+  
   const size_t MAX_DEBUG_MESSAGES = 1000;
   
-  typedef char DebugMessage[ DEBUG_MESSAGE_LENGTH ];
+  typedef struct _DebugMessage
+  {
+    uint8_t key;
+    char event[ EVENT_NAME_LENGTH ];
+    char source[ SOURCE_NAME_LENGTH ];
+    char message[ DEBUG_MESSAGE_LENGTH ];
+  }
+  DebugMessage;
 
-  static DebugMessage debugMessages[ MAX_DEBUG_MESSAGES ];
+  static DebugMessage debugMessagesList[ MAX_DEBUG_MESSAGES ];
   static size_t debugMessagesCount = 0;
 
   static short messageUpdate = -1;
+  static ThreadLock printLock;
 
-  static INLINE size_t AsyncDebug_SearchMessage( const char* source, const char* event )
+  static INLINE size_t AsyncDebug_SearchMessage( uint8_t key, const char* source, const char* event )
   {
     size_t index;
     for( index = 0; index < debugMessagesCount; index++ )
     {
-      if( strstr( debugMessages[ index ], source ) != NULL )
+      if( key == debugMessagesList[ index ].key )
       {
-        if( strstr( debugMessages[ index ], event ) != NULL )
-          break;
+        if( strncmp( debugMessagesList[ index ].event, event, EVENT_NAME_LENGTH ) == 0 )
+        {
+          if( strncmp( debugMessagesList[ index ].source, source, SOURCE_NAME_LENGTH ) == 0 )
+            break;
+        }
       }
     }
   
@@ -57,72 +71,95 @@
 
   static void* AsyncDebug_Print( void* args )
   {
-    int lastUpdateTime = get_exec_time_seconds();
+    //SetStdioWindowOptions( 1000000, 1, 0 );
+    
+    int lastUpdateTime = Timing_GetExecTimeSeconds();
     
     while( messageUpdate != -1 )
     {
       if( messageUpdate == 1 )
       {
+        ThreadLock_Aquire( printLock );
+        
         CLEAR_SCREEN;
 
         #ifdef _LINK_CVI_LVRT_
         printf( "\n\n\n\n\n\n\n\n" );
         #endif
         for( size_t i = 0; i < debugMessagesCount; i++ )
-          puts( debugMessages[ i ] );
+          printf( "%s[%u]: %s: %s\n", debugMessagesList[ i ].event, debugMessagesList[ i ].key, 
+                                      debugMessagesList[ i ].source, debugMessagesList[ i ].message );
 
         messageUpdate = 0;
         
-        lastUpdateTime = get_exec_time_seconds();
+        ThreadLock_Release( printLock );
+        
+        lastUpdateTime = Timing_GetExecTimeSeconds();
       }
       
-      if( get_exec_time_seconds() - lastUpdateTime > 5 )
+      if( Timing_GetExecTimeSeconds() - lastUpdateTime > 5 )
+      {
         messageUpdate = -1;
+        ThreadLock_Discard( printLock );
+      }
     
-      delay( 100 );
+      Timing_Delay( 100 );
     }
   
-    thread_exit( 0 );
+    Thread_Exit( 0 );
     return 0;
   }
 
-  void AsyncDebug_SetEvent( const char* source, const char* event, const char* format, ... )
+  void AsyncDebug_SetEvent( uint8_t key, const char* source, const char* event, const char* format, ... )
   {
     static va_list printArgs;
-    static char debugMessageFormat[ DEBUG_MESSAGE_LENGTH ];
+    static char debugMessageBuffer[ DEBUG_MESSAGE_LENGTH ];
     
     va_start( printArgs, format );
     
     if( messageUpdate == -1 )
     {
-      messageUpdate = 0; 
-      thread_start( AsyncDebug_Print, NULL, DETACHED );
+      messageUpdate = 0;
+      printLock = ThreadLock_Create();
+      Thread_Start( AsyncDebug_Print, NULL, DETACHED );
     }
     
     if( debugMessagesCount < MAX_DEBUG_MESSAGES ) 
-    { 
-      size_t debugMessageIndex = AsyncDebug_SearchMessage( source, event );
-      if( debugMessageIndex == debugMessagesCount ) debugMessagesCount++;
-      if( snprintf( debugMessageFormat, DEBUG_MESSAGE_LENGTH, "%s: %s: %s", event, source, format ) > 0 )
+    {
+      size_t eventIndex = AsyncDebug_SearchMessage( key, source, event );
+      
+      if( eventIndex == debugMessagesCount ) debugMessagesCount++;
+      
+      if( vsnprintf( debugMessageBuffer, DEBUG_MESSAGE_LENGTH, format, printArgs ) > 0 )
       {
-        vsnprintf( debugMessages[ debugMessageIndex ], DEBUG_MESSAGE_LENGTH, debugMessageFormat, printArgs ); 
-        messageUpdate = 1;
+        if( strncmp( debugMessagesList[ eventIndex ].message, debugMessageBuffer, DEBUG_MESSAGE_LENGTH ) != 0 )
+        {
+          ThreadLock_Aquire( printLock );
+          
+          debugMessagesList[ eventIndex ].key = key;
+          strncpy( debugMessagesList[ eventIndex ].event, event, EVENT_NAME_LENGTH );
+          strncpy( debugMessagesList[ eventIndex ].source, source, SOURCE_NAME_LENGTH );
+          strncpy( debugMessagesList[ eventIndex ].message, debugMessageBuffer, DEBUG_MESSAGE_LENGTH );
+          messageUpdate = 1;
+          
+          ThreadLock_Release( printLock );
+        }
       }
     }
     
     va_end( printArgs );
   }
 
-  #define DEBUG_EVENT( format, ... ) AsyncDebug_SetEvent( __func__, "event", format, __VA_ARGS__ )
-  #define ERROR_EVENT( format, ... ) AsyncDebug_SetEvent( __func__, "error", format ": %s", __VA_ARGS__, strerror( errno ) ) 
+  #define DEBUG_EVENT( key, format, ... ) AsyncDebug_SetEvent( (uint8_t) key, __func__, "event", format, __VA_ARGS__ )
+  #define ERROR_EVENT( format, ... ) AsyncDebug_SetEvent( (uint8_t) errno, __func__, "error", format ": %s", __VA_ARGS__, strerror( errno ) ) 
 
 #else
-  #define DEBUG_EVENT( format, ... ) NO_CODE
+  #define DEBUG_EVENT( key, format, ... ) NO_CODE
   #define ERROR_EVENT( format, ... ) NO_CODE
 #endif
 
 #ifdef DEEP_DEBUG
-  #define DEBUG_UPDATE( format, ... ) AsyncDebug_SetEvent( __func__, "update", format, __VA_ARGS__ )
+  #define DEBUG_UPDATE( format, ... ) AsyncDebug_SetEvent( 0, __func__, "update", format, __VA_ARGS__ )
 #else
   #define DEBUG_UPDATE( format, ... ) NO_CODE
 #endif

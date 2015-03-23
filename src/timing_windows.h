@@ -10,16 +10,16 @@
 
 LARGE_INTEGER TICKS_PER_SECOND;
 
-// Make the calling thread wait for the given time ( in milisseconds )
-void delay( unsigned long milisseconds )
+// Make the calling thread wait for the given time ( in milliseconds )
+void Timing_Delay( unsigned long milliseconds )
 {
-    Sleep( milisseconds );
+    Sleep( milliseconds );
     
     return;
 }
 
-// Get system time in milisseconds
-unsigned long get_exec_time_milisseconds()
+// Get system time in milliseconds
+unsigned long Timing_GetExecTimeMilliseconds()
 {
     LARGE_INTEGER ticks;
 	double exec_time;
@@ -33,7 +33,7 @@ unsigned long get_exec_time_milisseconds()
 }
 
 // Get system time in seconds
-unsigned int get_exec_time_seconds()
+unsigned int Timing_GetExecTimeSeconds()
 {
     LARGE_INTEGER ticks;
     unsigned int exec_time;

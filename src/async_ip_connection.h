@@ -3,16 +3,16 @@
 ///// to provide asyncronous network communication methods                         /////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ASYNC_CONNECT_H
-#define ASYNC_CONNECT_H
+#ifndef ASYNC_IP_CONNECTION_H
+#define ASYNC_IP_CONNECTION_H
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-#include "connection.h"
+#include "ip_connection.h"
 #include "debug.h"  
-#include "threads_data_queue.h"
+#include "threads_data_structures.h"
 
   
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ static int AddAsyncConnection( IPConnection* baseConnection )
   static AsyncIPConnection* connection;
   static char* addressString;
   
-  DEBUG_EVENT( "socket index: %d",  baseConnection->socketFD );
+  DEBUG_EVENT( 0, "socket index: %d",  baseConnection->socketFD );
   
   globalConnectionsList = (AsyncIPConnection**) realloc( globalConnectionsList, ( globalConnectionsListSize + 1 ) * sizeof(AsyncIPConnection*) );
   globalConnectionsList[ globalConnectionsListSize ] = (AsyncIPConnection*) malloc( sizeof(AsyncIPConnection) );
@@ -135,7 +135,7 @@ static int AddAsyncConnection( IPConnection* baseConnection )
   connection->writeQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );
   connection->writeThread = Thread_Start( AsyncWriteQueue, (void*) connection, JOINABLE );
   
-  DEBUG_EVENT( "last connection index: %d - socket fd: %d", globalConnectionsListSize,  baseConnection->socketFD );
+  DEBUG_EVENT( 0, "last connection index: %d - socket fd: %d", globalConnectionsListSize,  baseConnection->socketFD );
   
   return globalConnectionsListSize++;
 }
@@ -168,7 +168,7 @@ static void* AsyncReadQueue( void* args )
   
   char* lastMessage;
   
-  DEBUG_EVENT( "connection socket %d caching available messages on thread %x", reader_buffer-> baseConnection->socketFD, THREAD_ID );
+  DEBUG_EVENT( 0, "connection socket %d caching available messages on thread %x", reader_buffer-> baseConnection->socketFD, THREAD_ID );
   
   while( reader_buffer != NULL )
   {
@@ -176,7 +176,7 @@ static void* AsyncReadQueue( void* args )
     
     if( reader_buffer->baseConnection == NULL )
     {
-      //DEBUG_EVENT( "connection closed" );
+      //DEBUG_EVENT( 0, "connection closed" );
       break;
     }
     
@@ -214,7 +214,7 @@ static void* AsyncWriteQueue( void* args )
   
   char firstMessage[ IP_CONNECTION_MSG_LEN ];
 
-  DEBUG_EVENT( "connection socket %d sending messages in cache on thread %x", writer-> baseConnection->socketFD, THREAD_ID );
+  DEBUG_EVENT( 0, "connection socket %d sending messages in cache on thread %x", writer-> baseConnection->socketFD, THREAD_ID );
   
   while( writer != NULL )
   {
@@ -222,7 +222,7 @@ static void* AsyncWriteQueue( void* args )
     
     if( writer->baseConnection == NULL )
     {
-      //DEBUG_EVENT( "connection closed" );
+      //DEBUG_EVENT( 0, "connection closed" );
       break;
     }
     
@@ -253,7 +253,7 @@ static void* AsyncAcceptClients( void* args )
 
   int lastClient;
   
-  DEBUG_EVENT( "connection socket %d trying to add clients on thread %x\n", server-> baseConnection->socketFD, THREAD_ID );
+  DEBUG_EVENT( 0, "connection socket %d trying to add clients on thread %x\n", server-> baseConnection->socketFD, THREAD_ID );
   
   while( server != NULL ) 
   {
@@ -261,7 +261,7 @@ static void* AsyncAcceptClients( void* args )
     
     if( server->baseConnection == NULL )
     {
-      //DEBUG_EVENT( "connection closed\n" ); 
+      //DEBUG_EVENT( 0, "connection closed\n" ); 
       break;
     }
     
@@ -281,7 +281,7 @@ static void* AsyncAcceptClients( void* args )
       {
         if( client->socketFD == 0 ) continue;
         
-        DEBUG_EVENT( "client accepted: socket: %d - type: %x\n\thost: %s - port: %s", &( AsyncIPConnection_GetAddress( client ) )[ IP_HOST ], 
+        DEBUG_EVENT( 0, "client accepted: socket: %d - type: %x\n\thost: %s - port: %s", &( AsyncIPConnection_GetAddress( client ) )[ IP_HOST ], 
                      &( AsyncIPConnection_GetAddress( client ) )[ IP_PORT ], client->socketFD, (client->protocol | client->networkRole) );
         
         lastClient = globalConnectionsListSize;
@@ -396,15 +396,15 @@ void AsyncIPConnection_Close( int connectionIndex )
   IPConnection_Close( globalConnectionsList[ connectionIndex ]->baseConnection );
   globalConnectionsList[ connectionIndex ]->baseConnection = NULL;
   
-  DEBUG_EVENT( "waiting threads for connection id %u", connectionIndex );
+  DEBUG_EVENT( 0, "waiting threads for connection id %u", connectionIndex );
   
   (void) Thread_WaitExit( globalConnectionsList[ connectionIndex ]->readThread, 5000 );
   
-  DEBUG_EVENT( "read thread for connection id %u returned", connectionIndex );     
+  DEBUG_EVENT( 0, "read thread for connection id %u returned", connectionIndex );     
   
   (void) Thread_WaitExit( globalConnectionsList[ connectionIndex ]->writeThread, 5000 );
   
-  DEBUG_EVENT( "write thread for connection id %u returned", connectionIndex ); 
+  DEBUG_EVENT( 0, "write thread for connection id %u returned", connectionIndex ); 
   
   DataQueue_End( globalConnectionsList[ connectionIndex ]->readQueue );
   DataQueue_End( globalConnectionsList[ connectionIndex ]->writeQueue );
@@ -426,4 +426,4 @@ void AsyncIPConnection_Close( int connectionIndex )
 }
 #endif
 
-#endif /* ASYNC_CONNECT_H */
+#endif /* ASYNC_IP_CONNECTION_H */
