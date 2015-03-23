@@ -6,11 +6,8 @@
 #ifndef THREADS_H
 #define THREADS_H
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,10 +15,10 @@ extern "C"{
 
 #define INFINITE 0xffffffff
 
-// Mutex aquisition and release
-#define LOCK_THREAD( lock ) pthread_mutex_trylock( lock )
-#define UNLOCK_THREAD( lock ) pthread_mutex_unlock( lock )
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                      THREADS HANDLING                                       /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+  
 // Returns unique identifier of the calling thread
 #define THREAD_ID pthread_self()
 
@@ -39,72 +36,44 @@ typedef struct _Controller
 
 // Aliases for platform abstraction
 typedef pthread_t Thread_Handle;
-typedef pthread_mutex_t* Thread_Lock;
-
-// List of created mutexes
-static pthread_mutex_t* lock_list;
-static size_t n_locks = 0;
-
-// List of manipulators for the created (joinable) threads
-static pthread_t* handle_list;
-static size_t n_handles = 0;
 
 // Number of running threads
-static size_t n_threads = 0;
-
-// Request new unique mutex for using in thread syncronization
-Thread_Lock get_new_thread_lock()
-{
-  lock_list = (pthread_mutex_t*) realloc( lock_list, ( n_locks + 1 ) * sizeof(pthread_mutex_t) );
-  pthread_mutex_init( &lock_list[ n_locks ], NULL );
-  return &lock_list[ n_locks++ ];
-}
+static size_t threadsNumber = 0;
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle run_thread( void* (*function)( void* ), void* args, int mode )
+Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
 {
   static pthread_t handle;
   
   if( pthread_create( &handle, NULL, function, args ) != 0 )
   {
-    perror( "run_thread: pthread_create: error creating new thread:" );
+    ERROR_PRINT( "pthread_create: failed creating new thread with function %p", function );
     return 0;
   }
 
-  #ifdef DEBUG_2
-  printf( "run_thread: created thread %x successfully\n", handle_list[ n_handles ] );
-  #endif
+  DEBUG_PRINT( "created thread %x successfully\n", handle );
 
-  n_threads++;
+  threadsNumber++;
   
-  if( mode == JOINABLE )
-  {
-    handle_list = (pthread_t*) realloc( handle_list, ( n_handles + 1 ) * sizeof(pthread_t) );
-    handle_list[ n_handles ] = handle;
-    n_handles++;
-  }
-  else if( mode == DETACHED ) 
-    pthread_detach( handle );
+  if( mode == DETACHED ) pthread_detach( handle );
 
   return handle;
 }
 
 // Exit the calling thread, returning the given value
-void exit_thread( uint32_t exit_code )
+void Thread_Exit( uint32_t exit_code )
 {
   static uint32_t exit_code_storage;
   exit_code_storage = exit_code;
-  n_threads--;
+  threadsNumber--;
 
-  #ifdef DEBUG_2
-  printf( "exit_thread: thread exiting with code: %u\n", exit_code );
-  #endif
+  DEBUG_PRINT( "thread %x exiting with code: %u", pthread_self(), exit_code );
 
   pthread_exit( &exit_code_storage );
 }
 
 // Waiter function to be called asyncronously
-static void* waiter( void *args )
+static void* Waiter( void *args )
 {
   Controller* controller = (Controller*) args;
     
@@ -118,7 +87,7 @@ static void* waiter( void *args )
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
+uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
 {
   static struct timespec timeout;
   pthread_t control_handle;
@@ -137,15 +106,13 @@ uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
   pthread_cond_init( &(control_args.condition), 0 );
   pthread_mutex_lock( &(control_args.lock) );
 
-  if( pthread_create( &control_handle, NULL, waiter, (void*) &control_args ) != 0 )
+  if( pthread_create( &control_handle, NULL, Waiter, (void*) &control_args ) != 0 )
   {
     perror( "wait_thread_end: pthread_create: error creating waiter thread:" );
     return 0;
   }
   
-  #ifdef DEBUG_1
-  printf( "wait_thread_end: waiting thread %x\n", handle );
-  #endif
+  DEBUG_PRINT( "waiting thread %x exit", handle );
   
   do control_result = pthread_cond_timedwait( &(control_args.condition), &(control_args.lock), &timeout );
   while( control_args.result != NULL && control_result != ETIMEDOUT );
@@ -156,51 +123,98 @@ uint32_t wait_thread_end( Thread_Handle handle, unsigned int milisseconds )
   pthread_cond_destroy( &(control_args.condition) );
   pthread_mutex_destroy( &(control_args.lock) );
   
-  #ifdef DEBUG_1
-  printf( "wait_thread_end: waiter thread exited\n" );
-  #endif
+  DEBUG_PRINT( "waiter for thread %x exited", handle );
   
   if( control_args.result != NULL )
   {
-    #ifdef DEBUG_1
-    printf( "wait_thread_end: thread exit code: %u\n", *((uint32_t*) (control_args.result)) );
-    #endif
+    DEBUG_PRINT( "thread %x exit code: %u", handle, *((uint32_t*) (control_args.result)) );
     
     return *((uint32_t*) (control_args.result));
   }
-  #ifdef DEBUG_1
-  else printf( "wait_thread_end: waiting thread timed out\n" );
-  #endif
+  else 
+    DEBUG_PRINT( "waiting for thread %x timed out", handle );
   
   return 0;
 }
 
 // Returns number of running threads (method for encapsulation purposes)
-size_t get_threads_number()
+size_t Thread_GetActiveThreadsNumber()
 {
-  return n_threads;
+  return threadsNumber;
 }
 
-// Handle the destruction of the remaining threads and mutexes when the program quits
-void end_threading()
-{  
-  int id;
-  
-  for( id = 0; id < n_locks; id++ )
-    pthread_mutex_destroy( &(lock_list[ id ]) );
-  
-  for( id = 0; id < n_handles; id++ )
-  {
-    pthread_cancel( handle_list[ id ] );
-    pthread_join( handle_list[ id ], NULL );
-    //pthread_detach( handle_list[ id ] );
-  }
-  
-  return;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                     THREAD LOCK (MUTEX)                                     /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef pthread_mutex_t* ThreadLock;
+
+// Request new unique mutex for using in thread syncronization
+ThreadLock ThreadLock_Create()
+{
+  pthread_mutex_t* lock = (pthread_mutex_t*) malloc( sizeof(pthread_mutex_t) );
+  pthread_mutex_init( lock, NULL );
+  return lock;
 }
 
-#ifdef __cplusplus
+extern inline void ThreadLock_Discard( pthread_mutex_t* lock )
+{
+  pthread_mutex_destroy( lock );
+  free( lock );
 }
-#endif
+
+// Mutex aquisition and release
+extern inline void ThreadLock_Aquire( pthread_mutex_t* lock ) { pthread_mutex_lock( lock ); }
+extern inline void ThreadLock_Release( pthread_mutex_t* lock ) { pthread_mutex_unlock( lock ); }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                       THREAD SEMAPHORE                                      /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef struct 
+{
+  sem_t upCounter;
+  sem_t downCounter;
+}
+Semaphore;
+
+Semaphore* Semaphore_Create( size_t start_count, size_t max_count )
+{
+  Semaphore* sem = (Semaphore*) malloc( sizeof(Semaphore) );
+  sem_init( &(sem->upCounter), 0, max_count - start_count );
+  sem_init( &(sem->downCounter), 0, start_count );
+  
+  return sem;
+}
+
+extern inline void Semaphore_Discard( Semaphore* sem )
+{
+  sem_destroy( &(sem->upCounter) );
+  sem_destroy( &(sem->downCounter) );
+  free( sem );
+}
+
+extern inline void Semaphore_Increment( Semaphore* sem )
+{
+  sem_wait( &(sem->upCounter) );
+  sem_post( &(sem->downCounter) );  
+}
+
+extern inline void Semaphore_Decrement( Semaphore* sem )
+{
+  sem_wait( &(sem->downCounter) );
+  sem_post( &(sem->upCounter) ); 
+}
+
+extern inline size_t Semaphore_GetValue( Semaphore* sem )
+{
+  int countValue;
+  sem_getvalue( &(sem->downCounter), &countValue );
+  
+  return (size_t) countValue;
+}
+
 
 #endif /* THREADS_H */

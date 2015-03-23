@@ -6,10 +6,6 @@
 #ifndef THREADS_H
 #define THREADS_H
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 #ifdef _CVI_
   #include <ansi_c.h>
 #else
@@ -45,11 +41,11 @@ Thread_Handle thread_start( void* (*function)( void* ), void* args, int mode )
   
   if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == NULL )
   {
-    ERROR_PRINT( "_beginthreadex: error creating new thread: code: %x\n", GetLastError() );
+    ERROR_PRINT( "_beginthreadex: failed creating new thread with function %p", function );
     return 0;
   }
   
-  DEBUG_PRINT( "created thread %x successfully\n", handle );
+  DEBUG_PRINT( "created thread %x successfully", handle );
 
   n_threads++;
   
@@ -63,7 +59,7 @@ extern inline void thread_exit( uint32_t exit_code )
 {
   n_threads--;
 
-  DEBUG_PRINT( "thread exiting with code: %u\n", exit_code );
+  DEBUG_PRINT( "thread %x exiting with code: %u", GetCurrentThreadId(), exit_code );
 
   _endthreadex( (DWORD) exit_code );
 }
@@ -129,124 +125,46 @@ extern inline void thread_lock_release( CRITICAL_SECTION* lock ) { LeaveCritical
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                       THREAD SEMAPHORE      						                    /////
+/////                                       THREAD SEMAPHORE                                      /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef HANDLE Semaphore;
+typedef struct {
+  HANDLE counter;
+  size_t value;
+}
+Semaphore;
 
-Semaphore semaphore_create( size_t start_count, size_t max_count )
+Semaphore* Semaphore_Create( size_t start_count, size_t max_count )
 {
-  Semaphore sem = CreateSemaphore( NULL, start_count, max_count, NULL );
+  Semaphore* sem = (Semaphore*) malloc( sizeof(Semaphore) );
+  sem->counter = CreateSemaphore( NULL, start_count, max_count, NULL );
+  sem->value = start_count;
   
   return sem;
 }
 
-extern inline void semaphore_discard( Semaphore sem )
+extern inline void Semaphore_Discard( Semaphore* sem )
 {
-  CloseHandle( sem );
+  CloseHandle( sem->counter );
+  free( sem );
 }
 
-extern inline void semaphore_increment( Semaphore sem )
+extern inline void Semaphore_Increment( Semaphore* sem )
 {
-  ReleaseSemaphore( sem, 1, NULL );  
+  ReleaseSemaphore( sem->counter, 1, &(sem->value) );
+  sem->value++;  
 }
 
-extern inline void semaphore_decrement( Semaphore* sem )
+extern inline void Semaphore_Decrement( Semaphore* sem )
 {
-  WaitForSingleObject( sem, INFINITE );
+  WaitForSingleObject( sem->counter, INFINITE );
+  sem->value--;
 }
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                     THREAD SAFE QUEUE										                    /////
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-
-typedef struct _Data_Queue
+extern inline size_t Semaphore_GetValue( Semaphore* sem )
 {
-  void** cache;
-  size_t first, last, max_length;
-  size_t element_size;
-  Thread_Lock access_lock;
-  Semaphore count_lock;
-}
-Data_Queue;
-
-Data_Queue* data_queue_init( size_t max_length, size_t element_size )
-{
-  Data_Queue* queue = (Data_Queue*) malloc( sizeof(Data_Queue) );
-  
-  queue->max_length = max_length;
-  queue->element_size = element_size;
-  queue->cache = (void**) calloc( queue->max_length, sizeof(void*) );
-  for( size_t i = 0; i < queue->max_length; i++ )
-	queue->cache[ i ] = (void*) malloc( element_size );
-  
-  queue->first = queue->last = 0;
-  
-  queue->access_lock = thread_lock_create();
-  queue->count_lock = semaphore_create( 0, queue->max_length );
-  
-  return queue;
+  return sem->value;
 }
 
-void data_queue_end( Data_queue* queue )
-{
-  if( queue != NULL )
-  {
-  	for( size_t i = 0; i < queue->max_length; i++ )
-  	  free( queue->cache[ i ] );
-  	free( queue->cache );
-    
-    thread_lock_discard( queue->access_lock );
-    semaphore_discard( queue->count_lock );
-	
-  	free( queue );
-  	queue = NULL;
-  }
-}
-
-extern inline size_t data_queue_count( Data_Queue* queue )
-{
-  return ( queue->last - queue->first );
-}
-
-void* data_queue_read( Data_Queue* queue, void* buffer )
-{
-  static void* data_out = NULL;
-	
-  semaphore_decrement( queue->count_lock );
-  
-  thread_lock_aquire( queue->access_lock );
-  
-  data_out = queue->cache[ queue->first % queue->max_length ]; // Always keep access index between 0 and MAX_DATA
-  buffer = memcpy( buffer, data_out, queue->element_size );
-  queue->first++;
-  
-  thread_lock_release( queue->access_lock );
-  
-  return buffer;
-}
-
-enum { WAIT = 0, REPLACE = 1 };
-
-void data_queue_write( Data_Queue* queue, void* buffer, uint8_t replace )
-{
-  static void* data_in = NULL;
-  
-  if( replace == 0 ) semaphore_increment( queue->count_lock ); // Replace old data behaviour
-  
-  thread_lock_aquire( queue->access_lock );
-  
-  data_in = queue->cache[ queue->last % queue->max_length ]; // Always keep access index between 0 and MAX_DATA
-  memcpy( data_in, buffer, queue->element_size );
-  if( data_queue_count( queue ) == queue->max_length ) queue->first++;
-  queue->last++;
-  
-  thread_lock_release( queue->access_lock );
-}
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* THREADS_H */ 

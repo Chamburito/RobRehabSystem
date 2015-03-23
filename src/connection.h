@@ -3,17 +3,14 @@
 ///// as server or client, using TCP or UDP protocols                           /////
 /////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef CONNECT_H
-#define CONNECT_H
+#ifndef IP_CONNECTION_H
+#define IP_CONNECTION_H
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+
+#include "async_debug.h"
   
 #ifdef WIN32
   
@@ -50,48 +47,41 @@ extern "C"{
 /////                    PREPROCESSOR DIRECTIVES                    /////
 /////////////////////////////////////////////////////////////////////////
 
-#ifdef _MSC_VER
-  //#define INLINE __forceinline /* use __forceinline (VC++ specific) */
-  #define INLINE
-#else
-  #define INLINE inline        /* use standard inline */
-#endif
-
 const int QUEUE_SIZE = 20;
-const int BUFFER_SIZE = 256;
+const int IP_CONNECTION_MSG_LEN = 256;
 
-const int HOST_LENGTH = 40;
-const int PORT_LENGTH = 6;
-const int ADDRESS_LENGTH = HOST_LENGTH + PORT_LENGTH;
+const int IP_HOST_LENGTH = 40;
+const int IP_PORT_LENGTH = 6;
+const int IP_ADDRESS_LENGTH = IP_HOST_LENGTH + IP_PORT_LENGTH;
 
-const int HOST = 0;
-const int PORT = HOST_LENGTH;
+const int IP_HOST = 0;
+const int IP_PORT = IP_HOST_LENGTH;
 
-enum Property { CLIENT = 0x000f, SERVER = 0x00f0,  NETWORK_ROLE_MASK = 0x00ff, TCP = 0x0f00, UDP = 0xf000, PROTOCOL_MASK = 0xff00 };
+enum Property { CLIENT = 0x01, SERVER = 0x02, NETWORK_ROLE_MASK = 0x0f, TCP = 0x10, UDP = 0x20, PROTOCOL_MASK = 0xf0 };
 
 
 //////////////////////////////////////////////////////////////////////////
 /////                         DATA STRUCTURES                        /////
 //////////////////////////////////////////////////////////////////////////
 
-typedef struct _Connection Connection;
+typedef struct _IPConnection IPConnection;
 
 // Generic structure to store methods and data of any connection type handled by the library
-struct _Connection
+struct _IPConnection
 {
-  Socket sockfd;
+  Socket socketFD;
   union {
-    char* (*receive_message)( Connection* );
-    Connection* (*accept_client)( Connection* );
+    char* (*receiveMessage)( IPConnection* );
+    IPConnection* (*acceptClient)( IPConnection* );
   };
-  int (*send_message)( Connection*, const char* );
+  int (*sendMessage)( IPConnection*, const char* );
   struct sockaddr_in6* address;
-  uint16_t type;
+  uint8_t protocol, networkRole;
   union {
     char* buffer;
-    Connection** client_list;
+    IPConnection** clientsList;
   };
-  size_t* ref_connections_count;
+  size_t* ref_clientsCount;
 };
 
 
@@ -99,22 +89,7 @@ struct _Connection
 /////                        GLOBAL VARIABLES                        /////
 //////////////////////////////////////////////////////////////////////////
 
-static fd_set socket_read_fds; // stores all the socket file descriptors in use (for performance when verifying incoming messages) 
-
-
-///////////////////////////////////////////////////////////////////////////
-/////                         DEBUG UTILITIES                         /////
-///////////////////////////////////////////////////////////////////////////
-
-// Platform specific error printing
-extern INLINE void print_socket_error( const char* message )
-{
-  #ifdef WIN32
-  fprintf( stderr, "%s: code: %d\n", message, WSAGetLastError() );
-  #else
-  perror( message );
-  #endif
-}
+static fd_set socketReadFDs; // stores all the socket file descriptors in use (for performance when verifying incoming messages) 
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -122,68 +97,62 @@ extern INLINE void print_socket_error( const char* message )
 /////////////////////////////////////////////////////////////////////////////
 
 // Utility method to request an address (host and port) string for client connections (returns default values for server connections)
-char* get_address( Connection* connection )
+char* IPConnection_GetAddress( IPConnection* connection )
 {
-  static char address_string[ ADDRESS_LENGTH ];
+  static char addressString[ ADDRESS_LENGTH ];
   static int error = 0;
   
-  #ifdef DEBUG_1
-  printf( "get_address: getting address string for socket fd: %d\n", connection->sockfd );
-  #endif
+  DEBUG_EVENT( "getting address string for socket fd: %d", connection->socketFD );
   
   error = getnameinfo( (struct sockaddr*) (connection->address), sizeof(struct sockaddr_in6), 
-                    &address_string[ HOST ], HOST_LENGTH, &address_string[ PORT ], PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+                    &addressString[ HOST ], IP_HOST_LENGTH, &addressString[ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
 
   if( error != 0 )
   {
-    #ifdef WIN32
-    fprintf( stderr, "get_address: getnameinfo: error getting address string: code: %d\n", WSAGetLastError() );
-    #else
-    fprintf( stderr, "get_address: getnameinfo: error getting address string: %s\n", gai_strerror( error ) );
-    #endif
+    ERROR_EVENT( "getnameinfo: failed getting address string: %s", gai_strerror( error ) );
     return NULL;
   }
   
-  return address_string;
+  return addressString;
 }
 
 // More complete (but slow) method for verifying the remote address of incoming messages
-static int compare_addresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
+static int CompareAddresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
 {
-  static char address_strings[ 2 ][ ADDRESS_LENGTH ];
+  static char addressStrings[ 2 ][ ADDRESS_LENGTH ];
   static int error = 0;
   
-  error = getnameinfo( addr_1, sizeof(struct sockaddr_in6), &address_strings[ 0 ][ HOST ], HOST_LENGTH, &address_strings[ 0 ][ PORT ], PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+  error = getnameinfo( addr_1, sizeof(struct sockaddr_in6), &addressStrings[ 0 ][ HOST ], IP_HOST_LENGTH, &addressStrings[ 0 ][ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
   if( error != 0 )
   {
-    fprintf( stderr, "compare_addresses: getnameinfo: error getting address 1 string: %s\n", gai_strerror( error ) );
+    ERROR_EVENT( "getnameinfo: failed getting address 1 string: %s", gai_strerror( error ) );
     return -1;
   }
   
-  error = getnameinfo( addr_2, sizeof(struct sockaddr_in6), &address_strings[ 1 ][ HOST ], HOST_LENGTH, &address_strings[ 1 ][ PORT ], PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+  error = getnameinfo( addr_2, sizeof(struct sockaddr_in6), &addressStrings[ 1 ][ HOST ], IP_HOST_LENGTH, &addressStrings[ 1 ][ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
   if( error != 0 )
   {
-    fprintf( stderr, "compare_addresses: getnameinfo: error getting address 2 string: %s\n", gai_strerror( error ) );
+    ERROR_EVENT( "getnameinfo: failed getting address 2 string: %s", gai_strerror( error ) );
     return -1;
   }
   
-  if( strcmp( (const char*) &address_strings[ 0 ][ PORT ], (const char*) &address_strings[ 1 ][ PORT ] ) == 0 )
-    return ( strcmp( (const char*) &address_strings[ 0 ][ HOST ], (const char*) &address_strings[ 1 ][ HOST ] ) );
+  if( strcmp( (const char*) &addressStrings[ 0 ][ PORT ], (const char*) &addressStrings[ 1 ][ PORT ] ) == 0 )
+    return ( strcmp( (const char*) &addressStrings[ 0 ][ HOST ], (const char*) &addressStrings[ 1 ][ HOST ] ) );
   else
     return -1;
 }
 
 // Returns number of active clients for a connection 
-size_t connections_count( Connection* connection )
+size_t IPConnection_GetClientsNumber( IPConnection* connection )
 {
-  size_t n_connections = 0;
+  size_t connectionsNumber = 0;
   
-  if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
-    n_connections = *(connection->ref_connections_count);
+  if( connection->networkRole == SERVER )
+    connectionsNumber = *(connection->ref_clientsCount);
   else
-    n_connections = 1;
+    connectionsNumber = 1;
   
-  return n_connections;
+  return connectionsNumber;
 }
 
 
@@ -192,108 +161,110 @@ size_t connections_count( Connection* connection )
 //////////////////////////////////////////////////////////////////////////////////
 
 // Forward Declaration
-static char* receive_tcp_message( Connection* );
-static char* receive_udp_message( Connection* );
-static int send_tcp_message( Connection*, const char* );
-static int send_udp_message( Connection*, const char* );
-static int send_message_all( Connection*, const char* );
-static Connection* accept_tcp_client( Connection* );
-static Connection* accept_udp_client( Connection* );
+static char* ReceiveTCPMessage( IPConnection* );
+static char* ReceiveUDPMessage( IPConnection* );
+static int SendTCPMessage( IPConnection*, const char* );
+static int SendUDPMessage( IPConnection*, const char* );
+static int SendMessageAll( IPConnection*, const char* );
+static IPConnection* AcceptTCPClient( IPConnection* );
+static IPConnection* AcceptUDPClient( IPConnection* );
 
 
-// Handle construction of a Connection structure with the defined properties
-static Connection* add_connection( int sockfd, struct sockaddr* address, uint16_t type )
+// Handle construction of a IPConnection structure with the defined properties
+static IPConnection* AddConnection( int socketFD, struct sockaddr* address, uint8_t type )
 {
   int opt;
-  Connection* connection = (Connection*) malloc( sizeof(Connection) );
-  connection->sockfd = sockfd;
-  connection->type = type;
+  IPConnection* connection = (IPConnection*) malloc( sizeof(IPConnection) );
+  connection->socketFD = socketFD;
+  connection->protocol = type & PROTOCOL_MASK;
+  connection->networkRole = type & NETWORK_ROLE_MASK;
 
-  #ifdef DEBUG_1
-  printf( "add_connection: socket: %d - type: %x\n", connection->sockfd, connection->type );
-  #endif
+  DEBUG_EVENT( "socket: %d - type: %x\n", connection->socketFD, ( connection->protocol | connection->networkRole ) );
   
   connection->address = (struct sockaddr_in6*) malloc( sizeof(struct sockaddr_in6) );
   *(connection->address) = *((struct sockaddr_in6*) address);
-  connection->ref_connections_count = (size_t*) malloc( sizeof(size_t) );
-  *(connection->ref_connections_count) = 0;
+  connection->ref_clientsCount = (size_t*) malloc( sizeof(size_t) );
+  *(connection->ref_clientsCount) = 0;
   
-  if( (connection->type & NETWORK_ROLE_MASK) == SERVER ) // Server role connection
+  if( connection->networkRole == SERVER ) // Server role connection
   {
-    connection->client_list = NULL;
-    connection->accept_client = ( (connection->type & PROTOCOL_MASK) == TCP ) ? accept_tcp_client : accept_udp_client;
-    connection->send_message = send_message_all;
+    connection->clientsList = NULL;
+    connection->acceptClient = ( connection->protocol == TCP ) ? AcceptTCPClient : AcceptUDPClient;
+    connection->sendMessage = SendMessageAll;
   }
   else
-  {   
-    #ifdef DEBUG_1
-    printf( "add_connection: connection added:\n" );
-    printf( "\tfamily: %u\n", connection->address->sin6_family );
-    printf( "\tport: %u\n", connection->address->sin6_port );
-    printf( "\tscope: %u\n", connection->address->sin6_scope_id );
-    printf( "\tflow info: %u\n", connection->address->sin6_flowinfo );
-    printf( "\taddress: " );
+  { 
+    static char addressString[ 16 * sizeof(uint8_t) ];
     for( opt = 0; opt < 16; opt++ )
-      printf( "%u", connection->address->sin6_addr.s6_addr[ opt ] );
-    printf( "\n" );
-    #endif
+      sprintf( &(addressString[ opt * sizeof(uint8_t) ]), "%3u", connection->address->sin6_addr.s6_addr[ opt ] );
+    DEBUG_EVENT( "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family,
+                                                                               connection->address->sin6_port, addressString );
+
     //connection->address->sin6_family = AF_INET6;
-    connection->buffer = (char*) calloc( BUFFER_SIZE, sizeof(char) );
-    connection->receive_message = ( (connection->type & PROTOCOL_MASK) == TCP ) ? receive_tcp_message : receive_udp_message;
-    connection->send_message = ( (connection->type & PROTOCOL_MASK) == TCP ) ? send_tcp_message : send_udp_message;
+    connection->buffer = (char*) calloc( IP_CONNECTION_MSG_LEN, sizeof(char) );
+    connection->receiveMessage = ( connection->protocol == TCP ) ? ReceiveTCPMessage : ReceiveUDPMessage;
+    connection->sendMessage = ( connection->protocol == TCP ) ? SendTCPMessage : SendUDPMessage;
   }
   
   return connection;
 }
 
 // Add defined connection to the client list of the given server connection
-static INLINE void add_client( Connection* server, Connection* client )
+static INLINE void AddClient( IPConnection* server, IPConnection* client )
 {
-  static size_t n_clients, client_index = 0, client_list_size = 0;
+  static size_t clientsNumber, clientIndex = 0, clientsListSize = 0;
   
-  free( client->ref_connections_count );
-  client->ref_connections_count = server->ref_connections_count;
+  free( client->ref_clientsCount );
+  client->ref_clientsCount = server->ref_clientsCount;
   
-  n_clients = *(server->ref_connections_count);
-  while( client_index < n_clients )
+  clientsNumber = *(server->ref_clientsCount);
+  while( clientIndex < clientsNumber )
   {
-    client_list_size++;
-    if( server->client_list[ client_index ] != NULL )
-      client_index++;
+    clientsListSize++;
+    if( server->clientsList[ clientIndex ] != NULL )
+      clientIndex++;
     else
       break;
   }
   
-  if( client_index == client_list_size )
-    server->client_list = (Connection**) realloc( server->client_list, ( client_index + 1 ) * sizeof(Connection*) );
-  server->client_list[ client_index ] = client;
+  if( clientIndex == clientsListSize )
+    server->clientsList = (IPConnection**) realloc( server->clientsList, ( clientIndex + 1 ) * sizeof(IPConnection*) );
+  server->clientsList[ clientIndex ] = client;
   
-  (*(server->ref_connections_count))++;
+  (*(server->ref_clientsCount))++;
 
   return;
 }
 
-// Generic method for opening a new socket and providing a corresponding Connection structure for use
-Connection* open_connection( const char* host, const char* port, int protocol )
+// Generic method for opening a new socket and providing a corresponding IPConnection structure for use
+IPConnection* IPConnection_Open( const char* host, const char* port, uint8_t protocol )
 {
-  static Connection* connection;
+  static IPConnection* connection;
 
-  static int sockfd;
+  static int socketFD;
   static struct addrinfo hints;
-  static struct addrinfo* host_info;
-  static struct addrinfo* p;
+  static struct addrinfo* hostsInfoList;
+  static struct addrinfo* hostInfo;
 
   static int rw;
-  static uint16_t connection_type;
+  static uint8_t networkRole = 0;
   
   #ifdef WIN32
   WSADATA wsa;
   if( WSAStartup( MAKEWORD(2,2), &wsa ) != 0 )
   {
-    fprintf( stderr, "open_connection: error initialiasing windows sockets: code: %d", WSAGetLastError() );
+    fprintf( stderr, "%s: error initialiasing windows sockets: code: %d", __func__, WSAGetLastError() );
     return NULL;
   }
   #endif
+  
+  // Assure that the port number is in the Dynamic/Private range (49152-65535)
+  unsigned int portNumber = (unsigned int) strtoul( port, NULL, 0 );
+  if( portNumber < 49152 || portNumber > 65535 )
+  {
+    ERROR_EVENT( "invalid port number value: %s", port );
+    return NULL;
+  }
 
   memset( &hints, 0, sizeof(hints) );
   hints.ai_family = AF_UNSPEC; // AF_INET6 (IPv6), AF_INET (IPv4) or AF_UNSPEC
@@ -304,122 +275,106 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     hints.ai_socktype = SOCK_DGRAM;
   else
   {
-    fprintf( stderr, "open_connection: invalid protocol option: %x\n", protocol );
+    DEBUG_EVENT( "invalid protocol option: %x", protocol );
     return NULL;
   }
 
   if( host == NULL ) 
   {
     hints.ai_flags |= AI_PASSIVE; // Set address for me
-    connection_type = SERVER;
+    networkRole = SERVER;
   }
   else
-    connection_type = CLIENT;
+    networkRole = CLIENT;
 
-  connection_type |= protocol;
-
-  if( (rw = getaddrinfo( host, port, &hints, &host_info )) != 0 )
+  if( (rw = getaddrinfo( host, port, &hints, &hostsInfoList )) != 0 )
   {
-    #ifdef WIN32
-    fprintf( stderr, "open_connection: getaddrinfo: error reading host info: code: %d\n", WSAGetLastError() );
-    #else
-    fprintf( stderr, "open_connection: getaddrinfo: error reading host info: %s\n", gai_strerror( rw ) );
-    #endif
+    ERROR_EVENT( "getaddrinfo: error reading host info: %s\n", gai_strerror( rw ) );
     return NULL;
   }
 
   // loop through all the results and bind to the first we can
-  for( p = host_info; p != NULL; p = p->ai_next ) 
+  for( hostInfo = hostsInfoList; hostInfo != NULL; hostInfo = hostInfo->ai_next ) 
   {
     // Extended connection info for debug builds
-    #ifdef DEBUG_1
-    char address_string[ ADDRESS_LENGTH ];
-    getnameinfo( p->ai_addr, sizeof(struct sockaddr), 
-		 &address_string[ HOST ], HOST_LENGTH, &address_string[ PORT ], PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
-    if( (connection_type & NETWORK_ROLE_MASK) == SERVER )
-      printf( "open_connection: trying to bind to: host: %s - port: %s", &address_string[ HOST ], &address_string[ PORT ] );
-    else
-      printf( "open_connection: trying to connect to: host: %s - port: %s", &address_string[ HOST ], &address_string[ PORT ] );
-    if( p->ai_protocol == IPPROTO_TCP ) printf( " - protocol: TCP" );
-    else if( p->ai_protocol == IPPROTO_UDP ) printf( " - protocol: UDP" );
-    else printf( " - protocol: invalid: %u", p->ai_protocol );
-    if( p->ai_family == AF_INET ) printf( " - version: IPV4\n" );
-    else if( p->ai_family == AF_INET6 ) printf( " - version: IPV6\n" );
-    else printf( " - version: unspecified: %u\n", p->ai_family );
-    #endif
+    static char addressString[ ADDRESS_LENGTH ];
+    getnameinfo( hostInfo->ai_addr, sizeof(struct sockaddr), 
+                 &addressString[ HOST ], IP_HOST_LENGTH, &addressString[ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+    
+    DEBUG_EVENT( "trying to %s to: host: %s - port: %s - protocol: %s - version: %s", ( host == NULL ) ? "bind" : "connect",
+                                                                                      &addressString[ HOST ], &addressString[ PORT ],
+                                                                                      ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
+                                                                                      ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4" );
 
     // Create IP socket
-    if( (sockfd = socket( p->ai_family, p->ai_socktype, p->ai_protocol )) == INVALID_SOCKET )
+    if( (socketFD = socket( hostInfo->ai_family, hostInfo->ai_socktype, hostInfo->ai_protocol )) == INVALID_SOCKET )
     {
-      print_socket_error( "open_connection: socket: error opening socket" );
+      ERROR_EVENT( "socket: failed opening %s %s socket", ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
+                                                          ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4" );                                                              
       continue;
     }
     
     #ifdef WIN32
-	rw = 1;
-	if( ioctlsocket( sockfd, FIONBIO, (u_long*) &rw ) == SOCKET_ERROR )
-	{
-	  fprintf( stderr, "open_connection: ioctlsocket: error setting socket option FIONBIO: code: %d\n", WSAGetLastError() );
-      close( sockfd );
+    rw = 1;
+    if( ioctlsocket( socketFD, FIONBIO, (u_long*) &rw ) == SOCKET_ERROR )
+    #else
+    if( fcntl( socketFD, F_SETFL, O_NONBLOCK ) == SOCKET_ERROR )
+    #endif
+    {
+      ERROR_EVENT( "failure setting socket %d to non-blocking state", socketFD );
+      close( socketFD );
       return NULL;
     }
-    #else
-	if( fcntl( sockfd, F_SETFL, O_NONBLOCK ) == SOCKET_ERROR )
-	{
-	  perror( "open_connection: fcntl: error setting socket option O_NONBLOCK" );
-	  close( sockfd );
-      return NULL;
-	}
-    #endif
 
     rw = 1;
     // Allow sockets to be binded to the same local port
-    if( setsockopt( sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR ) 
+    if( setsockopt( socketFD, SOL_SOCKET, SO_REUSEADDR, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR ) 
     {
-      print_socket_error( "open_connection: setsockopt: error setting socket option SO_REUSEADDR" );
-      close( sockfd );
+      
+      ERROR_EVENT( "setsockopt: failed setting socket %d option SO_REUSEADDR", socketFD );
+      close( socketFD );
       return NULL;
     }
     
-    if( (connection_type & NETWORK_ROLE_MASK) == SERVER )
+    if( networkRole == SERVER )
     {
-      if( p->ai_family == AF_INET ) continue;
+      if( hostInfo->ai_family == AF_INET ) continue;
       
       rw = 0;
       // Let IPV6 servers accept IPV4 clients
-      if( setsockopt( sockfd, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR )
+      if( setsockopt( socketFD, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR )
       {
-        print_socket_error( "open_connection: setsockopt: error setting socket option IPV6_V6ONLY" );
-        close( sockfd );
+        ERROR_EVENT( "setsockopt: failed setting socket %d option IPV6_V6ONLY", socketFD );
+        close( socketFD );
         return NULL;
       }
       
       // Bind server socket to the given local address
-      if( bind( sockfd, p->ai_addr, p->ai_addrlen ) == SOCKET_ERROR )
+      if( bind( socketFD, hostInfo->ai_addr, hostInfo->ai_addrlen ) == SOCKET_ERROR )
       {
-        print_socket_error( "open_connection: bind: error on binding" );
-        close( sockfd );
+        ERROR_EVENT( "bind: failed on binding socket %d to local port %u", socketFD, ((struct sockaddr_in6*) hostInfo->ai_addr)->sin6_port );
+        close( socketFD );
         continue;
       }
       
-      if( p->ai_socktype == SOCK_STREAM )
+      if( hostInfo->ai_socktype == SOCK_STREAM )
       {
         // Set server socket to listen to remote connections
-        if( listen( sockfd, QUEUE_SIZE ) == SOCKET_ERROR )
+        if( listen( socketFD, QUEUE_SIZE ) == SOCKET_ERROR )
         {
-          print_socket_error( "open_connection: listen: error on listening" );
-          close( sockfd );
+          ERROR_EVENT( "listen: failed listening on socket %d", socketFD );
+          close( socketFD );
           continue;
         }
       }
     }
-    else if( (connection_type & PROTOCOL_MASK) == TCP )
+    else if( protocol == TCP )
     {
       // Connect TCP client socket to given remote address
-      if( connect( sockfd, p->ai_addr, p->ai_addrlen ) == SOCKET_ERROR )
+      if( connect( socketFD, hostInfo->ai_addr, hostInfo->ai_addrlen ) == SOCKET_ERROR )
       {
-        print_socket_error( "open_connection: connect: error on connecting" );
-        close( sockfd );
+        ERROR_EVENT( "connect: failed on connecting socket %d to remote address %s/%s", socketFD, &addressString[ HOST ], &addressString[ PORT ] );
+        close( socketFD );
         continue;
       }
     }
@@ -427,11 +382,11 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     {
       // Bind UDP client socket to available local address
       static struct sockaddr_storage local_address;
-      local_address.ss_family = p->ai_addr->sa_family;
-      if( bind( sockfd, (struct sockaddr*) &local_address, sizeof(local_address) ) == SOCKET_ERROR )
+      local_address.ss_family = hostInfo->ai_addr->sa_family;
+      if( bind( socketFD, (struct sockaddr*) &local_address, sizeof(local_address) ) == SOCKET_ERROR )
       {
-        print_socket_error( "open_connection: bind: error on binding" );
-        close( sockfd );
+        ERROR_EVENT( "bind: failed on binding socket %d to arbitrary local port", socketFD );
+        close( socketFD );
         continue;
       }
     }
@@ -439,15 +394,18 @@ Connection* open_connection( const char* host, const char* port, int protocol )
     break;
   }
   
-  if( p == NULL )  
+  if( hostInfo == NULL )  
   {
-    fprintf( stderr, "open_connection: failed to create socket\n" );
+    ERROR_EVENT( "failed to create %s %s %s socket on host %s and port %s", ( host == NULL ) ? "server" : "client",
+                                                                            ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
+                                                                            ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4",
+                                                                            ( host == NULL ) ? "localhost" : host, port );
     return NULL;
   }
   
-  connection = add_connection( sockfd, p->ai_addr, connection_type ); // Build the Connection structure
+  connection = AddConnection( socketFD, hostInfo->ai_addr, ( protocol | networkRole ) ); // Build the IPConnection structure
   
-  freeaddrinfo( host_info ); // Don't need this struct anymore
+  freeaddrinfo( hostsInfoList ); // Don't need this struct anymore
   
   return connection;
 }
@@ -458,77 +416,77 @@ Connection* open_connection( const char* host, const char* port, int protocol )
 /////////////////////////////////////////////////////////////////////////////////
 
 // Wrapper functions
-extern INLINE char* receive_message( Connection* c ) { return c->receive_message( c ); }
-extern INLINE int send_message( Connection* c, const char* message ) { return c->send_message( c, message ); }
-extern INLINE Connection* accept_client( Connection* c ) { return c->accept_client( c ); }
+extern INLINE char* IPConnection_ReceiveMessage( IPConnection* c ) { return c->receiveMessage( c ); }
+extern INLINE int IPConnection_SendMessage( IPConnection* c, const char* message ) { return c->sendMessage( c, message ); }
+extern INLINE IPConnection* IPConnection_AcceptClient( IPConnection* c ) { return c->acceptClient( c ); }
 
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
-short wait_message( Connection* connection, unsigned int milisseconds )
+short IPConnection_WaitEvent( IPConnection* connection, unsigned int milisseconds )
 {
-  fd_set read_fds;
+  fd_set readFDs;
   struct timeval timeout;
-  int n_changes;
+  int eventsNumber;
 
-  FD_ZERO( &read_fds );
-  FD_SET( connection->sockfd, &read_fds );
+  FD_ZERO( &readFDs );
+  FD_SET( connection->socketFD, &readFDs );
 
   timeout.tv_sec = milisseconds / 1000;
   timeout.tv_usec =  1000 * ( milisseconds % 1000 );
   
-  n_changes = select( connection->sockfd + 1, &read_fds, NULL, NULL, &timeout );
-  if( n_changes == SOCKET_ERROR )
+  eventsNumber = select( connection->socketFD + 1, &readFDs, NULL, NULL, &timeout );
+  if( eventsNumber == SOCKET_ERROR )
   {
-    print_socket_error( "wait_message: select: error waiting for message" );
+    ERROR_EVENT( "select: error waiting for message on socket %d", connection->socketFD );
     return -1;
   }
-  else if( n_changes == 0 )
+  else if( eventsNumber == 0 )
     return 0;
   
-  if( FD_ISSET( connection->sockfd, &read_fds ) )
+  if( FD_ISSET( connection->socketFD, &readFDs ) )
     return 1;
   else
     return 0;
 }
 
 // Try to receive incoming message from the given TCP client connection and store it on its buffer
-static char* receive_tcp_message( Connection* connection )
+static char* ReceiveTCPMessage( IPConnection* connection )
 {
   int bytes_received;
   
-  memset( connection->buffer, 0, BUFFER_SIZE );
+  memset( connection->buffer, 0, IP_CONNECTION_MSG_LEN );
   // Blocks until there is something to be read in the socket
-  bytes_received = recv( connection->sockfd, connection->buffer, BUFFER_SIZE, 0 );
+  bytes_received = recv( connection->socketFD, connection->buffer, IP_CONNECTION_MSG_LEN, 0 );
 
   if( bytes_received == SOCKET_ERROR )
   {
-    print_socket_error( "receive_tcp_message: recv: error reading from socket" );
+    ERROR_EVENT( "recv: error reading from socket %d", connection->socketFD );
     return NULL;
   }
   else if( bytes_received == 0 )
   {
-    fprintf( stderr, "receive_tcp_message: recv: remote connection closed\n" );
+    ERROR_EVENT( "recv: remote connection with socket %d closed", connection->socketFD );
     return NULL;
   }
   
-  #ifdef DEBUG_2
-  printf( "receive_tcp_message: socket %d received message: %s\n", connection->sockfd, connection->buffer );
-  #endif
+  DEBUG_UPDATE( "socket %d received message: %s", connection->socketFD, connection->buffer );
   
   return connection->buffer;
 }
 
 // Send given message through the given TCP connection
-static int send_tcp_message( Connection* connection, const char* message )
+static int SendTCPMessage( IPConnection* connection, const char* message )
 {
-  if( strlen( message ) + 1 > BUFFER_SIZE )
+  if( strlen( message ) + 1 > IP_CONNECTION_MSG_LEN )
   {
-    fprintf( stderr, "send_tcp_message: message too long !\n" );
+    ERROR_EVENT( "message too long (%u bytes) !", strlen( message ) );
     return 0;
   }
   
-  if( send( connection->sockfd, message, BUFFER_SIZE, 0 ) == SOCKET_ERROR )
+  DEBUG_UPDATE( "connection socket %d sending message: %s\n", connection->socketFD, message );
+  
+  if( send( connection->socketFD, message, IP_CONNECTION_MSG_LEN, 0 ) == SOCKET_ERROR )
   {
-    print_socket_error( "send_tcp_message: send: error writing to socket" );
+    ERROR_EVENT( "send: error writing to socket %d", connection->socketFD );
     return -1;
   }
   
@@ -536,33 +494,31 @@ static int send_tcp_message( Connection* connection, const char* message )
 }
 
 // Try to receive incoming message from the given UDP client connection and store it on its buffer
-static char* receive_udp_message( Connection* connection )
+static char* ReceiveUDPMessage( IPConnection* connection )
 {
   struct sockaddr_in6 address;
   socklen_t addr_len = sizeof(struct sockaddr_storage);
-  static uint8_t* address_string[2];
+  static uint8_t* addressString[ 2 ];
   static char* empty_message = { '\0' };
 
-  memset( connection->buffer, 0, BUFFER_SIZE );
+  memset( connection->buffer, 0, IP_CONNECTION_MSG_LEN );
   // Blocks until there is something to be read in the socket
-  if( recvfrom( connection->sockfd, connection->buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &address, &addr_len ) == SOCKET_ERROR )
+  if( recvfrom( connection->socketFD, connection->buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &address, &addr_len ) == SOCKET_ERROR )
   {
-    print_socket_error( "receive_udp_message: recvfrom: error reading from socket" );
+    ERROR_EVENT( "recvfrom: error reading from socket %d", connection->socketFD );
     return NULL;
   }
 
   // Verify if incoming message is destined to this connection (and returns the message if it is)
   if( connection->address->sin6_port == address.sin6_port )
   {
-    address_string[0] = connection->address->sin6_addr.s6_addr;
-    address_string[1] = address.sin6_addr.s6_addr;
-    if( strncmp( (const char*) address_string[0], (const char*) address_string[1], sizeof(struct in6_addr) ) == 0 )
+    addressString[0] = connection->address->sin6_addr.s6_addr;
+    addressString[1] = address.sin6_addr.s6_addr;
+    if( strncmp( (const char*) addressString[ 0 ], (const char*) addressString[ 1 ], sizeof(struct in6_addr) ) == 0 )
     {
-      recv( connection->sockfd, NULL, 0, 0 );
+      recv( connection->socketFD, NULL, 0, 0 );
     
-      #ifdef DEBUG_2
-      printf( "receive_udp_message: socket %d received right message: %s\n", connection->sockfd, connection->buffer );
-      #endif
+      DEBUG_UPDATE( "socket %d received right message: %s", connection->socketFD, connection->buffer );
     
       return connection->buffer;
     }
@@ -573,21 +529,19 @@ static char* receive_udp_message( Connection* connection )
 }
 
 // Send given message through the given UDP connection
-static int send_udp_message( Connection* connection, const char* message )
+static int SendUDPMessage( IPConnection* connection, const char* message )
 {
-  if( strlen( message ) + 1 > BUFFER_SIZE )
+  if( strlen( message ) + 1 > IP_CONNECTION_MSG_LEN )
   {
-    fprintf( stderr, "send_udp_message: message too long !\n" );
+    ERROR_EVENT( "message too long (%u bytes) !", strlen( message ) );
     return 0;
   }
   
-  #ifdef DEBUG_2
-  printf( "send_udp_message: connection socket %d sending message: %s\n", connection->sockfd, message );
-  #endif
+  DEBUG_UPDATE( "connection socket %d sending message: %s\n", connection->socketFD, message );
   
-  if( sendto( connection->sockfd, message, BUFFER_SIZE, 0, (struct sockaddr *) connection->address, sizeof(struct sockaddr_in6) ) == SOCKET_ERROR )
+  if( sendto( connection->socketFD, message, IP_CONNECTION_MSG_LEN, 0, (struct sockaddr *) connection->address, sizeof(struct sockaddr_in6) ) == SOCKET_ERROR )
   {
-    print_socket_error( "send_udp_message: sendto: error writing to socket" );
+    ERROR_EVENT( "sendto: error writing to socket %d", connection->socketFD );
     return -1;
   }
   
@@ -595,16 +549,16 @@ static int send_udp_message( Connection* connection, const char* message )
 }
 
 // Send given message to all the clients of the given server connection
-static int send_message_all( Connection* connection, const char* message )
+static int SendMessageAll( IPConnection* connection, const char* message )
 {
-  static size_t client_id = 0, n_clients;
-  n_clients = *(connection->ref_connections_count);
-  while( client_id < n_clients )
+  static size_t clientIndex = 0, clientsNumber;
+    clientsNumber = *(connection->ref_clientsCount);
+  while( clientIndex < clientsNumber )
   {
-    if( connection->client_list[ client_id ] != NULL )
+    if( connection->clientsList[ clientIndex ] != NULL )
     {
-      send_message( connection->client_list[ client_id ], message );
-      client_id++;
+      IPConnection_SendMessage( connection->clientsList[ clientIndex ], message );
+      clientIndex++;
     }
   }
   
@@ -612,79 +566,70 @@ static int send_message_all( Connection* connection, const char* message )
 }
 
 // Waits for a remote connection to be added to the client list of the given TCP server connection
-static Connection* accept_tcp_client( Connection* server )
+static IPConnection* AcceptTCPClient( IPConnection* server )
 {
-  Connection* client;
-  int client_sockfd;
-  static struct sockaddr_storage client_address;
-  static socklen_t addr_len = sizeof(client_address);
+  IPConnection* client;
+  int clientSocketFD;
+  static struct sockaddr_storage clientAddress;
+  static socklen_t addr_len = sizeof(clientAddress);
   
-  client_sockfd = accept( server->sockfd, (struct sockaddr *) &client_address, &addr_len );
+  clientSocketFD = accept( server->socketFD, (struct sockaddr *) &clientAddress, &addr_len );
 
-  if( client_sockfd == INVALID_SOCKET )
+  if( clientSocketFD == INVALID_SOCKET )
   {
-    print_socket_error( "accept_tcp_client: accept: error accepting connection" );
+    ERROR_EVENT( "accept: failed accepting connection on socket %d", server->socketFD );
     return NULL;
   }
   
-  #ifdef DEBUG_1
-  printf( "accept_tcp_client: client accepted: socket fd: %d\n", client_sockfd );
-  #endif
+  DEBUG_EVENT( "client accepted: socket fd: %d\n", clientSocketFD );
   
-  client =  add_connection( client_sockfd, (struct sockaddr *) &client_address, CLIENT | TCP );
+  client =  AddConnection( clientSocketFD, (struct sockaddr *) &clientAddress, CLIENT | TCP );
 
-  add_client( server, client );
+  AddClient( server, client );
 
   return client;
 }
 
 // Waits for a remote connection to be added to the client list of the given UDP server connection
-static Connection* accept_udp_client( Connection* server )
+static IPConnection* AcceptUDPClient( IPConnection* server )
 {
-  size_t client_id, n_clients;
-  Connection* client;
-  static struct sockaddr_storage client_address;
-  static socklen_t addr_len = sizeof(client_address);
-  static char buffer[ BUFFER_SIZE ];
-  static uint8_t* address_string[2];
-  static Connection dummy_connection;
+  size_t clientIndex, clientsNumber;
+  IPConnection* client;
+  static struct sockaddr_storage clientAddress;
+  static socklen_t addr_len = sizeof(clientAddress);
+  static char buffer[ IP_CONNECTION_MSG_LEN ];
+  static uint8_t* addressString[2];
+  static IPConnection dummy_connection;
   int bytes_received;
 
-  if( recvfrom( server->sockfd, buffer, BUFFER_SIZE, MSG_PEEK, (struct sockaddr *) &client_address, &addr_len ) == SOCKET_ERROR )
+  if( recvfrom( server->socketFD, buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &clientAddress, &addr_len ) == SOCKET_ERROR )
   {
-    print_socket_error( "accept_udp_client: recvfrom: error reading from socket" );
+    ERROR_EVENT( "recvfrom: error reading from socket %d", server->socketFD );
     return NULL;
   }
   
   // Verify if incoming message belongs to unregistered client (returns default value if not)
-  n_clients = *(server->ref_connections_count);
-  for( client_id = 0; client_id < n_clients; client_id++ )
+  clientsNumber = *(server->ref_clientsCount);
+  for( clientIndex = 0; clientIndex < clientsNumber; clientIndex++ )
   {
-    #ifdef DEBUG_2
-    printf( "accept_udp_client: comparing ports: %u - %u\n", server->client_list[ client_id ]->address->sin6_port, ((struct sockaddr_in6*) &client_address)->sin6_port );
-    #endif
-    if( server->client_list[ client_id ]->address->sin6_port == ((struct sockaddr_in6*) &client_address)->sin6_port )
+    DEBUG_UPDATE( "comparing ports: %u - %u", server->clientsList[ clientIndex ]->address->sin6_port, ((struct sockaddr_in6*) &clientAddress)->sin6_port );
+    
+    if( server->clientsList[ clientIndex ]->address->sin6_port == ((struct sockaddr_in6*) &clientAddress)->sin6_port )
     {
-      address_string[0] = server->client_list[ client_id ]->address->sin6_addr.s6_addr;
-      address_string[1] = ((struct sockaddr_in6*) &client_address)->sin6_addr.s6_addr;
-      if( strncmp( (const char*) address_string[0], (const char*) address_string[1], sizeof(struct in6_addr) ) == 0 )
+      addressString[0] = server->clientsList[ clientIndex ]->address->sin6_addr.s6_addr;
+      addressString[1] = ((struct sockaddr_in6*) &clientAddress)->sin6_addr.s6_addr;
+      if( strncmp( (const char*) addressString[0], (const char*) addressString[1], sizeof(struct in6_addr) ) == 0 )
         return &dummy_connection;
     }
   }
   
-  #ifdef DEBUG_1
-  printf( "accept_udp_client: client accepted\n" );
+  DEBUG_EVENT( "client accepted (clients count before: %u)", *(server->ref_clientsCount) );
   
-  printf( "\tdatagram clients before: %u\n", *(server->ref_connections_count) );
-  #endif
-  
-  client = add_connection( server->sockfd, (struct sockaddr*) &client_address, CLIENT | UDP );
+  client = AddConnection( server->socketFD, (struct sockaddr*) &clientAddress, CLIENT | UDP );
 
-  add_client( server, client );
+  AddClient( server, client );
   
-  #ifdef DEBUG_1
-  printf( "\tdatagram clients after: %u\n",  *(server->ref_connections_count) );
-  #endif
+  DEBUG_EVENT( "client accepted (clients count after: %u)", *(server->ref_clientsCount) );
   
   return client;
 }
@@ -695,63 +640,59 @@ static Connection* accept_udp_client( Connection* server )
 //////////////////////////////////////////////////////////////////////////////////
 
 // Handle proper destruction of any given connection type
-void close_connection( Connection* connection )
+void IPConnection_Close( IPConnection* connection )
 {
   if( connection != NULL )
   {
-    #ifdef DEBUG_1
-    printf( "close_connection: closing connection for socket %d\n", connection->sockfd );
-    printf( "close_connection: connection users count: %u\n", *(connection->ref_connections_count) );
-    #endif
+    DEBUG_EVENT( "closing connection for socket %d (users count before: %u)", connection->socketFD, *(connection->ref_clientsCount) );
 
     // Each TCP connection has its own socket, so we can close it without problem. But UDP connections
     // from the same server share the socket, so we need to wait for all of them to be stopped to close the socket
-    if( (connection->type & PROTOCOL_MASK) == TCP )
+    if( connection->protocol == TCP )
     {
-      #ifdef DEBUG_1
-      printf( "close_connection: closing TCP connection unused socket fd: %d\n", connection->sockfd );
-      #endif
-      FD_CLR( connection->sockfd, &socket_read_fds );
-      shutdown( connection->sockfd, SHUT_RDWR );
+      DEBUG_UPDATE( "closing TCP connection unused socket fd: %d", connection->socketFD );
+      FD_CLR( connection->socketFD, &socketReadFDs );
+      shutdown( connection->socketFD, SHUT_RDWR );
     }
     // Check number of client connections of a server (also of sharers of a socket for UDP connections)
-    if( *(connection->ref_connections_count) <= 0 )
+    if( *(connection->ref_clientsCount) <= 0 )
     {
-      if( (connection->type & PROTOCOL_MASK) == UDP )
+      if( connection->protocol == UDP )
       {
-        #ifdef DEBUG_1
-        printf( "close_connection: closing UDP connection unused socket fd: %d\n", connection->sockfd );
-        #endif
-        FD_CLR( connection->sockfd, &socket_read_fds );
-        close( connection->sockfd );
+        DEBUG_UPDATE( "closing UDP connection unused socket fd: %d", connection->socketFD );
+        
+        FD_CLR( connection->socketFD, &socketReadFDs );
+        close( connection->socketFD );
       }
-      free( connection->ref_connections_count );
+      free( connection->ref_clientsCount );
+      connection->ref_clientsCount = NULL;
     }
     else
-      (*(connection->ref_connections_count))--;
+      (*(connection->ref_clientsCount))--;
   
     free( connection->address );
     connection->address = NULL;
   
-    if( (connection->type & NETWORK_ROLE_MASK) == CLIENT )
+    if( connection->networkRole == CLIENT )
     {
-      #ifdef DEBUG_1
-      printf( "close_connection: freeing client connection message buffer\n" );
-      #endif
+      DEBUG_UPDATE( "freeing client connection (socket %d) message buffer", connection->socketFD );
+
       free( connection->buffer );
       connection->buffer = NULL;
     }
-    else if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
+    else if( connection->networkRole == SERVER )
     {
-      #ifdef DEBUG_1
-      printf( "close_connection: cleaning server connection client list\n" );
-      #endif
-      if( connection->client_list != NULL )
+      DEBUG_UPDATE( "cleaning server connection (socket %d) client list", connection->socketFD );
+      
+      if( connection->clientsList != NULL )
       {
-        free( connection->client_list );
-        connection->client_list = NULL;
+        free( connection->clientsList );
+        connection->clientsList = NULL;
       }
     }
+  
+    DEBUG_EVENT( "closing connection for socket %d (users count after: %u)", connection->socketFD, 
+                                                   ( connection->ref_clientsCount == NULL ) ? 0 : *(connection->ref_clientsCount) );
   
     free( connection );
     connection = NULL;
@@ -760,8 +701,4 @@ void close_connection( Connection* connection )
   return;
 }
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* CONNECT_H */
+#endif /* IP_CONNECTION_H */

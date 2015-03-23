@@ -30,31 +30,35 @@
 
 #ifdef SIMPLE_DEBUG || DEEP_DEBUG
 
-  const size_t DEBUG_MESSAGE_SIZE = 256;
+  const size_t DEBUG_MESSAGE_LENGTH = 256;
   const size_t MAX_DEBUG_MESSAGES = 1000;
   
-  typedef char DebugMessage[ DEBUG_MESSAGE_SIZE ];
+  typedef char DebugMessage[ DEBUG_MESSAGE_LENGTH ];
 
-  DebugMessage debugMessages[ MAX_DEBUG_MESSAGES ];
-  size_t debugMessagesCount = 0;
+  static DebugMessage debugMessages[ MAX_DEBUG_MESSAGES ];
+  static size_t debugMessagesCount = 0;
 
-  short messageUpdate = -1;
+  static short messageUpdate = -1;
 
-  size_t SearchDebugMessage( const char* event, const char* source )
+  static INLINE size_t AsyncDebug_SearchMessage( const char* source, const char* event )
   {
     size_t index;
     for( index = 0; index < debugMessagesCount; index++ )
     {
-      if( strstr( debugMessages[ index ], event ) != NULL 
-      && strstr( debugMessages[ index ], source ) != NULL )
-        break;
+      if( strstr( debugMessages[ index ], source ) != NULL )
+      {
+        if( strstr( debugMessages[ index ], event ) != NULL )
+          break;
+      }
     }
   
     return index;
   }
 
-  static void* PrintDebugMessages( void* args )
+  static void* AsyncDebug_Print( void* args )
   {
+    int lastUpdateTime = get_exec_time_seconds();
+    
     while( messageUpdate != -1 )
     {
       if( messageUpdate == 1 )
@@ -68,7 +72,12 @@
           puts( debugMessages[ i ] );
 
         messageUpdate = 0;
+        
+        lastUpdateTime = get_exec_time_seconds();
       }
+      
+      if( get_exec_time_seconds() - lastUpdateTime > 5 )
+        messageUpdate = -1;
     
       delay( 100 );
     }
@@ -77,42 +86,43 @@
     return 0;
   }
 
-  extern inline void InitDebug() 
-  { 
-    messageUpdate = 0; 
-    thread_start( PrintDebugMessages, NULL, DETACHED ); 
-  }
-
-  extern inline void EndDebug()
+  void AsyncDebug_SetEvent( const char* source, const char* event, const char* format, ... )
   {
-    messageUpdate = -1;
+    static va_list printArgs;
+    static char debugMessageFormat[ DEBUG_MESSAGE_LENGTH ];
+    
+    va_start( printArgs, format );
+    
+    if( messageUpdate == -1 )
+    {
+      messageUpdate = 0; 
+      thread_start( AsyncDebug_Print, NULL, DETACHED );
+    }
+    
+    if( debugMessagesCount < MAX_DEBUG_MESSAGES ) 
+    { 
+      size_t debugMessageIndex = AsyncDebug_SearchMessage( source, event );
+      if( debugMessageIndex == debugMessagesCount ) debugMessagesCount++;
+      if( snprintf( debugMessageFormat, DEBUG_MESSAGE_LENGTH, "%s: %s: %s", event, source, format ) > 0 )
+      {
+        vsnprintf( debugMessages[ debugMessageIndex ], DEBUG_MESSAGE_LENGTH, debugMessageFormat, printArgs ); 
+        messageUpdate = 1;
+      }
+    }
+    
+    va_end( printArgs );
   }
 
-  #define DEBUG_INIT InitDebug()
-  #define DEBUG_END EndDebug()
-
-  #define ASYNC_DEBUG_PRINT( event, format, ... ) \
-    do { \
-      if( debugMessagesCount < MAX_DEBUG_MESSAGES ) { \
-        size_t debugMessageIndex = SearchDebugMessage( event, __func__ ); \
-        if( debugMessageIndex == debugMessagesCount ) debugMessagesCount++; \
-          sprintf( debugMessages[ debugMessageIndex ], "%s: " event ": " format, __func__, __VA_ARGS__ ); \ 
-        messageUpdate = 1; \
-      } \
-    } while( 0 )
-
-  #define DEBUG_EVENT( format, ... ) ASYNC_DEBUG_PRINT( "event", format, __VA_ARGS__ )
-  #define ERROR_EVENT( format, ... ) ASYNC_DEBUG_PRINT( "error", format, __VA_ARGS__ ) 
+  #define DEBUG_EVENT( format, ... ) AsyncDebug_SetEvent( __func__, "event", format, __VA_ARGS__ )
+  #define ERROR_EVENT( format, ... ) AsyncDebug_SetEvent( __func__, "error", format ": %s", __VA_ARGS__, strerror( errno ) ) 
 
 #else
-  #define DEBUG_INIT NO_CODE
-  #define DEBUG_END NO_CODE
   #define DEBUG_EVENT( format, ... ) NO_CODE
   #define ERROR_EVENT( format, ... ) NO_CODE
 #endif
 
 #ifdef DEEP_DEBUG
-  #define DEBUG_UPDATE( format, ... ) ASYNC_DEBUG_PRINT( "update", format, __VA_ARGS__ )
+  #define DEBUG_UPDATE( format, ... ) AsyncDebug_SetEvent( __func__, "update", format, __VA_ARGS__ )
 #else
   #define DEBUG_UPDATE( format, ... ) NO_CODE
 #endif

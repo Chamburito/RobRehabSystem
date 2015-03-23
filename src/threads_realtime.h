@@ -133,42 +133,47 @@ extern inline void thread_lock_release( CmtThreadLockHandle lock ) { CmtReleaseL
 
 typedef CmtTSQHandle Semaphore;
 
-extern inline void semaphore_increment( Semaphore );
+extern inline void Semaphore_Increment( Semaphore );
 
-Semaphore semaphore_create( size_t start_count, size_t max_count )
+Semaphore* Semaphore_Create( size_t start_count, size_t max_count )
 {
-  Semaphore sem;
+  CmtTSQHandle* sem = (CmtTSQHandle*) malloc( sizeof(CmtTSQHandle) );
   
   CmtNewTSQ( (int) max_count, sizeof(uint8_t), 0, &sem );
   
   for( size_t i = 0; i < start_count; i++ )
-    semaphore_increment( sem );
+    Semaphore_Increment( sem );
   
   return sem;
 }
 
-extern inline void semaphore_discard( Semaphore sem )
+extern inline void Semaphore_Discard( Semaphore* sem )
 {
-  CmtDiscardTSQ( sem );
+  CmtDiscardTSQ( *sem );
 }
 
-extern inline void semaphore_increment( Semaphore sem )
+extern inline void Semaphore_Increment( Semaphore* sem )
 {
   static uint8_t signal = 1;
   
-  CmtWriteTSQData( sem, &signal, 1, TSQ_INFINITE_TIMEOUT, NULL );  
+  CmtWriteTSQData( *sem, &signal, 1, TSQ_INFINITE_TIMEOUT, NULL );  
 }
 
-extern inline void semaphore_decrement( Semaphore sem )
+extern inline void Semaphore_Decrement( Semaphore* sem )
 {
   static uint8_t signal;
   
-  CmtReadTSQData( sem, &signal, 1, TSQ_INFINITE_TIMEOUT, 0 );
+  CmtReadTSQData( *sem, &signal, 1, TSQ_INFINITE_TIMEOUT, 0 );
 }
 
+#endif /* THREADS_H */
+
+
+#ifndef THREADS_DATA_QUEUE_H
+#define THREADS_DATA_QUEUE_H
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                     THREAD SAFE QUEUE										                    /////
+/////                                     THREAD SAFE QUEUE                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef CmtTSQHandle Data_Queue;
@@ -211,4 +216,4 @@ extern inline void data_queue_write( Data_Queue* queue, void* buffer, uint8_t re
   CmtWriteTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, NULL );
 }
 
-#endif /* THREADS_H */ 
+#endif /* THREADS_DATA_QUEUE_H */ 

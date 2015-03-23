@@ -11,76 +11,85 @@ extern "C"{
 #endif
 
 #include "connection.h"
-#include "debug.h"
-
-#ifdef WIN32
-  #include "timing_windows.h"
-  #include "threads_windows.h"
-#else
-  #include "timing_unix.h"
-  #include "threads_unix.h"
-#endif
+#include "debug.h"  
+#include "threads_data_queue.h"
 
   
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      DATA STRUCTURES                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   
-const size_t MAX_MESSAGES = 10;
-const unsigned int BASE_WAIT_TIME = 1;
+const size_t QUEUE_MAX_ITEMS = 10;
   
-// Structure that stores read and write message queues for a Connection struct used asyncronously
-typedef struct _Async_Connection
+// Structure that stores read and write message queues for a IPConnection struct used asyncronously
+typedef struct _AsyncIPConnection
 {
-  Connection* connection;
-  Data_Queue* read_queue, write_queue;
-  Thread_Handle read_thread, write_thread;
-  char address[ ADDRESS_LENGTH ];
+  IPConnection* baseConnection;
+  DataQueue* readQueue, writeQueue;
+  Thread_Handle readThread, writeThread;
+  char address[ IP_ADDRESS_LENGTH ];
 }
-Async_Connection;
+AsyncIPConnection;
 
 // Internal (private) list of asyncronous connections created (accessible only by index)
-static Async_Connection** buffer_list = NULL;
-static size_t n_connections = 0;
+static AsyncIPConnection** globalConnectionsList = NULL;
+static size_t globalConnectionsListSize = 0;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      INFORMATION UTILITIES                                      /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Returns the number of asyncronous connections created (method for encapsulation purposes)
-size_t async_connections_get_count()
+// Verifies if connection index is valid or not already closed
+static INLINE bool IsValidConnectionIndex( int connectionIndex )
 {
-  return n_connections;
+  if( connectionIndex < 0 || connectionIndex >= (int) globalConnectionsListSize )
+  {
+    ERROR_EVENT( "invalid connection index: %d", connectionIndex );
+    return false;
+  }
+  
+  if( globalConnectionsList[ connectionIndex ] == NULL )
+  {
+    ERROR_EVENT( "connection index %d already closed", connectionIndex );
+    return false;
+  }
+  
+  return true;
+}
+
+// Returns the number of asyncronous connections created (method for encapsulation purposes)
+size_t AsyncIPConnection_GetActivesNumber()
+{
+  static size_t activeConnectionsNumber = 0;
+  
+  for( size_t connectionIndex = 0; connectionIndex < globalConnectionsListSize; connectionIndex++ )
+  {
+    if( globalConnectionsList[ connectionIndex ] != NULL ) activeConnectionsNumber++;
+  }
+  
+  return activeConnectionsNumber;
 }
 
 // Returns number of clients for the server connection of given index
-size_t async_connection_get_clients_count( int server_id )
+size_t AsyncIPConnection_GetClientsNumber( int serverIndex )
 {
-  if( server_id < 0 || server_id >= (int) n_connections )
-  {
-    ERROR_EVENT( "invalid connection index: %d\n", server_id );
-    return 0;
-  }
+  if( !IsValidConnectionIndex( serverIndex ) ) return 0;
   
-  if( !(buffer_list[ server_id ]->connection->type & SERVER) )
+  if( globalConnectionsList[ serverIndex ]->baseConnection->networkRole != SERVER )
   {
-    ERROR_EVENT( "not a server connection index: %d\n", server_id );
+    ERROR_EVENT( "not a server connection index: %d", serverIndex );
     return 0;
   }
 
-  return connections_count( buffer_list[ server_id ]->connection );
+  return IPConnection_GetClientsNumber( globalConnectionsList[ serverIndex ]->baseConnection );
 }
 
 // Returns address string (host and port) for the connection of given index
-char* async_connection_get_address( int connection_id )
+extern INLINE char* AsyncIPConnection_GetAddress( int connectionIndex )
 {
-  if( connection_id < 0 || connection_id >= (int) n_connections )
-  {
-    ERROR_EVENT( "invalid connection index: %d\n", connection_id );
-    return NULL;
-  }
+  if( !IsValidConnectionIndex( connectionIndex ) ) return NULL;
   
-  return buffer_list[ connection_id ]->address;
+  return globalConnectionsList[ connectionIndex ]->address;
 }
 
 
@@ -89,80 +98,60 @@ char* async_connection_get_address( int connection_id )
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Forward definition
-static void* async_read_queue( void* );
-static void* async_write_queue( void* );
-static void* async_accept_clients( void* );
+static void* AsyncReadQueue( void* );
+static void* AsyncWriteQueue( void* );
+static void* AsyncAcceptClients( void* );
 
-// Create new Async_Connection structure (from a given Connection structure) and add it to the internal list
-static int add_async_connection( Connection* connection )
+// Create new AsyncIPConnection structure (from a given IPConnection structure) and add it to the internal list
+static int AddAsyncConnection( IPConnection* baseConnection )
 {
-  static Async_Connection* connection_buffer;
-  static char* address_string;
+  static AsyncIPConnection* connection;
+  static char* addressString;
   
-  DEBUG_EVENT( "socket index: %d\n", connection->sockfd );
+  DEBUG_EVENT( "socket index: %d",  baseConnection->socketFD );
   
-  buffer_list = (Async_Connection**) realloc( buffer_list, ( n_connections + 1 ) * sizeof(Async_Connection*) );
-  buffer_list[ n_connections ] = (Async_Connection*) malloc( sizeof(Async_Connection) );
+  globalConnectionsList = (AsyncIPConnection**) realloc( globalConnectionsList, ( globalConnectionsListSize + 1 ) * sizeof(AsyncIPConnection*) );
+  globalConnectionsList[ globalConnectionsListSize ] = (AsyncIPConnection*) malloc( sizeof(AsyncIPConnection) );
   
-  connection_buffer = buffer_list[ n_connections ];
+  connection = globalConnectionsList[ globalConnectionsListSize ];
   
-  connection_buffer->connection = connection;
+  connection->baseConnection = baseConnection;
   
-  address_string = get_address( connection );
-  strcpy( &(connection_buffer->address[ HOST ]), &address_string[ HOST ] );
-  strcpy( &(connection_buffer->address[ PORT ]), &address_string[ PORT ] );
+  addressString = AsyncIPConnection_GetAddress( baseConnection );
+  strcpy( &(connection->address[ IP_HOST ]), &addressString[ IP_HOST ] );
+  strcpy( &(connection->address[ IP_PORT ]), &addressString[ IP_PORT ] );
   
-  if( (connection->type & NETWORK_ROLE_MASK) == CLIENT )
+  if( baseConnection->networkRole == CLIENT )
   {
-    connection_buffer->read_queue = data_queue_init( MAX_MESSAGES, BUFFER_SIZE );  
-    connection_buffer->read_thread = thread_start( async_read_queue, (void*) connection_buffer, JOINABLE );
+    connection->readQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );  
+    connection->readThread = Thread_Start( AsyncReadQueue, (void*) connection, JOINABLE );
   }
-  else if( (connection->type & NETWORK_ROLE_MASK) == SERVER )
+  else if( baseConnection->networkRole == SERVER )
   {
-    connection_buffer->read_queue = data_queue_init( MAX_MESSAGES, sizeof(int) );
-    connection_buffer->read_thread = thread_start( async_accept_clients, (void*) connection_buffer, JOINABLE );
+    connection->readQueue = DataQueue_Init( QUEUE_MAX_ITEMS, sizeof(int) );
+    connection->readThread = Thread_Start( AsyncAcceptClients, (void*) connection, JOINABLE );
   }
 
-  connection_buffer->write_queue = data_queue_init( MAX_MESSAGES, BUFFER_SIZE );
-  connection_buffer->write_thread = thread_start( async_write_queue, (void*) connection_buffer, JOINABLE );
+  connection->writeQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );
+  connection->writeThread = Thread_Start( AsyncWriteQueue, (void*) connection, JOINABLE );
   
-  DEBUG_EVENT( "last connection index: %d - socket fd: %d\n", n_connections, connection->sockfd );
+  DEBUG_EVENT( "last connection index: %d - socket fd: %d", globalConnectionsListSize,  baseConnection->socketFD );
   
-  return n_connections++;
+  return globalConnectionsListSize++;
 }
 
-// Creates a new Connection structure (from the defined properties) and add it to the asyncronous connection list
-int async_connection_open( const char* host, const char* port, int protocol )
+// Creates a new IPConnection structure (from the defined properties) and add it to the asyncronous connection list
+int AsyncIPConnection_Open( const char* host, const char* port, int protocol )
 {
-  Connection* connection = open_connection( host, port, protocol );
-  if( connection == NULL )
+  IPConnection* baseConnection = IPConnection_Open( host, port, protocol );
+  if( baseConnection == NULL )
   {
     ERROR_EVENT( "failed to create %s %s connection on port %s", ( protocol == TCP ) ? "TCP" : "UDP", 
                                                                  ( host == NULL ) ? "Server" : "Client", port );
     return -1;
   } 
   
-  return add_async_connection( connection );
-}
-
-// Add async connection client to the client list of the given index corresponding (if server) connection 
-int add_async_client( int server_id, const char* address, const char* port )
-{
-  Connection* server;
-  static int client_id;
-  static uint16_t type;
-  
-  if( server_id < 0 || server_id >= (int) n_connections )
-  {
-    fprintf( stderr, "add_async_client: invalid server connection index: %d\n", server_id );
-    return -1;
-  }
-  
-  server = buffer_list[ server_id ]->connection;
-  if( (client_id = async_connection_open( address, port, (server->type & PROTOCOL_MASK) | CLIENT )) > 0 )
-    add_client( server, buffer_list[ client_id ]->connection );
-  
-  return client_id;
+  return AddAsyncConnection( baseConnection );
 }
 
 
@@ -171,167 +160,146 @@ int add_async_client( int server_id, const char* address, const char* port )
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Loop of message reading (storing in queue) to be called asyncronously for client connections
-static void* async_read_queue( void* args )
+static void* AsyncReadQueue( void* args )
 {
-  Async_Connection* reader_buffer = (Async_Connection*) args;
-  Connection* reader = reader_buffer->connection;
-  Data_Queue* read_queue = reader_buffer->read_queue;
+  AsyncIPConnection* reader_buffer = (AsyncIPConnection*) args;
+  IPConnection* reader = reader_buffer->baseConnection;
+  DataQueue* readQueue = reader_buffer->readQueue;
   
-  char* last_message;
-  size_t message_count;
+  char* lastMessage;
   
-  DEBUG_EVENT( "connection socket %d caching available messages on thread %x\n", reader_buffer->connection->sockfd, THREAD_ID );
+  DEBUG_EVENT( "connection socket %d caching available messages on thread %x", reader_buffer-> baseConnection->socketFD, THREAD_ID );
   
   while( reader_buffer != NULL )
   {
-	  message_count = data_queue_count( read_queue );
-	
-	  DEBUG_UPDATE( "message list count: %u", message_count );
+    DEBUG_UPDATE( "message list count: %u", DataQueue_ItemCount( readQueue ) );
     
-    // Give CPU time to the other read/write threads based on how much of our queue is filled
-    //if( message_count > 0 ) delay( BASE_WAIT_TIME * message_count );
-    
-    if( reader_buffer->connection == NULL )
+    if( reader_buffer->baseConnection == NULL )
     {
-	    //DEBUG_EVENT( "connection closed" );
+      //DEBUG_EVENT( "connection closed" );
       break;
     }
     
-    // Do not proceed if queue is full
-    if( message_count >= MAX_DATA )
-    {
-	    DEBUG_UPDATE( "connection socket %d read cache full", reader_buffer->connection->sockfd );
-      continue;
-    }
+    if( DataQueue_ItemCount( readQueue ) >= QUEUE_MAX_ITEMS )
+      DEBUG_UPDATE( "connection socket %d read cache full", reader_buffer-> baseConnection->socketFD );
     
     // Blocking call
-    if( wait_message( reader, 2000 ) != 0 ) 
+    if( IPConnection_WaitEvent( reader, 2000 ) != 0 ) 
     {
-      DEBUG_UPDATE( "message available on client socket %d", reader->sockfd );
+      DEBUG_UPDATE( "message available on client socket %d", reader->socketFD );
       
-      if( (last_message = receive_message( reader )) != NULL )
+      if( (lastMessage = IPConnection_ReceiveMessage( reader )) != NULL )
       {
-        if( message_buffer[0] == '\0' ) continue;
+        if( lastMessage[0] == '\0' ) continue;
         
-    		DEBUG_UPDATE( "connection socket %d received message: %s", reader->sockfd, reader->buffer );
-		
-    		data_queue_write( read_queue, (void*) last_message, WAIT );
+        DEBUG_UPDATE( "connection socket %d received message: %s", reader->socketFD, reader->buffer );
+
+        DataQueue_Write( readQueue, (void*) lastMessage, WAIT );
       }
       else
         break;
     }
   }
   
-  thread_exit( 0 );
+  Thread_Exit( 0 );
   return NULL;
 }
 
 // Loop of message writing (removing in order from queue) to be called asyncronously
-static void* async_write_queue( void* args )
+static void* AsyncWriteQueue( void* args )
 {
-  Async_Connection* writer_buffer = (Async_Connection*) args;
-  Connection* writer = writer_buffer->connection;
-  Data_Queue* write_queue = writer_buffer->write_queue;
+  AsyncIPConnection* writer = (AsyncIPConnection*) args;
+  IPConnection* baseWriter = writer->baseConnection;
+  DataQueue* writeQueue = writer->writeQueue;
   
-  char first_message[ BUFFER_SIZE ];
-  size_t message_count;
+  char firstMessage[ IP_CONNECTION_MSG_LEN ];
 
-  DEBUG_EVENT( "connection socket %d sending messages in cache on thread %x\n", writer_buffer->connection->sockfd, THREAD_ID );
+  DEBUG_EVENT( "connection socket %d sending messages in cache on thread %x", writer-> baseConnection->socketFD, THREAD_ID );
   
-  while( writer_buffer != NULL )
+  while( writer != NULL )
   {
-  	message_count = data_queue_count( write_queue );
-	  
-  	DEBUG_UPDATE( "connection socket %d message count: %u", writer->sockfd, message_count );
+    DEBUG_UPDATE( "connection socket %d message count: %u", baseWriter->socketFD, DataQueue_ItemCount( writeQueue ) );
     
-    if( writer_buffer->connection == NULL )
+    if( writer->baseConnection == NULL )
     {
-	    //DEBUG_EVENT( "connection closed" );
+      //DEBUG_EVENT( "connection closed" );
       break;
     }
     
     // Do not proceed if queue is empty
-    if( message_count <= 0 )
-    {
-	    DEBUG_UPDATE( "connection socket %d write cache empty\n", writer_buffer->connection->sockfd );
-      delay( BASE_WAIT_TIME ); // Wait a little for messages to be sent
-      continue;
-    }
+    if( DataQueue_ItemCount( writeQueue ) <= 0 )
+      DEBUG_UPDATE( "connection socket %d write cache empty", writer->baseConnection->socketFD );
     
-	  data_queue_read( write_queue, (void*) first_message );
+    DataQueue_Read( writeQueue, (void*) firstMessage );
     
-	  DEBUG_UPDATE( "connection socket %d sending message: %s\n", writer->sockfd, message_buffer );
+    DEBUG_UPDATE( "connection socket %d sending message: %s", baseWriter->socketFD, firstMessage );
     
-    if( send_message( writer, first_message ) == -1 )
+    if( IPConnection_SendMessage( baseWriter, firstMessage ) == -1 )
       break;
   }
   
-  thread_exit( 1 );
+  Thread_Exit( 1 );
   return NULL;
 }
 
 // Loop of client accepting (storing in client list) to be called asyncronously for server connections
 // The message queue stores the index and address of the detected remote connection in string format
-static void* async_accept_clients( void* args )
+static void* AsyncAcceptClients( void* args )
 {  
-  Async_Connection* server_buffer = (Async_Connection*) args;
-  Connection* server = server_buffer->connection;
-  Connection* client;
-  Data_Queue* client_queue = server_buffer->read_queue;
+  AsyncIPConnection* server = (AsyncIPConnection*) args;
+  IPConnection* baseServer = server->baseConnection;
+  IPConnection* client;
+  DataQueue* clientQueue = server->readQueue;
 
-  int last_client;
-  size_t message_count;
+  int lastClient;
   
-  DEBUG_EVENT( "connection socket %d trying to add clients on thread %x\n", server_buffer->connection->sockfd, THREAD_ID );
+  DEBUG_EVENT( "connection socket %d trying to add clients on thread %x\n", server-> baseConnection->socketFD, THREAD_ID );
   
-  while( server_buffer != NULL ) 
+  while( server != NULL ) 
   {
-    message_count = data_queue_count( client_queue );
+    DEBUG_UPDATE( "client list count: %u", DataQueue_ItemCount( clientQueue ) );
     
-    // Give CPU time to the other read/write threads based on how much of our queue is filled
-    //if( message_count > 0 ) delay( BASE_WAIT_TIME * message_count );
-    
-    if( server_buffer->connection == NULL )
+    if( server->baseConnection == NULL )
     {
-      DEBUG_EVENT( "connection closed\n" ); 
+      //DEBUG_EVENT( "connection closed\n" ); 
       break;
     }
     
     // Do not proceed if queue is full
-    if( message_count >= MAX_DATA )
+    if( DataQueue_ItemCount( clientQueue ) >= QUEUE_MAX_ITEMS )
     {
-	    DEBUG_UPDATE( "connection socket %d read cache full\n", server_buffer->connection->sockfd );
+      DEBUG_UPDATE( "connection socket %d read cache full\n", server->baseConnection->socketFD );
       continue;
     }
     
     // Blocking call
-    if( wait_message( server, 5000 ) != 0 ) 
+    if( IPConnection_WaitEvent( baseServer, 5000 ) != 0 ) 
     {
-      DEBUG_UPDATE( "client available on server socket %d", server->sockfd );
+      DEBUG_UPDATE( "client available on server socket %d",  baseServer->socketFD );
       
-      if( (client = accept_client( server )) != NULL )
+      if( (client = IPConnection_AcceptClient( baseServer )) != NULL )
       {
-        if( client->sockfd == 0 ) continue;
+        if( client->socketFD == 0 ) continue;
         
-		    DEBUG_EVENT( "client accepted: socket: %d - type: %x\n\thost: %s - port: %s", 
-                     &( get_address( client ) )[ HOST ], &( get_address( client ) )[ PORT ], client->sockfd, client->type );
+        DEBUG_EVENT( "client accepted: socket: %d - type: %x\n\thost: %s - port: %s", &( AsyncIPConnection_GetAddress( client ) )[ IP_HOST ], 
+                     &( AsyncIPConnection_GetAddress( client ) )[ IP_PORT ], client->socketFD, (client->protocol | client->networkRole) );
         
-        last_client = n_connections;
+        lastClient = globalConnectionsListSize;
         
-        data_queue_write( client_queue, &last_client, WAIT );
+        DataQueue_Write( clientQueue, &lastClient, WAIT );
         
-		    DEBUG_UPDATE( "clients number before: %d\n", n_connections );
+        DEBUG_UPDATE( "clients number before: %d\n", globalConnectionsListSize );
         
-        add_async_connection( client );
+        AddAsyncConnection( client );
         
-		    DEBUG_UPDATE( "clients number after: %d\n", n_connections );
+        DEBUG_UPDATE( "clients number after: %d\n", globalConnectionsListSize );
       }
       else
         break;
     }
   }
   
-  thread_exit( 2 );
+  Thread_Exit( 2 );
   return NULL;
 }
 
@@ -342,89 +310,77 @@ static void* async_accept_clients( void* args )
 
 // Get (and remove) message from the beginning (oldest) of the given index corresponding read queue
 // Method to be called from the main thread
-char* async_connection_read_message( int connection_id )
+char* AsyncIPConnection_ReadMessage( int clientIndex )
 {
-  static Data_Queue* read_queue;
-  static char first_message[ BUFFER_SIZE ];
+  static DataQueue* readQueue;
+  static char firstMessage[ IP_CONNECTION_MSG_LEN ];
 
-  if( connection_id < 0 || connection_id >= (int) n_connections )
+  if( !IsValidConnectionIndex( clientIndex ) ) return NULL;
+  
+  if( globalConnectionsList[ clientIndex ]->baseConnection->networkRole != CLIENT )
   {
-    ERROR_EVENT( "invalid connection ID: %d", connection_id );
+    ERROR_EVENT( "connection index %d is not of a client connection", clientIndex );
     return NULL;
   }
   
-  if( (buffer_list[ connection_id ]->connection->type & NETWORK_ROLE_MASK) != CLIENT )
-  {
-    ERROR_EVENT( "connection ID %d is not a client connection ID", connection_id );
-	  return NULL;
-  }
+  readQueue = globalConnectionsList[ clientIndex ]->readQueue;
   
-  read_queue = buffer_list[ connection_id ]->read_queue;
-  
-  if( data_queue_count( read_queue ) <= 0 )
+  if( DataQueue_ItemCount( readQueue ) <= 0 )
   {
-	  DEBUG_UPDATE( "no messages available for connection ID %d", connection_id );
+    DEBUG_UPDATE( "no messages available for connection index %d", clientIndex );
     return NULL;
   }
   
-  data_queue_read( read_queue, first_message );
+  DataQueue_Read( readQueue, firstMessage );
   
-  DEBUG_UPDATE( "message from connection ID %d: %s", connection_id, first_message );  
+  DEBUG_UPDATE( "message from connection index %d: %s", clientIndex, firstMessage );  
   
-  return first_message;
+  return firstMessage;
 }
 
-int async_connection_write_message( int connection_id, const char* message )
+int AsyncIPConnection_WriteMessage( int connectionIndex, const char* message )
 {
-  static Data_Queue* write_queue;
+  static DataQueue* writeQueue;
   static char* last_message;
 
-  if( connection_id < 0 || connection_id >= (int) n_connections )
-  {
-    ERROR_EVENT( "invalid connection ID: %d", connection_id );
-    return -1;
-  }
+  if( !IsValidConnectionIndex( connectionIndex ) ) return -1;
   
-  write_queue = buffer_list[ connection_id ]->write_queue;
+  writeQueue = globalConnectionsList[ connectionIndex ]->writeQueue;
   
-  if( data_queue_count( write_queue ) >= MAX_DATA )
-	  DEBUG_UPDATE( "connection ID %d write queue is full", connection_id );
+  if( DataQueue_ItemCount( writeQueue ) >= QUEUE_MAX_ITEMS )
+    DEBUG_UPDATE( "connection index %d write queue is full", connectionIndex );
   
-  data_queue_write( write_queue, message, REPLACE );
+  DataQueue_Write( writeQueue, message, REPLACE );
   
   return 0;
 }
 
-int async_connection_get_client( int connection_id )
+int AsyncIPConnection_GetClient( int serverIndex )
 {
-  static Data_Queue* client_queue;
-  static int first_client;
+  static DataQueue* clientQueue;
+  static int firstClient;
 
-  if( connection_id < 0 || connection_id >= (int) n_connections )
+  if( !IsValidConnectionIndex( serverIndex ) ) return -1;
+  
+  if( globalConnectionsList[ serverIndex ]->baseConnection->networkRole != SERVER )
   {
-    ERROR_EVENT( "invalid connection ID: %d", connection_id );
+    ERROR_EVENT( "connection index %d is not a server index", serverIndex );
     return -1;
   }
   
-  if( (buffer_list[ connection_id ]->connection->type & NETWORK_ROLE_MASK) != SERVER )
-  {
-    ERROR_EVENT( "connection ID %d is not a server ID", connection_id );
-	  return -1;
-  }
+  clientQueue = globalConnectionsList[ serverIndex ]->readQueue;
   
-  client_queue = buffer_list[ connection_id ]->read_queue;
-  
-  if( data_queue_count( read_queue ) <= 0 )
+  if( DataQueue_ItemCount( clientQueue ) <= 0 )
   {
-	  DEBUG_UPDATE( "no new clients available for this connection: index %d", connection_id );
+    DEBUG_UPDATE( "no new clients available for connection index %d", serverIndex );
     return -1;
   }
   
-  data_queue_read( read_queue, &first_client );
+  DataQueue_Read( clientQueue, &firstClient );
   
-  DEBUG_UPDATE( "new client index from connection index %d: %d", connection_id, first_client );  
+  DEBUG_UPDATE( "new client index from connection index %d: %d", serverIndex, firstClient );  
   
-  return first_client; 
+  return firstClient; 
 }
 
 
@@ -433,51 +389,37 @@ int async_connection_get_client( int connection_id )
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Handle socket closing and structures destruction for the given index corresponding connection
-void async_connection_close( int connection_id )
+void AsyncIPConnection_Close( int connectionIndex )
 {
-  if( connection_id < 0 || connection_id >= (int) n_connections )
-  {
-    ERROR_EVENT( "invalid connection index: %d", connection_id );
-    return;
-  }
+  if( !IsValidConnectionIndex( connectionIndex ) ) return;
   
-  if( buffer_list[ connection_id ] != NULL )
+  IPConnection_Close( globalConnectionsList[ connectionIndex ]->baseConnection );
+  globalConnectionsList[ connectionIndex ]->baseConnection = NULL;
+  
+  DEBUG_EVENT( "waiting threads for connection id %u", connectionIndex );
+  
+  (void) Thread_WaitExit( globalConnectionsList[ connectionIndex ]->readThread, 5000 );
+  
+  DEBUG_EVENT( "read thread for connection id %u returned", connectionIndex );     
+  
+  (void) Thread_WaitExit( globalConnectionsList[ connectionIndex ]->writeThread, 5000 );
+  
+  DEBUG_EVENT( "write thread for connection id %u returned", connectionIndex ); 
+  
+  DataQueue_End( globalConnectionsList[ connectionIndex ]->readQueue );
+  DataQueue_End( globalConnectionsList[ connectionIndex ]->writeQueue );
+  
+  free( globalConnectionsList[ connectionIndex ] );
+  globalConnectionsList[ connectionIndex ] = NULL;
+  
+  if( AsyncIPConnection_GetActivesNumber() <= 0 )
   {
-    close_connection( buffer_list[ connection_id ]->connection );
-    buffer_list[ connection_id ]->connection = NULL;
-	
-	  DEBUG_EVENT( "waiting threads for connection id %u", connection_id );
-    
-    (void) thread_wait_exit( buffer_list[ connection_id ]->read_thread, 5000 );
-    
-    DEBUG_EVENT( "read thread for connection id %u returned", connection_id );     
-    
-    (void) thread_wait_exit( buffer_list[ connection_id ]->write_thread, 5000 );
-    
-	  DEBUG_EVENT( "write thread for connection id %u returned !", connection_id ); 
-    
-	  data_queue_end( buffer_list[ connection_id ]->read_queue );
-	  data_queue_end( buffer_list[ connection_id ]->write_queue );
-	
-    free( buffer_list[ connection_id ] );
-    buffer_list[ connection_id ] = NULL;
+    globalConnectionsListSize = 0;
+    free( globalConnectionsList );
+    globalConnectionsList = NULL;
   }
   
   return;
-}
-
-// Close all async connections created
-void async_connections_close_all()
-{
-  size_t connection_id;
-  for( connection_id = 0; connection_id < n_connections; connection_id++ )
-  {
-	  DEBUG_UPDATE( "closing connection id %u", connection_id );
-    
-    async_connection_close( connection_id );
-  }
-  
-  if( n_connections > 0 ) free( buffer_list );
 }
 
 #ifdef __cplusplus

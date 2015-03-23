@@ -7,6 +7,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 #ifdef _CVI_
   #define CLEAR_SCREEN Cls()
@@ -23,24 +25,12 @@
   #define INLINE inline        /* use standard inline */
 #endif
 
-const size_t DEBUG_MESSAGE_LENGTH = 256;
-
 #ifdef DEBUG
   #define DEBUG_PRINT( format, ... ) printf( "debug: %s: " format "\n", __func__, __VA_ARGS__ )
 #else
   #define DEBUG_PRINT( format, ... ) do { } while( 0 )
 #endif
 
-#define ERROR_PRINT( format, ... ) fprintf( stderr, "error: %s: " format "\n", __func__, __VA_ARGS__ )
-  
-extern INLINE void print_platform_error( const char* message )
-{
-  #ifdef _CVI_
-  #elif WIN32
-  fprintf( stderr, "%s: code: %d\n", message, GetLastError() );
-  #else
-  perror( message );
-  #endif
-}
+#define ERROR_PRINT( format, ... ) fprintf( stderr, "error: %s: " format ": %s\n", __func__, __VA_ARGS__, strerror( errno ) )
 
 #endif // DEBUG_H

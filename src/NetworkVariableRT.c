@@ -99,9 +99,7 @@ void CVIFUNC_C RTmain( void )
 	printf( "System process started !\n\n" );
   
   SleepUS( 1000000 );
-  
-  DEBUG_INIT;
-  
+
   int serverId = async_connection_open( NULL, "50000", TCP );
   DEBUG_EVENT( "Received server connection ID %d", serverId );
   //int clientId = async_connection_open( "169.254.118.91", "50000", UDP );
@@ -192,8 +190,6 @@ void CVIFUNC_C RTmain( void )
 	
   //async_connection_close( clientId );
   async_connection_close( serverId );
-  
-  DEBUG_END;
   
 	/*status = CNVDeleteVariable( PROCESS, AMPLITUDE_VARIABLE );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
