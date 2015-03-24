@@ -21,20 +21,20 @@ static Motor* motorList[ CONTROL_N_JOINTS ];           // EPOS active axes list
 static Encoder* sensorList[ CONTROL_N_JOINTS ];        // EPOS passive (measurement) axes list
 
 // Control algorhitms
-static void ankle_control( Motor*, Encoder* );
-static void knee_control( Motor*, Encoder* );
-static void hips_control( Motor*, Encoder* );
+static void AnkleControl( Motor* ankleActuator, Encoder* ankleSensor );
+static void KneeControl( Motor*, Encoder* );
+static void HipsControl( Motor* hipsActuator, Encoder* hipsSensor );
 
 typedef void (*ControlFunction)( Motor*, Encoder* ); // Use "async_function" type as "void (*)( Motor*, Encoder* )" type
 // Array of function pointers. Equivalent to void (*control_functions[ CONTROL_N_JOINTS ])( Motor*, Encoder* )
-static ControlFunction control_functions[ CONTROL_N_JOINTS ] = { ankle_control, knee_control, hips_control }; 
+static ControlFunction controlFunctions[ CONTROL_N_JOINTS ] = { AnkleControl, KneeControl, HipsControl }; 
 
-static void* async_control( void* ); 
+static void* AsyncControl( void* ); 
 
 // EPOS devices and CAN network initialization
 void AxisControl_Init()
 {
-  DEBUG_EVENT( 0, "Initializing Axis Control on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "Initializing Axis Control on thread %x", THREAD_ID );
   
   // Start CAN network transmission
   for( uint8_t nodeID = 1; nodeID <= CONTROL_N_JOINTS; nodeID++ )
@@ -53,16 +53,16 @@ void AxisControl_Init()
   motorList[ HIPS ] = Motor_Connect( "Hips", 3, 4096 );
   
   // Start a control thread for each motor
-  for( size_t control_mode = 0; control_mode < CONTROL_N_JOINTS; control_mode++ )
-    (void) Thread_Start( async_control, (void*) control_mode, DETACHED );
+  for( size_t controlMode = 0; controlMode < CONTROL_N_JOINTS; controlMode++ )
+    (void) Thread_Start( AsyncControl, (void*) controlMode, DETACHED );
   
-  DEBUG_EVENT( 0, "Axis Control initialized on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "Axis Control initialized on thread %x", THREAD_ID );
 }
 
 // EPOS devices and CAN network shutdown
 void AxisControl_End()
 {
-  DEBUG_EVENT( 0, "Ending Axis Control on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "Ending Axis Control on thread %x", THREAD_ID );
   
   // End CAN network transmission
   EposNetwork_Stop( 1 );
@@ -76,7 +76,7 @@ void AxisControl_End()
     Encoder_Disconnect( sensorList[ axisID ] );
   }
   
-  DEBUG_EVENT( 0, "Axis Control ended on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "Axis Control ended on thread %x", THREAD_ID );
 }
 
 extern inline void AxisControl_EnableMotor( size_t motorID )
@@ -164,40 +164,40 @@ const double PI = 3.141592;        // Duh...
 const double TS = 0.005;           // Sampling interval
 
 // Method that runs the control functions asyncronously
-static void* async_control( void* args )
+static void* AsyncControl( void* args )
 {
-  unsigned long control_mode = (unsigned long) args;
+  unsigned long controlMode = (unsigned long) args;
   
-  ControlFunction control_function = control_functions[ control_mode ];
+  ControlFunction ref_AxisControl = controlFunctions[ controlMode ];
   
-  unsigned int exec_time, elapsed_time;
+  unsigned int execTime, elapsedTime;
   
-  while( motorList[ control_mode ] != NULL )
+  while( motorList[ controlMode ] != NULL )
   {
-    exec_time = Timing_GetExecTimeMilliseconds();
+    execTime = Timing_GetExecTimeMilliseconds();
 
-    Encoder_Read( motorList[ control_mode ]->encoder );
-	
-  	// Verify and try to correct errors
-  	if( Encoder_CheckState( motorList[ control_mode ]->encoder, FAULT ) == true )
-  	  Encoder_Reset( motorList[ control_mode ]->encoder );
-  	if( sensorList[ control_mode ] != NULL )
-  	{
-  	  if( Encoder_CheckState( sensorList[ control_mode ], FAULT ) == true ) 
-          Encoder_Reset( sensorList[ control_mode ] );
-  	}
+    Encoder_Read( motorList[ controlMode ]->encoder );
+
+    // Verify and try to correct errors
+    if( Encoder_CheckState( motorList[ controlMode ]->encoder, FAULT ) == true )
+      Encoder_Reset( motorList[ controlMode ]->encoder );
+    if( sensorList[ controlMode ] != NULL )
+    {
+      if( Encoder_CheckState( sensorList[ controlMode ], FAULT ) == true ) 
+          Encoder_Reset( sensorList[ controlMode ] );
+    }
     
     // If the motor is being actually controlled, call control pass algorhitm
-    if( motorList[ control_mode ]->active ) control_function( motorList[ control_mode ], sensorList[ control_mode ] );
+    if( motorList[ controlMode ]->active ) ref_AxisControl( motorList[ controlMode ], sensorList[ controlMode ] );
 
-    Motor_WriteConfig( motorList[ control_mode ] );
+    Motor_WriteConfig( motorList[ controlMode ] );
     
-    elapsed_time = Timing_GetExecTimeMilliseconds() - exec_time;
-    DEBUG_UPDATE( "control pass for Axis %s (before delay): elapsed time: %u", motorList[ control_mode ]->name, elapsed_time );
+    elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
+    DEBUG_UPDATE( "control pass for Axis %s (before delay): elapsed time: %u", motorList[ controlMode ]->name, elapsedTime );
     
-    if( elapsed_time < (int) ( 1000 * TS ) ) Timing_Delay( 1000 * TS - elapsed_time );
+    if( elapsedTime < (int) ( 1000 * TS ) ) Timing_Delay( 1000 * TS - elapsedTime );
     
-    DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u", motorList[ control_mode ]->name, Timing_GetExecTimeMilliseconds() - exec_time );
+    DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u", motorList[ controlMode ]->name, Timing_GetExecTimeMilliseconds() - execTime );
   }
   
   Thread_Exit( 0 );
@@ -253,77 +253,75 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void hips_control( Motor* hips_actuator, Encoder* hips_sensor )
+static void HipsControl( Motor* hipsActuator, Encoder* hipsSensor )
 {
-  static double sensor_tension_zero, sensor_position_zero;
+  static double sensorTension_0, sensorPosition_0;
 
   // Sampling of last voltage signal values for filtering (average filter)
-  static double analog_samples[ HIPS_CONTROL_SAMPLING_NUMBER ];
+  static double analogSamples[ HIPS_CONTROL_SAMPLING_NUMBER ];
 
-  static double ang_position_in_ref;
+  static double angPositionInSetpoint;
     
-  if( sensor_tension_zero == 0 )
+  if( sensorTension_0 == 0 )
   {
-    Motor_SetOperationMode( hips_actuator, VELOCITY_MODE );
+    Motor_SetOperationMode( hipsActuator, VELOCITY_MODE );
     
-    sensor_tension_zero = Encoder_GetMeasure( hips_actuator->encoder, TENSION ); // mV
-    sensor_position_zero = ( TNS_2_POS_RATIO * sensor_tension_zero + TNS_2_POS_OFFSET ); // mm  
+    sensorTension_0 = Encoder_GetMeasure( hipsActuator->encoder, TENSION ); // mV
+    sensorPosition_0 = ( TNS_2_POS_RATIO * sensorTension_0 + TNS_2_POS_OFFSET ); // mm  
   }
   
-  double sensor_tension = 0;
+  double sensorTension = 0;
   for( int i = 0; i < HIPS_CONTROL_SAMPLING_NUMBER; i ++ )
   {
-    analog_samples[ i ] = ( i == 0 ) ? Encoder_GetMeasure( hips_actuator->encoder, TENSION ) : analog_samples[ i - 1 ]; // mV
-    sensor_tension += analog_samples[ i ] / HIPS_CONTROL_SAMPLING_NUMBER;
+    analogSamples[ i ] = ( i == 0 ) ? Encoder_GetMeasure( hipsActuator->encoder, TENSION ) : analogSamples[ i - 1 ]; // mV
+    sensorTension += analogSamples[ i ] / HIPS_CONTROL_SAMPLING_NUMBER;
   }
 
-  double sensor_position = ( TNS_2_POS_RATIO * sensor_tension + TNS_2_POS_OFFSET );	// mm
+  double sensorPosition = ( TNS_2_POS_RATIO * sensorTension + TNS_2_POS_OFFSET );	// mm
 
-  double actuator_force = -HIPS_FORCE_SENSOR_STIFFNESS * ( sensor_position_zero - sensor_position ); // N
+  double actuatorForce = -HIPS_FORCE_SENSOR_STIFFNESS * ( sensorPosition_0 - sensorPosition ); // N
 
-  ang_position_in_ref = Motor_GetParameter( hips_actuator, POSITION_SETPOINT );
-  printf( "Angle setpoint: %g\n", ang_position_in_ref );
+  angPositionInSetpoint = Motor_GetParameter( hipsActuator, POSITION_SETPOINT );
+  printf( "Angle setpoint: %g\n", angPositionInSetpoint );
 
   // Relation between axis rotation and effector linear displacement
-  double actuator_encoder_position = Encoder_GetMeasure( hips_actuator->encoder, POSITION );
-  double effector_delta_length = ( actuator_encoder_position / hips_actuator->encoder->resolution ) * HIPS_ACTUATOR_STEP + ( sensor_position_zero - sensor_position ) / 1000; // m
+  double actuatorEncoderPosition = Encoder_GetMeasure( hipsActuator->encoder, POSITION );
+  double effectorDeltaLength = ( actuatorEncoderPosition / hipsActuator->encoder->resolution ) * HIPS_ACTUATOR_STEP + ( sensorPosition_0 - sensorPosition ) / 1000; // m
 
-  double effector_length = HIPS_EFFECTOR_BASE_LENGTH + effector_delta_length; // m
+  double effectorLength = HIPS_EFFECTOR_BASE_LENGTH + effectorDeltaLength; // m
 
-  double cos_eta = ( pow( effector_length, 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) - pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) )
-				   / ( 2 * effector_length * HIPS_STRUCT_DIMS[ A2B ] );
+  double cos_eta = ( pow( effectorLength, 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) - pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) )
+				   / ( 2 * effectorLength * HIPS_STRUCT_DIMS[ A2B ] );
   double sin_eta = sqrt( (double)( 1 - pow( cos_eta, 2 ) ) );
 
-  double gama = acos( ( pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) - pow( effector_length, 2 ) )
+  double gama = acos( ( pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 ) - pow( effectorLength, 2 ) )
 					  / ( 2 * HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] ) );
 
   double theta = HIPS_STRUCT_ANGLES[ ALPHA ] + HIPS_STRUCT_ANGLES[ BETA ] + gama - PI;
 
   // Current theta derivative with respect to the effector total length (base + delta)
-  double length_2_theta_ratio = sqrt( pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 )
+  double lengthToThetaRatio = sqrt( pow( HIPS_STRUCT_DIMS[ C2D ], 2 ) + pow( HIPS_STRUCT_DIMS[ A2B ], 2 )
 									  - 2 * HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] * cos( gama ) )
 								/ ( HIPS_STRUCT_DIMS[ C2D ] * HIPS_STRUCT_DIMS[ A2B ] * sin( gama ) );
 
-  Kq = Motor_GetParameter( hips_actuator, PROPORTIONAL_GAIN );
-  Bq = Motor_GetParameter( hips_actuator, DERIVATIVE_GAIN );
+  Kq = Motor_GetParameter( hipsActuator, PROPORTIONAL_GAIN );
+  Bq = Motor_GetParameter( hipsActuator, DERIVATIVE_GAIN );
 
   if( (int) Kq <= 0 ) Kq = 1.0;
   if( (int) Bq <= 0 ) Bq = 1.0;
 
-  double actuator_stiffness = Kq * length_2_theta_ratio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
-  double actuator_damping = Bq * length_2_theta_ratio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
+  double actuatorStiffness = Kq * lengthToThetaRatio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
+  double actuatorDamping = Bq * lengthToThetaRatio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
 
-  double Fv_q = ( Kq * ang_position_in_ref ) / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta );
+  double Fv_q = ( Kq * angPositionInSetpoint ) / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta );
 
   // Control law
-  double velocity_ref = ( Fv_q - actuator_stiffness * ( ( actuator_encoder_position / hips_actuator->encoder->resolution ) * HIPS_ACTUATOR_STEP )
-						  + ( ( actuator_stiffness - HIPS_FORCE_SENSOR_STIFFNESS ) / HIPS_FORCE_SENSOR_STIFFNESS ) * actuator_force ) / actuator_damping;
+  double velocitySetpoint = ( Fv_q - actuatorStiffness * ( ( actuatorEncoderPosition / hipsActuator->encoder->resolution ) * HIPS_ACTUATOR_STEP )
+						  + ( ( actuatorStiffness - HIPS_FORCE_SENSOR_STIFFNESS ) / HIPS_FORCE_SENSOR_STIFFNESS ) * actuatorForce ) / actuatorDamping;
 
-  int velocity_ref_rpm = ( velocity_ref / HIPS_ACTUATOR_STEP ) * 60 / ( 2 * PI ); // rpm
+  int velocityRPMSetpoint = ( velocitySetpoint / HIPS_ACTUATOR_STEP ) * 60 / ( 2 * PI ); // rpm
 
-  //motor_set_reference( hips, ANGLE, 180 * theta / PI );
-  Motor_SetParameter( hips_actuator, VELOCITY_SETPOINT, velocity_ref_rpm );
-  //motor_set_reference( hips, FORCE, actuator_force );
+  Motor_SetParameter( hipsActuator, VELOCITY_SETPOINT, velocityRPMSetpoint );
 }
 
 
@@ -363,83 +361,81 @@ double Bv = 5.0; // Damping
 /////                          KNEE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void knee_control( Motor* knee_in, Encoder* knee_out )
+static void KneeControl( Motor* kneeIn, Encoder* kneeOut )
 {
-  static double ang_position_out[2];
+  static double angPositionOut[2];
   
-  static double ang_velocity_out[3];
-  static double ang_vel_out_weighted[3];
+  static double angVelocityOut[3];
+  static double angVelOutWeighted[3];
   static double torque[3];
-  static double torque_weighted[3];
+  static double torqueWeighted[3];
   static double error[3];
 
-  static double ang_position_in, ang_pos_in_reduced, ang_position_in_ref, ang_velocity_in, ang_velocity_in_ref;
+  static double angPositionIn, angPosInReduced, angPositionInSetpoint, angVelocityIn, angVelocityInSetpoint;
   
-  if( ang_position_in == 0 ) Motor_SetOperationMode( knee_in, VELOCITY_MODE );
+  if( angPositionIn == 0 ) Motor_SetOperationMode( kneeIn, VELOCITY_MODE );
 
-  //ang_position_in_ref = ( Encoder_GetMeasure( knee_in, POSITION_SETPOINT ) * 2 * PI ) / ENCODER_IN_RES;
+  //angPositionInSetpoint = ( Encoder_GetMeasure( kneeIn, POSITION_SETPOINT ) * 2 * PI ) / kneeIn->encoder->resolution;
 
-  ang_position_in = ( ( Encoder_GetMeasure( knee_in->encoder, POSITION ) /*- ang_position_in_ref*/ ) * 2 * PI ) / knee_in->encoder->resolution;
-  ang_pos_in_reduced = ang_position_in / KNEE_JOINT_REDUCTION;
+  angPositionIn = ( ( Encoder_GetMeasure( kneeIn->encoder, POSITION ) /*- angPositionInSetpoint*/ ) * 2 * PI ) / kneeIn->encoder->resolution;
+  angPosInReduced = angPositionIn / KNEE_JOINT_REDUCTION;
 
-  ang_velocity_in = Encoder_GetMeasure( knee_in->encoder, VELOCITY );
+  angVelocityIn = Encoder_GetMeasure( kneeIn->encoder, VELOCITY );
 
   // Impedance control
 
-  Kv = Motor_GetParameter( knee_in, PROPORTIONAL_GAIN );
-  Bv = Motor_GetParameter( knee_in, DERIVATIVE_GAIN );
+  Kv = Motor_GetParameter( kneeIn, PROPORTIONAL_GAIN );
+  Bv = Motor_GetParameter( kneeIn, DERIVATIVE_GAIN );
 
   //printf( "Kv: %g - Bv: %g\n", Kv,  Bv );
 
-  ang_velocity_out[0] = ( ang_position_out[0] - ang_position_out[1] ) / TS;
-  ang_position_out[1] = ang_position_out[0];
+  angVelocityOut[0] = ( angPositionOut[0] - angPositionOut[1] ) / TS;
+  angPositionOut[1] = angPositionOut[0];
 
-  ang_vel_out_weighted[0] = -c2 * ang_vel_out_weighted[1] - c3 * ang_vel_out_weighted[2] + d1 * ang_velocity_out[0] + d2 * ang_velocity_out[1] + d3 * ang_velocity_out[2];
+  angVelOutWeighted[0] = -c2 * angVelOutWeighted[1] - c3 * angVelOutWeighted[2] + d1 * angVelocityOut[0] + d2 * angVelocityOut[1] + d3 * angVelocityOut[2];
 
-  ang_position_out[0] = ( ( -Encoder_GetMeasure( knee_out, POSITION ) /*- Encoder_GetMeasure( knee_out, POSITION_SETPOINT )*/ ) * 2 * PI ) / knee_out->resolution;
+  angPositionOut[0] = ( ( -Encoder_GetMeasure( kneeOut, POSITION ) /*- Encoder_GetMeasure( knee_out, POSITION_SETPOINT )*/ ) * 2 * PI ) / kneeOut->resolution;
 
-  double torque_ref = -Kv * ( ang_position_out[0] - ang_position_in_ref ) - Bv * ( ang_vel_out_weighted[0] * ang_velocity_in_ref );
+  double torqueSetpoint = -Kv * ( angPositionOut[0] - angPositionInSetpoint ) - Bv * ( angVelOutWeighted[0] * angVelocityInSetpoint );
 
   //Motor_SetParameter( knee_in, ANGLE, (int) ( 1000 * ang_position_out[0] ) );
 
-  torque[0] = KNEE_BASE_STIFFNESS * ( ang_pos_in_reduced - ang_position_out[0] );
+  torque[0] = KNEE_BASE_STIFFNESS * ( angPosInReduced - angPositionOut[0] );
   //Motor_SetParameter( knee_in, FORCE, (int) torque[0] );
 
-  torque_weighted[0] = -a2 * torque_weighted[1] - a3 * torque_weighted[2] + b1 * torque[0] + b2 * torque[1] + b3 * torque[2];
+  torqueWeighted[0] = -a2 * torqueWeighted[1] - a3 * torqueWeighted[2] + b1 * torque[0] + b2 * torque[1] + b3 * torque[2];
 
-  error[0] = ( torque_ref - torque_weighted[0] );
+  error[0] = ( torqueSetpoint - torqueWeighted[0] );
 
-  ang_velocity_in_ref += kp * ( error[0] - error[1] ) + ki * TS * error[0] + ( kd / TS ) * ( error[0] - 2 * error[1] + error[2] );
+  angVelocityInSetpoint += kp * ( error[0] - error[1] ) + ki * TS * error[0] + ( kd / TS ) * ( error[0] - 2 * error[1] + error[2] );
 
   for( int i = 1; i <= 2; i++ )
   {
     error[ i ] = error[ i - 1 ];
-    ang_velocity_out[ i ] = ang_velocity_out[ i - 1 ];
-    ang_vel_out_weighted[ i ] = ang_vel_out_weighted[ i - 1 ];
-    torque_weighted[ i ] = torque_weighted[ i - 1 ];
+    angVelocityOut[ i ] = angVelocityOut[ i - 1 ];
+    angVelOutWeighted[ i ] = angVelOutWeighted[ i - 1 ];
+    torqueWeighted[ i ] = torqueWeighted[ i - 1 ];
   }
 
-  //Motor_SetParameter( knee_in, ANGLE, 180 * ang_position_out[0] / PI );
-  //Motor_SetParameter( knee_in, ANGLE_SETPOINT, 180 * ang_position_in_ref / PI );
-  Motor_SetParameter( knee_in, VELOCITY_SETPOINT, (int) ang_velocity_in_ref );
+  Motor_SetParameter( kneeIn, VELOCITY_SETPOINT, (int) angVelocityInSetpoint );
 }
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                         ANKLE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static void ankle_control( Motor* ankle_actuator, Encoder* ankle_sensor )
+static void AnkleControl( Motor* ankleActuator, Encoder* ankleSensor )
 {
-  static int velocity_ref;  
+  static int velocitySetpoint;  
     
-  if( velocity_ref == 0 ) Motor_SetOperationMode( ankle_actuator, VELOCITY_MODE );
+  if( velocitySetpoint == 0 ) Motor_SetOperationMode( ankleActuator, VELOCITY_MODE );
 
-  if( Encoder_GetMeasure( ankle_actuator->encoder, POSITION_SETPOINT ) > 2000 ) Motor_SetParameter( ankle_actuator, POSITION_SETPOINT, 2000 );
-  else if( Encoder_GetMeasure( ankle_actuator->encoder, POSITION_SETPOINT ) < -2000 ) Motor_SetParameter( ankle_actuator, POSITION_SETPOINT, -2000 );
+  if( Encoder_GetMeasure( ankleActuator->encoder, POSITION_SETPOINT ) > 2000 ) Motor_SetParameter( ankleActuator, POSITION_SETPOINT, 2000 );
+  else if( Encoder_GetMeasure( ankleActuator->encoder, POSITION_SETPOINT ) < -2000 ) Motor_SetParameter( ankleActuator, POSITION_SETPOINT, -2000 );
   
-  velocity_ref = -( Encoder_GetMeasure( ankle_actuator->encoder, POSITION ) - Encoder_GetMeasure( ankle_actuator->encoder, POSITION_SETPOINT ) ) / 20;
+  velocitySetpoint = -( Encoder_GetMeasure( ankleActuator->encoder, POSITION ) - Encoder_GetMeasure( ankleActuator->encoder, POSITION_SETPOINT ) ) / 20;
   
-  Motor_SetParameter( ankle_actuator, VELOCITY_SETPOINT, velocity_ref );
+  Motor_SetParameter( ankleActuator, VELOCITY_SETPOINT, velocitySetpoint );
 }
 
 #endif /* CONTROL_H */ 

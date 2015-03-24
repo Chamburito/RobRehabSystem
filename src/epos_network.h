@@ -14,8 +14,8 @@
 #include <string.h>
 
 //CAN database addressing
-static char CANDatabase[ 256 ];
-static char CANCluster[ 256 ];
+static char canDatabase[ 256 ];
+static char canCluster[ 256 ];
 
 // Network control frames
 static CANFrame* NMT = NULL;
@@ -24,13 +24,13 @@ static CANFrame* SYNC = NULL;
 void EposNetwork_Start( const char* databaseName, const char* clusterName, u8 nodeID )
 {
   // Stores default database name and cluster name for initialized CAN network
-  strcpy( CANDatabase, databaseName );
-  strcpy( CANCluster, clusterName );
+  strcpy( canDatabase, databaseName );
+  strcpy( canCluster, clusterName );
 
   // Address and initialize NMT (Network Master) frame
-  NMT = CANFrame_Init( FRAME_OUT, "CAN2", CANDatabase, CANCluster, "NMT" );
+  NMT = CANFrame_Init( FRAME_OUT, "CAN2", canDatabase, canCluster, "NMT" );
   // Address and initialize SYNC (Syncronization) frame
-  SYNC = CANFrame_Init( FRAME_OUT, "CAN2", CANDatabase, CANCluster, "SYNC" );
+  SYNC = CANFrame_Init( FRAME_OUT, "CAN2", canDatabase, canCluster, "SYNC" );
 
   // Start PDOs sending Start payload to the network
   u8 payload[8] = { 0x01, nodeID }; // Rest of the array as 0x0
@@ -39,12 +39,12 @@ void EposNetwork_Start( const char* databaseName, const char* clusterName, u8 no
 
 CANFrame* EposNetwork_InitFrame( enum FrameMode mode, const char* interfaceName, const char* frameName )
 {
-  CANFrame* epos_network_frame = (CANFrame*) malloc( sizeof(CANFrame*) );
+  CANFrame* eposNetworkFrame = (CANFrame*) malloc( sizeof(CANFrame*) );
 
-  if( (epos_network_frame = CANFrame_Init( mode, interfaceName, CANDatabase, CANCluster, frameName )) == NULL )
+  if( (eposNetworkFrame = CANFrame_Init( mode, interfaceName, canDatabase, canCluster, frameName )) == NULL )
     return NULL;
 
-  return epos_network_frame;
+  return eposNetworkFrame;
 }
 
 extern inline void EposNetwork_EndFrame( CANFrame* frame )

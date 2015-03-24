@@ -9,42 +9,42 @@
 #include <time.h>
 #include <unistd.h>
 
-// Make the calling thread wait for the given time ( in milisseconds )
-void delay( unsigned long milisseconds )
+// Make the calling thread wait for the given time ( in milliseconds )
+void Timing_Delay( unsigned long milliseconds )
 {
-    struct timespec delay_ts = { milisseconds / 1000, ( milisseconds % 1000 ) * 1000000 };
-    static struct timespec remain_ts;
+    struct timespec delayTime = { milliseconds / 1000, ( milliseconds % 1000 ) * 1000000 };
+    static struct timespec remainingTime;
     
-    nanosleep( &delay_ts, &remain_ts );
+    nanosleep( &delayTime, &remainingTime );
     
     return;
 }
 
 // Get system time in milisseconds
-unsigned long get_exec_time_milisseconds()
+unsigned long Timing_GetExecTimeMilliseconds()
 {
-    struct timespec ts;
+    struct timespec systemTime;
     
     //clock_getres( CLOCK_MONOTONIC, &ts );
     //printf( "time resolution: %ld s - %ld ns\n", ts.tv_sec, ts.tv_nsec );
   
-    clock_gettime( CLOCK_MONOTONIC, &ts );
+    clock_gettime( CLOCK_MONOTONIC, &systemTime );
     
-    unsigned long exec_time = (unsigned long) ( 1000 * ts.tv_sec ) + (unsigned long) ( ts.tv_nsec / 1000000 );
+    unsigned long execTime = (unsigned long) ( 1000 * systemTime.tv_sec ) + (unsigned long) ( systemTime.tv_nsec / 1000000 );
     
-    return exec_time;
+    return execTime;
 }
 
 // Get system time in seconds
-unsigned int get_exec_time_seconds()
+unsigned int Timing_GetExecTimeSeconds()
 {
-    struct timespec ts;
+    struct timespec systemTime;
   
-    clock_gettime( CLOCK_MONOTONIC, &ts );
+    clock_gettime( CLOCK_MONOTONIC, &systemTime );
     
-    unsigned int exec_time = (unsigned int) ts.tv_sec + (unsigned int) ( ts.tv_nsec / 1000000000 );
+    unsigned int execTime = (unsigned int) systemTime.tv_sec + (unsigned int) ( systemTime.tv_nsec / 1000000000 );
     
-    return exec_time;
+    return execTime;
 }
 
 #endif /* TIMING_H */
