@@ -27,12 +27,13 @@
 #include "debug.h" 
 
 #define NO_CODE do { } while( 0 )
+
+const size_t DEBUG_MESSAGE_LENGTH = 256;
   
 #ifdef SIMPLE_DEBUG || DEEP_DEBUG
 
   const size_t EVENT_NAME_LENGTH = 8;
   const size_t SOURCE_NAME_LENGTH = 64;
-  const size_t DEBUG_MESSAGE_LENGTH = 256;
   
   const size_t MAX_DEBUG_MESSAGES = 1000;
   
@@ -42,6 +43,7 @@
     char event[ EVENT_NAME_LENGTH ];
     char source[ SOURCE_NAME_LENGTH ];
     char message[ DEBUG_MESSAGE_LENGTH ];
+    uint32_t count;
   }
   DebugMessage;
 
@@ -87,7 +89,7 @@
         printf( "\n\n\n\n\n\n\n\n" );
         #endif
         for( size_t i = 0; i < debugMessagesCount; i++ )
-          printf( "%s[%u]: %s: %s\n", debugMessagesList[ i ].event, debugMessagesList[ i ].key, 
+          printf( "%s[%u]: %s: %s\n", debugMessagesList[ i ].event, debugMessagesList[ i ].count, 
                                       debugMessagesList[ i ].source, debugMessagesList[ i ].message );
 
         messageUpdate = 0;
@@ -97,10 +99,10 @@
         lastUpdateTime = Timing_GetExecTimeSeconds();
       }
       
-      if( Timing_GetExecTimeSeconds() - lastUpdateTime > 5 )
+      if( Timing_GetExecTimeSeconds() - lastUpdateTime > 0 )
       {
         messageUpdate = -1;
-        ThreadLock_Discard( printLock );
+        //ThreadLock_Discard( printLock );
       }
     
       Timing_Delay( 100 );
@@ -120,7 +122,7 @@
     if( messageUpdate == -1 )
     {
       messageUpdate = 0;
-      printLock = ThreadLock_Create();
+      //printLock = ThreadLock_Create();
       Thread_Start( AsyncDebug_Print, NULL, DETACHED );
     }
     
@@ -128,22 +130,23 @@
     {
       size_t eventIndex = AsyncDebug_SearchMessage( key, source, event );
       
-      if( eventIndex == debugMessagesCount ) debugMessagesCount++;
+      if( eventIndex == debugMessagesCount ) 
+      {
+        debugMessagesCount++;
+        debugMessagesList[ eventIndex ].key = key;
+        strncpy( debugMessagesList[ eventIndex ].event, event, EVENT_NAME_LENGTH );
+        strncpy( debugMessagesList[ eventIndex ].source, source, SOURCE_NAME_LENGTH );
+        debugMessagesList[ eventIndex ].count = 1;
+      }
       
       if( vsnprintf( debugMessageBuffer, DEBUG_MESSAGE_LENGTH, format, printArgs ) > 0 )
       {
-        if( strncmp( debugMessagesList[ eventIndex ].message, debugMessageBuffer, DEBUG_MESSAGE_LENGTH ) != 0 )
-        {
-          ThreadLock_Aquire( printLock );
-          
-          debugMessagesList[ eventIndex ].key = key;
-          strncpy( debugMessagesList[ eventIndex ].event, event, EVENT_NAME_LENGTH );
-          strncpy( debugMessagesList[ eventIndex ].source, source, SOURCE_NAME_LENGTH );
+        if( strncmp( debugMessagesList[ eventIndex ].message, debugMessageBuffer, DEBUG_MESSAGE_LENGTH ) == 0 )
+          debugMessagesList[ eventIndex ].count++;
+        else
           strncpy( debugMessagesList[ eventIndex ].message, debugMessageBuffer, DEBUG_MESSAGE_LENGTH );
-          messageUpdate = 1;
-          
-          ThreadLock_Release( printLock );
-        }
+        
+        messageUpdate = 1;
       }
     }
     

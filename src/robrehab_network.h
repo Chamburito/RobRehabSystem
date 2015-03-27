@@ -43,7 +43,7 @@ int RobRehabNetwork_Init()
   
   AxisControl_Init();
   
-  for( size_t motorID = 0; motorID < CONTROL_N_JOINTS; motorID++ )
+  for( size_t motorID = 0; motorID < AXIS_CONTROL_N_JOINTS; motorID++ )
   {
     if( AxisControl_GetMotorName( motorID ) != NULL )
       snprintf( axesInfoString, IP_CONNECTION_MSG_LEN, "%s%u:%s:", axesInfoString, motorID, AxisControl_GetMotorName( motorID ) );
@@ -89,10 +89,10 @@ void RobRehabNetwork_Update()
   if( (newDataClient = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
   
-  size_t motorInfoClientsList[ CONTROL_N_JOINTS ] = { 0 };
+  size_t motorInfoClientsList[ AXIS_CONTROL_N_JOINTS ] = { 0 };
   //ListApplyToEach( infoClientsList, 1, UpdateMotorInfo, (void*) motorInfoClientsList );
   
-  size_t motorDataClientsList[ CONTROL_N_JOINTS ] = { 0 };
+  size_t motorDataClientsList[ AXIS_CONTROL_N_JOINTS ] = { 0 };
   //ListApplyToEach( dataClientsList, 1, UpdateMotorData, (void*) motorDataClientsList );
   
   // Test

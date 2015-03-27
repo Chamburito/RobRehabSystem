@@ -21,7 +21,9 @@ static char canCluster[ 256 ];
 static CANFrame* NMT = NULL;
 static CANFrame* SYNC = NULL;
 
-void EposNetwork_Start( const char* databaseName, const char* clusterName, u8 nodeID )
+void EposNetwork_ResetCommunication();
+
+void EposNetwork_Start( const char* databaseName, const char* clusterName )
 {
   // Stores default database name and cluster name for initialized CAN network
   strcpy( canDatabase, databaseName );
@@ -32,8 +34,20 @@ void EposNetwork_Start( const char* databaseName, const char* clusterName, u8 no
   // Address and initialize SYNC (Syncronization) frame
   SYNC = CANFrame_Init( FRAME_OUT, "CAN2", canDatabase, canCluster, "SYNC" );
 
+  EposNetwork_ResetCommunication();
+}
+
+void EposNetwork_InitNode( uint8_t nodeID )
+{
   // Start PDOs sending Start payload to the network
   u8 payload[8] = { 0x01, nodeID }; // Rest of the array as 0x0
+  CANFrame_Write( NMT, payload );
+}
+
+void EposNetwork_EndNode( uint8_t nodeID )
+{
+  // Stop PDOs sending Stop payload to the network
+  u8 payload[8] = { 0x80, nodeID }; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );
 }
 
@@ -56,15 +70,14 @@ void EposNetwork_Sync()
 {
   // Build Sync payload (all 0x0) 
   static u8 payload[8];
-    
   CANFrame_Write( SYNC, payload );
 }
 
 // Stop CAN network communications
-void EposNetwork_Stop( u8 nodeID )
+void EposNetwork_Stop()
 {
   // Stop PDOs sending Stop payload to the network
-  u8 payload[8] = { 0x80, nodeID }; // Rest of the array as 0x0
+  u8 payload[8] = { 0x80 }; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );
 
   CANFrame_End( NMT );
@@ -74,6 +87,11 @@ void EposNetwork_Stop( u8 nodeID )
 void EposNetwork_ResetCommunication()
 {
   u8 payload[8] = { 0x82 }; // Rest of the array as 0x0
+  CANFrame_Write( NMT, payload );
+  
+  Timing_Delay( 200 );
+  
+  payload[0] = 0x01; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );
 }
 

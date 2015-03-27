@@ -46,10 +46,9 @@
 #include "common.h"
 
 /* Global variables */
-static CNVSubscriber			gAmplitudeSubscriber, gFrequencySubscriber,
-								gStopSubscriber;
-static CNVBufferedWriter		gWavePublisher;
-volatile int					gDone;
+static CNVSubscriber gAmplitudeSubscriber, gFrequencySubscriber, gStopSubscriber;
+static CNVBufferedWriter gWavePublisher;
+volatile int gDone;
 
 // Create thread safe variables to pass data from Network Variable Library 
 // threads to the main thread.
@@ -164,7 +163,7 @@ void CVIFUNC_C RTmain( void )
     
     RobRehabNetwork_Update();
     
-    SleepUS(100000); // Sleep to give the desired loop rate.
+    SleepUS( 100000 ); // Sleep to give the desired loop rate.
 	}
 
 	// Cleanup
@@ -184,7 +183,7 @@ void CVIFUNC_C RTmain( void )
 	// the DefineThreadSafeVar macro.
 	UninitializeAmplitude();
 	UninitializeFrequency();
-	
+  
   RobRehabNetwork_End();
   
 	/*status = CNVDeleteVariable( PROCESS, AMPLITUDE_VARIABLE );

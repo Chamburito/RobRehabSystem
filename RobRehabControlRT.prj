@@ -348,7 +348,7 @@ Stack Reserve = 1048576
 Stack Commit = 4096
 Image Base Address = 4194304
 Image Base Address x64 = 4194304
-Compiler Defines = "/DWIN32_LEAN_AND_MEAN /DSIMPLE_DEBUG"
+Compiler Defines = "/DWIN32_LEAN_AND_MEAN /DDEBUG"
 Sign = False
 Sign Store = ""
 Sign Certificate = ""
@@ -545,7 +545,7 @@ Image Base Address = 4194304
 Image Base Address x64 = 4194304
 
 [Compiler Defines]
-Compiler Defines = "/DWIN32_LEAN_AND_MEAN /DSIMPLE_DEBUG"
+Compiler Defines = "/DWIN32_LEAN_AND_MEAN /DDEBUG"
 
 [Create Executable]
 Executable File_Debug Is Rel = True
