@@ -17,13 +17,15 @@ static int dataServerConnectionID;
 static ListType infoClientsList;
 static ListType dataClientsList;
 
-static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
-
-/*typedef struct _Network_Axis
+static struct _NetworkAxis
 {
-  
-}
-Network_Axis;*/
+  unsigned int axisID;
+  int infoClient;
+  int dataClient;
+} 
+NetworkAxis;
+
+static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
 
 int RobRehabNetwork_Init()
 {
@@ -43,10 +45,10 @@ int RobRehabNetwork_Init()
   
   AxisControl_Init();
   
-  for( size_t motorID = 0; motorID < AXIS_CONTROL_N_JOINTS; motorID++ )
+  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
   {
-    if( AxisControl_GetMotorName( motorID ) != NULL )
-      snprintf( axesInfoString, IP_CONNECTION_MSG_LEN, "%s%u:%s:", axesInfoString, motorID, AxisControl_GetMotorName( motorID ) );
+    if( AxisControl_GetAxisName( axisID ) != NULL )
+      snprintf( axesInfoString, IP_CONNECTION_MSG_LEN, "%s%u:%s:", axesInfoString, axisID, AxisControl_GetAxisName( axisID ) );
   }
   
   if( strlen( axesInfoString ) > 0 )
@@ -89,10 +91,10 @@ void RobRehabNetwork_Update()
   if( (newDataClient = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
   
-  size_t motorInfoClientsList[ AXIS_CONTROL_N_JOINTS ] = { 0 };
+  size_t motorInfoClientsList[] = { 0 };
   //ListApplyToEach( infoClientsList, 1, UpdateMotorInfo, (void*) motorInfoClientsList );
   
-  size_t motorDataClientsList[ AXIS_CONTROL_N_JOINTS ] = { 0 };
+  size_t motorDataClientsList[] = { 0 };
   //ListApplyToEach( dataClientsList, 1, UpdateMotorData, (void*) motorDataClientsList );
   
   // Test
@@ -118,23 +120,23 @@ static int CVICALLBACK UpdateMotorInfo( int index, void* ref_clientID, void* mot
   
   for( char* command = strtok( messageIn, ":" ); command != NULL; command = strtok( NULL, ":" ) )
   {
-    unsigned int motorID = (unsigned int) strtoul( command, NULL, 0 );
+    unsigned int axisID = (unsigned int) strtoul( command, NULL, 0 );
     
-    if( motorClientsList[ motorID ] != 0 ) continue;
-    else motorClientsList[ motorID ] = clientID;
+    if( motorClientsList[ axisID ] != 0 ) continue;
+    else motorClientsList[ axisID ] = clientID;
     
     bool motorEnabled = (bool) strtoul( command, &command, 0 );
     
-    if( motorEnabled ) AxisControl_EnableMotor( motorID );
-    else AxisControl_DisableMotor( motorID );
+    if( motorEnabled ) AxisControl_EnableMotor( axisID );
+    else AxisControl_DisableMotor( axisID );
     
     bool reset = (bool) strtoul( command, NULL, 0 );
     
-    if( reset ) AxisControl_ResetMotor( motorID );
+    if( reset ) AxisControl_ResetMotor( axisID );
     
-    if( (motorStatesList = AxisControl_GetMotorStatus( motorID )) != NULL )
+    if( (motorStatesList = AxisControl_GetMotorStatus( axisID )) != NULL )
     {
-      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, motorID );
+      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, axisID );
       
       for( size_t stateIndex = 0; stateIndex < AXIS_N_STATES; stateIndex++ )
         snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%c ", messageOut, ( motorStatesList[ stateIndex ] == true ) ? '1' : '0' );
@@ -171,19 +173,19 @@ static int CVICALLBACK UpdateMotorData( int index, void* ref_clientID, void* mot
   
   for( char* command = strtok( messageIn, ":" ); command != NULL; command = strtok( NULL, ":" ) )
   {
-    unsigned int motorID = (unsigned int) strtoul( command, NULL, 0 );
+    unsigned int axisID = (unsigned int) strtoul( command, NULL, 0 );
     
-    if( motorClientsList[ motorID ] != 0 ) continue;
-    else motorClientsList[ motorID ] = clientID;
+    if( motorClientsList[ axisID ] != 0 ) continue;
+    else motorClientsList[ axisID ] = clientID;
     
     for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
       motorParametersList[ parameterIndex ] = strtod( command, &command );
     
-    AxisControl_ConfigMotor( motorID, (double*) motorParametersList );
+    AxisControl_ConfigMotor( axisID, (double*) motorParametersList );
     
-    if( (motorMeasuresList = AxisControl_GetMotorMeasures( motorID )) != NULL )
+    if( (motorMeasuresList = AxisControl_GetMotorMeasures( axisID )) != NULL )
     {
-      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, motorID );
+      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, axisID );
       
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
         snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%.3f ", messageOut, motorMeasuresList[ dimensionIndex ] );

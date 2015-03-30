@@ -48,7 +48,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
   {
     CmtGetErrorMessage( status, errorBuffer );
     ERROR_PRINT( "error starting new thread: %s", errorBuffer );
-    return 0;
+    return -1;
   }
   
   DEBUG_PRINT( "created thread %x successfully", ( mode == JOINABLE ) ? threadID : 0 );

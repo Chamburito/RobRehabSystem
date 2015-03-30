@@ -91,8 +91,6 @@ void CANFrame_Write( CANFrame* frame, u8 payload[8] )
 {
   nxFrameVar_t* ptr_frame = (nxFrameVar_t*) frame->buffer;
   
-  if( frame->ref_session == 0 ) return;
-  
   ptr_frame->Timestamp = 0;
   ptr_frame->Flags = frame->flags;
   ptr_frame->Identifier = 66; 
@@ -103,12 +101,9 @@ void CANFrame_Write( CANFrame* frame, u8 payload[8] )
 
   //DEBUG_PRINT( "trying to write with session %u", frame->ref_session );
   
-  nxStatus_t statusCode = nxWriteFrame( frame->ref_session, &(frame->buffer), sizeof(nxFrameVar_t), 100 );
+  nxStatus_t statusCode = nxWriteFrame( frame->ref_session, &(frame->buffer), sizeof(nxFrameVar_t), 0.0 );
   if( statusCode != nxSuccess )
-  {
     PrintFrameStatus( statusCode, frame->name, "(nxWriteFrame)" );
-    frame->ref_session = 0;
-  }
 }
 
 void CANFrame_End( CANFrame* frame )

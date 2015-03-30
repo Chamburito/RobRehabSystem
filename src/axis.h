@@ -50,8 +50,6 @@ enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVA
 enum FrameType { SDO, PDO01, PDO02, AXIS_N_FRAMES };
 static const char* CAN_FRAME_NAMES[ AXIS_N_FRAMES ] = { "SDO", "PDO01", "PDO02" };
 
-const size_t DEVICE_NAME_MAX_LENGTH = 15;
-
 typedef struct _Encoder
 {
   CANFrame* readFramesList[ AXIS_N_FRAMES ];
@@ -63,7 +61,6 @@ Encoder;
 
 typedef struct _Motor
 {
-  char name[ DEVICE_NAME_MAX_LENGTH ];
   Encoder* encoder;
   CANFrame* writeFramesList[ AXIS_N_FRAMES ];
   double parametersList[ AXIS_N_PARAMS ];
@@ -73,7 +70,7 @@ typedef struct _Motor
 }
 Motor;
 
-Motor* Motor_Connect( const char*, unsigned int, unsigned int );
+Motor* Motor_Connect( unsigned int, unsigned int );
 Encoder* Encoder_Connect( unsigned int, unsigned int );
 void Motor_Enable( Motor* );
 void Motor_Disable( Motor* );
@@ -93,14 +90,14 @@ void Motor_SetOperationMode( Motor*, OperationMode );
 static void EnableDigitalOutput( Motor*, bool );
 void Motor_SetDigitalOutput( Motor*, uint16_t output );
 
+const size_t DEVICE_NAME_MAX_LENGTH = 15;
+
 // Create CAN controlled DC motor handle
-Motor* Motor_Connect( const char* device_name, unsigned int networkIndex, unsigned int resolution ) 
+Motor* Motor_Connect( unsigned int networkIndex, unsigned int resolution ) 
 {
   DEBUG_EVENT( 0, "created motor %s with network index %u", device_name, networkIndex ); 
   
   Motor* motor = (Motor*) malloc( sizeof(Motor) );
-
-  if( device_name != NULL ) strncpy( motor->name, device_name, DEVICE_NAME_MAX_LENGTH );
   
   for( int i = 0; i < AXIS_N_PARAMS; i++ )
     motor->parametersList[ i ] = 0.0;
@@ -117,19 +114,25 @@ Motor* Motor_Connect( const char* device_name, unsigned int networkIndex, unsign
     if( motor->writeFramesList[ frameID ] == NULL ) 
     {
       Motor_Disconnect( motor );
-      ERROR_EVENT( "failed creating write frame %s for motor %s with network index %u", networkAddress, motor->name, networkIndex );
+      ERROR_EVENT( "failed creating write frame %s for motor with network index %u", networkAddress, networkIndex );
       return NULL;
     }
     
     DEBUG_EVENT( 1, "created frame %s", networkAddress );
   }
+  
+  if( (motor->encoder = Encoder_Connect( networkIndex, resolution )) == NULL )
+  {
+    Motor_Disconnect( motor );
+    return NULL;
+  }
 
-  motor->encoder = Encoder_Connect( networkIndex, resolution );
+  SetControl( motor, ENABLE_VOLTAGE, true );
+  SetControl( motor, QUICK_STOP, true );
+  
+  Motor_Disable( motor );
 
-  if( motor->encoder != NULL ) Motor_Disable( motor );
-  else Motor_Disconnect( motor );
-
-  DEBUG_EVENT( 0, "created motor %s with network index %u", motor->name, networkIndex );
+  DEBUG_EVENT( 0, "created motor with network index %u", networkIndex );
   
   return motor;
 }
@@ -200,24 +203,16 @@ void Motor_Enable( Motor* motor )
   if( motor->active ) return;
   
   SetControl( motor, SWITCH_ON, false );
-  SetControl( motor, ENABLE_VOLTAGE, true );
-  SetControl( motor, QUICK_STOP, true );
   SetControl( motor, ENABLE_OPERATION, false );
   Motor_WriteConfig( motor );
         
-  Timing_Delay( 500 );
+  Timing_Delay( 200 );
         
   SetControl( motor, SWITCH_ON, true );
-  SetControl( motor, ENABLE_VOLTAGE, true );
-  SetControl( motor, QUICK_STOP, true );
-  SetControl( motor, ENABLE_OPERATION, false );
   Motor_WriteConfig( motor );
 
-  Timing_Delay( 500 );
+  Timing_Delay( 200 );
         
-  SetControl( motor, SWITCH_ON, true );
-  SetControl( motor, ENABLE_VOLTAGE, true );
-  SetControl( motor, QUICK_STOP, true );
   SetControl( motor, ENABLE_OPERATION, true );
   Motor_WriteConfig( motor );
 
@@ -229,22 +224,17 @@ void Motor_Disable( Motor* motor )
   if( !(motor->active) ) return;
   
   SetControl( motor, SWITCH_ON, true );
-  SetControl( motor, ENABLE_VOLTAGE, true );
-  SetControl( motor, QUICK_STOP, true );
   SetControl( motor, ENABLE_OPERATION, false );
   Motor_WriteConfig( motor );
         
-  Timing_Delay( 500 );
+  Timing_Delay( 200 );
         
   SetControl( motor, SWITCH_ON, false );
-  SetControl( motor, ENABLE_VOLTAGE, true );
-  SetControl( motor, QUICK_STOP, true );
-  SetControl( motor, ENABLE_OPERATION, false );
   Motor_WriteConfig( motor );
 
-  for( size_t paramIndex = 0; paramIndex < AXIS_N_PARAMS; paramIndex++ )
+  /*for( size_t paramIndex = 0; paramIndex < AXIS_N_PARAMS; paramIndex++ )
     Motor_SetParameter( motor, (enum Parameter) paramIndex, 0 );
-  Motor_WriteConfig( motor );
+  Motor_WriteConfig( motor );*/
 
   motor->active = false;
 }
@@ -359,11 +349,13 @@ void Motor_WriteConfig( Motor* motor )
   // Write values from buffer to PDO01 
   CANFrame_Write( motor->writeFramesList[ PDO01 ], payload );
 
+  int velocitySetpoint = (int) motor->parametersList[ VELOCITY_SETPOINT ];
+  
   // Set values for PDO02 (Velocity Setpoint and Output)
-  payload[0] = (uint8_t) ( (int) motor->parametersList[ VELOCITY_SETPOINT ] & 0x000000ff );
-  payload[1] = (uint8_t) (( (int) motor->parametersList[ VELOCITY_SETPOINT ] & 0x0000ff00 ) / 0x100);
-  payload[2] = (uint8_t) (( (int) motor->parametersList[ VELOCITY_SETPOINT ] & 0x00ff0000 ) / 0x10000);
-  payload[3] = (uint8_t) (( (int) motor->parametersList[ VELOCITY_SETPOINT ] & 0xff000000 ) / 0x1000000);
+  payload[0] = (uint8_t) ( velocitySetpoint & 0x000000ff );
+  payload[1] = (uint8_t) (( velocitySetpoint & 0x0000ff00 ) / 0x100);
+  payload[2] = (uint8_t) (( velocitySetpoint & 0x00ff0000 ) / 0x10000);
+  payload[3] = (uint8_t) (( velocitySetpoint & 0xff000000 ) / 0x1000000);
   payload[4] = (uint8_t) ( motor->digitalOutput & 0x000000ff );
   payload[5] = (uint8_t) (( motor->digitalOutput & 0x0000ff00 ) / 0x100); 
   payload[6] = ( 0 & 0x000000ff );
@@ -420,7 +412,7 @@ static void WriteSingleValue( Motor* motor, uint16_t index, uint8_t subIndex, in
 
 extern inline void Motor_SetOperationMode( Motor* motor, enum OperationMode mode )
 {
-  WriteSingleValue( motor, 0x6060, 0x00, mode );
+  WriteSingleValue( motor, 0x6060, 0x00, operationModes[ mode ] );
 }
 
 static void EnableDigitalOutput( Motor* motor, bool enabled )
