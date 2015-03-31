@@ -38,6 +38,7 @@ LOCATE on "axis_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobR
 LOCATE on "can_frame.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "Common.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "cvirte_ip_connection.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "data_logging.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "epos_network.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "ip_connection.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;

@@ -41,10 +41,10 @@ CANFrame;
 // Display CAN error string based on status code
 static void PrintFrameStatus( nxStatus_t statusCode, const char* frameName, const char* source )
 {
-  static char status_string[ 1024 ];
+  static char statusString[ 1024 ];
     
-  nxStatusToString( statusCode, sizeof(status_string), status_string );
-  ERROR_EVENT( "%s - NI-XNET Status: %s", source, status_string );
+  nxStatusToString( statusCode, sizeof(statusString), statusString );
+  ERROR_EVENT( "%s - NI-XNET Status: %s", source, statusString );
 }
 
 // CAN Frame initializer
@@ -67,7 +67,7 @@ CANFrame* CANFrame_Init( enum FrameMode mode, const char* interfaceName, const c
     return NULL;
   }
   
-  DEBUG_PRINT( "created frame %s session %u", frameName, frame->ref_session );
+  DEBUG_EVENT( 1,  "created frame %s session %u", frameName, frame->ref_session );
 
   return frame;
 }
@@ -99,7 +99,7 @@ void CANFrame_Write( CANFrame* frame, u8 payload[8] )
 
   memcpy( ptr_frame->Payload, payload, sizeof(u8) * ptr_frame->PayloadLength );
 
-  //DEBUG_PRINT( "trying to write with session %u", frame->ref_session );
+  //DEBUG_EVENT( 1,  "trying to write with session %u", frame->ref_session );
   
   nxStatus_t statusCode = nxWriteFrame( frame->ref_session, &(frame->buffer), sizeof(nxFrameVar_t), 0.0 );
   if( statusCode != nxSuccess )

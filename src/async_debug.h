@@ -81,20 +81,17 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     {
       if( messageUpdate == 1 )
       {
-        ThreadLock_Aquire( printLock );
+        //ThreadLock_Aquire( printLock );
         
         CLEAR_SCREEN;
 
-        #ifdef _LINK_CVI_LVRT_
-        printf( "\n\n\n\n\n\n\n\n" );
-        #endif
         for( size_t i = 0; i < debugMessagesCount; i++ )
           printf( "%s[%u]: %s: %s\n", debugMessagesList[ i ].event, debugMessagesList[ i ].count, 
                                       debugMessagesList[ i ].source, debugMessagesList[ i ].message );
 
         messageUpdate = 0;
         
-        ThreadLock_Release( printLock );
+        //ThreadLock_Release( printLock );
         
         lastUpdateTime = Timing_GetExecTimeSeconds();
       }
@@ -105,7 +102,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
         //ThreadLock_Discard( printLock );
       }
     
-      Timing_Delay( 100 );
+      Timing_Delay( 200 );
     }
   
     Thread_Exit( 0 );

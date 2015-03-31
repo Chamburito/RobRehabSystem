@@ -95,7 +95,7 @@ const size_t DEVICE_NAME_MAX_LENGTH = 15;
 // Create CAN controlled DC motor handle
 Motor* Motor_Connect( unsigned int networkIndex, unsigned int resolution ) 
 {
-  DEBUG_EVENT( 0, "created motor %s with network index %u", device_name, networkIndex ); 
+  DEBUG_EVENT( 0, "created motor with network index %u", networkIndex ); 
   
   Motor* motor = (Motor*) malloc( sizeof(Motor) );
   
