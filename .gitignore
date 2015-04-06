@@ -36,3 +36,4 @@ cvibuild.RobRehabControlGui/Debug/dlldependencies.txt
 *.res
 cvibuild.RobRehabControlRT/Debug/NetworkVariableRT.obj
 *.out
+*.log

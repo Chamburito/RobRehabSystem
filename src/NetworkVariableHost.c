@@ -44,100 +44,109 @@
 #include "NetworkVariable.h"
 #include "common.h"
 
+#include "data_logging.h"
+
 /* Global variables */
-static int				panel;
-static CNVSubscriber	gWaveSubscriber;
-static CNVWriter		gAmplitudeWriter, gFrequencyWriter, gStopWriter;
+static int panel;
+static CNVSubscriber gWaveSubscriber;
+static CNVWriter gStiffnessWriter, gDampingWriter, gEnableWriter;
 
 /* Function prototypes */
-static void ConnectToNetworkVariables(void);
-int CVICALLBACK AmplitudeFrequencyCallback(int panel, int control, int event,
-		void *callbackData, int eventData1, int eventData2);
-void CVICALLBACK DataCallback(void * handle, CNVData data, void * callbackData);
+static void ConnectToNetworkVariables( void );
+int CVICALLBACK GainCallback( int, int, int, void*, int, int );
+void CVICALLBACK DataCallback( void*, CNVData, void* );
+
+int axisLogID;
+enum { POSITION, VELOCITY, POSITION_SETPOINT, EMG_SIGNAL, DISPLAY_N_VALUES };
 
 /* Program entry-point */
-int main(int argc, char *argv[])
+int main( int argc, char *argv[] )
 {
-	CNVData stopData;
+	CNVData enableData;
 	
-	if (InitCVIRTE(0, argv, 0) == 0)
+	if( InitCVIRTE( 0, argv, 0 ) == 0 )
 		return -1;
   
   //int clientID = async_connection_open( "169.254.110.158", "50000", TCP );
   
   //async_connection_write_message( clientID, "Teste" );
 	
-	if ((panel = LoadPanel(0, "NetworkVariable.uir", PANEL)) < 0)
+  axisLogID = DataLogging_CreateLog( NULL, "axis", DISPLAY_N_VALUES );
+  
+	if( (panel = LoadPanel( 0, "NetworkVariable.uir", PANEL )) < 0 )
 		return -1;
 
 	ConnectToNetworkVariables();
+  
+  CNVCreateScalarDataValue( &enableData, CNVBool, (char) 1 );
+	CNVWrite( gEnableWriter, enableData, CNVDoNotWait );
 	
-	DisplayPanel(panel);
+	DisplayPanel( panel );
 	RunUserInterface();
 	
-	// The user chose to quit. Signal real-time program to stop as well.
-	CNVCreateScalarDataValue(&stopData, CNVBool, (char)1);
-	CNVWrite(gStopWriter, stopData, CNVDoNotWait);
+	CNVCreateScalarDataValue( &enableData, CNVBool, (char) 0 );
+	CNVWrite( gEnableWriter, enableData, CNVDoNotWait );
 	
   //async_connection_close( clientID );
   
+  DataLogging_CloseLog( axisLogID );
+  
 	// Cleanup
-	CNVDisposeData(stopData);
-	CNVDispose(gWaveSubscriber);
-	CNVDispose(gAmplitudeWriter);
-	CNVDispose(gFrequencyWriter);
-	CNVDispose(gStopWriter);
+	CNVDisposeData( enableData );
+	CNVDispose( gWaveSubscriber );
+	CNVDispose( gStiffnessWriter );
+	CNVDispose( gDampingWriter );
+	CNVDispose( gEnableWriter );
 	CNVFinish();
-	DiscardPanel(panel);
+  
+	DiscardPanel( panel );
 	
 	return 0;
 }
 
-static void ConnectToNetworkVariables(void)
+static void ConnectToNetworkVariables( void )
 {
-	char		address[256], path[512];
+	char address[ 256 ] = "169.254.110.158" , path[ 512 ];
 	
 	// Get address of real-time target.
-	PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", 
-		address, sizeof(address) - 1);
+	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
 	
 	// Connect to network variables.
-	sprintf(path, "\\\\%s\\" PROCESS "\\%s", address, AMPLITUDE_VARIABLE);
-	CNVCreateWriter(path, 0, 0, 10000, 0, &gAmplitudeWriter);
+	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, STIFFNESS_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gStiffnessWriter );
 	
-	sprintf(path, "\\\\%s\\" PROCESS "\\%s", address, FREQUENCY_VARIABLE);
-	CNVCreateWriter(path, 0, 0, 10000, 0, &gFrequencyWriter);
+	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, DAMPING_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gDampingWriter );
 
-	sprintf(path, "\\\\%s\\" PROCESS "\\%s", address, STOP_VARIABLE);
-	CNVCreateWriter(path, 0, 0, 10000, 0, &gStopWriter);
+	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, ENABLE_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gEnableWriter );
 
-	sprintf(path, "\\\\%s\\" PROCESS "\\%s", address, WAVE_VARIABLE);
-	CNVCreateSubscriber(path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber);
+	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, WAVE_VARIABLE );
+	CNVCreateSubscriber( path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber );
 	
 	// Manually call the control callbacks to write the initial values for
 	// amplitude and frequency to the network variables.
-	AmplitudeFrequencyCallback(panel, PANEL_AMPLITUDE, EVENT_COMMIT, 0, 0, 0);
-	AmplitudeFrequencyCallback(panel, PANEL_FREQUENCY, EVENT_COMMIT, 0, 0, 0);
+	GainCallback( panel, PANEL_STIFFNESS, EVENT_COMMIT, 0, 0, 0 );
+	GainCallback( panel, PANEL_DAMPING, EVENT_COMMIT, 0, 0, 0 );
 }
 
-int CVICALLBACK AmplitudeFrequencyCallback(int panel, int control, int event,
-		void *callbackData, int eventData1, int eventData2)
+int CVICALLBACK GainCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
 	CNVData	data;
-	double	value;
+	double value;
 	
-	switch (event)
+	switch( event )
 	{
 		case EVENT_COMMIT:
 			// Get the new value.
-			GetCtrlVal(panel, control, &value);
-			CNVCreateScalarDataValue(&data, CNVDouble, value);
+			GetCtrlVal( panel, control, &value );
+			CNVCreateScalarDataValue( &data, CNVDouble, value );
 		
 			// Write the new value to the appropriate network variable.
-			if (control == PANEL_AMPLITUDE)
-				CNVWrite(gAmplitudeWriter, data, CNVDoNotWait);
-			else if (control == PANEL_FREQUENCY)
-				CNVWrite(gFrequencyWriter, data, CNVDoNotWait);
+			if( control == PANEL_STIFFNESS )
+				CNVWrite( gStiffnessWriter, data, CNVDoNotWait );
+			else if( control == PANEL_DAMPING )
+				CNVWrite( gDampingWriter, data, CNVDoNotWait );
 		
 			CNVDisposeData(data);
 			break;
@@ -145,28 +154,41 @@ int CVICALLBACK AmplitudeFrequencyCallback(int panel, int control, int event,
 	return 0;
 }
 
-void CVICALLBACK DataCallback(void * handle, CNVData data, void * callbackData)
+void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
-	double wave[NUM_POINTS];
+	static double dimensionValuesArray[ DISPLAY_N_VALUES * NUM_POINTS ];
+  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ], emgValues[ NUM_POINTS ];
 	
 	// Get the published data.
-	CNVGetArrayDataValue(data, CNVDouble, wave, NUM_POINTS);
-	
+	CNVGetArrayDataValue( data, CNVDouble, dimensionValuesArray, DISPLAY_N_VALUES * NUM_POINTS );
+  
+  DataLogging_SaveData( axisLogID, dimensionValuesArray, DISPLAY_N_VALUES * NUM_POINTS );
+  
+  for( size_t point = 0; point < NUM_POINTS; point++ )
+  {
+    positionValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + POSITION ];
+    velocityValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + VELOCITY ];
+    setpointValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + POSITION_SETPOINT ];
+    emgValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + EMG_SIGNAL ];
+  }
+  
 	// Plot the data to the graph.
-	DeleteGraphPlot(panel, PANEL_GRAPH, -1, VAL_DELAYED_DRAW);
-	PlotY(panel, PANEL_GRAPH, wave, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, 
-		VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW);
+	DeleteGraphPlot( panel, PANEL_GRAPH_POSITION, -1, VAL_DELAYED_DRAW );
+	PlotY( panel, PANEL_GRAPH_POSITION, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+  PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
+  
+  DeleteGraphPlot( panel, PANEL_GRAPH_EMG, -1, VAL_DELAYED_DRAW );
+  PlotY( panel, PANEL_GRAPH_EMG, emgValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
 		
-	CNVDisposeData(data);
+	CNVDisposeData( data );
 }
 
-int CVICALLBACK QuitCallback(int panel, int control, int event,
-		void *callbackData, int eventData1, int eventData2)
+int CVICALLBACK QuitCallback( int panel, int control, int event, void *callbackData, int eventData1, int eventData2 )
 {
-	switch (event)
+	switch( event )
 	{
 		case EVENT_COMMIT:
-			QuitUserInterface (0);
+			QuitUserInterface( 0 );
 			break;
 	}
 	return 0;

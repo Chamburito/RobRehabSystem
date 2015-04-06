@@ -12,6 +12,7 @@
 #endif
 
 #include "axis_control.h"
+#include "emg_processing.h"
 
 #include "async_debug.h"
 
@@ -35,14 +36,17 @@ static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing u
 
 static CNVData data = 0;
 
-static CNVSubscriber gAmplitudeSubscriber, gFrequencySubscriber;
-DefineThreadSafeVar( double, Amplitude );
-DefineThreadSafeVar( double, Frequency );
-void CVICALLBACK AmplitudeFrequencyDataCallback( void*, CNVData, void* );
-void CVICALLBACK StopDataCallback( void*, CNVData, void* );
+static double axisStiffness = 10.0, axisDamping = 0.0;
+static CNVSubscriber gStiffnessSubscriber, gDampingSubscriber;
+void CVICALLBACK GainDataCallback( void*, CNVData, void* );
+
+static CNVSubscriber gEnableSubscriber;
+void CVICALLBACK EnableDataCallback( void*, CNVData, void* );
 
 static CNVBufferedWriter gWavePublisher;
-static double wave[ NUM_POINTS ];
+
+const int N_SETPOINTS = 444;
+static double setpointsList[ N_SETPOINTS ];
 
 int RobRehabNetwork_Init()
 {
@@ -60,7 +64,15 @@ int RobRehabNetwork_Init()
   infoClientsList = ListCreate( sizeof(int) );
   dataClientsList = ListCreate( sizeof(int) );
   
+  EMGProcessing_Init();
   AxisControl_Init();
+  
+  FILE* setpointsFile = fopen( "../config/setpoints.dat", "r" );
+  
+  for( size_t i = 0; i < N_SETPOINTS; i++ )
+    fscanf( setpointsFile, "%lf\n", &(setpointsList[ i ]) );
+            
+  fclose( setpointsFile );
   
   networkAxesList = (NetworkAxis*) calloc( AxisControl_GetActiveAxesNumber(), sizeof(NetworkAxis) );
   
@@ -78,13 +90,16 @@ int RobRehabNetwork_Init()
   int status = 0;
   
   // Create network variable connections.
-	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" AMPLITUDE_VARIABLE, AmplitudeFrequencyDataCallback, 0, 0, 10000, 0, &gAmplitudeSubscriber );
+	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" STIFFNESS_VARIABLE, GainDataCallback, 0, 0, 10000, 0, &gStiffnessSubscriber );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" FREQUENCY_VARIABLE, AmplitudeFrequencyDataCallback, 0, 0, 10000, 0, &gFrequencySubscriber );
+	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" DAMPING_VARIABLE, GainDataCallback, 0, 0, 10000, 0, &gDampingSubscriber );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
   status = CNVCreateBufferedWriter( "\\\\localhost\\" PROCESS "\\" WAVE_VARIABLE, 0, 0, 0, 10, 10000, 0, &gWavePublisher );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+  
+  status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" ENABLE_VARIABLE, EnableDataCallback, 0, 0, 10000, 0, &gEnableSubscriber );
+	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
   
@@ -102,14 +117,14 @@ void RobRehabNetwork_End()
   ListDispose( dataClientsList );
   
   if( data ) CNVDisposeData( data );
-  if( gAmplitudeSubscriber ) CNVDispose( gAmplitudeSubscriber );
-	if( gFrequencySubscriber ) CNVDispose( gFrequencySubscriber );
+  if( gStiffnessSubscriber ) CNVDispose( gStiffnessSubscriber );
+	if( gDampingSubscriber ) CNVDispose( gDampingSubscriber );
   if( gWavePublisher ) CNVDispose( gWavePublisher );
-  
-  UninitializeAmplitude();
-	UninitializeFrequency();
+  if( gEnableSubscriber ) CNVDispose( gEnableSubscriber );
+	CNVFinish();
   
   AxisControl_End();
+  EMGProcessing_End();
   
   DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
 }
@@ -139,32 +154,9 @@ void RobRehabNetwork_Update()
   //ListApplyToEach( dataClientsList, 1, UpdateMotorData, (void*) motorDataClientsList );
   
   // Test
-  //int dummyClientID = 0;
-  //UpdateMotorInfo( 0, &dummyClientID, NULL );
-  //UpdateMotorData( 0, &dummyClientID, NULL );
-  
-  static double motorParametersList[ AXIS_N_PARAMS ];
-  
-  motorParametersList[ POSITION_SETPOINT ] = GetFrequency();
-  motorParametersList[ PROPORTIONAL_GAIN ] = GetAmplitude();
-  
-  AxisControl_ConfigMotor( 0, motorParametersList );
-  
-  static size_t valuesCount;
-  static size_t arrayDims = NUM_POINTS;
-  
-  static double motorMeasuresList[ AXIS_N_DIMS ];
-  AxisControl_GetMotorMeasures( 0, motorMeasuresList );
-  wave[ valuesCount ] = motorMeasuresList[ POSITION ];
-  DEBUG_PRINT( "got axis value %u: %.3f", valuesCount, wave[ valuesCount ] );
-  valuesCount++;
-  
-  if( valuesCount >= arrayDims )
-  {
-    CNVCreateArrayDataValue( &data, CNVDouble, wave, 1, &arrayDims );
-	  CNVPutDataInBuffer( gWavePublisher, data, 1000 );
-    valuesCount = 0;
-  }
+  int dummyClientID = 0;
+  UpdateMotorInfo( 0, &dummyClientID, NULL );
+  UpdateMotorData( 0, &dummyClientID, NULL );
 }
 
 static int CVICALLBACK UpdateMotorInfo( int index, void* ref_clientID, void* data )
@@ -174,7 +166,7 @@ static int CVICALLBACK UpdateMotorInfo( int index, void* ref_clientID, void* dat
   //static char* messageIn;
   const char* messageIn = "";
   
-  static bool motorStatesList[ AXIS_N_STATES ];
+  static bool* motorStatesList;
   static char messageOut[ IP_CONNECTION_MSG_LEN ] = "";
   
   //if( (messageIn = AsyncIPConnection_ReadMessage( clientID )) == NULL ) return 0;
@@ -196,9 +188,9 @@ static int CVICALLBACK UpdateMotorInfo( int index, void* ref_clientID, void* dat
     
     bool reset = (bool) strtoul( command, NULL, 0 );
     
-    if( reset ) AxisControl_ResetMotor( axisID );
+    if( reset ) AxisControl_Reset( axisID );
     
-    if( AxisControl_GetMotorStatus( axisID, motorStatesList ) != -1 )
+    if( (motorStatesList = AxisControl_GetMotorStatus( axisID )) != NULL )
     {
       snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, axisID );
       
@@ -222,12 +214,13 @@ static int CVICALLBACK UpdateMotorData( int index, void* ref_clientID, void* dat
   int clientID = *((int*) ref_clientID);
   
   //static char* messageIn;
-  const char* messageIn = "";
+  static char messageIn[ IP_CONNECTION_MSG_LEN ];
+  sprintf( messageIn, "0:0.0 0.0 %.3f %.3f", axisStiffness, axisDamping );
   
   static char messageOut[ IP_CONNECTION_MSG_LEN ] = "";
   
+  static double* motorMeasuresList;
   static double motorParametersList[ AXIS_N_PARAMS ];
-  static double motorMeasuresList[ AXIS_N_DIMS ];
   
   //if( (messageIn = AsyncIPConnection_ReadMessage( clientID )) == NULL ) return 0;
   
@@ -244,14 +237,40 @@ static int CVICALLBACK UpdateMotorData( int index, void* ref_clientID, void* dat
     for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
       motorParametersList[ parameterIndex ] = strtod( command, &command );
     
+    static size_t setpointIndex;
+    motorParametersList[ POSITION_SETPOINT ] = setpointsList[ setpointIndex % N_SETPOINTS ] / ( 2 * PI );
+    setpointIndex++;
+    
     AxisControl_ConfigMotor( axisID, motorParametersList );
     
-    if( AxisControl_GetMotorMeasures( axisID, motorMeasuresList ) != -1 )
+    if( (motorMeasuresList = AxisControl_GetSensorMeasures( axisID )) != NULL )
     {
       snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, axisID );
       
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
         snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%.3f ", messageOut, motorMeasuresList[ dimensionIndex ] );
+      
+      static size_t valuesCount;
+      static double dimensionValuesArray[ AXIS_N_DIMS * NUM_POINTS ];
+      static size_t arrayDims = AXIS_N_DIMS * NUM_POINTS;
+  
+      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
+        dimensionValuesArray[ valuesCount * AXIS_N_DIMS + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
+      
+      // Gamb
+      dimensionValuesArray[ valuesCount * AXIS_N_DIMS + CURRENT ] = motorParametersList[ POSITION_SETPOINT ];
+      double* emgValuesList = EMGProcessing_GetValues();
+      if( emgValuesList != NULL ) dimensionValuesArray[ valuesCount * AXIS_N_DIMS + TENSION ] = emgValuesList[ 0 ];
+      //DEBUG_PRINT( "got EMG value %g", dimensionValuesArray[ valuesCount * AXIS_N_DIMS + TENSION ] );
+      
+      valuesCount++;
+      
+      if( valuesCount >= NUM_POINTS )
+      {
+        CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dimensionValuesArray, 1, &arrayDims );
+    	  CNVPutDataInBuffer( gWavePublisher, data, 1000 );
+        valuesCount = 0;
+      }
     }
   }
   
@@ -265,20 +284,38 @@ static int CVICALLBACK UpdateMotorData( int index, void* ref_clientID, void* dat
   return 0;
 }
 
-void CVICALLBACK AmplitudeFrequencyDataCallback( void* handle, CNVData data, void* callbackData )
+void CVICALLBACK GainDataCallback( void* handle, CNVData data, void* callbackData )
 {
 	double value;
 
-	if( handle == gAmplitudeSubscriber )
+	if( handle == gStiffnessSubscriber )
 	{
 		CNVGetScalarDataValue( data, CNVDouble, &value );
-		SetAmplitude( value );
+		axisStiffness = value;
+    DEBUG_PRINT( "got stiffness value %g", axisStiffness );
 	}
-	else if( handle == gFrequencySubscriber )
+	else if( handle == gDampingSubscriber )
 	{
 		CNVGetScalarDataValue( data, CNVDouble, &value );
-		SetFrequency( value );
+		axisDamping = value;
+    DEBUG_PRINT( "got damping value %g", axisDamping );
 	}
+}
+
+void CVICALLBACK EnableDataCallback( void * handle, CNVData data, void * callbackData )
+{
+	char enabled;
+
+	CNVGetScalarDataValue( data, CNVBool, &enabled );
+	if( enabled )
+  {
+    AxisControl_Reset( 0 );
+		AxisControl_EnableMotor( 0 );
+  }
+  else
+    AxisControl_DisableMotor( 0 );
+  
+  DEBUG_PRINT( "motor 0 %s", enabled ? "enabled" : "disabled" ); 
 }
 
 #endif //ROBREHAB_NETWORK_H

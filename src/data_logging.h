@@ -28,21 +28,15 @@ static size_t dataLogsNumber = 0;
 
 const size_t LOG_FILE_NAME_MAX_LEN = 128;
 
-int DataLogging_CreateLog( const char* logName, size_t logValuesNumber )
+int DataLogging_CreateLog( const char* dirName, const char* logName, size_t logValuesNumber )
 {
   dataLogsList = (DataLog*) realloc( dataLogsList, sizeof(DataLog) * ( dataLogsNumber + 1 ) );
   
   static char logFileName[ LOG_FILE_NAME_MAX_LEN ];
   
-  static time_t logTime;
+  sprintf( logFileName, "%s/%s_data-%u.log", ( dirName != NULL ) ? dirName : ".", logName, time( NULL ) );
   
-  time( &logTime );
-  
-  sprintf( logFileName, "%s_data_log-%s.log", logName, "5"/*ctime( &logTime )*/ );
-  
-  FILE* logFile = dataLogsList[ dataLogsNumber ].file;
-  
-  if( (logFile = fopen( logFileName, "w+" )) == NULL )
+  if( (dataLogsList[ dataLogsNumber ].file = fopen( logFileName, "w+" )) == NULL )
     return -1;
   
   dataLogsList[ dataLogsNumber ].valuesNumber = logValuesNumber;
@@ -51,28 +45,25 @@ int DataLogging_CreateLog( const char* logName, size_t logValuesNumber )
   return dataLogsNumber++;
 } 
 
-static void SaveLog( int logFileID )
+void DataLogging_SaveData( int logFileID, double* dataList, size_t dataListSize )
 {
-  FILE* logFile = dataLogsList[ logFileID ].file;
-  
-  size_t totalValuesNumber = dataLogsList[ logFileID ].memoryValuesCount;
-  size_t lineValuesNumber = dataLogsList[ logFileID ].valuesNumber;
-  
-  size_t linesNumber = totalValuesNumber / lineValuesNumber;
-  
-  double* memoryValues = (double*) dataLogsList[ logFileID ].memoryValues;
-  
-  for( size_t line = 0; line < linesNumber; line++ )
+  if( logFileID > -1 && logFileID < (int) dataLogsNumber )
   {
-    for( size_t valueIndex = 0; valueIndex < lineValuesNumber; valueIndex++ )
-      fprintf( logFile, "a: %.3f\t", memoryValues[ line + valueIndex ] );
-    fprintf( logFile, "\n" );
-  }
+    FILE* logFile = dataLogsList[ logFileID ].file;
   
-  dataLogsList[ logFileID ].memoryValuesCount = 0;
+    size_t lineValuesNumber = dataLogsList[ logFileID ].valuesNumber;
+    size_t linesNumber = dataListSize / lineValuesNumber;
+  
+    for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
+    {
+      for( size_t valueLineIndex = 0; valueLineIndex < lineValuesNumber; valueLineIndex++ )
+        fprintf( logFile, "%.3lf\t", dataList[ lineIndex * lineValuesNumber + valueLineIndex ] );
+      fprintf( logFile, "\n" );
+    }
+  }
 }
 
-void DataLogging_Register( int logFileID, ... )
+void DataLogging_RegisterValues( int logFileID, ... )
 {
   va_list logValues;
   
@@ -82,17 +73,19 @@ void DataLogging_Register( int logFileID, ... )
     
     double* memoryValues = (double*) dataLogsList[ logFileID ].memoryValues;
     
-    size_t logValuesNumber = dataLogsList[ logFileID ].valuesNumber;
-    for( size_t valueIndex = 0; valueIndex < logValuesNumber; valueIndex++ )
+    size_t lastTotalValuesCount = dataLogsList[ logFileID ].memoryValuesCount;
+    size_t logLineValuesNumber = dataLogsList[ logFileID ].valuesNumber;
+    
+    if( lastTotalValuesCount + logLineValuesNumber >= MEMORY_BUFFER_SIZE )
     {
-      double value = va_arg( logValues, double );
-      
-      memoryValues[ dataLogsList[ logFileID ].memoryValuesCount ] = value;
-      dataLogsList[ logFileID ].memoryValuesCount++;
+      DataLogging_SaveData( logFileID, memoryValues, lastTotalValuesCount );
+      lastTotalValuesCount = 0;
     }
     
-    if( dataLogsList[ logFileID ].memoryValuesCount + logValuesNumber > MEMORY_BUFFER_SIZE ) 
-      SaveLog( logFileID );
+    for( size_t valueLineIndex = 0; valueLineIndex < logLineValuesNumber; valueLineIndex++ )
+      memoryValues[ lastTotalValuesCount + valueLineIndex ] = va_arg( logValues, double );
+    
+    dataLogsList[ logFileID ].memoryValuesCount = lastTotalValuesCount + logLineValuesNumber;
     
     va_end( logValues );
   }
@@ -102,7 +95,7 @@ void DataLogging_CloseLog( int logFileID )
 {
   if( logFileID > -1 && logFileID < (int) dataLogsNumber )
   {
-    SaveLog( logFileID );
+    DataLogging_SaveData( logFileID, dataLogsList[ logFileID ].memoryValues, dataLogsList[ logFileID ].memoryValuesCount );
     
     FILE* logFile = dataLogsList[ logFileID ].file;
     

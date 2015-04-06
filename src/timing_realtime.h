@@ -19,13 +19,13 @@ extern inline void Timing_Delay( unsigned long milliseconds )
 // Get system time in milliseconds
 extern inline unsigned long Timing_GetExecTimeMilliseconds()
 {
-  return ( (unsigned long) ( 1000 * GetTimeUS() ) );
+  return ( (unsigned long) ( GetTimeUS() / 1000 ) );
 }
 
 // Get system time in seconds
 extern inline unsigned int Timing_GetExecTimeSeconds()
 {
-  return ( (unsigned long) ( 1000000 * GetTimeUS() ) );
+  return ( (unsigned int) ( GetTimeUS() / 1000000 ) );
 }
 
 #endif /* TIMING_H */

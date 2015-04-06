@@ -50,50 +50,51 @@ enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVA
 enum FrameType { SDO, PDO01, PDO02, AXIS_N_FRAMES };
 static const char* CAN_FRAME_NAMES[ AXIS_N_FRAMES ] = { "SDO", "PDO01", "PDO02" };
 
-typedef struct _Encoder
+typedef struct _MotorDrive
 {
   CANFrame* readFramesList[ AXIS_N_FRAMES ];
+  CANFrame* writeFramesList[ AXIS_N_FRAMES ];
   double measuresList[ AXIS_N_DIMS ];
-  unsigned int resolution;
-  uint16_t statusWord
+  unsigned int encoderResolution;
+  uint16_t statusWord, controlWord;
+  uint16_t digitalOutput;
 }
-Encoder;
+MotorDrive;
 
 typedef struct _Motor
 {
-  Encoder* encoder;
-  CANFrame* writeFramesList[ AXIS_N_FRAMES ];
+  MotorDrive* controller;
   double parametersList[ AXIS_N_PARAMS ];
-  uint16_t controlWord;
-  uint16_t digitalOutput;
   bool active;
 }
 Motor;
 
-Motor* Motor_Connect( unsigned int, unsigned int );
-Encoder* Encoder_Connect( unsigned int, unsigned int );
+Motor* Motor_Connect( unsigned int );
+MotorDrive* MotorDrive_Connect( unsigned int );
 void Motor_Enable( Motor* );
 void Motor_Disable( Motor* );
 void Motor_Disconnect( Motor* );
-void Encoder_Disconnect( Encoder* );
-double Encoder_GetMeasure( Encoder*, Dimension );
+void MotorDrive_Disconnect( MotorDrive* );
+void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
+double MotorDrive_GetMeasure( MotorDrive*, Dimension );
 double Motor_GetParameter( Motor*, Parameter );
 void Motor_SetParameter( Motor*, Parameter, double );
-bool Encoder_CheckState( Encoder*, State );
-void Motor_Reset( Motor* );
-static void SetControl( Motor*, Control, bool );
-void Encoder_ReadValues( Encoder* );
+bool MotorDrive_CheckState( MotorDrive*, State );
+void MotorDrive_Reset( MotorDrive* );
+static void SetControl( MotorDrive*, Control, bool );
+void MotorDrive_ReadValues( MotorDrive* );
 void Motor_WriteConfig( Motor* );
-static double ReadSingleValue( Motor*, uint16_t, uint8_t );
-static void WriteSingleValue( Motor*, uint16_t, uint8_t, int );
+static void MotorDrive_WriteConfig( MotorDrive* );
+static double ReadSingleValue( MotorDrive*, uint16_t, uint8_t );
+static void WriteSingleValue( MotorDrive*, uint16_t, uint8_t, int );
 void Motor_SetOperationMode( Motor*, OperationMode );
-static void EnableDigitalOutput( Motor*, bool );
-void Motor_SetDigitalOutput( Motor*, uint16_t output );
+static void EnableDigitalOutput( MotorDrive*, bool );
+extern inline void MotorDrive_SetDigitalOutput( MotorDrive*, uint16_t output );
 
 const size_t DEVICE_NAME_MAX_LENGTH = 15;
 
 // Create CAN controlled DC motor handle
-Motor* Motor_Connect( unsigned int networkIndex, unsigned int resolution ) 
+Motor* Motor_Connect( unsigned int networkIndex ) 
 {
   DEBUG_EVENT( 0, "created motor with network index %u", networkIndex ); 
   
@@ -102,33 +103,14 @@ Motor* Motor_Connect( unsigned int networkIndex, unsigned int resolution )
   for( int i = 0; i < AXIS_N_PARAMS; i++ )
     motor->parametersList[ i ] = 0.0;
   
-  motor->controlWord = 0;
-  
-  static char networkAddress[ DEVICE_NAME_MAX_LENGTH ];
-
-  for( int frameID = 0; frameID < AXIS_N_FRAMES; frameID++ )
-  {
-    sprintf( networkAddress, "%s_TX_%02u", CAN_FRAME_NAMES[ frameID ], networkIndex );
-    motor->writeFramesList[ frameID ] = EposNetwork_InitFrame( FRAME_OUT, "CAN2", networkAddress );
-
-    if( motor->writeFramesList[ frameID ] == NULL ) 
-    {
-      Motor_Disconnect( motor );
-      ERROR_EVENT( "failed creating write frame %s for motor with network index %u", networkAddress, networkIndex );
-      return NULL;
-    }
-    
-    DEBUG_EVENT( 1, "created frame %s", networkAddress );
-  }
-  
-  if( (motor->encoder = Encoder_Connect( networkIndex, resolution )) == NULL )
+  if( (motor->controller = MotorDrive_Connect( networkIndex )) == NULL )
   {
     Motor_Disconnect( motor );
     return NULL;
   }
 
-  SetControl( motor, ENABLE_VOLTAGE, true );
-  SetControl( motor, QUICK_STOP, true );
+  SetControl( motor->controller, ENABLE_VOLTAGE, true );
+  SetControl( motor->controller, QUICK_STOP, true );
   
   Motor_Disable( motor );
 
@@ -137,39 +119,45 @@ Motor* Motor_Connect( unsigned int networkIndex, unsigned int resolution )
   return motor;
 }
 
-Encoder* Encoder_Connect( unsigned int networkIndex, unsigned int resolution )
+MotorDrive* MotorDrive_Connect( unsigned int networkIndex )
 {
-  DEBUG_EVENT( 0, "creating encoder with network index %u", networkIndex );
+  DEBUG_EVENT( 0, "creating controller with network index %u", networkIndex );
   
-  Encoder* encoder = (Encoder*) malloc( sizeof(Encoder) );
+  MotorDrive* controller = (MotorDrive*) malloc( sizeof(MotorDrive) );
   
   for( int i = 0; i < AXIS_N_DIMS; i++ )
-    encoder->measuresList[ i ] = 10.0;
+    controller->measuresList[ i ] = 10.0;
   
-  encoder->resolution = resolution;
+  controller->encoderResolution = 1;
   
-  encoder->statusWord = 0;
+  controller->statusWord = controller->controlWord = 0;
+  
+  controller->digitalOutput = 0;
   
   static char networkAddress[ DEVICE_NAME_MAX_LENGTH ];
 
   for( int frameID = 0; frameID < AXIS_N_FRAMES; frameID++ )
   {
     sprintf( networkAddress, "%s_RX_%02u", CAN_FRAME_NAMES[ frameID ], networkIndex );
-    encoder->readFramesList[ frameID ] = EposNetwork_InitFrame( FRAME_IN, "CAN1", networkAddress );
+    controller->readFramesList[ frameID ] = EposNetwork_InitFrame( FRAME_IN, "CAN1", networkAddress );
 
-    if( encoder->readFramesList[ frameID ] == NULL ) 
+    if( controller->readFramesList[ frameID ] != NULL ) 
     {
-      Encoder_Disconnect( encoder );
-      ERROR_EVENT( "failed creating read frame %s for encoder with network index %u", networkAddress, networkIndex );
+      sprintf( networkAddress, "%s_TX_%02u", CAN_FRAME_NAMES[ frameID ], networkIndex );
+      controller->writeFramesList[ frameID ] = EposNetwork_InitFrame( FRAME_OUT, "CAN2", networkAddress );;
+    }
+
+    if( controller->readFramesList[ frameID ] == NULL || controller->writeFramesList[ frameID ] == NULL ) 
+    {
+      MotorDrive_Disconnect( controller );
+      ERROR_EVENT( "failed creating frame %s for motor with network index %u", networkAddress, networkIndex );
       return NULL;
     }
-    
-    DEBUG_EVENT( 1, "created frame %s", networkAddress );
   }
 
-  DEBUG_EVENT( 0, "created encoder with network index %u", networkIndex );
+  DEBUG_EVENT( 0, "created controller with network index %u", networkIndex );
   
-  return encoder;
+  return controller;
 }
 
 void Motor_Disconnect( Motor* motor )
@@ -178,43 +166,49 @@ void Motor_Disconnect( Motor* motor )
   {
     if( motor->active ) Motor_Disable( motor );
     
-    Encoder_Disconnect( motor->encoder );
-    motor->encoder = NULL;
+    MotorDrive_Disconnect( motor->controller );
+    motor->controller = NULL;
 
     free( motor );
     motor = NULL;
   }
 }
 
-void Encoder_Disconnect( Encoder* encoder )
+void MotorDrive_Disconnect( MotorDrive* controller )
 {
-  if( encoder != NULL )
+  if( controller != NULL )
   {
     for( size_t frameID = 0; frameID < AXIS_N_FRAMES; frameID++ )
-      EposNetwork_EndFrame( encoder->readFramesList[ frameID ] );
+      EposNetwork_EndFrame( controller->readFramesList[ frameID ] );
 
-    free( encoder );
-    encoder = NULL;
+    free( controller );
+    controller = NULL;
   }
+}
+
+void MotorDrive_SetEncoderResolution( MotorDrive* controller, unsigned int resolution )
+{
+  if( resolution >= 1 )
+    controller->encoderResolution = resolution;
 }
 
 void Motor_Enable( Motor* motor )
 {
   if( motor->active ) return;
   
-  SetControl( motor, SWITCH_ON, false );
-  SetControl( motor, ENABLE_OPERATION, false );
-  Motor_WriteConfig( motor );
+  SetControl( motor->controller, SWITCH_ON, false );
+  SetControl( motor->controller, ENABLE_OPERATION, false );
+  MotorDrive_WriteConfig( motor->controller );
         
   Timing_Delay( 200 );
         
-  SetControl( motor, SWITCH_ON, true );
-  Motor_WriteConfig( motor );
+  SetControl( motor->controller, SWITCH_ON, true );
+  MotorDrive_WriteConfig( motor->controller );
 
   Timing_Delay( 200 );
         
-  SetControl( motor, ENABLE_OPERATION, true );
-  Motor_WriteConfig( motor );
+  SetControl( motor->controller, ENABLE_OPERATION, true );
+  MotorDrive_WriteConfig( motor->controller );
 
   motor->active = true;
 }
@@ -223,31 +217,27 @@ void Motor_Disable( Motor* motor )
 {
   if( !(motor->active) ) return;
   
-  SetControl( motor, SWITCH_ON, true );
-  SetControl( motor, ENABLE_OPERATION, false );
-  Motor_WriteConfig( motor );
+  SetControl( motor->controller, SWITCH_ON, true );
+  SetControl( motor->controller, ENABLE_OPERATION, false );
+  MotorDrive_WriteConfig( motor->controller );
         
   Timing_Delay( 200 );
         
-  SetControl( motor, SWITCH_ON, false );
-  Motor_WriteConfig( motor );
-
-  /*for( size_t paramIndex = 0; paramIndex < AXIS_N_PARAMS; paramIndex++ )
-    Motor_SetParameter( motor, (enum Parameter) paramIndex, 0 );
-  Motor_WriteConfig( motor );*/
+  SetControl( motor->controller, SWITCH_ON, false );
+  MotorDrive_WriteConfig( motor->controller );
 
   motor->active = false;
 }
 
-double Encoder_GetMeasure( Encoder* encoder, enum Dimension index )
+double MotorDrive_GetMeasure( MotorDrive* controller, enum Dimension index )
 {
   if( index >= AXIS_N_DIMS )
   {
-    fprintf( stderr, "Encoder_GetMeasure: invalid value index: %d\n", index );
+    fprintf( stderr, "MotorDrive_GetMeasure: invalid value index: %d\n", index );
     return 0;
   }
       
-  return encoder->measuresList[ index ];
+  return controller->measuresList[ index ];
 }
  
 double Motor_GetParameter( Motor* motor, enum Parameter index )
@@ -272,42 +262,38 @@ void Motor_SetParameter( Motor* motor, enum Parameter index, double value )
   motor->parametersList[ index ] = value;
 }
 
-bool Encoder_CheckState( Encoder* encoder, enum State index )
+bool MotorDrive_CheckState( MotorDrive* controller, enum State index )
 {
   if( index < 0 || index >= AXIS_N_STATES ) return false;
   
   uint16_t stateValue = stateValues[ index ];
   
-  if( (encoder->statusWord & stateValue) != 0 ) return true;
+  if( (controller->statusWord & stateValue) != 0 ) return true;
   else return false;
 }
 
-void Motor_Reset( Motor* motor )
+void MotorDrive_Reset( MotorDrive* controller )
 {
-  SetControl( motor, FAULT_RESET, true );
-  Motor_WriteConfig( motor );
+  SetControl( controller, FAULT_RESET, true );
+  MotorDrive_WriteConfig( controller );
   
-  //DEBUG_EVENT( "reseting motor %p: control word: %x", motor, motor->controlWord );
+  Timing_Delay( 200 );
   
-  Timing_Delay( 500 );
-  
-  SetControl( motor, FAULT_RESET, false );
-  Motor_WriteConfig( motor );
-  
-  //DEBUG_EVENT( "reseting motor %p: control word: %x", motor, motor->controlWord );
+  SetControl( controller, FAULT_RESET, false );
+  MotorDrive_WriteConfig( controller );
 }
 
-static inline void SetControl( Motor* motor, enum Control index, bool enabled )
+static inline void SetControl( MotorDrive* controller, enum Control index, bool enabled )
 {
   if( index < 0 || index >= AXIS_N_CONTROLS ) return;
   
   uint16_t controlValue = controlValues[ index ]; //0x00000001 << index;
   
-  if( enabled ) motor->controlWord |= controlValue;
-  else motor->controlWord &= (~controlValue);
+  if( enabled ) controller->controlWord |= controlValue;
+  else controller->controlWord &= (~controlValue);
 }
 
-void Encoder_ReadValues( Encoder* encoder )
+void MotorDrive_ReadValues( MotorDrive* controller )
 {
   // Create reading buffer
   static uint8_t payload[8];
@@ -315,18 +301,18 @@ void Encoder_ReadValues( Encoder* encoder )
   EposNetwork_Sync();
   
   // Read values from PDO01 (Position, Current and Status Word) to buffer
-  CANFrame_Read( encoder->readFramesList[ PDO01 ], payload );  
+  CANFrame_Read( controller->readFramesList[ PDO01 ], payload );  
   // Update values from PDO01
   double rawPosition = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
-  encoder->measuresList[ POSITION ] = rawPosition / encoder->resolution;
-  encoder->measuresList[ CURRENT ] = payload[5] * 0x100 + payload[4];
-  encoder->statusWord = payload[7] * 0x100 + payload[6];
+  controller->measuresList[ POSITION ] = rawPosition / controller->encoderResolution;
+  controller->measuresList[ CURRENT ] = payload[5] * 0x100 + payload[4];
+  controller->statusWord = payload[7] * 0x100 + payload[6];
 
   // Read values from PDO02 (Position, Current and Status Word) to buffer
-  CANFrame_Read( encoder->readFramesList[ PDO02 ], payload );  
+  CANFrame_Read( controller->readFramesList[ PDO02 ], payload );  
   // Update values from PDO02
-  encoder->measuresList[ VELOCITY ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
-  encoder->measuresList[ TENSION ] = payload[5] * 0x100 + payload[4];
+  controller->measuresList[ VELOCITY ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
+  controller->measuresList[ TENSION ] = payload[5] * 0x100 + payload[4];
 }
 
 void Motor_WriteConfig( Motor* motor )
@@ -334,7 +320,7 @@ void Motor_WriteConfig( Motor* motor )
   // Create writing buffer
   static uint8_t payload[8];
 
-  int rawPositionSetpoint = (int) ( motor->parametersList[ POSITION_SETPOINT ] * motor->encoder->resolution );
+  int rawPositionSetpoint = (int) ( motor->parametersList[ POSITION_SETPOINT ] * motor->controller->encoderResolution );
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[0] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );
@@ -343,11 +329,11 @@ void Motor_WriteConfig( Motor* motor )
   payload[3] = (uint8_t) (( rawPositionSetpoint & 0xff000000 ) / 0x1000000);
   payload[4] = ( 0 & 0x000000ff );
   payload[5] = ( 0 & 0x0000ff00 ) / 0x100; 
-  payload[6] = (uint8_t) ( motor->controlWord & 0x000000ff );
-  payload[7] = (uint8_t) (( motor->controlWord & 0x0000ff00 ) / 0x100); 
+  payload[6] = (uint8_t) ( motor->controller->controlWord & 0x000000ff );
+  payload[7] = (uint8_t) (( motor->controller->controlWord & 0x0000ff00 ) / 0x100); 
 
   // Write values from buffer to PDO01 
-  CANFrame_Write( motor->writeFramesList[ PDO01 ], payload );
+  CANFrame_Write( motor->controller->writeFramesList[ PDO01 ], payload );
 
   int velocitySetpoint = (int) motor->parametersList[ VELOCITY_SETPOINT ];
   
@@ -356,21 +342,44 @@ void Motor_WriteConfig( Motor* motor )
   payload[1] = (uint8_t) (( velocitySetpoint & 0x0000ff00 ) / 0x100);
   payload[2] = (uint8_t) (( velocitySetpoint & 0x00ff0000 ) / 0x10000);
   payload[3] = (uint8_t) (( velocitySetpoint & 0xff000000 ) / 0x1000000);
-  payload[4] = (uint8_t) ( motor->digitalOutput & 0x000000ff );
-  payload[5] = (uint8_t) (( motor->digitalOutput & 0x0000ff00 ) / 0x100); 
+  payload[4] = (uint8_t) ( motor->controller->digitalOutput & 0x000000ff );
+  payload[5] = (uint8_t) (( motor->controller->digitalOutput & 0x0000ff00 ) / 0x100); 
   payload[6] = ( 0 & 0x000000ff );
   payload[7] = ( 0 & 0x0000ff00 ) / 0x100; 
 
   // Write values from buffer to PDO01
-  CANFrame_Write( motor->writeFramesList[ PDO02 ], payload );
+  CANFrame_Write( motor->controller->writeFramesList[ PDO02 ], payload );
   
   EposNetwork_Sync();
 }
 
-static double ReadSingleValue( Motor* motor, uint16_t index, uint8_t subIndex )
+static void MotorDrive_WriteConfig( MotorDrive* controller )
+{
+  // Create writing buffer
+  static uint8_t payload[8];
+  
+  // Set values for PDO01 (Position Setpoint and Control Word)
+  payload[6] = (uint8_t) ( controller->controlWord & 0x000000ff );
+  payload[7] = (uint8_t) (( controller->controlWord & 0x0000ff00 ) / 0x100); 
+
+  // Write values from buffer to PDO01 
+  CANFrame_Write( controller->writeFramesList[ PDO01 ], payload );
+  
+  // Set values for PDO02 (Velocity Setpoint and Output)
+  payload[4] = (uint8_t) ( controller->digitalOutput & 0x000000ff );
+  payload[5] = (uint8_t) (( controller->digitalOutput & 0x0000ff00 ) / 0x100); 
+
+  // Write values from buffer to PDO01
+  CANFrame_Write( controller->writeFramesList[ PDO02 ], payload );
+  
+  EposNetwork_Sync();
+}
+
+static double ReadSingleValue( MotorDrive* controller, uint16_t index, uint8_t subIndex )
 {
   // Build read requisition buffer for defined value
   static uint8_t payload[8];
+  
   payload[0] = 0x40; 
   payload[1] = (uint8_t) ( index & 0x000000ff );
   payload[2] = (uint8_t) (( index & 0x0000ff00 ) / 0x100);//0xff); ?
@@ -381,22 +390,23 @@ static double ReadSingleValue( Motor* motor, uint16_t index, uint8_t subIndex )
   payload[7] = 0x0;
 
   // Write value requisition to SDO frame 
-  CANFrame_Write( motor->writeFramesList[ SDO ], payload );
+  CANFrame_Write( controller->writeFramesList[ SDO ], payload );
 
   Timing_Delay( 100 );
 
   // Read requested value from SDO frame
-  CANFrame_Read( motor->encoder->readFramesList[ SDO ], payload );
+  CANFrame_Read( controller->readFramesList[ SDO ], payload );
 
   double value = payload[7] * 0x1000000 + payload[6] * 0x10000 + payload[5] * 0x100 + payload[4];
 
   return value; 
 }
 
-static void WriteSingleValue( Motor* motor, uint16_t index, uint8_t subIndex, int value )
+static void WriteSingleValue( MotorDrive* controller, uint16_t index, uint8_t subIndex, int value )
 {
   // Build write buffer
   static uint8_t payload[8];
+  
   payload[0] = 0x22; 
   payload[1] = (uint8_t) ( index & 0x000000ff );
   payload[2] = (uint8_t) (( index & 0x0000ff00 ) / 0x100);
@@ -407,23 +417,23 @@ static void WriteSingleValue( Motor* motor, uint16_t index, uint8_t subIndex, in
   payload[7] = (uint8_t) (( value & 0xff000000 ) / 0x1000000);
 
   // Write value to SDO frame 
-  CANFrame_Write( motor->writeFramesList[ SDO ], payload );
+  CANFrame_Write( controller->writeFramesList[ SDO ], payload );
 }
 
 extern inline void Motor_SetOperationMode( Motor* motor, enum OperationMode mode )
 {
-  WriteSingleValue( motor, 0x6060, 0x00, operationModes[ mode ] );
+  WriteSingleValue( motor->controller, 0x6060, 0x00, operationModes[ mode ] );
 }
 
-static void EnableDigitalOutput( Motor* motor, bool enabled )
+static void EnableDigitalOutput( MotorDrive* controller, bool enabled )
 {
-  if( enabled ) WriteSingleValue( motor, 0x6060, 0x00, 0xff );
-  else WriteSingleValue( motor, 0x6060, 0x00, 0x00 );
+  if( enabled ) WriteSingleValue( controller, 0x6060, 0x00, 0xff );
+  else WriteSingleValue( controller, 0x6060, 0x00, 0x00 );
 }
 
-extern inline void Motor_SetDigitalOutput( Motor* motor, uint16_t output )
+extern inline void MotorDrive_SetDigitalOutput( MotorDrive* controller, uint16_t output )
 {
-  motor->digitalOutput = output;
+  controller->digitalOutput = output;
 }
 
 

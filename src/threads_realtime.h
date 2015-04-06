@@ -35,7 +35,7 @@ CmtThreadPoolHandle threadPool = NULL;
 // Setup new thread to run the given method asyncronously
 Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
 {
-  static CmtThreadFunctionID threadID;
+  CmtThreadFunctionID threadID = -1;
   static int status;
   
   static char errorBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
