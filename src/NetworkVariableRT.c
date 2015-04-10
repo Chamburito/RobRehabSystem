@@ -58,7 +58,7 @@ void CVIFUNC_C RTmain( void )
 	{
 		status = CNVProcessIsRunning( PROCESS, &systemStarted );
 		if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
-		SleepUS( 100000 );
+		SleepUS( 10000 );
 	}
 	
   RobRehabNetwork_Init();

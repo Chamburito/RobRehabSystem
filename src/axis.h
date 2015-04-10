@@ -88,7 +88,7 @@ static void MotorDrive_WriteConfig( MotorDrive* );
 static double ReadSingleValue( MotorDrive*, uint16_t, uint8_t );
 static void WriteSingleValue( MotorDrive*, uint16_t, uint8_t, int );
 void Motor_SetOperationMode( Motor*, OperationMode );
-static void EnableDigitalOutput( MotorDrive*, bool );
+static inline void EnableDigitalOutput( MotorDrive*, bool );
 extern inline void MotorDrive_SetDigitalOutput( MotorDrive*, uint16_t output );
 
 const size_t DEVICE_NAME_MAX_LENGTH = 15;
@@ -155,6 +155,8 @@ MotorDrive* MotorDrive_Connect( unsigned int networkIndex )
     }
   }
 
+  EnableDigitalOutput( controller, true );
+  
   DEBUG_EVENT( 0, "created controller with network index %u", networkIndex );
   
   return controller;
@@ -308,7 +310,7 @@ void MotorDrive_ReadValues( MotorDrive* controller )
   controller->measuresList[ CURRENT ] = payload[5] * 0x100 + payload[4];
   controller->statusWord = payload[7] * 0x100 + payload[6];
 
-  // Read values from PDO02 (Position, Current and Status Word) to buffer
+  // Read values from PDO02 (Velocity and Tension) to buffer
   CANFrame_Read( controller->readFramesList[ PDO02 ], payload );  
   // Update values from PDO02
   controller->measuresList[ VELOCITY ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
@@ -337,7 +339,7 @@ void Motor_WriteConfig( Motor* motor )
 
   int velocitySetpoint = (int) motor->parametersList[ VELOCITY_SETPOINT ];
   
-  // Set values for PDO02 (Velocity Setpoint and Output)
+  // Set values for PDO02 (Velocity Setpoint and Digital Output)
   payload[0] = (uint8_t) ( velocitySetpoint & 0x000000ff );
   payload[1] = (uint8_t) (( velocitySetpoint & 0x0000ff00 ) / 0x100);
   payload[2] = (uint8_t) (( velocitySetpoint & 0x00ff0000 ) / 0x10000);
@@ -425,7 +427,7 @@ extern inline void Motor_SetOperationMode( Motor* motor, enum OperationMode mode
   WriteSingleValue( motor->controller, 0x6060, 0x00, operationModes[ mode ] );
 }
 
-static void EnableDigitalOutput( MotorDrive* controller, bool enabled )
+static inline void EnableDigitalOutput( MotorDrive* controller, bool enabled )
 {
   if( enabled ) WriteSingleValue( controller, 0x6060, 0x00, 0xff );
   else WriteSingleValue( controller, 0x6060, 0x00, 0x00 );

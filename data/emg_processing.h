@@ -94,8 +94,11 @@ static double* EMGProcessing_Update( float64* emgSamplesZerosList, float64* emgS
 
       emgSamplesMeansList[ channel ] = 0.0;
       for( int sampleIndex = 0; sampleIndex < EMG_SAMPLES_NUMBER; sampleIndex++ )
-      {
         emgSamplesMeansList[ channel ] += emgChannelSamplesList[ sampleIndex ] / EMG_SAMPLES_NUMBER;
+
+      for( int sampleIndex = 0; sampleIndex < EMG_SAMPLES_NUMBER; sampleIndex++ )
+      {
+        emgChannelSamplesList[ sampleIndex ] = fabs( emgChannelSamplesList[ sampleIndex ] - emgSamplesMeansList[ channel ] );
       
         if( emgSamplesMaxList != NULL )
         {
@@ -103,9 +106,6 @@ static double* EMGProcessing_Update( float64* emgSamplesZerosList, float64* emgS
             emgSamplesMaxList[ channel ] = emgChannelSamplesList[ sampleIndex ];
         }
       }
-
-      for( int sampleIndex = 0; sampleIndex < EMG_SAMPLES_NUMBER; sampleIndex++ )
-        emgChannelSamplesList[ sampleIndex ] = fabs( emgChannelSamplesList[ sampleIndex ] - emgSamplesMeansList[ channel ] );
 
       for( int sampleIndex = EMG_SAMPLES_NUMBER - FILTER_COEFF_NUMBER; sampleIndex >= 0; sampleIndex-- )
       {
@@ -156,7 +156,12 @@ static void* EMGProcessing_AsyncUpdate( void* referenceData )
       
         for( size_t sampleIndex = 0; sampleIndex < EMG_SAMPLES_NUMBER; sampleIndex++ )
         {
-          float64 emgNormalizedSample = emgChannelFilteredSamplesList[ sampleIndex ] / reference->maxList[ channel ];
+          static float64 emgNormalizedSample;
+          if( reference->maxList[ channel ] > 0.0 )
+            emgNormalizedSample = emgChannelFilteredSamplesList[ sampleIndex ] / reference->maxList[ channel ];
+          else
+            emgNormalizedSample = 0.0;
+            
           emgChannelActivationsList[ sampleIndex ] = ( exp( -2 * emgNormalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
         }
       }

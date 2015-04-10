@@ -85,25 +85,28 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
   
   static char errorBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ]; 
 
-  DEBUG_PRINT( "waiting thread %x", handle );
-
-  if( (exitStatus = CmtWaitForThreadPoolFunctionCompletionEx( threadPool, handle, 0, milliseconds )) < 0 )
+  if( handle > -1 )
   {
-    CmtGetErrorMessage( exitStatus, errorBuffer );
-	  ERROR_PRINT( "error waiting for thread end: %s", errorBuffer );
-  }
-  else
-  {
-    DEBUG_PRINT( "thread %x returned !", handle );
+    DEBUG_PRINT( "waiting thread %x", handle );
 
-    if( (exitStatus = CmtGetThreadPoolFunctionAttribute( threadPool, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exitCode )) < 0 )
+    if( (exitStatus = CmtWaitForThreadPoolFunctionCompletionEx( threadPool, handle, 0, milliseconds )) < 0 )
     {
       CmtGetErrorMessage( exitStatus, errorBuffer );
-      ERROR_PRINT( "error getting function return value: %s:", errorBuffer );
+  	  ERROR_PRINT( "error waiting for thread end: %s", errorBuffer );
     }
-  }
+    else
+    {
+      DEBUG_PRINT( "thread %x returned !", handle );
+
+      if( (exitStatus = CmtGetThreadPoolFunctionAttribute( threadPool, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exitCode )) < 0 )
+      {
+        CmtGetErrorMessage( exitStatus, errorBuffer );
+        ERROR_PRINT( "error getting function return value: %s:", errorBuffer );
+      }
+    }
   
-  CmtReleaseThreadPoolFunctionID( threadPool, handle );
+    CmtReleaseThreadPoolFunctionID( threadPool, handle );
+  }
 
   return exitCode;
 }
@@ -190,44 +193,52 @@ extern inline void Semaphore_Decrement( Semaphore* sem )
 /////                                     THREAD SAFE QUEUE                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef CmtTSQHandle Data_Queue;
+typedef CmtTSQHandle DataQueue;
 
-Data_Queue* data_queue_init( size_t max_length, size_t element_size )
+DataQueue* DataQueue_Init( size_t maxLength, size_t itemSize )
 {
-  Data_Queue* queue = (Data_Queue*) malloc( sizeof(Data_Queue) );
+  DataQueue* queue = (DataQueue*) malloc( sizeof(DataQueue) );
   
-  CmtNewTSQ( (int) max_length, element_size, 0, queue );
+  if( CmtNewTSQ( (int) maxLength, itemSize, 0, queue ) < 0 )
+    return NULL;
   
   return queue;
 }
 
-extern inline void data_queue_end( Data_Queue* queue )
+extern inline void DataQueue_End( DataQueue* queue )
 {
-  CmtDiscardTSQ( *queue );
+  if( queue != NULL )
+    CmtDiscardTSQ( *queue );
 }
 
-extern inline size_t data_queue_get_count( Data_Queue* queue )
+extern inline size_t DataQueue_GetItemsCount( DataQueue* queue )
 {
-  size_t count;
+  static size_t count;
   
-  CmtGetTSQAttribute( *queue, ATTR_TSQ_ITEMS_IN_QUEUE, (void*) &count );
-  
-  return count;
+  if( queue != NULL )
+  {
+    if( CmtGetTSQAttribute( *queue, ATTR_TSQ_ITEMS_IN_QUEUE, (void*) &count ) == 0 )
+      return count;
+  }
+
+  return 0;
 }
 
-void* data_queue_read( Data_Queue* queue, void* buffer )
+extern inline int DataQueue_Read( DataQueue* queue, void* buffer )
 {
-  CmtReadTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, 0 );
+  if( queue == NULL ) return -1;
   
-  return buffer;
+  return CmtReadTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, 0 );
 }
 
-extern inline void data_queue_write( Data_Queue* queue, void* buffer, uint8_t replace )
+extern inline int DataQueue_Write( DataQueue* queue, void* buffer, uint8_t replace )
 {
+  if( queue == NULL ) return -1; 
+
   if( replace == 1 ) CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, OPT_TSQ_AUTO_FLUSH_EXACT ); // Replace old data behaviour
   else CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, 0 );
   
-  CmtWriteTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, NULL );
+  return CmtWriteTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, NULL );
 }
 
 #endif /* THREADS_DATA_QUEUE_H */ 

@@ -17,6 +17,8 @@
 const char* CAN_DATABASE = "database";
 const char* CAN_CLUSTER = "NETCAN";
 
+const size_t CONTROL_SETPOINT_CACHE_LEN = 100;
+
 typedef struct _AxisControl
 {
   char name[ DEVICE_NAME_MAX_LENGTH ];
@@ -26,6 +28,7 @@ typedef struct _AxisControl
   uint8_t operationMode;                               // Actuator operation mode (Position, velocity or current)
   Thread_Handle controlThread;                         // Processing thread handle
   bool isRunning;                                      // Is control thread running ?
+  DataQueue* setpointsQueue;                          // Thread safe external control values (double format)
 }
 AxisControl;
 
@@ -120,16 +123,18 @@ static void LoadAxisControlsConfig()
       }
       else if( strcmp( readBuffer, "ENDCONTROL" ) == 0 )
       {
+        newAxisControl->setpointsQueue = DataQueue_Init( CONTROL_SETPOINT_CACHE_LEN, sizeof(double) );
         newAxisControl->controlThread = Thread_Start( AsyncControl, (void*) newAxisControl, JOINABLE );
         
         DEBUG_EVENT( 4, "running %s control on thread %x", newAxisControl->name, newAxisControl->controlThread );
         
-        if( newAxisControl->actuator == NULL || newAxisControl->ref_RunAxisControl == NULL || newAxisControl->controlThread == -1 )
+        if( newAxisControl->actuator == NULL || newAxisControl->ref_RunAxisControl == NULL || newAxisControl->controlThread == -1 || newAxisControl->setpointsQueue == NULL )
         {
           newAxisControl->isRunning = false;
     
-          if( newAxisControl->controlThread != -1 )
-            Thread_WaitExit( newAxisControl->controlThread, 5000 );
+          Thread_WaitExit( newAxisControl->controlThread, 5000 );
+          
+          DataQueue_End( newAxisControl->setpointsQueue );
     
           Motor_Disconnect( newAxisControl->actuator );
           MotorDrive_Disconnect( newAxisControl->sensor );
@@ -201,7 +206,7 @@ extern inline size_t AxisControl_GetActiveAxesNumber()
 
 extern inline void AxisControl_EnableMotor( size_t axisID )
 {
-  if( axisID < 0 || axisID >= axesNumber ) return;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return;
   
   if( axisControlsList[ axisID ].actuator != NULL )
     Motor_Enable( axisControlsList[ axisID ].actuator );
@@ -209,7 +214,7 @@ extern inline void AxisControl_EnableMotor( size_t axisID )
 
 extern inline void AxisControl_DisableMotor( size_t axisID )
 {
-  if( axisID < 0 || axisID >= axesNumber ) return;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return;
   
   if( axisControlsList[ axisID ].actuator != NULL )
     Motor_Disable( axisControlsList[ axisID ].actuator );
@@ -217,7 +222,7 @@ extern inline void AxisControl_DisableMotor( size_t axisID )
 
 extern inline void AxisControl_Reset( size_t axisID )
 {
-  if( axisID < 0 || axisID >= axesNumber ) return;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return;
   
   if( axisControlsList[ axisID ].actuator != NULL )
   {
@@ -226,9 +231,19 @@ extern inline void AxisControl_Reset( size_t axisID )
   }
 }
 
+extern inline void AxisControl_LoadSetpoints( size_t axisID, double* setpointsList, size_t setpointsNumber )
+{
+  if( (int) axisID < 0 || axisID >= axesNumber ) return;
+  
+  if( axisControlsList[ axisID ].actuator == NULL ) return;
+  
+  for( size_t setpointIndex = 0; setpointIndex < setpointsNumber; setpointIndex++ )
+    DataQueue_Write( axisControlsList[ axisID ].setpointsQueue, &(setpointsList[ setpointIndex ]), REPLACE );
+}
+
 extern inline int AxisControl_ConfigMotor( size_t axisID, double parametersList[ AXIS_N_PARAMS ] )
 {
-  if( axisID < 0 || axisID >= axesNumber ) return -1;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return -1;
   
   if( axisControlsList[ axisID ].actuator == NULL ) return 0;
   
@@ -238,11 +253,25 @@ extern inline int AxisControl_ConfigMotor( size_t axisID, double parametersList[
   return (int) AXIS_N_PARAMS;
 }
 
+extern inline double* AxisControl_GetMotorConfig( size_t axisID )
+{
+  static double parametersList[ AXIS_N_PARAMS ];
+  
+  if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
+  
+  if( axisControlsList[ axisID ].actuator == NULL ) return NULL;
+  
+  for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
+    parametersList[ parameterIndex ] = Motor_GetParameter( axisControlsList[ axisID ].actuator, parameterIndex );
+  
+  return (double*) parametersList;
+}
+
 extern inline bool* AxisControl_GetMotorStatus( size_t axisID )
 {
   static bool statesList[ AXIS_N_STATES ];
   
-  if( axisID < 0 || axisID >= axesNumber ) return NULL;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
   
   if( axisControlsList[ axisID ].actuator == NULL ) return NULL;
   
@@ -256,7 +285,7 @@ extern inline double* AxisControl_GetSensorMeasures( size_t axisID )
 {
   static double measuresList[ AXIS_N_DIMS ];
   
-  if( axisID < 0 || axisID >= axesNumber ) return NULL;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
   
   if( axisControlsList[ axisID ].actuator == NULL ) return NULL;
   
@@ -268,7 +297,7 @@ extern inline double* AxisControl_GetSensorMeasures( size_t axisID )
 
 extern inline const char* AxisControl_GetAxisName( size_t axisID )
 {
-  if( axisID < 0 || axisID >= axesNumber ) return NULL;
+  if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
   
   return axisControlsList[ axisID ].name;
 }
@@ -283,6 +312,7 @@ const double PI = 3.141592;        // Duh...
 
 const double CONTROL_SAMPLING_INTERVAL = 0.005;           // Sampling interval
 
+double setpointValue;
 // Method that runs the control functions asyncronously
 static void* AsyncControl( void* args )
 {
@@ -296,7 +326,7 @@ static void* AsyncControl( void* args )
     
     Motor_SetOperationMode( axisControl->actuator, axisControl->operationMode );
   
-    unsigned int execTime, elapsedTime;
+    unsigned long execTime, elapsedTime;
   
     axisControl->isRunning = true;
     
@@ -313,6 +343,8 @@ static void* AsyncControl( void* args )
       MotorDrive_ReadValues( axisControl->sensor );
       if( axisControl->actuator->controller != axisControl->sensor ) MotorDrive_ReadValues( axisControl->actuator->controller );
     
+      DataQueue_Read( axisControl->setpointsQueue, (void*) &setpointValue ); 
+      
       // If the motor is being actually controlled, call control pass algorhitm
       if( axisControl->actuator->active ) axisControl->ref_RunAxisControl( axisControl->actuator, axisControl->sensor );
 
@@ -324,11 +356,11 @@ static void* AsyncControl( void* args )
                                        ( axisControl->sensor != NULL ) ? MotorDrive_GetMeasure( axisControl->sensor, VELOCITY ) : 0.0 );*/
       
       elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
-      DEBUG_UPDATE( "control pass for Axis %s (before delay): elapsed time: %u", axisControl->name, elapsedTime );
+      DEBUG_UPDATE( "control pass for Axis %s (before delay): elapsed time: %u ms", axisControl->name, elapsedTime );
       
       if( elapsedTime < (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_SAMPLING_INTERVAL - elapsedTime );
-    
-      DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u", axisControl->name, Timing_GetExecTimeMilliseconds() - execTime );
+
+      DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u ms", axisControl->name, Timing_GetExecTimeMilliseconds() - execTime );
     }
     
     //DataLogging_CloseLog( axisLogID );
@@ -483,6 +515,8 @@ static void KneeControl( Motor* kneeIn, MotorDrive* kneeOut )
   static double angPositionIn, angPosInReduced, angPositionOutSetpoint;
   
   static double angVelocityInSetpoint[3];
+  
+  Motor_SetParameter( kneeIn, POSITION_SETPOINT, setpointValue );
 
   angPositionIn = ( MotorDrive_GetMeasure( kneeIn->controller, POSITION ) ) * 2 * PI;
   angPosInReduced = angPositionIn / KNEE_JOINT_REDUCTION;
@@ -500,7 +534,6 @@ static void KneeControl( Motor* kneeIn, MotorDrive* kneeOut )
   if( Bv > 10.0 ) Bv = 10.0;
   else if( Bv < 0.0 ) Bv = 0.0;
 
-  //MotorDrive_ReadValues( kneeOut );
   angPositionOut[0] = -MotorDrive_GetMeasure( kneeOut, POSITION ) * 2 * PI;
 
   angVelocityOut[0] = ( angPositionOut[0] - angPositionOut[1] ) / CONTROL_SAMPLING_INTERVAL;

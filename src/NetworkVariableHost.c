@@ -57,7 +57,7 @@ int CVICALLBACK GainCallback( int, int, int, void*, int, int );
 void CVICALLBACK DataCallback( void*, CNVData, void* );
 
 int axisLogID;
-enum { POSITION, VELOCITY, POSITION_SETPOINT, EMG_SIGNAL, DISPLAY_N_VALUES };
+enum { POSITION, VELOCITY, CURRENT, TENSION, POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, DISPLAY_N_VALUES };
 
 /* Program entry-point */
 int main( int argc, char *argv[] )
@@ -67,9 +67,9 @@ int main( int argc, char *argv[] )
 	if( InitCVIRTE( 0, argv, 0 ) == 0 )
 		return -1;
   
-  //int clientID = async_connection_open( "169.254.110.158", "50000", TCP );
+  //int clientID = AsyncIPConnection_Open( "169.254.110.158", "50000", TCP );
   
-  //async_connection_write_message( clientID, "Teste" );
+  //AsyncIPConnection_WriteMessage( clientID, "Teste" );
 	
   axisLogID = DataLogging_CreateLog( NULL, "axis", DISPLAY_N_VALUES );
   
@@ -87,7 +87,7 @@ int main( int argc, char *argv[] )
 	CNVCreateScalarDataValue( &enableData, CNVBool, (char) 0 );
 	CNVWrite( gEnableWriter, enableData, CNVDoNotWait );
 	
-  //async_connection_close( clientID );
+  //AsyncIPConnection_Close( clientID );
   
   DataLogging_CloseLog( axisLogID );
   
@@ -156,20 +156,20 @@ int CVICALLBACK GainCallback( int panel, int control, int event, void* callbackD
 
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
-	static double dimensionValuesArray[ DISPLAY_N_VALUES * NUM_POINTS ];
+	static double dataArray[ DISPLAY_N_VALUES * NUM_POINTS ];
   static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ], emgValues[ NUM_POINTS ];
 	
 	// Get the published data.
-	CNVGetArrayDataValue( data, CNVDouble, dimensionValuesArray, DISPLAY_N_VALUES * NUM_POINTS );
+	CNVGetArrayDataValue( data, CNVDouble, dataArray, DISPLAY_N_VALUES * NUM_POINTS );
   
-  DataLogging_SaveData( axisLogID, dimensionValuesArray, DISPLAY_N_VALUES * NUM_POINTS );
+  DataLogging_SaveData( axisLogID, dataArray, DISPLAY_N_VALUES * NUM_POINTS );
   
-  for( size_t point = 0; point < NUM_POINTS; point++ )
+  for( size_t pointIndex = 0; pointIndex < NUM_POINTS; pointIndex++ )
   {
-    positionValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + POSITION ];
-    velocityValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + VELOCITY ];
-    setpointValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + POSITION_SETPOINT ];
-    emgValues[ point ] = dimensionValuesArray[ point * DISPLAY_N_VALUES + EMG_SIGNAL ];
+    positionValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + POSITION ];
+    velocityValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + VELOCITY ];
+    setpointValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + POSITION_SETPOINT ];
+    emgValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TENSION ];
   }
   
 	// Plot the data to the graph.

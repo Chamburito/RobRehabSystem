@@ -45,8 +45,8 @@ void CVICALLBACK EnableDataCallback( void*, CNVData, void* );
 
 static CNVBufferedWriter gWavePublisher;
 
-const int N_SETPOINTS = 444;
-static double setpointsList[ N_SETPOINTS ];
+const int FILE_SETPOINTS_NUMBER = 444;
+static double fileSetpointsList[ FILE_SETPOINTS_NUMBER ];
 
 int RobRehabNetwork_Init()
 {
@@ -59,13 +59,11 @@ int RobRehabNetwork_Init()
     return -1;
   }
   
-  DEBUG_EVENT( 1, "Received server connection IDs: %d (Info), %d (Data)", infoServerConnectionID, dataServerConnectionID );
+  DEBUG_EVENT( 1, "Received server connection IDs: %d (State), %d (Data)", infoServerConnectionID, dataServerConnectionID );
   
   infoClientsList = ListCreate( sizeof(int) );
   dataClientsList = ListCreate( sizeof(int) );
   
-  EMGProcessing_Init();
-  AxisControl_Init();
   
   FILE* setpointsFile = fopen( "../config/setpoints.dat", "r" );
   
@@ -73,6 +71,10 @@ int RobRehabNetwork_Init()
     fscanf( setpointsFile, "%lf\n", &(setpointsList[ i ]) );
             
   fclose( setpointsFile );
+  
+  
+  //EMGProcessing_Init();
+  AxisControl_Init();
   
   networkAxesList = (NetworkAxis*) calloc( AxisControl_GetActiveAxesNumber(), sizeof(NetworkAxis) );
   
@@ -124,13 +126,20 @@ void RobRehabNetwork_End()
 	CNVFinish();
   
   AxisControl_End();
-  EMGProcessing_End();
+  //EMGProcessing_End();
   
   DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
 }
 
-static int CVICALLBACK UpdateMotorInfo( int, void*, void* );
+static int CVICALLBACK UpdateMotorState( int, void*, void* );
 static int CVICALLBACK UpdateMotorData( int, void*, void* );
+
+static int CVICALLBACK UpdateAxisControl( int, void*, void* );
+
+typedef char* (*ProcessAxisCommandFunction)( int, unsigned int, const char* );
+static char* ProcessAxisControlState( int, unsigned int, const char* );
+static char* ProcessAxisControlData( int, unsigned int, const char* );
+
 
 void RobRehabNetwork_Update()
 {
@@ -149,140 +158,166 @@ void RobRehabNetwork_Update()
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
     networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = 0;
   
-  //ListApplyToEach( infoClientsList, 1, UpdateMotorInfo, (void*) motorInfoClientsList );
-  
-  //ListApplyToEach( dataClientsList, 1, UpdateMotorData, (void*) motorDataClientsList );
+  ProcessAxisCommandFunction ref_ProcessAxisCommand;
+  //ref_ProcessAxisCommand = ProcessAxisControlState;
+  //ListApplyToEach( infoClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
+  //ref_ProcessAxisCommand = ProcessAxisControlData;
+  //ListApplyToEach( dataClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
   
   // Test
   int dummyClientID = 0;
-  UpdateMotorInfo( 0, &dummyClientID, NULL );
-  UpdateMotorData( 0, &dummyClientID, NULL );
+  ref_ProcessAxisCommand = ProcessAxisControlState;
+  //UpdateAxisControl( 0, &dummyClientID, (void*) &ref_ProcessAxisCommand );
+  ref_ProcessAxisCommand = ProcessAxisControlData;
+  UpdateAxisControl( 0, &dummyClientID, (void*) &ref_ProcessAxisCommand );
 }
 
-static int CVICALLBACK UpdateMotorInfo( int index, void* ref_clientID, void* data )
+
+static int CVICALLBACK UpdateAxisControl( int index, void* ref_clientID, void* ref_callback )
 {
   int clientID = *((int*) ref_clientID);
+  ProcessAxisCommandFunction ref_ProcessAxisCommand = *((ProcessAxisCommandFunction*) ref_callback);
   
   //static char* messageIn;
-  const char* messageIn = "";
-  
-  static bool* motorStatesList;
-  static char messageOut[ IP_CONNECTION_MSG_LEN ] = "";
+  const char* messageIn = "0 0.0";
+  static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
   //if( (messageIn = AsyncIPConnection_ReadMessage( clientID )) == NULL ) return 0;
   
   DEBUG_UPDATE( "received input message: %s", messageIn );
   
-  for( char* command = strtok( messageIn, ":" ); command != NULL; command = strtok( NULL, ":" ) )
+  strcpy( messageOut, "" );
+  for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
   {
-    unsigned int axisID = (unsigned int) strtoul( command, NULL, 0 );
+    unsigned int axisID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
     
     if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
-    else if( networkAxesList[ axisID ].infoClient != 0 ) continue;
-    else networkAxesList[ axisID ].infoClient = clientID;
     
-    bool motorEnabled = (bool) strtoul( command, &command, 0 );
-    
-    if( motorEnabled ) AxisControl_EnableMotor( axisID );
-    else AxisControl_DisableMotor( axisID );
-    
-    bool reset = (bool) strtoul( command, NULL, 0 );
-    
-    if( reset ) AxisControl_Reset( axisID );
-    
-    if( (motorStatesList = AxisControl_GetMotorStatus( axisID )) != NULL )
+    DEBUG_UPDATE( "parsing axis %u command \"%s\"", axisID, axisCommand );
+    char* readout = ref_ProcessAxisCommand( clientID, axisID, axisCommand );
+    if( strcmp( readout, "" ) != 0 )
     {
-      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, axisID );
+      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
       
-      for( size_t stateIndex = 0; stateIndex < AXIS_N_STATES; stateIndex++ )
-        snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%c ", messageOut, ( motorStatesList[ stateIndex ] == true ) ? '1' : '0' );
+      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u %s", messageOut, axisID, readout );
     }
   }
   
-  if( strlen( messageOut ) > 0 )
-  {
-    messageOut[ strlen( messageOut ) - 1 ] = '\0';
-    DEBUG_UPDATE( "generated output message: %s", messageOut );
-    //AsyncIPConnection_WriteMessage( clientID, messageOut );
-  }
+  DEBUG_UPDATE( "generated output message: %s", messageOut );
+  //AsyncIPConnection_WriteMessage( clientID, messageOut );
   
   return 0;
 }
 
-static int CVICALLBACK UpdateMotorData( int index, void* ref_clientID, void* data )
+static char* ProcessAxisControlState( int clientID, unsigned int axisID, const char* command )
 {
-  int clientID = *((int*) ref_clientID);
+  const size_t STATE_MAX_LEN = 2;
+  static char readout[ STATE_MAX_LEN * AXIS_N_STATES + 1 ];
   
-  //static char* messageIn;
-  static char messageIn[ IP_CONNECTION_MSG_LEN ];
-  sprintf( messageIn, "0:0.0 0.0 %.3f %.3f", axisStiffness, axisDamping );
+  if( networkAxesList[ axisID ].infoClient == 0 )
+  {
+    networkAxesList[ axisID ].infoClient = clientID;
+
+    bool motorEnabled = (bool) strtoul( command, &command, 0 );
+
+    if( motorEnabled ) AxisControl_EnableMotor( axisID );
+    else AxisControl_DisableMotor( axisID );
+
+    bool reset = (bool) strtoul( command, NULL, 0 );
+
+    if( reset ) AxisControl_Reset( axisID );
+
+    bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
+    if( motorStatesList != NULL )
+    {
+      strcpy( readout, "" );
+      for( size_t stateIndex = 0; stateIndex < AXIS_N_STATES; stateIndex++ )
+        strcat( readout, ( motorStatesList[ stateIndex ] == true ) ? "1 " : "0 " );
+      readout[ strlen( readout ) - 1 ] = '\0';
+    }
+  }
   
-  static char messageOut[ IP_CONNECTION_MSG_LEN ] = "";
+  return readout;
+}
+
+static char* ProcessAxisControlData( int clientID, unsigned int axisID, const char* command )
+{
+  const size_t VALUE_MAX_LEN = 10;
+  const size_t SETPOINTS_MAX_NUMBER = IP_CONNECTION_MSG_LEN / VALUE_MAX_LEN;
   
-  static double* motorMeasuresList;
+  static char readout[ VALUE_MAX_LEN * ( AXIS_N_DIMS + AXIS_N_PARAMS ) + 1 ];
+  
   static double motorParametersList[ AXIS_N_PARAMS ];
   
-  //if( (messageIn = AsyncIPConnection_ReadMessage( clientID )) == NULL ) return 0;
+  static double setpointsList[ SETPOINTS_MAX_NUMBER ];
+  static double setpointValue;
+  static size_t setpointsCount = 0;
   
-  DEBUG_UPDATE( "received input message: %s", messageIn );
-  
-  for( char* command = strtok( messageIn, ":" ); command != NULL; command = strtok( NULL, ":" ) )
+  if( networkAxesList[ axisID ].dataClient == 0 )
   {
-    unsigned int axisID = (unsigned int) strtoul( command, NULL, 0 );
+    networkAxesList[ axisID ].dataClient = clientID;
     
-    if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
-    else if( networkAxesList[ axisID ].dataClient != 0 ) continue;
-    else networkAxesList[ axisID ].dataClient = clientID;
+    static size_t setpointIndex; // Gamb
+    while( *command != '\0' )
+    {
+      setpointValue = strtod( command, &command );
+      //setpointsList[ setpointsCount++ ] = setpointValue;
+      setpointsList[ setpointsCount++ ] = fileSetpointsList[ setpointIndex % FILE_SETPOINTS_NUMBER ] / ( 2 * PI ); // Gamb
+      setpointIndex++; // Gamb
+    }
     
-    for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
-      motorParametersList[ parameterIndex ] = strtod( command, &command );
-    
-    static size_t setpointIndex;
-    motorParametersList[ POSITION_SETPOINT ] = setpointsList[ setpointIndex % N_SETPOINTS ] / ( 2 * PI );
-    setpointIndex++;
+    AxisControl_LoadSetpoints( axisId, setpointsList, setpointsCount );
+
+    motorParametersList[ PROPORTIONAL_GAIN ] = axisStiffness;
+    motorParametersList[ DERIVATIVE_GAIN ] = axisDamping;
     
     AxisControl_ConfigMotor( axisID, motorParametersList );
     
-    if( (motorMeasuresList = AxisControl_GetSensorMeasures( axisID )) != NULL )
+    double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
+    if( motorMeasuresList != NULL )
     {
-      snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%u:", messageOut, axisID );
-      
+      strcpy( readout, "" );
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
-        snprintf( messageOut, IP_CONNECTION_MSG_LEN, "%s%.3f ", messageOut, motorMeasuresList[ dimensionIndex ] );
-      
-      static size_t valuesCount;
-      static double dimensionValuesArray[ AXIS_N_DIMS * NUM_POINTS ];
-      static size_t arrayDims = AXIS_N_DIMS * NUM_POINTS;
+        sprintf( &readout[ strlen( readout ) ], "%.3f ", motorMeasuresList[ dimensionIndex ] );
+      for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
+        sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
+      readout[ strlen( readout ) - 1 ] = '\0';
   
+      //Gamb 
+      const size_t AXIS_N_VALUES = AXIS_N_DIMS + AXIS_N_PARAMS;
+      static size_t valuesCount = 0;
+      static double dataArray[ AXIS_N_VALUES * NUM_POINTS ];
+      static size_t arrayDims = AXIS_N_VALUES * NUM_POINTS;
+
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
-        dimensionValuesArray[ valuesCount * AXIS_N_DIMS + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
+        dataArray[ valuesCount * AXIS_N_VALUES + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
+      for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
+        dataArray[ valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + parameterIndex ) ] = motorParametersList[ parameterIndex ];
       
-      // Gamb
-      dimensionValuesArray[ valuesCount * AXIS_N_DIMS + CURRENT ] = motorParametersList[ POSITION_SETPOINT ];
-      double* emgValuesList = EMGProcessing_GetValues();
-      if( emgValuesList != NULL ) dimensionValuesArray[ valuesCount * AXIS_N_DIMS + TENSION ] = emgValuesList[ 0 ];
-      //DEBUG_PRINT( "got EMG value %g", dimensionValuesArray[ valuesCount * AXIS_N_DIMS + TENSION ] );
+      size_t dataIndex = valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + POSITION_SETPOINT );
+      DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, AXIS_N_VALUES, AXIS_N_DIMS, POSITION_SETPOINT, dataIndex );
+      //DEBUG_PRINT( "got position setpoint %d value %g", valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + POSITION_SETPOINT ), dataArray[ valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + POSITION_SETPOINT ) ] );
+      
+      //double* emgValuesList = EMGProcessing_GetValues();
+      //if( emgValuesList != NULL ) dataArray[ TENSION * NUM_POINTS + valuesCount ] = emgValuesList[ 0 ];
+      //DEBUG_PRINT( "got EMG value %g", dataArray[ TENSION * NUM_POINTS + valuesCount ] );
       
       valuesCount++;
       
       if( valuesCount >= NUM_POINTS )
       {
-        CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dimensionValuesArray, 1, &arrayDims );
-    	  CNVPutDataInBuffer( gWavePublisher, data, 1000 );
+        //CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dataArray, 1, &arrayDims );
+    	  //CNVPutDataInBuffer( gWavePublisher, data, 1000 );
         valuesCount = 0;
       }
     }
   }
   
-  if( strlen( messageOut ) > 0 )
-  {
-    messageOut[ strlen( messageOut ) - 1 ] = '\0';
-    DEBUG_UPDATE( "generated output message: %s", messageOut );
-    //AsyncIPConnection_WriteMessage( clientID, messageOut );
-  }
+  DEBUG_PRINT( "measure readout: %s", readout );
   
-  return 0;
+  return readout;
 }
+
 
 void CVICALLBACK GainDataCallback( void* handle, CNVData data, void* callbackData )
 {
