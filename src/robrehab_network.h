@@ -67,8 +67,8 @@ int RobRehabNetwork_Init()
   
   FILE* setpointsFile = fopen( "../config/setpoints.dat", "r" );
   
-  for( size_t i = 0; i < N_SETPOINTS; i++ )
-    fscanf( setpointsFile, "%lf\n", &(setpointsList[ i ]) );
+  for( size_t i = 0; i < FILE_SETPOINTS_NUMBER; i++ )
+    fscanf( setpointsFile, "%lf\n", &(fileSetpointsList[ i ]) );
             
   fclose( setpointsFile );
   
@@ -244,10 +244,11 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
 {
   const size_t VALUE_MAX_LEN = 10;
   const size_t SETPOINTS_MAX_NUMBER = IP_CONNECTION_MSG_LEN / VALUE_MAX_LEN;
+  const size_t AXIS_VALUES_NUMBER = AXIS_DIMS_NUMBER + AXIS_PARAMS_NUMBER;
   
-  static char readout[ VALUE_MAX_LEN * ( AXIS_N_DIMS + AXIS_N_PARAMS ) + 1 ];
+  static char readout[ VALUE_MAX_LEN * AXIS_VALUES_NUMBER + 1 ];
   
-  static double motorParametersList[ AXIS_N_PARAMS ];
+  static double motorParametersList[ AXIS_PARAMS_NUMBER ];
   
   static double setpointsList[ SETPOINTS_MAX_NUMBER ];
   static double setpointValue;
@@ -266,7 +267,7 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       setpointIndex++; // Gamb
     }
     
-    AxisControl_LoadSetpoints( axisId, setpointsList, setpointsCount );
+    AxisControl_LoadSetpoints( axisID, setpointsList, setpointsCount );
 
     motorParametersList[ PROPORTIONAL_GAIN ] = axisStiffness;
     motorParametersList[ DERIVATIVE_GAIN ] = axisDamping;
@@ -277,26 +278,25 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
     if( motorMeasuresList != NULL )
     {
       strcpy( readout, "" );
-      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
+      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorMeasuresList[ dimensionIndex ] );
-      for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
+      for( size_t parameterIndex = 0; parameterIndex < AXIS_PARAMS_NUMBER; parameterIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
       readout[ strlen( readout ) - 1 ] = '\0';
   
       //Gamb 
-      const size_t AXIS_N_VALUES = AXIS_N_DIMS + AXIS_N_PARAMS;
       static size_t valuesCount = 0;
-      static double dataArray[ AXIS_N_VALUES * NUM_POINTS ];
-      static size_t arrayDims = AXIS_N_VALUES * NUM_POINTS;
+      static double dataArray[ AXIS_VALUES_NUMBER * NUM_POINTS ];
+      static size_t arrayDims = AXIS_VALUES_NUMBER * NUM_POINTS;
 
-      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
-        dataArray[ valuesCount * AXIS_N_VALUES + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
-      for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
-        dataArray[ valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + parameterIndex ) ] = motorParametersList[ parameterIndex ];
+      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
+        dataArray[ valuesCount * AXIS_VALUES_NUMBER + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
+      for( size_t parameterIndex = 0; parameterIndex < AXIS_PARAMS_NUMBER; parameterIndex++ )
+        dataArray[ valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + parameterIndex ) ] = motorParametersList[ parameterIndex ];
       
-      size_t dataIndex = valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + POSITION_SETPOINT );
-      DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, AXIS_N_VALUES, AXIS_N_DIMS, POSITION_SETPOINT, dataIndex );
-      //DEBUG_PRINT( "got position setpoint %d value %g", valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + POSITION_SETPOINT ), dataArray[ valuesCount * AXIS_N_VALUES + ( AXIS_N_DIMS + POSITION_SETPOINT ) ] );
+      size_t dataIndex = valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + POSITION_SETPOINT );
+      DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, AXIS_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
+      //DEBUG_PRINT( "got position setpoint %d value %g", valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + POSITION_SETPOINT ), dataArray[ valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + POSITION_SETPOINT ) ] );
       
       //double* emgValuesList = EMGProcessing_GetValues();
       //if( emgValuesList != NULL ) dataArray[ TENSION * NUM_POINTS + valuesCount ] = emgValuesList[ 0 ];
@@ -306,8 +306,8 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       
       if( valuesCount >= NUM_POINTS )
       {
-        //CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dataArray, 1, &arrayDims );
-    	  //CNVPutDataInBuffer( gWavePublisher, data, 1000 );
+        CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dataArray, 1, &arrayDims );
+    	  CNVPutDataInBuffer( gWavePublisher, data, 1000 );
         valuesCount = 0;
       }
     }

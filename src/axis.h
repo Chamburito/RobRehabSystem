@@ -43,9 +43,9 @@ enum Control { SWITCH_ON, ENABLE_VOLTAGE, QUICK_STOP, ENABLE_OPERATION,
                NEW_SETPOINT, CHANGE_IMMEDIATEDLY, ABS_REL, FAULT_RESET, HALT, AXIS_N_CONTROLS };
 static const uint16_t controlValues[ AXIS_N_CONTROLS ] = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
 
-enum Dimension { POSITION, VELOCITY, CURRENT, TENSION, AXIS_N_DIMS }; 
+enum Dimension { POSITION, VELOCITY, CURRENT, TENSION, AXIS_DIMS_NUMBER }; 
 
-enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, AXIS_N_PARAMS }; 
+enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, AXIS_PARAMS_NUMBER }; 
 
 enum FrameType { SDO, PDO01, PDO02, AXIS_N_FRAMES };
 static const char* CAN_FRAME_NAMES[ AXIS_N_FRAMES ] = { "SDO", "PDO01", "PDO02" };
@@ -54,7 +54,7 @@ typedef struct _MotorDrive
 {
   CANFrame* readFramesList[ AXIS_N_FRAMES ];
   CANFrame* writeFramesList[ AXIS_N_FRAMES ];
-  double measuresList[ AXIS_N_DIMS ];
+  double measuresList[ AXIS_DIMS_NUMBER ];
   unsigned int encoderResolution;
   uint16_t statusWord, controlWord;
   uint16_t digitalOutput;
@@ -64,7 +64,7 @@ MotorDrive;
 typedef struct _Motor
 {
   MotorDrive* controller;
-  double parametersList[ AXIS_N_PARAMS ];
+  double parametersList[ AXIS_PARAMS_NUMBER ];
   bool active;
 }
 Motor;
@@ -100,7 +100,7 @@ Motor* Motor_Connect( unsigned int networkIndex )
   
   Motor* motor = (Motor*) malloc( sizeof(Motor) );
   
-  for( int i = 0; i < AXIS_N_PARAMS; i++ )
+  for( int i = 0; i < AXIS_PARAMS_NUMBER; i++ )
     motor->parametersList[ i ] = 0.0;
   
   if( (motor->controller = MotorDrive_Connect( networkIndex )) == NULL )
@@ -125,7 +125,7 @@ MotorDrive* MotorDrive_Connect( unsigned int networkIndex )
   
   MotorDrive* controller = (MotorDrive*) malloc( sizeof(MotorDrive) );
   
-  for( int i = 0; i < AXIS_N_DIMS; i++ )
+  for( int i = 0; i < AXIS_DIMS_NUMBER; i++ )
     controller->measuresList[ i ] = 10.0;
   
   controller->encoderResolution = 1;
@@ -233,7 +233,7 @@ void Motor_Disable( Motor* motor )
 
 double MotorDrive_GetMeasure( MotorDrive* controller, enum Dimension index )
 {
-  if( index >= AXIS_N_DIMS )
+  if( index >= AXIS_DIMS_NUMBER )
   {
     fprintf( stderr, "MotorDrive_GetMeasure: invalid value index: %d\n", index );
     return 0;
@@ -244,7 +244,7 @@ double MotorDrive_GetMeasure( MotorDrive* controller, enum Dimension index )
  
 double Motor_GetParameter( Motor* motor, enum Parameter index )
 {
-  if( index >= AXIS_N_PARAMS )
+  if( index >= AXIS_PARAMS_NUMBER )
   {
     fprintf( stderr, "Motor_GetParameter: invalid value index: %d\n", index );
     return 0;
@@ -255,7 +255,7 @@ double Motor_GetParameter( Motor* motor, enum Parameter index )
 
 void Motor_SetParameter( Motor* motor, enum Parameter index, double value )
 {
-  if( index >= AXIS_N_PARAMS )
+  if( index >= AXIS_PARAMS_NUMBER )
   {
     fprintf( stderr, "Motor_SetParameter: invalid value index: %d\n", index );
     return;

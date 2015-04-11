@@ -17,42 +17,48 @@
 const char* CAN_DATABASE = "database";
 const char* CAN_CLUSTER = "NETCAN";
 
-const size_t CONTROL_SETPOINT_CACHE_LEN = 100;
+// Control algorhitms
+static void PositionControl( Motor*, MotorDrive* );
+static void VelocityControl( Motor*, MotorDrive* );
+static void AnkleControl( Motor*, MotorDrive* );
+static void KneeControl( Motor*, MotorDrive* );
+static void HipsControl( Motor*, MotorDrive* );
+
+// Control method definition structure
+typedef struct _AxisControlFunction
+{
+  char* name;                              // Identifier string
+  uint8_t operationMode;                   // Actuator operation mode (Position or velocity)
+  void (*ref_Run)( Motor*, MotorDrive* );  // Control pass algorithm (function pointer)
+}
+AxisControlFunction; 
+
+// Available precompiled control methods
+AxisControlFunction controlFunctionsList[] = { { "Position", POSITION_MODE, PositionControl },
+                                               { "Velocity", VELOCITY_MODE, VelocityControl },
+                                               { "Ankle", VELOCITY_MODE, AnkleControl }, 
+                                               { "Knee", VELOCITY_MODE, KneeControl }, 
+                                               { "Hips", VELOCITY_MODE, HipsControl } };
 
 typedef struct _AxisControl
 {
   char name[ DEVICE_NAME_MAX_LENGTH ];
   Motor* actuator;                                     // Active axis
   MotorDrive* sensor;                                  // Passive (extra measurement) axis
-  void (*ref_RunAxisControl)( Motor*, MotorDrive* );   // Control pass algorithm (function pointer)
-  uint8_t operationMode;                               // Actuator operation mode (Position, velocity or current)
+  AxisControlFunction* controlFunction;                // Control method definition structure
   Thread_Handle controlThread;                         // Processing thread handle
+  DataQueue* setpointsQueue;                           // Thread safe external control values (double format)
+  double currentSetpoint;                              // Latest value retrieved from the setpoint queue
   bool isRunning;                                      // Is control thread running ?
-  DataQueue* setpointsQueue;                          // Thread safe external control values (double format)
 }
 AxisControl;
 
 static AxisControl* axisControlsList = NULL;
 static size_t axesNumber = 0;
 
-// Control algorhitms
-static void AnkleControl( Motor*, MotorDrive* );
-static void KneeControl( Motor*, MotorDrive* );
-static void HipsControl( Motor*, MotorDrive* );
-
-typedef struct _ControlFunction
-{
-  char* name;
-  uint8_t operationMode;
-  void (*ref_Run)( Motor*, MotorDrive* );
-}
-ControlFunction; 
-
-ControlFunction controlFunctionsList[] = { { "Ankle", VELOCITY_MODE, AnkleControl }, 
-                                           { "Knee", VELOCITY_MODE, KneeControl }, 
-                                           { "Hips", VELOCITY_MODE, HipsControl } };
-
 static void* AsyncControl( void* );
+
+const size_t CONTROL_SETPOINT_CACHE_LEN = 100;
 
 // Axes configuration loading auxiliary function
 static void LoadAxisControlsConfig()
@@ -78,7 +84,7 @@ static void LoadAxisControlsConfig()
         
         newAxisControl->actuator = NULL;
         newAxisControl->sensor = NULL;
-        newAxisControl->ref_RunAxisControl = NULL;
+        newAxisControl->controlFunction = NULL;
         newAxisControl->controlThread = -1;
       }
       
@@ -110,13 +116,12 @@ static void LoadAxisControlsConfig()
         
         DEBUG_EVENT( 3, "setting %s control function to %s", newAxisControl->name, readBuffer );
         
-        size_t functionsNumber = sizeof(controlFunctionsList) / sizeof(ControlFunction);
+        size_t functionsNumber = sizeof(controlFunctionsList) / sizeof(AxisControlFunction);
         for( size_t functionID = 0; functionID < functionsNumber; functionID++ )
         {
           if( strcmp( readBuffer, controlFunctionsList[ functionID ].name ) == 0 )
           {
-            newAxisControl->ref_RunAxisControl = controlFunctionsList[ functionID ].ref_Run;
-            newAxisControl->operationMode = controlFunctionsList[ functionID ].operationMode;
+            newAxisControl->controlFunction = &(controlFunctionsList[ functionID ]);
             break;
           }
         }
@@ -124,11 +129,13 @@ static void LoadAxisControlsConfig()
       else if( strcmp( readBuffer, "ENDCONTROL" ) == 0 )
       {
         newAxisControl->setpointsQueue = DataQueue_Init( CONTROL_SETPOINT_CACHE_LEN, sizeof(double) );
+        newAxisControl->currentSetpoint = 0.0;
+        
         newAxisControl->controlThread = Thread_Start( AsyncControl, (void*) newAxisControl, JOINABLE );
         
         DEBUG_EVENT( 4, "running %s control on thread %x", newAxisControl->name, newAxisControl->controlThread );
         
-        if( newAxisControl->actuator == NULL || newAxisControl->ref_RunAxisControl == NULL || newAxisControl->controlThread == -1 || newAxisControl->setpointsQueue == NULL )
+        if( newAxisControl->actuator == NULL || newAxisControl->controlFunction == NULL || newAxisControl->controlThread == -1 || newAxisControl->setpointsQueue == NULL )
         {
           newAxisControl->isRunning = false;
     
@@ -238,30 +245,30 @@ extern inline void AxisControl_LoadSetpoints( size_t axisID, double* setpointsLi
   if( axisControlsList[ axisID ].actuator == NULL ) return;
   
   for( size_t setpointIndex = 0; setpointIndex < setpointsNumber; setpointIndex++ )
-    DataQueue_Write( axisControlsList[ axisID ].setpointsQueue, &(setpointsList[ setpointIndex ]), REPLACE );
+    DataQueue_Push( axisControlsList[ axisID ].setpointsQueue, &(setpointsList[ setpointIndex ]), QUEUE_APPEND_OVERWRITE );
 }
 
-extern inline int AxisControl_ConfigMotor( size_t axisID, double parametersList[ AXIS_N_PARAMS ] )
+extern inline int AxisControl_ConfigMotor( size_t axisID, double parametersList[ AXIS_PARAMS_NUMBER ] )
 {
   if( (int) axisID < 0 || axisID >= axesNumber ) return -1;
   
   if( axisControlsList[ axisID ].actuator == NULL ) return 0;
   
-  for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
+  for( size_t parameterIndex = 0; parameterIndex < AXIS_PARAMS_NUMBER; parameterIndex++ )
     Motor_SetParameter( axisControlsList[ axisID ].actuator, parameterIndex, parametersList[ parameterIndex ] );
   
-  return (int) AXIS_N_PARAMS;
+  return (int) AXIS_PARAMS_NUMBER;
 }
 
 extern inline double* AxisControl_GetMotorConfig( size_t axisID )
 {
-  static double parametersList[ AXIS_N_PARAMS ];
+  static double parametersList[ AXIS_PARAMS_NUMBER ];
   
   if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
   
   if( axisControlsList[ axisID ].actuator == NULL ) return NULL;
   
-  for( size_t parameterIndex = 0; parameterIndex < AXIS_N_PARAMS; parameterIndex++ )
+  for( size_t parameterIndex = 0; parameterIndex < AXIS_PARAMS_NUMBER; parameterIndex++ )
     parametersList[ parameterIndex ] = Motor_GetParameter( axisControlsList[ axisID ].actuator, parameterIndex );
   
   return (double*) parametersList;
@@ -283,13 +290,13 @@ extern inline bool* AxisControl_GetMotorStatus( size_t axisID )
 
 extern inline double* AxisControl_GetSensorMeasures( size_t axisID )
 {
-  static double measuresList[ AXIS_N_DIMS ];
+  static double measuresList[ AXIS_DIMS_NUMBER ];
   
   if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
   
   if( axisControlsList[ axisID ].actuator == NULL ) return NULL;
   
-  for( size_t dimensionIndex = 0; dimensionIndex < AXIS_N_DIMS; dimensionIndex++ )
+  for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
     measuresList[ dimensionIndex ] = MotorDrive_GetMeasure( axisControlsList[ axisID ].sensor, dimensionIndex );
   
   return (double*) measuresList;
@@ -324,7 +331,7 @@ static void* AsyncControl( void* args )
     MotorDrive_Reset( axisControl->actuator->controller );
     MotorDrive_Reset( axisControl->sensor );
     
-    Motor_SetOperationMode( axisControl->actuator, axisControl->operationMode );
+    Motor_SetOperationMode( axisControl->actuator, axisControl->controlFunction->operationMode );
   
     unsigned long execTime, elapsedTime;
   
@@ -343,10 +350,10 @@ static void* AsyncControl( void* args )
       MotorDrive_ReadValues( axisControl->sensor );
       if( axisControl->actuator->controller != axisControl->sensor ) MotorDrive_ReadValues( axisControl->actuator->controller );
     
-      DataQueue_Read( axisControl->setpointsQueue, (void*) &setpointValue ); 
+      DataQueue_Pop( axisControl->setpointsQueue, (void*) &setpointValue, QUEUE_READ_NOWAIT ); 
       
       // If the motor is being actually controlled, call control pass algorhitm
-      if( axisControl->actuator->active ) axisControl->ref_RunAxisControl( axisControl->actuator, axisControl->sensor );
+      if( axisControl->actuator->active ) axisControl->controlFunction->ref_Run( axisControl->actuator, axisControl->sensor );
 
       Motor_WriteConfig( axisControl->actuator );
     
@@ -581,6 +588,20 @@ static void AnkleControl( Motor* ankleActuator, MotorDrive* ankleSensor )
   velocitySetpoint *= Motor_GetParameter( ankleActuator, PROPORTIONAL_GAIN );
   
   Motor_SetParameter( ankleActuator, VELOCITY_SETPOINT, velocitySetpoint );
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+/////                        DEFAULT CONTROL FUNCTION                       /////
+/////////////////////////////////////////////////////////////////////////////////
+
+static void PositionControl( Motor* actuator, MotorDrive* positionSensor )
+{
+  Motor_SetParameter( actuator, POSITION_SETPOINT, 0.0/*setpointValue*/ );
+}
+
+static void VelocityControl( Motor* actuator, MotorDrive* velocitySensor )
+{
+  Motor_SetParameter( actuator, VELOCITY_SETPOINT, 0.0/*setpointValue*/ );
 }
 
 #endif /* CONTROL_H */ 

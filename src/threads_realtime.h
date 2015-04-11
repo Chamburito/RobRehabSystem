@@ -224,19 +224,21 @@ extern inline size_t DataQueue_GetItemsCount( DataQueue* queue )
   return 0;
 }
 
-extern inline int DataQueue_Read( DataQueue* queue, void* buffer )
+enum QueueReadMode { QUEUE_READ_WAIT = TSQ_INFINITE_TIMEOUT, QUEUE_READ_NOWAIT = 0 };
+extern inline int DataQueue_Pop( DataQueue* queue, void* buffer, enum QueueReadMode mode )
 {
   if( queue == NULL ) return -1;
   
-  return CmtReadTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, 0 );
+  return CmtReadTSQData( *queue, buffer, 1, (int) mode, 0 );
 }
 
-extern inline int DataQueue_Write( DataQueue* queue, void* buffer, uint8_t replace )
+enum QueueWriteMode { QUEUE_APPEND_WAIT = 0, QUEUE_APPEND_OVERWRITE = OPT_TSQ_AUTO_FLUSH_EXACT, QUEUE_FLUSH = OPT_TSQ_AUTO_FLUSH_ALL };
+extern inline int DataQueue_Push( DataQueue* queue, void* buffer, enum QueueWriteMode mode )
 {
   if( queue == NULL ) return -1; 
 
-  if( replace == 1 ) CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, OPT_TSQ_AUTO_FLUSH_EXACT ); // Replace old data behaviour
-  else CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, 0 );
+  if( CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, (int) mode ) == 0 )
+    return -1;
   
   return CmtWriteTSQData( *queue, buffer, 1, TSQ_INFINITE_TIMEOUT, NULL );
 }

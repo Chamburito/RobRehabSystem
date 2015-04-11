@@ -194,7 +194,7 @@ static void* AsyncReadQueue( void* args )
         
         DEBUG_UPDATE( "connection socket %d received message: %s", reader->socketFD, reader->buffer );
 
-        DataQueue_Write( readQueue, (void*) lastMessage, WAIT );
+        DataQueue_Push( readQueue, (void*) lastMessage, WAIT );
       }
       else
         break;
@@ -230,7 +230,7 @@ static void* AsyncWriteQueue( void* args )
     if( DataQueue_ItemCount( writeQueue ) <= 0 )
       DEBUG_UPDATE( "connection socket %d write cache empty", writer->baseConnection->socketFD );
     
-    DataQueue_Read( writeQueue, (void*) firstMessage );
+    DataQueue_Pop( writeQueue, (void*) firstMessage );
     
     DEBUG_UPDATE( "connection socket %d sending message: %s", baseWriter->socketFD, firstMessage );
     
@@ -286,7 +286,7 @@ static void* AsyncAcceptClients( void* args )
         
         lastClient = globalConnectionsListSize;
         
-        DataQueue_Write( clientQueue, &lastClient, WAIT );
+        DataQueue_Push( clientQueue, &lastClient, WAIT );
         
         DEBUG_UPDATE( "clients number before: %d\n", globalConnectionsListSize );
         
@@ -331,7 +331,7 @@ char* AsyncIPConnection_ReadMessage( int clientIndex )
     return NULL;
   }
   
-  DataQueue_Read( readQueue, firstMessage );
+  DataQueue_Pop( readQueue, firstMessage );
   
   DEBUG_UPDATE( "message from connection index %d: %s", clientIndex, firstMessage );  
   
@@ -350,7 +350,7 @@ int AsyncIPConnection_WriteMessage( int connectionIndex, const char* message )
   if( DataQueue_ItemCount( writeQueue ) >= QUEUE_MAX_ITEMS )
     DEBUG_UPDATE( "connection index %d write queue is full", connectionIndex );
   
-  DataQueue_Write( writeQueue, message, REPLACE );
+  DataQueue_Push( writeQueue, message, REPLACE );
   
   return 0;
 }
@@ -376,7 +376,7 @@ int AsyncIPConnection_GetClient( int serverIndex )
     return -1;
   }
   
-  DataQueue_Read( clientQueue, &firstClient );
+  DataQueue_Pop( clientQueue, &firstClient );
   
   DEBUG_UPDATE( "new client index from connection index %d: %d", serverIndex, firstClient );  
   
