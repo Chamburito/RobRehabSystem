@@ -179,7 +179,7 @@ static int CVICALLBACK UpdateAxisControl( int index, void* ref_clientID, void* r
   ProcessAxisCommandFunction ref_ProcessAxisCommand = *((ProcessAxisCommandFunction*) ref_callback);
   
   //static char* messageIn;
-  const char* messageIn = "0 0.0";
+  const char* messageIn = "0 0.0 0.0 0.0 0.0 0.0";
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
   //if( (messageIn = AsyncIPConnection_ReadMessage( clientID )) == NULL ) return 0;
@@ -212,7 +212,7 @@ static int CVICALLBACK UpdateAxisControl( int index, void* ref_clientID, void* r
 static char* ProcessAxisControlState( int clientID, unsigned int axisID, const char* command )
 {
   const size_t STATE_MAX_LEN = 2;
-  static char readout[ STATE_MAX_LEN * AXIS_N_STATES + 1 ];
+  static char readout[ STATE_MAX_LEN * AXIS_STATES_NUMBER + 1 ];
   
   if( networkAxesList[ axisID ].infoClient == 0 )
   {
@@ -231,7 +231,7 @@ static char* ProcessAxisControlState( int clientID, unsigned int axisID, const c
     if( motorStatesList != NULL )
     {
       strcpy( readout, "" );
-      for( size_t stateIndex = 0; stateIndex < AXIS_N_STATES; stateIndex++ )
+      for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
         strcat( readout, ( motorStatesList[ stateIndex ] == true ) ? "1 " : "0 " );
       readout[ strlen( readout ) - 1 ] = '\0';
     }
@@ -244,21 +244,26 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
 {
   const size_t VALUE_MAX_LEN = 10;
   const size_t SETPOINTS_MAX_NUMBER = IP_CONNECTION_MSG_LEN / VALUE_MAX_LEN;
-  const size_t AXIS_VALUES_NUMBER = AXIS_DIMS_NUMBER + AXIS_PARAMS_NUMBER;
+  const size_t CONTROL_VALUES_NUMBER = AXIS_DIMS_NUMBER + CONTROL_PARAMS_NUMBER;
   
-  static char readout[ VALUE_MAX_LEN * AXIS_VALUES_NUMBER + 1 ];
+  static char readout[ VALUE_MAX_LEN * CONTROL_VALUES_NUMBER + 1 ];
   
-  static double motorParametersList[ AXIS_PARAMS_NUMBER ];
+  static double controlParametersList[ CONTROL_PARAMS_NUMBER ];
   
   static double setpointsList[ SETPOINTS_MAX_NUMBER ];
   static double setpointValue;
-  static size_t setpointsCount = 0;
+  static size_t setpointsCount;
   
   if( networkAxesList[ axisID ].dataClient == 0 )
   {
     networkAxesList[ axisID ].dataClient = clientID;
     
+    controlParametersList[ PROPORTIONAL_GAIN ] = axisStiffness;
+    controlParametersList[ DERIVATIVE_GAIN ] = axisDamping;
+    AxisControl_SetParameters( axisID, controlParametersList );
+    
     static size_t setpointIndex; // Gamb
+    setpointsCount = 0;
     while( *command != '\0' )
     {
       setpointValue = strtod( command, &command );
@@ -266,37 +271,33 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       setpointsList[ setpointsCount++ ] = fileSetpointsList[ setpointIndex % FILE_SETPOINTS_NUMBER ] / ( 2 * PI ); // Gamb
       setpointIndex++; // Gamb
     }
-    
-    AxisControl_LoadSetpoints( axisID, setpointsList, setpointsCount );
-
-    motorParametersList[ PROPORTIONAL_GAIN ] = axisStiffness;
-    motorParametersList[ DERIVATIVE_GAIN ] = axisDamping;
-    
-    AxisControl_ConfigMotor( axisID, motorParametersList );
+    //DEBUG_PRINT( "loading %u setpoints (%u - %u) to axis %u control", setpointsCount, setpointIndex - setpointsCount, setpointIndex, axisID );
+    AxisControl_EnqueueSetpoints( axisID, setpointsList, setpointsCount );
     
     double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
+    double* motorParametersList = AxisControl_GetParameters( axisID );
     if( motorMeasuresList != NULL )
     {
       strcpy( readout, "" );
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorMeasuresList[ dimensionIndex ] );
-      for( size_t parameterIndex = 0; parameterIndex < AXIS_PARAMS_NUMBER; parameterIndex++ )
+      for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
       readout[ strlen( readout ) - 1 ] = '\0';
   
       //Gamb 
-      static size_t valuesCount = 0;
-      static double dataArray[ AXIS_VALUES_NUMBER * NUM_POINTS ];
-      static size_t arrayDims = AXIS_VALUES_NUMBER * NUM_POINTS;
+      static size_t valuesCount;
+      static double dataArray[ CONTROL_VALUES_NUMBER * NUM_POINTS ];
+      static size_t arrayDims = CONTROL_VALUES_NUMBER * NUM_POINTS;
 
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
-        dataArray[ valuesCount * AXIS_VALUES_NUMBER + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
-      for( size_t parameterIndex = 0; parameterIndex < AXIS_PARAMS_NUMBER; parameterIndex++ )
-        dataArray[ valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + parameterIndex ) ] = motorParametersList[ parameterIndex ];
+        dataArray[ valuesCount * CONTROL_VALUES_NUMBER + dimensionIndex ] = motorMeasuresList[ dimensionIndex ];
+      for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+        dataArray[ valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + parameterIndex ) ] = motorParametersList[ parameterIndex ];
       
-      size_t dataIndex = valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + POSITION_SETPOINT );
-      DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, AXIS_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
-      //DEBUG_PRINT( "got position setpoint %d value %g", valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + POSITION_SETPOINT ), dataArray[ valuesCount * AXIS_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + POSITION_SETPOINT ) ] );
+      size_t dataIndex = valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + REFERENCE_VALUE );
+      //DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, CONTROL_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
+      DEBUG_PRINT( "got position setpoint %d value %g", dataIndex, dataArray[ dataIndex ] );
       
       //double* emgValuesList = EMGProcessing_GetValues();
       //if( emgValuesList != NULL ) dataArray[ TENSION * NUM_POINTS + valuesCount ] = emgValuesList[ 0 ];
@@ -313,7 +314,7 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
     }
   }
   
-  DEBUG_PRINT( "measure readout: %s", readout );
+  //DEBUG_PRINT( "measure readout: %s", readout );
   
   return readout;
 }

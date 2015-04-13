@@ -235,8 +235,8 @@ extern inline int DataQueue_Pop( DataQueue* queue, void* buffer, enum QueueReadM
 enum QueueWriteMode { QUEUE_APPEND_WAIT = 0, QUEUE_APPEND_OVERWRITE = OPT_TSQ_AUTO_FLUSH_EXACT, QUEUE_FLUSH = OPT_TSQ_AUTO_FLUSH_ALL };
 extern inline int DataQueue_Push( DataQueue* queue, void* buffer, enum QueueWriteMode mode )
 {
-  if( queue == NULL ) return -1; 
-
+  if( queue == NULL ) return -1;
+  
   if( CmtSetTSQAttribute( *queue, ATTR_TSQ_QUEUE_OPTIONS, (int) mode ) == 0 )
     return -1;
   

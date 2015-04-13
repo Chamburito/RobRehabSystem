@@ -57,7 +57,7 @@ int CVICALLBACK GainCallback( int, int, int, void*, int, int );
 void CVICALLBACK DataCallback( void*, CNVData, void* );
 
 int axisLogID;
-enum { POSITION, VELOCITY, CURRENT, TENSION, POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, DISPLAY_N_VALUES };
+enum { POSITION, VELOCITY, CURRENT, TENSION, REFERENCE_VALUE, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, INTEGRAL_GAIN, DISPLAY_N_VALUES };
 
 /* Program entry-point */
 int main( int argc, char *argv[] )
@@ -101,6 +101,8 @@ int main( int argc, char *argv[] )
   
 	DiscardPanel( panel );
 	
+  CloseCVIRTE();
+  
 	return 0;
 }
 
@@ -157,7 +159,8 @@ int CVICALLBACK GainCallback( int panel, int control, int event, void* callbackD
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
 	static double dataArray[ DISPLAY_N_VALUES * NUM_POINTS ];
-  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ], emgValues[ NUM_POINTS ];
+  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], emgValues[ NUM_POINTS ];
+  static double pGainValues[ NUM_POINTS ], dGainValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ];
 	
 	// Get the published data.
 	CNVGetArrayDataValue( data, CNVDouble, dataArray, DISPLAY_N_VALUES * NUM_POINTS );
@@ -168,9 +171,14 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   {
     positionValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + POSITION ];
     velocityValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + VELOCITY ];
-    setpointValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + POSITION_SETPOINT ];
+    setpointValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + REFERENCE_VALUE ];
+    pGainValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + PROPORTIONAL_GAIN ];
+    dGainValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + DERIVATIVE_GAIN ];
     emgValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TENSION ];
   }
+  
+  SetCtrlVal( panel, PANEL_STIFFNESS, pGainValues[ NUM_POINTS - 1 ] );
+  SetCtrlVal( panel, PANEL_DAMPING, dGainValues[ NUM_POINTS - 1 ] );;
   
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_POSITION, -1, VAL_DELAYED_DRAW );
@@ -178,7 +186,9 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
   
   DeleteGraphPlot( panel, PANEL_GRAPH_EMG, -1, VAL_DELAYED_DRAW );
-  PlotY( panel, PANEL_GRAPH_EMG, emgValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
+  PlotY( panel, PANEL_GRAPH_EMG, emgValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
+  PlotY( panel, PANEL_GRAPH_EMG, pGainValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+  PlotY( panel, PANEL_GRAPH_EMG, dGainValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
 		
 	CNVDisposeData( data );
 }

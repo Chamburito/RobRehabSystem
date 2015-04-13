@@ -2,7 +2,7 @@
 // CVI RealTime Network Variable example.
 //-----------------------------------------------------------------------------
 
-#define NUM_POINTS			128
+#define NUM_POINTS			50
 
 #define STIFFNESS_VARIABLE	"Amplitude"
 #define DAMPING_VARIABLE	"Frequency"

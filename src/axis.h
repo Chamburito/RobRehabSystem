@@ -32,28 +32,28 @@
 #include "async_debug.h"
 
 enum OperationMode { HOMMING_MODE, PROFILE_VELOCITY_MODE, PROFILE_POSITION_MODE, POSITION_MODE, 
-                     VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_N_MODES };
-static const uint8_t operationModes[ AXIS_N_MODES ] = { 0x06, 0x03, 0x01, 0xFF, 0xFE, 0xFD, 0xFB, 0xFA };
+                     VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_MODES_NUMBER };
+static const uint8_t operationModes[ AXIS_MODES_NUMBER ] = { 0x06, 0x03, 0x01, 0xFF, 0xFE, 0xFD, 0xFB, 0xFA };
 
 enum State { READY_2_SWITCH_ON, SWITCHED_ON, OPERATION_ENABLED, FAULT, VOLTAGE_ENABLED, 
-              QUICK_STOPPED, SWITCH_ON_DISABLE, REMOTE_NMT, TARGET_REACHED, SETPOINT_ACK, AXIS_N_STATES };
-static const uint16_t stateValues[ AXIS_N_STATES ] = { 1, 2, 4, 8, 16, 32, 64, 512, 1024, 4096 };
+              QUICK_STOPPED, SWITCH_ON_DISABLE, REMOTE_NMT, TARGET_REACHED, SETPOINT_ACK, AXIS_STATES_NUMBER };
+static const uint16_t stateValues[ AXIS_STATES_NUMBER ] = { 1, 2, 4, 8, 16, 32, 64, 512, 1024, 4096 };
 
 enum Control { SWITCH_ON, ENABLE_VOLTAGE, QUICK_STOP, ENABLE_OPERATION, 
-               NEW_SETPOINT, CHANGE_IMMEDIATEDLY, ABS_REL, FAULT_RESET, HALT, AXIS_N_CONTROLS };
-static const uint16_t controlValues[ AXIS_N_CONTROLS ] = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
+               NEW_SETPOINT, CHANGE_IMMEDIATEDLY, ABS_REL, FAULT_RESET, HALT, AXIS_CONTROLS_NUMBER };
+static const uint16_t controlValues[ AXIS_CONTROLS_NUMBER ] = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
 
 enum Dimension { POSITION, VELOCITY, CURRENT, TENSION, AXIS_DIMS_NUMBER }; 
 
-enum Parameter { POSITION_SETPOINT, VELOCITY_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, AXIS_PARAMS_NUMBER }; 
+enum Setpoint { POSITION_SETPOINT, VELOCITY_SETPOINT, AXIS_SETPTS_NUMBER }; 
 
-enum FrameType { SDO, PDO01, PDO02, AXIS_N_FRAMES };
-static const char* CAN_FRAME_NAMES[ AXIS_N_FRAMES ] = { "SDO", "PDO01", "PDO02" };
+enum FrameType { SDO, PDO01, PDO02, AXIS_FRAME_TYPES_NUMBER };
+static const char* CAN_FRAME_NAMES[ AXIS_FRAME_TYPES_NUMBER ] = { "SDO", "PDO01", "PDO02" };
 
 typedef struct _MotorDrive
 {
-  CANFrame* readFramesList[ AXIS_N_FRAMES ];
-  CANFrame* writeFramesList[ AXIS_N_FRAMES ];
+  CANFrame* readFramesList[ AXIS_FRAME_TYPES_NUMBER ];
+  CANFrame* writeFramesList[ AXIS_FRAME_TYPES_NUMBER ];
   double measuresList[ AXIS_DIMS_NUMBER ];
   unsigned int encoderResolution;
   uint16_t statusWord, controlWord;
@@ -64,7 +64,7 @@ MotorDrive;
 typedef struct _Motor
 {
   MotorDrive* controller;
-  double parametersList[ AXIS_PARAMS_NUMBER ];
+  double setpointsList[ AXIS_SETPTS_NUMBER ];
   bool active;
 }
 Motor;
@@ -76,18 +76,18 @@ void Motor_Disable( Motor* );
 void Motor_Disconnect( Motor* );
 void MotorDrive_Disconnect( MotorDrive* );
 void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
-double MotorDrive_GetMeasure( MotorDrive*, Dimension );
-double Motor_GetParameter( Motor*, Parameter );
-void Motor_SetParameter( Motor*, Parameter, double );
-bool MotorDrive_CheckState( MotorDrive*, State );
+double MotorDrive_GetMeasure( MotorDrive*, enum Dimension );
+double Motor_GetSetpoint( Motor*, enum Setpoint );
+void Motor_SetSetpoint( Motor*, enum Setpoint, double );
+bool MotorDrive_CheckState( MotorDrive*, enum State );
 void MotorDrive_Reset( MotorDrive* );
-static void SetControl( MotorDrive*, Control, bool );
+static void SetControl( MotorDrive*, enum Control, bool );
 void MotorDrive_ReadValues( MotorDrive* );
 void Motor_WriteConfig( Motor* );
 static void MotorDrive_WriteConfig( MotorDrive* );
 static double ReadSingleValue( MotorDrive*, uint16_t, uint8_t );
 static void WriteSingleValue( MotorDrive*, uint16_t, uint8_t, int );
-void Motor_SetOperationMode( Motor*, OperationMode );
+void Motor_SetOperationMode( Motor*, enum OperationMode );
 static inline void EnableDigitalOutput( MotorDrive*, bool );
 extern inline void MotorDrive_SetDigitalOutput( MotorDrive*, uint16_t output );
 
@@ -100,8 +100,8 @@ Motor* Motor_Connect( unsigned int networkIndex )
   
   Motor* motor = (Motor*) malloc( sizeof(Motor) );
   
-  for( int i = 0; i < AXIS_PARAMS_NUMBER; i++ )
-    motor->parametersList[ i ] = 0.0;
+  for( int i = 0; i < AXIS_SETPTS_NUMBER; i++ )
+    motor->setpointsList[ i ] = 0.0;
   
   if( (motor->controller = MotorDrive_Connect( networkIndex )) == NULL )
   {
@@ -136,7 +136,7 @@ MotorDrive* MotorDrive_Connect( unsigned int networkIndex )
   
   static char networkAddress[ DEVICE_NAME_MAX_LENGTH ];
 
-  for( int frameID = 0; frameID < AXIS_N_FRAMES; frameID++ )
+  for( int frameID = 0; frameID < AXIS_FRAME_TYPES_NUMBER; frameID++ )
   {
     sprintf( networkAddress, "%s_RX_%02u", CAN_FRAME_NAMES[ frameID ], networkIndex );
     controller->readFramesList[ frameID ] = EposNetwork_InitFrame( FRAME_IN, "CAN1", networkAddress );
@@ -180,7 +180,7 @@ void MotorDrive_Disconnect( MotorDrive* controller )
 {
   if( controller != NULL )
   {
-    for( size_t frameID = 0; frameID < AXIS_N_FRAMES; frameID++ )
+    for( size_t frameID = 0; frameID < AXIS_FRAME_TYPES_NUMBER; frameID++ )
       EposNetwork_EndFrame( controller->readFramesList[ frameID ] );
 
     free( controller );
@@ -235,38 +235,38 @@ double MotorDrive_GetMeasure( MotorDrive* controller, enum Dimension index )
 {
   if( index >= AXIS_DIMS_NUMBER )
   {
-    fprintf( stderr, "MotorDrive_GetMeasure: invalid value index: %d\n", index );
+    ERROR_EVENT( "invalid dimension index: %d\n", index );
     return 0;
   }
       
   return controller->measuresList[ index ];
 }
  
-double Motor_GetParameter( Motor* motor, enum Parameter index )
+double Motor_GetSetpoint( Motor* motor, enum Setpoint index )
 {
-  if( index >= AXIS_PARAMS_NUMBER )
+  if( index >= AXIS_SETPTS_NUMBER )
   {
-    fprintf( stderr, "Motor_GetParameter: invalid value index: %d\n", index );
+    ERROR_EVENT( "invalid setpoint type index: %d\n", index );
     return 0;
   }
       
-  return motor->parametersList[ index ];
+  return motor->setpointsList[ index ];
 }
 
-void Motor_SetParameter( Motor* motor, enum Parameter index, double value )
+void Motor_SetSetpoint( Motor* motor, enum Setpoint index, double value )
 {
-  if( index >= AXIS_PARAMS_NUMBER )
+  if( index >= AXIS_SETPTS_NUMBER )
   {
-    fprintf( stderr, "Motor_SetParameter: invalid value index: %d\n", index );
+    ERROR_EVENT( "invalid setpoint type index: %d\n", index );
     return;
   }
       
-  motor->parametersList[ index ] = value;
+  motor->setpointsList[ index ] = value;
 }
 
 bool MotorDrive_CheckState( MotorDrive* controller, enum State index )
 {
-  if( index < 0 || index >= AXIS_N_STATES ) return false;
+  if( index < 0 || index >= AXIS_STATES_NUMBER ) return false;
   
   uint16_t stateValue = stateValues[ index ];
   
@@ -287,7 +287,7 @@ void MotorDrive_Reset( MotorDrive* controller )
 
 static inline void SetControl( MotorDrive* controller, enum Control index, bool enabled )
 {
-  if( index < 0 || index >= AXIS_N_CONTROLS ) return;
+  if( index < 0 || index >= AXIS_CONTROLS_NUMBER ) return;
   
   uint16_t controlValue = controlValues[ index ]; //0x00000001 << index;
   
@@ -322,7 +322,7 @@ void Motor_WriteConfig( Motor* motor )
   // Create writing buffer
   static uint8_t payload[8];
 
-  int rawPositionSetpoint = (int) ( motor->parametersList[ POSITION_SETPOINT ] * motor->controller->encoderResolution );
+  int rawPositionSetpoint = (int) ( motor->setpointsList[ POSITION_SETPOINT ] * motor->controller->encoderResolution );
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[0] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );
@@ -337,7 +337,7 @@ void Motor_WriteConfig( Motor* motor )
   // Write values from buffer to PDO01 
   CANFrame_Write( motor->controller->writeFramesList[ PDO01 ], payload );
 
-  int velocitySetpoint = (int) motor->parametersList[ VELOCITY_SETPOINT ];
+  int velocitySetpoint = (int) motor->setpointsList[ VELOCITY_SETPOINT ];
   
   // Set values for PDO02 (Velocity Setpoint and Digital Output)
   payload[0] = (uint8_t) ( velocitySetpoint & 0x000000ff );
