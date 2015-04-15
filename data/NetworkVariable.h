@@ -17,8 +17,8 @@
 #define  PANEL_GRAPH_EMG                  2       /* control type: graph, callback function: (none) */
 #define  PANEL_GRAPH_POSITION             3       /* control type: graph, callback function: (none) */
 #define  PANEL_QUITBUTTON                 4       /* control type: command, callback function: QuitCallback */
-#define  PANEL_STIFFNESS                  5       /* control type: scale, callback function: GainCallback */
-#define  PANEL_DAMPING                    6       /* control type: scale, callback function: GainCallback */
+#define  PANEL_TOGGLEBUTTON_2             5       /* control type: textButton, callback function: (none) */
+#define  PANEL_TOGGLEBUTTON               6       /* control type: textButton, callback function: (none) */
 
 
      /* Control Arrays: */
@@ -33,7 +33,6 @@
 
      /* Callback Prototypes: */
 
-int  CVICALLBACK GainCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 int  CVICALLBACK QuitCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 
 

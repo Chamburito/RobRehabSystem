@@ -73,7 +73,7 @@ int RobRehabNetwork_Init()
   fclose( setpointsFile );
   
   
-  //EMGProcessing_Init();
+  EMGProcessing_Init();
   AxisControl_Init();
   
   networkAxesList = (NetworkAxis*) calloc( AxisControl_GetActiveAxesNumber(), sizeof(NetworkAxis) );
@@ -126,7 +126,7 @@ void RobRehabNetwork_End()
 	CNVFinish();
   
   AxisControl_End();
-  //EMGProcessing_End();
+  EMGProcessing_End();
   
   DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
 }
@@ -295,13 +295,13 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
         dataArray[ valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + parameterIndex ) ] = motorParametersList[ parameterIndex ];
       
-      size_t dataIndex = valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + REFERENCE_VALUE );
+      //size_t dataIndex = valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + REFERENCE_VALUE );
       //DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, CONTROL_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
-      DEBUG_PRINT( "got position setpoint %d value %g", dataIndex, dataArray[ dataIndex ] );
+      //DEBUG_PRINT( "got position setpoint %d value %g", dataIndex, dataArray[ dataIndex ] );
       
-      //double* emgValuesList = EMGProcessing_GetValues();
-      //if( emgValuesList != NULL ) dataArray[ TENSION * NUM_POINTS + valuesCount ] = emgValuesList[ 0 ];
-      //DEBUG_PRINT( "got EMG value %g", dataArray[ TENSION * NUM_POINTS + valuesCount ] );
+      double* emgValuesList = EMGProcessing_GetValues();
+      if( emgValuesList != NULL ) dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] = emgValuesList[ 0 ];
+      //DEBUG_PRINT( "got EMG value %g", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] );
       
       valuesCount++;
       

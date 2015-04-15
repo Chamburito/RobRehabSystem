@@ -311,17 +311,17 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
     ListRemoveItem( globalConnectionsList, NULL, END_OF_LIST );
     
     CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, newConnection->callbackThreadID );
-        newConnection->callbackThreadID = -1;
+    newConnection->callbackThreadID = -1;
     
-        CloseConnection( 0, newConnection, NULL );
+    CloseConnection( 0, newConnection, NULL );
     
     return -1;
   }
 
   DEBUG_EVENT( 0, "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",
-                                                              ( newConnection->networkRole == SERVER ) ? "Server" : "Client",
-                                                              ( newConnection->networkRole == SERVER ) ? "local" : "remote",
-                                                              GetAddress( newConnection ) );
+                                                                 ( newConnection->networkRole == SERVER ) ? "Server" : "Client",
+                                                                 ( newConnection->networkRole == SERVER ) ? "local" : "remote",
+                                                                 GetAddress( newConnection ) );
   
   return (int) newConnection->handle;
 }
