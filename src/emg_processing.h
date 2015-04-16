@@ -8,36 +8,39 @@
 
 #include "async_debug.h"
 
+#ifndef _CVI_
+  typedef double float64;
+#endif
+
 TaskHandle emgReadTask;
 
 Thread_Handle emgThreadID;
 
-const int EMG_NEW_SAMPLES_BUFFER_LEN = 10;
-const int EMG_CHANNELS_NUMBER = 2;
+const size_t EMG_CHANNELS_NUMBER = 2;
 
 static float64* emgValuesList = NULL;
 
-typedef struct _EMGReference
+static struct
 {
   float64 zerosList[ EMG_CHANNELS_NUMBER ];
   float64 maxList[ EMG_CHANNELS_NUMBER ];
 }
-EMGReference;
+emgReference;
 
 static bool isRunning;
 
-enum EMGProcessingPhase { EMG_RELAXATION_PHASE, EMG_CONTRACTION_PHASE, EMG_WORKING_PHASE };
-static uint8_t processingPhase = EMG_WORKING_PHASE;
+const struct { int RELAXATION = 0, CONTRACTION = 1, WORKING = 2; } EMGProcessingPhase;
+const size_t EMG_PROCESSING_PHASES_NUMBER = sizeof(EMGProcessingPhase) / sizeof(int);
+
+static uint8_t processingPhase = EMGProcessingPhase.RELAXATION;
 static unsigned int preparationPassCount = 0;
 
-static double* EMGProcessing_GetFilteredSignal();
+static float64* EMGProcessing_GetFilteredSignal();
 static double* EMGProcessing_GetNormalizedSignal( EMGReference* );
 static void* EMGProcessing_AsyncUpdate( void* );
 
 void EMGProcessing_Init()
 {
-  static EMGReference reference;
-  
   DAQmxLoadTask( "EMGReadTask", &emgReadTask );
   DAQmxStartTask( emgReadTask );
   
@@ -45,81 +48,79 @@ void EMGProcessing_Init()
   emgThreadID = Thread_Start( EMGProcessing_AsyncUpdate, NULL, JOINABLE );
 }
 
-const int EMG_FILTER_ORDER = 3;
-const float64 filter_A[ EMG_FILTER_ORDER ] = { 1.0, -1.9964, 0.9965 };
-const float64 filter_B[ EMG_FILTER_ORDER ] = { 1.5763e-6, 3.1527e-6, 1.5763e-6 };
+const int NEW_SAMPLES_BUFFER_LEN = 10;
+const size_t FILTER_ORDER = 3;
+const float64 filter_A[ FILTER_ORDER ] = { 1.0, -1.9964, 0.9965 };
+const float64 filter_B[ FILTER_ORDER ] = { 1.5763e-6, 3.1527e-6, 1.5763e-6 };
 static double* EMGProcessing_Update( EMGReference* reference )
 {
-  const int EMG_FILTER_EXTRA_SAMPLES_NUMBER = EMG_FILTER_ORDER - 1;
-  const int EMG_FILTER_BUFFER_LEN = EMG_FILTER_EXTRA_SAMPLES_NUMBER + EMG_NEW_SAMPLES_BUFFER_LEN;
+  const int FILTER_EXTRA_SAMPLES_NUMBER = FILTER_ORDER - 1;
+  const int FILTER_BUFFER_LEN = FILTER_EXTRA_SAMPLES_NUMBER + NEW_SAMPLES_BUFFER_LEN;
   
-  const int EMG_OLD_SAMPLES_BUFFER_LEN = 100;
-  const int EMG_SAMPLES_BUFFER_LEN = EMG_OLD_SAMPLES_BUFFER_LEN + EMG_NEW_SAMPLES_BUFFER_LEN;
+  const int OLD_SAMPLES_BUFFER_LEN = 100;
+  const int SAMPLES_BUFFER_LEN = OLD_SAMPLES_BUFFER_LEN + NEW_SAMPLES_BUFFER_LEN;
   
-  static float64 emgSamplesList[ EMG_CHANNELS_NUMBER * EMG_SAMPLES_BUFFER_LEN ];
-  static int oldSamplesBufferStart = 0, newSamplesBufferStart = EMG_OLD_SAMPLES_BUFFER_LEN;
+  static float64 samplesList[ EMG_CHANNELS_NUMBER * SAMPLES_BUFFER_LEN ];
+  static int oldSamplesBufferStart = 0, newSamplesBufferStart = OLD_SAMPLES_BUFFER_LEN;
   
-  static float64 emgNewSamplesList[ EMG_CHANNELS_NUMBER * EMG_NEW_SAMPLES_BUFFER_LEN ];
-  static float64 emgRectifiedSamplesList[ EMG_CHANNELS_NUMBER * EMG_FILTER_BUFFER_LEN ];
-  static float64 emgFilteredSamplesList[ EMG_CHANNELS_NUMBER * EMG_FILTER_BUFFER_LEN ];
-  static float64 emgProcessedSamplesList[ EMG_CHANNELS_NUMBER * EMG_NEW_SAMPLES_BUFFER_LEN ];
-  static float64 emgPreviousSamplesMean;
+  static float64 newSamplesList[ EMG_CHANNELS_NUMBER * NEW_SAMPLES_BUFFER_LEN ];
+  static float64 rectifiedSamplesList[ EMG_CHANNELS_NUMBER * FILTER_BUFFER_LEN ];
+  static float64 filteredSamplesList[ EMG_CHANNELS_NUMBER * FILTER_BUFFER_LEN ];
+  static float64 processedSamplesList[ EMG_CHANNELS_NUMBER * NEW_SAMPLES_BUFFER_LEN ];
+  static float64 previousSamplesMean;
   static int32 aquiredSamples;
   
-  int errorCode = DAQmxReadAnalogF64( emgReadTask, EMG_NEW_SAMPLES_BUFFER_LEN, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
-                                      emgSamplesList, EMG_CHANNELS_NUMBER * EMG_NEW_SAMPLES_BUFFER_LEN, &aquiredSamples, NULL );
+  int errorCode = DAQmxReadAnalogF64( emgReadTask, NEW_SAMPLES_BUFFER_LEN, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
+                                        samplesList, EMG_CHANNELS_NUMBER * NEW_SAMPLES_BUFFER_LEN, &aquiredSamples, NULL );
   
   if( errorCode == 0 ) 
   {
     for( size_t channel = 0; channel < EMG_CHANNELS_NUMBER; channel++ )
     {
-      float64* emgChannelSamplesList = emgSamplesList + channel * EMG_SAMPLES_BUFFER_LEN;
+      float64* channelSamplesList = samplesList + channel * SAMPLES_BUFFER_LEN;
       
-      float64* emgChannelNewSamplesList = emgNewSamplesList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
-      float64* emgChannelRectifiedSamplesList = emgRectifiedSamplesList + channel * EMG_FILTER_BUFFER_LEN;
-      float64* emgChannelFilteredSamplesList = emgFilteredSamplesList + channel * EMG_FILTER_BUFFER_LEN;
+      float64* channelNewSamplesList = newSamplesList + channel * NEW_SAMPLES_BUFFER_LEN;
+      float64* channelRectifiedSamplesList = rectifiedSamplesList + channel * FILTER_BUFFER_LEN;
+      float64* channelFilteredSamplesList = filteredSamplesList + channel * FILTER_BUFFER_LEN;
       
-      float64* emgChannelProcessedSamplesList = emgProcessedSamplesList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
+      float64* channelProcessedSamplesList = processedSamplesList + channel * NEW_SAMPLES_BUFFER_LEN;
 
-      for( int newSampleIndex = 0; newSampleIndex < EMG_NEW_SAMPLES_BUFFER_LEN; newSampleIndex++ )
-        emgChannelSamplesList[ newSamplesBufferStart + newSampleIndex ] = emgChannelNewSamplesList[ newSampleIndex ];
+      for( int newSampleIndex = 0; newSampleIndex < NEW_SAMPLES_BUFFER_LEN; newSampleIndex++ )
+                channelSamplesList[ newSamplesBufferStart + newSampleIndex ] = channelNewSamplesList[ newSampleIndex ];
       
-      emgPreviousSamplesMean = 0.0;
-      for( int sampleIndex = 0; sampleIndex < EMG_NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
+      previousSamplesMean = 0.0;
+      for( int sampleIndex = 0; sampleIndex < NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
       {
         for( int previousSampleIndex = oldSamplesBufferStart + sampleIndex; previousSampleIndex < newSamplesBufferStart + sampleIndex; previousSampleIndex++ )
-          emgPreviousSamplesMean += emgChannelSamplesList[ previousSampleIndex ] / EMG_OLD_SAMPLES_BUFFER_LEN;
+                    previousSamplesMean += channelSamplesList[ previousSampleIndex ] / OLD_SAMPLES_BUFFER_LEN;
         
-        emgChannelRectifiedSamplesList[ sampleIndex ] = fabs( emgChannelSamplesList[ sampleIndex ] - emgPreviousSamplesMean );
+                channelRectifiedSamplesList[ sampleIndex ] = fabs( channelSamplesList[ sampleIndex ] - previousSamplesMean );
       }
 
-      for( int sampleIndex = EMG_FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < EMG_FILTER_BUFFER_LEN; sampleIndex++ )
+      for( int sampleIndex = FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < FILTER_BUFFER_LEN; sampleIndex++ )
       {
-        emgChannelFilteredSamplesList[ sampleIndex ] = 0.0;
-        for( int coeffIndex = 0; coeffIndex < EMG_FILTER_ORDER; coeffIndex++ )
+                channelFilteredSamplesList[ sampleIndex ] = 0.0;
+        for( int coeffIndex = 0; coeffIndex < FILTER_ORDER; coeffIndex++ )
         {
-          emgChannelFilteredSamplesList[ sampleIndex ] -= filter_A[ coeffIndex ] * emgChannelFilteredSamplesList[ sampleIndex - coeffIndex ];
-          emgChannelFilteredSamplesList[ sampleIndex ] += filter_B[ coeffIndex ] * emgChannelRectifiedSamplesList[ sampleIndex - coeffIndex ];
+                    channelFilteredSamplesList[ sampleIndex ] -= filter_A[ coeffIndex ] * channelFilteredSamplesList[ sampleIndex - coeffIndex ];
+                    channelFilteredSamplesList[ sampleIndex ] += filter_B[ coeffIndex ] * channelRectifiedSamplesList[ sampleIndex - coeffIndex ];
         }
       }
 
-      for( int sampleIndex = 0; sampleIndex < EMG_FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex++ )
+      for( int sampleIndex = 0; sampleIndex < FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex++ )
       {
-        emgChannelFilteredSamplesList[ sampleIndex ] = emgChannelFilteredSamplesList[ EMG_NEW_SAMPLES_BUFFER_LEN + sampleIndex ];
-        emgChannelRectifiedSamplesList[ sampleIndex ] = emgChannelRectifiedSamplesList[ EMG_NEW_SAMPLES_BUFFER_LEN + sampleIndex ];
+                channelFilteredSamplesList[ sampleIndex ] = channelFilteredSamplesList[ NEW_SAMPLES_BUFFER_LEN + sampleIndex ];
+                channelRectifiedSamplesList[ sampleIndex ] = channelRectifiedSamplesList[ NEW_SAMPLES_BUFFER_LEN + sampleIndex ];
       }
 
-      for( int sampleIndex = 0; sampleIndex < EMG_NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
-        emgChannelProcessedSamplesList[ sampleIndex ] = emgChannelFilteredSamplesList[ EMG_FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ];
+      for( int sampleIndex = 0; sampleIndex < NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
+                channelProcessedSamplesList[ sampleIndex ] = channelFilteredSamplesList[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ];
     }
     
-    oldSamplesBufferStart = ( oldSamplesBufferStart + EMG_NEW_SAMPLES_BUFFER_LEN ) % EMG_SAMPLES_BUFFER_LEN;
-    newSamplesBufferStart = ( newSamplesBufferStart + EMG_NEW_SAMPLES_BUFFER_LEN ) % EMG_SAMPLES_BUFFER_LEN;
-    
-    if( reference != NULL ) 
-      
+    oldSamplesBufferStart = ( oldSamplesBufferStart + NEW_SAMPLES_BUFFER_LEN ) % SAMPLES_BUFFER_LEN;
+    newSamplesBufferStart = ( newSamplesBufferStart + NEW_SAMPLES_BUFFER_LEN ) % SAMPLES_BUFFER_LEN;      
 
-    return (double*) emgProcessedSamplesList;
+    return (double*) processedSamplesList;
   }
   else
   {
@@ -134,71 +135,68 @@ static double* EMGProcessing_Update( EMGReference* reference )
 
 static void* EMGProcessing_AsyncUpdate( void* referenceData )
 {
-  static float64 emgNormalizedSamplesList[ EMG_CHANNELS_NUMBER * EMG_NEW_SAMPLES_BUFFER_LEN ];
-  static float64 emgActivationsList[ EMG_CHANNELS_NUMBER * EMG_NEW_SAMPLES_BUFFER_LEN ];
-  
-  static float64 emgChannelsZerosList[ EMG_CHANNELS_NUMBER ];
-  static float64 emgChannelsMaxList[ EMG_CHANNELS_NUMBER ];
+  static float64 normalizedSamplesList[ EMG_CHANNELS_NUMBER * NEW_SAMPLES_BUFFER_LEN ];
+  static float64 activationsList[ EMG_CHANNELS_NUMBER * NEW_SAMPLES_BUFFER_LEN ];
   
   while( isRunning )
   {
-    float64* emgFilteredSamplesList = EMGProcessing_GetFilteredSignal();
+    float64* filteredSamplesList = EMGProcessing_GetFilteredSignal();
     
-    if( emgFilteredSamplesList != NULL )
+    if( filteredSamplesList != NULL )
     {
       switch( processingPhase )
       {
-        case EMG_RELAXATION_PHASE:
+        case EMGProcessingPhase.RELAXATION:
         
           for( size_t channel = 0; channel < EMG_CHANNELS_NUMBER; channel++ )
           {
-            float64* emgChannelFilteredSamplesList = emgFilteredSamplesList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
+            float64* channelFilteredSamplesList = emgFilteredSamplesList + channel * NEW_SAMPLES_BUFFER_LEN;
       
-            for( size_t sampleIndex = 0; sampleIndex < EMG_NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
-              emgChannelsZerosList[ channel ] += emgChannelFilteredSamplesList[ sampleIndex ];
+            for( size_t sampleIndex = 0; sampleIndex < NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
+              emgReference.zerosList[ channel ] += channelFilteredSamplesList[ sampleIndex ];
           }
           
           preparationPassCount++;
         
           break;
         
-        case EMG_CONTRACTION_PHASE:
+        case EMGProcessingPhase.CONTRACTION:
         
           for( size_t channel = 0; channel < EMG_CHANNELS_NUMBER; channel++ )
           {
-            float64* emgChannelFilteredSamplesList = emgFilteredSamplesList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
+            float64* channelFilteredSamplesList = emgFilteredSamplesList + channel * NEW_SAMPLES_BUFFER_LEN;
       
-            for( size_t sampleIndex = 0; sampleIndex < EMG_NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
-              emgChannelsMaxList[ channel ] += emgChannelFilteredSamplesList[ sampleIndex ] / ( EMG_NEW_SAMPLES_BUFFER_LEN * PREPARATION_PASSES_NUMBER );
+            for( size_t sampleIndex = 0; sampleIndex < NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
+              emgReference.maxList[ channel ] += channelFilteredSamplesList[ sampleIndex ] / ( NEW_SAMPLES_BUFFER_LEN * PREPARATION_PASSES_NUMBER );
           }
           
           preparationPassCount++;
         
           break;
         
-        case EMG_WORKING_PHASE:
+        case EMGProcessingPhase.WORKING:
         
           for( size_t channel = 0; channel < EMG_CHANNELS_NUMBER; channel++ )
           {
-            float64* emgChannelFilteredSamplesList = emgFilteredSamplesList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
-            float64* emgChannelNormalizedSamplesList = emgNormalizedSamplesList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
-            float64* emgChannelActivationsList = emgActivationsList + channel * EMG_NEW_SAMPLES_BUFFER_LEN;
+            float64* channelFilteredSamplesList = emgFilteredSamplesList + channel * NEW_SAMPLES_BUFFER_LEN;
+            float64* channelNormalizedSamplesList = normalizedSamplesList + channel * NEW_SAMPLES_BUFFER_LEN;
+            float64* channelActivationsList = activationsList + channel * NEW_SAMPLES_BUFFER_LEN;
       
-            for( size_t sampleIndex = 0; sampleIndex < EMG_NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
+            for( size_t sampleIndex = 0; sampleIndex < NEW_SAMPLES_BUFFER_LEN; sampleIndex++ )
             {
-              if( reference->maxList[ channel ] > 0.0 )
-                emgChannelNormalizedSamplesList[ sampleIndex ] = ( emgChannelFilteredSamplesList[ sampleIndex ] - emgChannelsZerosList[ channel ] ) / emgChannelsMaxList[ channel ];
+              if( emgReference.maxList[ channel ] > 0.0 )
+                            channelNormalizedSamplesList[ sampleIndex ] = ( channelFilteredSamplesList[ sampleIndex ] - emgReference.zerosList[ channel ] ) / emgReference.maxList[ channel ];
               else
-                emgChannelNormalizedSamplesList[ sampleIndex ] = 1.0;
+                            channelNormalizedSamplesList[ sampleIndex ] = 1.0;
           
-              float64 emgNormalizedSample = emgChannelNormalizedSamplesList[ sampleIndex ];
+              float64 normalizedSample = channelNormalizedSamplesList[ sampleIndex ];
             
-              emgChannelActivationsList[ sampleIndex ] = ( exp( -2 * emgNormalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
+                        channelActivationsList[ sampleIndex ] = ( exp( -2 * normalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
             }
           }
           
-          emgValuesList = emgNormalizedSamplesList;
-          DEBUG_PRINT( "emg: ( %.6f - %.6f ) / %.6f = %.3f", emgFilteredSamplesList[ 0 ], emgChannelsZerosList[ 0 ], emgChannelsMaxList[ 0 ], emgNormalizedSamplesList[ 0 ] );
+          emgValuesList = normalizedSamplesList;
+          DEBUG_PRINT( "emg: ( %.6f - %.6f ) / %.6f = %.3f", emgFilteredSamplesList[ 0 ], emgReference.zerosList[ 0 ], emgReference.maxList[ 0 ], normalizedSamplesList[ 0 ] );
         
           break;
       }
@@ -213,24 +211,36 @@ static void* EMGProcessing_AsyncUpdate( void* referenceData )
   return NULL;
 }
 
-void EMGProcessing_ChangePhase( enum EMGProcessingPhase )
+void EMGProcessing_ChangePhase( uint8_t newProcessingPhase )
 {
   switch( processingPhase )
   {
-    case EMG_RELAXATION_PHASE:
+    case EMGProcessingPhase.RELAXATION:
       
       for( size_t channel = 0; channel < EMG_CHANNELS_NUMBER; channel++ )
-        emgChannelsZerosList[ channel ] /= ( EMG_NEW_SAMPLES_BUFFER_LEN * preparationPassCount );
+      {
+        if( preparationPassCount > 0 )
+          emgReference.zerosList[ channel ] /= ( NEW_SAMPLES_BUFFER_LEN * preparationPassCount );
+        else
+          emgReference.zerosList[ channel ] = 0;
+      }
 
       break;
 
-    case EMG_CONTRACTION_PHASE:
+    case EMGProcessingPhase.CONTRACTION:
       
       for( size_t channel = 0; channel < EMG_CHANNELS_NUMBER; channel++ )
-        emgChannelsMaxList[ channel ] /= ( EMG_NEW_SAMPLES_BUFFER_LEN * preparationPassCount );
+      {
+        if( preparationPassCount > 0 )
+          emgReference.maxList[ channel ] /= ( NEW_SAMPLES_BUFFER_LEN * preparationPassCount );
+        else
+          emgReference.maxList[ channel ] = 0;
+      }
 
       break;
   }
+  
+  processingPhase = newProcessingPhase;
   
   preparationPassCount = 0;
 }
