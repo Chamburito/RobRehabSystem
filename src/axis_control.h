@@ -524,12 +524,12 @@ static void ControlKnee( AxisControl* kneeControl )
   static double angPositionIn, angPosInReduced, angPositionOutSetpoint;
   
   static double angVelocityInSetpoint[3];
-
-  angPositionIn = ( MotorDrive_GetMeasure( kneeControl->actuator->controller, POSITION ) ) * 2 * PI;
+  
+  angPositionIn = ( MotorDrive_GetMeasure( kneeControl->actuator->controller, POSITION ) );
   angPosInReduced = angPositionIn / KNEE_JOINT_REDUCTION;
 
   Motor_SetSetpoint( kneeControl->actuator, POSITION_SETPOINT, kneeControl->parametersList[ REFERENCE_VALUE ] );
-  angPositionOutSetpoint = -Motor_GetSetpoint( kneeControl->actuator, POSITION_SETPOINT ) * 2 * PI;
+  angPositionOutSetpoint = -Motor_GetSetpoint( kneeControl->actuator, POSITION_SETPOINT );
   
   // Impedance Control Vitual Stiffness
   if( kneeControl->parametersList[ PROPORTIONAL_GAIN ] < 0.0 ) kneeControl->parametersList[ PROPORTIONAL_GAIN ] = 0.0;
@@ -538,7 +538,7 @@ static void ControlKnee( AxisControl* kneeControl )
   if( kneeControl->parametersList[ DERIVATIVE_GAIN ] < 5.0 ) kneeControl->parametersList[ DERIVATIVE_GAIN ] = 5.0;
   double Bv = kneeControl->parametersList[ DERIVATIVE_GAIN ];
 
-  angPositionOut[0] = -MotorDrive_GetMeasure( kneeControl->sensor, POSITION ) * 2 * PI;
+  angPositionOut[0] = -MotorDrive_GetMeasure( kneeControl->sensor, POSITION );
 
   angVelocityOut[0] = ( angPositionOut[0] - angPositionOut[1] ) / CONTROL_SAMPLING_INTERVAL;
   angPositionOut[1] = angPositionOut[0];

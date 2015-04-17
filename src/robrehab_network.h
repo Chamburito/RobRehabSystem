@@ -13,6 +13,7 @@
 
 #include "axis_control.h"
 #include "emg_processing.h"
+#include "emg_axis_control.h"
 
 #include "async_debug.h"
 
@@ -36,12 +37,8 @@ static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing u
 
 static CNVData data = 0;
 
-static double axisStiffness = 10.0, axisDamping = 0.0;
-static CNVSubscriber gStiffnessSubscriber, gDampingSubscriber;
-void CVICALLBACK GainDataCallback( void*, CNVData, void* );
-
-static CNVSubscriber gEnableSubscriber;
-void CVICALLBACK EnableDataCallback( void*, CNVData, void* );
+static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber, gMotorToggleSubscriber;
+void CVICALLBACK ChangeStateDataCallback( void*, CNVData, void* );
 
 static CNVBufferedWriter gWavePublisher;
 
@@ -92,15 +89,15 @@ int RobRehabNetwork_Init()
   int status = 0;
   
   // Create network variable connections.
-	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" STIFFNESS_VARIABLE, GainDataCallback, 0, 0, 10000, 0, &gStiffnessSubscriber );
+	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" MAX_TOGGLE_VARIABLE, ChangeStateDataCallback, 0, 0, 10000, 0, &gMaxToggleSubscriber );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" DAMPING_VARIABLE, GainDataCallback, 0, 0, 10000, 0, &gDampingSubscriber );
+	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" MIN_TOGGLE_VARIABLE, ChangeStateDataCallback, 0, 0, 10000, 0, &gMinToggleSubscriber );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
   status = CNVCreateBufferedWriter( "\\\\localhost\\" PROCESS "\\" WAVE_VARIABLE, 0, 0, 0, 10, 10000, 0, &gWavePublisher );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
-  status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" ENABLE_VARIABLE, EnableDataCallback, 0, 0, 10000, 0, &gEnableSubscriber );
+  status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" ENABLE_VARIABLE, ChangeStateDataCallback, 0, 0, 10000, 0, &gMotorToggleSubscriber );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
@@ -119,10 +116,10 @@ void RobRehabNetwork_End()
   ListDispose( dataClientsList );
   
   if( data ) CNVDisposeData( data );
-  if( gStiffnessSubscriber ) CNVDispose( gStiffnessSubscriber );
-	if( gDampingSubscriber ) CNVDispose( gDampingSubscriber );
+  if( gMaxToggleSubscriber ) CNVDispose( gMaxToggleSubscriber );
+	if( gMinToggleSubscriber ) CNVDispose( gMinToggleSubscriber );
   if( gWavePublisher ) CNVDispose( gWavePublisher );
-  if( gEnableSubscriber ) CNVDispose( gEnableSubscriber );
+  if( gMotorToggleSubscriber ) CNVDispose( gMotorToggleSubscriber );
 	CNVFinish();
   
   AxisControl_End();
@@ -258,18 +255,16 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
   {
     networkAxesList[ axisID ].dataClient = clientID;
     
-    controlParametersList[ PROPORTIONAL_GAIN ] = axisStiffness;
-    controlParametersList[ DERIVATIVE_GAIN ] = axisDamping;
-    AxisControl_SetParameters( axisID, controlParametersList );
+    double* emgActivationsList = EMGProcessing_GetActivations();
     
-    static size_t setpointIndex; // Gamb
+    //static size_t setpointIndex; // Gamb
     setpointsCount = 0;
     while( *command != '\0' )
     {
       setpointValue = strtod( command, &command );
-      //setpointsList[ setpointsCount++ ] = setpointValue;
-      setpointsList[ setpointsCount++ ] = fileSetpointsList[ setpointIndex % FILE_SETPOINTS_NUMBER ] / ( 2 * PI ); // Gamb
-      setpointIndex++; // Gamb
+      setpointsList[ setpointsCount++ ] = 0.2; //setpointValue;
+      //setpointsList[ setpointsCount++ ] = fileSetpointsList[ setpointIndex % FILE_SETPOINTS_NUMBER ]; // Gamb
+      //setpointIndex++; // Gamb
     }
     //DEBUG_PRINT( "loading %u setpoints (%u - %u) to axis %u control", setpointsCount, setpointIndex - setpointsCount, setpointIndex, axisID );
     AxisControl_EnqueueSetpoints( axisID, setpointsList, setpointsCount );
@@ -285,6 +280,11 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
       readout[ strlen( readout ) - 1 ] = '\0';
   
+      controlParametersList[ PROPORTIONAL_GAIN ] = EMGJointControl_GetStiffness( -motorMeasuresList[ POSITION ] * 2 * PI );
+      controlParametersList[ DERIVATIVE_GAIN ] = 5.0;  
+      
+      AxisControl_SetParameters( axisID, controlParametersList );
+      
       //Gamb 
       static size_t valuesCount;
       static double dataArray[ CONTROL_VALUES_NUMBER * NUM_POINTS ];
@@ -299,8 +299,7 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       //DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, CONTROL_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
       //DEBUG_PRINT( "got position setpoint %d value %g", dataIndex, dataArray[ dataIndex ] );
       
-      double* emgValuesList = EMGProcessing_GetValues();
-      if( emgValuesList != NULL ) dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] = emgValuesList[ 0 ];
+      dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] = emgActivationsList[ 0 ];
       //DEBUG_PRINT( "got EMG value %g", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] );
       
       valuesCount++;
@@ -320,38 +319,36 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
 }
 
 
-void CVICALLBACK GainDataCallback( void* handle, CNVData data, void* callbackData )
+void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* callbackData )
 {
-	double value;
+	int enabled;
+  CNVGetScalarDataValue( data, CNVInt32, &enabled );
 
-	if( handle == gStiffnessSubscriber )
+	if( handle == gMaxToggleSubscriber )
 	{
-		CNVGetScalarDataValue( data, CNVDouble, &value );
-		axisStiffness = value;
-    DEBUG_PRINT( "got stiffness value %g", axisStiffness );
+    EMGProcessing_ChangePhase( ( enabled == 1 ) ? EMG_CONTRACTION_PHASE : EMG_WORK_PHASE );
+    
+    DEBUG_PRINT( "%s emg contraction phase", enabled ? "starting" : "ending" );
 	}
-	else if( handle == gDampingSubscriber )
+	else if( handle == gMinToggleSubscriber )
 	{
-		CNVGetScalarDataValue( data, CNVDouble, &value );
-		axisDamping = value;
-    DEBUG_PRINT( "got damping value %g", axisDamping );
+    EMGProcessing_ChangePhase( ( enabled == 1 ) ? EMG_RELAXATION_PHASE : EMG_WORK_PHASE );
+    
+    DEBUG_PRINT( "%s emg relaxation phase", enabled ? "starting" : "ending" );
 	}
-}
-
-void CVICALLBACK EnableDataCallback( void * handle, CNVData data, void * callbackData )
-{
-	char enabled;
-
-	CNVGetScalarDataValue( data, CNVBool, &enabled );
-	if( enabled )
+  else if( handle == gMotorToggleSubscriber )
   {
-    AxisControl_Reset( 0 );
-		AxisControl_EnableMotor( 0 );
-  }
-  else
-    AxisControl_DisableMotor( 0 );
+    if( enabled == 1 )
+    {
+      AxisControl_Reset( 0 );
+  		AxisControl_EnableMotor( 0 );
+    }
+    else
+      AxisControl_DisableMotor( 0 );
   
-  DEBUG_PRINT( "motor 0 %s", enabled ? "enabled" : "disabled" ); 
+    DEBUG_PRINT( "motor 0 %s", enabled ? "enabled" : "disabled" );
+  }
 }
+
 
 #endif //ROBREHAB_NETWORK_H

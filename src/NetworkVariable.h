@@ -13,12 +13,17 @@
 
      /* Panels and Controls: */
 
-#define  PANEL                           1
-#define  PANEL_GRAPH_EMG                 2
-#define  PANEL_GRAPH_POSITION            3
-#define  PANEL_STIFFNESS                 5       /* callback function: GainCallback */
-#define  PANEL_DAMPING                   6       /* callback function: GainCallback */
-#define  PANEL_QUITBUTTON                4       /* callback function: QuitCallback */
+#define  PANEL                            1       /* callback function: QuitCallback */
+#define  PANEL_GRAPH_EMG                  2       /* control type: graph, callback function: (none) */
+#define  PANEL_GRAPH_POSITION             3       /* control type: graph, callback function: (none) */
+#define  PANEL_MOTOR_TOGGLE               4       /* control type: textButton, callback function: ChangeStateCallback */
+#define  PANEL_MIN_TOGGLE                 5       /* control type: textButton, callback function: ChangeStateCallback */
+#define  PANEL_MAX_TOGGLE                 6       /* control type: textButton, callback function: ChangeStateCallback */
+
+
+     /* Control Arrays: */
+
+          /* (no control arrays in the resource file) */
 
 
      /* Menu Bars, Menus, and Menu Items: */
@@ -26,10 +31,10 @@
           /* (no menu bars in the resource file) */
 
 
-     /* Callback Prototypes: */ 
+     /* Callback Prototypes: */
 
-int CVICALLBACK GainCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 );
-int CVICALLBACK QuitCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 );
+int  CVICALLBACK ChangeStateCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
+int  CVICALLBACK QuitCallback(int panel, int event, void *callbackData, int eventData1, int eventData2);
 
 
 #ifdef __cplusplus

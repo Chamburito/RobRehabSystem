@@ -4,9 +4,9 @@
 
 #define NUM_POINTS			50
 
-#define STIFFNESS_VARIABLE	"Amplitude"
-#define DAMPING_VARIABLE	"Frequency"
+#define MAX_TOGGLE_VARIABLE	"MaxToggle"
+#define MIN_TOGGLE_VARIABLE	"MinToggle"
 #define WAVE_VARIABLE		"Wave"
-#define ENABLE_VARIABLE		"Exit"
+#define ENABLE_VARIABLE		"MotorToggle"
 
 #define PROCESS				"Shared Variables"

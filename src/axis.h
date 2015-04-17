@@ -306,7 +306,7 @@ void MotorDrive_ReadValues( MotorDrive* controller )
   CANFrame_Read( controller->readFramesList[ PDO01 ], payload );  
   // Update values from PDO01
   double rawPosition = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
-  controller->measuresList[ POSITION ] = rawPosition / controller->encoderResolution;
+  controller->measuresList[ POSITION ] = ( rawPosition / controller->encoderResolution ) * ( 2 * PI );
   controller->measuresList[ CURRENT ] = payload[5] * 0x100 + payload[4];
   controller->statusWord = payload[7] * 0x100 + payload[6];
 
@@ -322,17 +322,17 @@ void Motor_WriteConfig( Motor* motor )
   // Create writing buffer
   static uint8_t payload[8];
 
-  int rawPositionSetpoint = (int) ( motor->setpointsList[ POSITION_SETPOINT ] * motor->controller->encoderResolution );
+  int rawPositionSetpoint = (int) ( ( motor->setpointsList[ POSITION_SETPOINT ] / ( 2 * PI ) ) * motor->controller->encoderResolution );
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[0] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );
-  payload[1] = (uint8_t) (( rawPositionSetpoint & 0x0000ff00 ) / 0x100);
-  payload[2] = (uint8_t) (( rawPositionSetpoint & 0x00ff0000 ) / 0x10000);
-  payload[3] = (uint8_t) (( rawPositionSetpoint & 0xff000000 ) / 0x1000000);
+  payload[1] = (uint8_t) ( ( rawPositionSetpoint & 0x0000ff00 ) / 0x100 );
+  payload[2] = (uint8_t) ( ( rawPositionSetpoint & 0x00ff0000 ) / 0x10000 );
+  payload[3] = (uint8_t) ( ( rawPositionSetpoint & 0xff000000 ) / 0x1000000 );
   payload[4] = ( 0 & 0x000000ff );
   payload[5] = ( 0 & 0x0000ff00 ) / 0x100; 
   payload[6] = (uint8_t) ( motor->controller->controlWord & 0x000000ff );
-  payload[7] = (uint8_t) (( motor->controller->controlWord & 0x0000ff00 ) / 0x100); 
+  payload[7] = (uint8_t) ( ( motor->controller->controlWord & 0x0000ff00 ) / 0x100 ); 
 
   // Write values from buffer to PDO01 
   CANFrame_Write( motor->controller->writeFramesList[ PDO01 ], payload );
@@ -341,11 +341,11 @@ void Motor_WriteConfig( Motor* motor )
   
   // Set values for PDO02 (Velocity Setpoint and Digital Output)
   payload[0] = (uint8_t) ( velocitySetpoint & 0x000000ff );
-  payload[1] = (uint8_t) (( velocitySetpoint & 0x0000ff00 ) / 0x100);
-  payload[2] = (uint8_t) (( velocitySetpoint & 0x00ff0000 ) / 0x10000);
-  payload[3] = (uint8_t) (( velocitySetpoint & 0xff000000 ) / 0x1000000);
+  payload[1] = (uint8_t) ( ( velocitySetpoint & 0x0000ff00 ) / 0x100 );
+  payload[2] = (uint8_t) ( ( velocitySetpoint & 0x00ff0000 ) / 0x10000 );
+  payload[3] = (uint8_t) ( ( velocitySetpoint & 0xff000000 ) / 0x1000000 );
   payload[4] = (uint8_t) ( motor->controller->digitalOutput & 0x000000ff );
-  payload[5] = (uint8_t) (( motor->controller->digitalOutput & 0x0000ff00 ) / 0x100); 
+  payload[5] = (uint8_t) ( ( motor->controller->digitalOutput & 0x0000ff00 ) / 0x100 ); 
   payload[6] = ( 0 & 0x000000ff );
   payload[7] = ( 0 & 0x0000ff00 ) / 0x100; 
 
@@ -362,14 +362,14 @@ static void MotorDrive_WriteConfig( MotorDrive* controller )
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[6] = (uint8_t) ( controller->controlWord & 0x000000ff );
-  payload[7] = (uint8_t) (( controller->controlWord & 0x0000ff00 ) / 0x100); 
+  payload[7] = (uint8_t) ( ( controller->controlWord & 0x0000ff00 ) / 0x100 ); 
 
   // Write values from buffer to PDO01 
   CANFrame_Write( controller->writeFramesList[ PDO01 ], payload );
   
   // Set values for PDO02 (Velocity Setpoint and Output)
   payload[4] = (uint8_t) ( controller->digitalOutput & 0x000000ff );
-  payload[5] = (uint8_t) (( controller->digitalOutput & 0x0000ff00 ) / 0x100); 
+  payload[5] = (uint8_t) ( ( controller->digitalOutput & 0x0000ff00 ) / 0x100 ); 
 
   // Write values from buffer to PDO01
   CANFrame_Write( controller->writeFramesList[ PDO02 ], payload );
@@ -384,7 +384,7 @@ static double ReadSingleValue( MotorDrive* controller, uint16_t index, uint8_t s
   
   payload[0] = 0x40; 
   payload[1] = (uint8_t) ( index & 0x000000ff );
-  payload[2] = (uint8_t) (( index & 0x0000ff00 ) / 0x100);//0xff); ?
+  payload[2] = (uint8_t) ( ( index & 0x0000ff00 ) / 0x100 );//0xff); ?
   payload[3] = subIndex;
   payload[4] = 0x0;
   payload[5] = 0x0;
@@ -411,12 +411,12 @@ static void WriteSingleValue( MotorDrive* controller, uint16_t index, uint8_t su
   
   payload[0] = 0x22; 
   payload[1] = (uint8_t) ( index & 0x000000ff );
-  payload[2] = (uint8_t) (( index & 0x0000ff00 ) / 0x100);
+  payload[2] = (uint8_t) ( ( index & 0x0000ff00 ) / 0x100 );
   payload[3] = subIndex;
   payload[4] = (uint8_t) ( value & 0x000000ff );
-  payload[5] = (uint8_t) (( value & 0x0000ff00 ) / 0x100);
-  payload[6] = (uint8_t) (( value & 0x00ff0000 ) / 0x10000);
-  payload[7] = (uint8_t) (( value & 0xff000000 ) / 0x1000000);
+  payload[5] = (uint8_t) ( ( value & 0x0000ff00 ) / 0x100 );
+  payload[6] = (uint8_t) ( ( value & 0x00ff0000 ) / 0x10000 );
+  payload[7] = (uint8_t) ( ( value & 0xff000000 ) / 0x1000000 );
 
   // Write value to SDO frame 
   CANFrame_Write( controller->writeFramesList[ SDO ], payload );

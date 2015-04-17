@@ -49,7 +49,7 @@
 /* Global variables */
 static int panel;
 static CNVSubscriber gWaveSubscriber;
-static CNVWriter gStiffnessWriter, gDampingWriter, gEnableWriter;
+static CNVWriter gMaxToggleWriter, gMinToggleWriter, gMotorToggleWriter;
 
 /* Function prototypes */
 static void ConnectToNetworkVariables( void );
@@ -79,13 +79,13 @@ int main( int argc, char *argv[] )
 	ConnectToNetworkVariables();
   
   CNVCreateScalarDataValue( &enableData, CNVBool, (char) 1 );
-	CNVWrite( gEnableWriter, enableData, CNVDoNotWait );
+	CNVWrite( gMotorToggleWriter, enableData, CNVDoNotWait );
 	
 	DisplayPanel( panel );
 	RunUserInterface();
 	
 	CNVCreateScalarDataValue( &enableData, CNVBool, (char) 0 );
-	CNVWrite( gEnableWriter, enableData, CNVDoNotWait );
+	CNVWrite( gMotorToggleWriter, enableData, CNVDoNotWait );
 	
   //AsyncIPConnection_Close( clientID );
   
@@ -94,9 +94,9 @@ int main( int argc, char *argv[] )
 	// Cleanup
 	CNVDisposeData( enableData );
 	CNVDispose( gWaveSubscriber );
-	CNVDispose( gStiffnessWriter );
-	CNVDispose( gDampingWriter );
-	CNVDispose( gEnableWriter );
+	CNVDispose( gMaxToggleWriter );
+	CNVDispose( gMinToggleWriter );
+	CNVDispose( gMotorToggleWriter );
 	CNVFinish();
   
 	DiscardPanel( panel );
@@ -114,43 +114,60 @@ static void ConnectToNetworkVariables( void )
 	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
 	
 	// Connect to network variables.
-	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, STIFFNESS_VARIABLE );
-	CNVCreateWriter( path, 0, 0, 10000, 0, &gStiffnessWriter );
+	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MAX_TOGGLE_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gMaxToggleWriter );
 	
-	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, DAMPING_VARIABLE );
-	CNVCreateWriter( path, 0, 0, 10000, 0, &gDampingWriter );
+	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MIN_TOGGLE_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gMinToggleWriter );
 
 	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, ENABLE_VARIABLE );
-	CNVCreateWriter( path, 0, 0, 10000, 0, &gEnableWriter );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gMotorToggleWriter );
 
 	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, WAVE_VARIABLE );
 	CNVCreateSubscriber( path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber );
 	
 	// Manually call the control callbacks to write the initial values for
 	// amplitude and frequency to the network variables.
-	GainCallback( panel, PANEL_STIFFNESS, EVENT_COMMIT, 0, 0, 0 );
-	GainCallback( panel, PANEL_DAMPING, EVENT_COMMIT, 0, 0, 0 );
+	ChangeStateCallback( panel, PANEL_MAX_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
+	ChangeStateCallback( panel, PANEL_MIN_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
+  ChangeStateCallback( panel, PANEL_MOTOR_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
 }
 
-int CVICALLBACK GainCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
+int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
 	CNVData	data;
-	double value;
+	int value;
 	
 	switch( event )
 	{
 		case EVENT_COMMIT:
 			// Get the new value.
 			GetCtrlVal( panel, control, &value );
-			CNVCreateScalarDataValue( &data, CNVDouble, value );
+			CNVCreateScalarDataValue( &data, CNVInt32, value );
 		
 			// Write the new value to the appropriate network variable.
-			if( control == PANEL_STIFFNESS )
-				CNVWrite( gStiffnessWriter, data, CNVDoNotWait );
-			else if( control == PANEL_DAMPING )
-				CNVWrite( gDampingWriter, data, CNVDoNotWait );
+			if( control == PANEL_MAX_TOGGLE )
+				CNVWrite( gMaxToggleWriter, data, CNVDoNotWait );
+			else if( control == PANEL_MIN_TOGGLE )
+				CNVWrite( gMinToggleWriter, data, CNVDoNotWait );
+      else if( control == PANEL_MOTOR_TOGGLE )
+        CNVWrite( gMotorToggleWriter, data, CNVDoNotWait );
 		
-			CNVDisposeData(data);
+			CNVDisposeData( data );
+      
+			break;
+	}
+	return 0;
+}
+
+int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int eventData1, int eventData2 )
+{
+  switch( event )
+	{
+		case EVENT_CLOSE:
+			
+      QuitUserInterface( 0 );
+      
 			break;
 	}
 	return 0;
@@ -177,13 +194,10 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     emgValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TENSION ];
   }
   
-  SetCtrlVal( panel, PANEL_STIFFNESS, pGainValues[ NUM_POINTS - 1 ] );
-  SetCtrlVal( panel, PANEL_DAMPING, dGainValues[ NUM_POINTS - 1 ] );;
-  
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_POSITION, -1, VAL_DELAYED_DRAW );
-	PlotY( panel, PANEL_GRAPH_POSITION, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
-  PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
+	//PlotY( panel, PANEL_GRAPH_POSITION, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+  //PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
   PlotY( panel, PANEL_GRAPH_POSITION, emgValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
   
   DeleteGraphPlot( panel, PANEL_GRAPH_EMG, -1, VAL_DELAYED_DRAW );
@@ -192,16 +206,5 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   PlotY( panel, PANEL_GRAPH_EMG, dGainValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
 		
 	CNVDisposeData( data );
-}
-
-int CVICALLBACK QuitCallback( int panel, int control, int event, void *callbackData, int eventData1, int eventData2 )
-{
-	switch( event )
-	{
-		case EVENT_COMMIT:
-			QuitUserInterface( 0 );
-			break;
-	}
-	return 0;
 }
 
