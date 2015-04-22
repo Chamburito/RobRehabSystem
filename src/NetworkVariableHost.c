@@ -59,6 +59,11 @@ void CVICALLBACK DataCallback( void*, CNVData, void* );
 int axisLogID;
 enum { POSITION, VELOCITY, CURRENT, TENSION, REFERENCE_VALUE, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, INTEGRAL_GAIN, DISPLAY_N_VALUES };
 
+enum { AGONIST, ANTAGONIST };
+int muscleGroup = AGONIST;
+
+int axisID = 0;
+
 /* Program entry-point */
 int main( int argc, char *argv[] )
 {
@@ -128,22 +133,44 @@ static void ConnectToNetworkVariables( void )
 	
 	// Manually call the control callbacks to write the initial values for
 	// amplitude and frequency to the network variables.
+  SetCtrlVal( panel, PANEL_MAX_TOGGLE, 0 );
+  SetCtrlVal( panel, PANEL_MIN_TOGGLE, 0 );
+  SetCtrlVal( panel, PANEL_MOTOR_TOGGLE, 0 );
 	ChangeStateCallback( panel, PANEL_MAX_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
 	ChangeStateCallback( panel, PANEL_MIN_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
   ChangeStateCallback( panel, PANEL_MOTOR_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
 }
 
+int CVICALLBACK ChangeMuscleGroupCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
+{
+  switch( event )
+	{
+		case EVENT_COMMIT:
+			// Get the new value.
+			GetCtrlVal( panel, control, &muscleGroup );
+			break;
+	}
+	return 0;
+}
+
 int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
 	CNVData	data;
-	int value;
+	int enabled;
+  
+  int messageCode = 0;
 	
 	switch( event )
 	{
 		case EVENT_COMMIT:
 			// Get the new value.
-			GetCtrlVal( panel, control, &value );
-			CNVCreateScalarDataValue( &data, CNVInt32, value );
+			GetCtrlVal( panel, control, &enabled );
+      
+      messageCode |= ( axisID & 0x000000ff );
+      messageCode |= ( ( enabled * 0x100 ) & 0x0000ff00 );
+      messageCode |= ( ( muscleGroup * 0x10000 ) & 0x00ff0000 );
+      
+			CNVCreateScalarDataValue( &data, CNVInt32, messageCode );
 		
 			// Write the new value to the appropriate network variable.
 			if( control == PANEL_MAX_TOGGLE )
@@ -176,7 +203,7 @@ int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int even
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
 	static double dataArray[ DISPLAY_N_VALUES * NUM_POINTS ];
-  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], emgValues[ NUM_POINTS ];
+  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], currentValues[ NUM_POINTS ], tensionValues[ NUM_POINTS ];
   static double pGainValues[ NUM_POINTS ], dGainValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ];
 	
 	// Get the published data.
@@ -191,14 +218,16 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     setpointValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + REFERENCE_VALUE ];
     pGainValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + PROPORTIONAL_GAIN ];
     dGainValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + DERIVATIVE_GAIN ];
-    emgValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TENSION ];
+    currentValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + CURRENT ];
+    tensionValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TENSION ];
   }
   
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_POSITION, -1, VAL_DELAYED_DRAW );
 	//PlotY( panel, PANEL_GRAPH_POSITION, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
   //PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
-  PlotY( panel, PANEL_GRAPH_POSITION, emgValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+  PlotY( panel, PANEL_GRAPH_POSITION, currentValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+  PlotY( panel, PANEL_GRAPH_POSITION, tensionValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_MAGENTA );
   
   DeleteGraphPlot( panel, PANEL_GRAPH_EMG, -1, VAL_DELAYED_DRAW );
   //PlotY( panel, PANEL_GRAPH_EMG, emgValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );

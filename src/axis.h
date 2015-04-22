@@ -91,7 +91,7 @@ void Motor_SetOperationMode( Motor*, enum OperationMode );
 static inline void EnableDigitalOutput( MotorDrive*, bool );
 extern inline void MotorDrive_SetDigitalOutput( MotorDrive*, uint16_t output );
 
-const size_t DEVICE_NAME_MAX_LENGTH = 15;
+const size_t DEVICE_NAME_MAX_LENGTH = 16;
 
 // Create CAN controlled DC motor handle
 Motor* Motor_Connect( unsigned int networkIndex ) 

@@ -11,8 +11,6 @@
   #include "async_ip_connection.h"
 #endif
 
-#include "axis_control.h"
-#include "emg_processing.h"
 #include "emg_axis_control.h"
 
 #include "async_debug.h"
@@ -70,8 +68,7 @@ int RobRehabNetwork_Init()
   fclose( setpointsFile );
   
   
-  EMGProcessing_Init();
-  AxisControl_Init();
+  EMGAxisControl_Init();
   
   networkAxesList = (NetworkAxis*) calloc( AxisControl_GetActiveAxesNumber(), sizeof(NetworkAxis) );
   
@@ -122,8 +119,7 @@ void RobRehabNetwork_End()
   if( gMotorToggleSubscriber ) CNVDispose( gMotorToggleSubscriber );
 	CNVFinish();
   
-  AxisControl_End();
-  EMGProcessing_End();
+  EMGAxisControl_End();
   
   DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
 }
@@ -255,8 +251,6 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
   {
     networkAxesList[ axisID ].dataClient = clientID;
     
-    double* emgActivationsList = EMGProcessing_GetActivations();
-    
     //static size_t setpointIndex; // Gamb
     setpointsCount = 0;
     while( *command != '\0' )
@@ -279,8 +273,8 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
       readout[ strlen( readout ) - 1 ] = '\0';
-  
-      controlParametersList[ PROPORTIONAL_GAIN ] = EMGJointControl_GetStiffness( -motorMeasuresList[ POSITION ] * 2 * PI );
+      
+      controlParametersList[ PROPORTIONAL_GAIN ] = EMGAxisControl_GetStiffness( 0 );
       controlParametersList[ DERIVATIVE_GAIN ] = 5.0;  
       
       AxisControl_SetParameters( axisID, controlParametersList );
@@ -299,8 +293,11 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       //DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, CONTROL_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
       //DEBUG_PRINT( "got position setpoint %d value %g", dataIndex, dataArray[ dataIndex ] );
       
-      dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] = emgActivationsList[ 0 ];
-      //DEBUG_PRINT( "got EMG value %g", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] );
+      dataArray[ valuesCount * CONTROL_VALUES_NUMBER + CURRENT ] = EMGProcessing_GetMuscleActivation( 0 );
+      dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] = EMGProcessing_GetMuscleActivation( 1 );
+      
+      DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + CURRENT ],
+                                                                                    dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ], motorParametersList[ PROPORTIONAL_GAIN ] );
       
       valuesCount++;
       
@@ -321,32 +318,36 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
 
 void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* callbackData )
 {
-	int enabled;
-  CNVGetScalarDataValue( data, CNVInt32, &enabled );
+	int messageCode;
+  CNVGetScalarDataValue( data, CNVInt32, &messageCode );
+  
+  unsigned int axisID = (unsigned int) ( messageCode & 0x000000ff );
+  bool enabled = (bool) ( ( messageCode & 0x0000ff00 ) / 0x100 );
+  unsigned int muscleGroup = (unsigned int) ( ( messageCode & 0x00ff0000 ) / 0x10000 ); 
 
 	if( handle == gMaxToggleSubscriber )
 	{
-    EMGProcessing_ChangePhase( ( enabled == 1 ) ? EMG_CONTRACTION_PHASE : EMG_WORK_PHASE );
+    EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_CONTRACTION_PHASE : EMG_ACTIVATION_PHASE ); 
     
-    DEBUG_PRINT( "%s emg contraction phase", enabled ? "starting" : "ending" );
+    DEBUG_PRINT( "axis %u %s %s EMG contraction phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
 	}
 	else if( handle == gMinToggleSubscriber )
 	{
-    EMGProcessing_ChangePhase( ( enabled == 1 ) ? EMG_RELAXATION_PHASE : EMG_WORK_PHASE );
+    EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
     
-    DEBUG_PRINT( "%s emg relaxation phase", enabled ? "starting" : "ending" );
+    DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
 	}
   else if( handle == gMotorToggleSubscriber )
   {
-    if( enabled == 1 )
+    if( enabled )
     {
-      AxisControl_Reset( 0 );
-  		AxisControl_EnableMotor( 0 );
+      AxisControl_Reset( axisID );
+  		AxisControl_EnableMotor( axisID );
     }
     else
-      AxisControl_DisableMotor( 0 );
+      AxisControl_DisableMotor( axisID );
   
-    DEBUG_PRINT( "motor 0 %s", enabled ? "enabled" : "disabled" );
+    DEBUG_PRINT( "motor %u %s", axisID, enabled ? "enabled" : "disabled" );
   }
 }
 

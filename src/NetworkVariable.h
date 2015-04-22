@@ -19,6 +19,8 @@
 #define  PANEL_MOTOR_TOGGLE               4       /* control type: textButton, callback function: ChangeStateCallback */
 #define  PANEL_MIN_TOGGLE                 5       /* control type: textButton, callback function: ChangeStateCallback */
 #define  PANEL_MAX_TOGGLE                 6       /* control type: textButton, callback function: ChangeStateCallback */
+#define  PANEL_AXIS_SELECTOR              7       /* control type: ring, callback function: (none) */
+#define  PANEL_MUSCLE_GROUP               8       /* control type: binary, callback function: ChangeMuscleGroupCallback */
 
 
      /* Control Arrays: */
@@ -33,6 +35,7 @@
 
      /* Callback Prototypes: */
 
+int  CVICALLBACK ChangeMuscleGroupCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 int  CVICALLBACK ChangeStateCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 int  CVICALLBACK QuitCallback(int panel, int event, void *callbackData, int eventData1, int eventData2);
 

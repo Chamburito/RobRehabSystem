@@ -3,155 +3,230 @@
 
 #include "async_debug.h"
 
+#include "axis_control.h"
 #include "emg_processing.h"
 
-typedef struct _EMGJointControl
+enum { MUSCLE_AGONIST, MUSCLE_ANTAGONIST, MUSCLE_GROUPS_NUMBER };
+
+typedef struct _EMGAxisControl
 {
-  unsigned int jointID;
-  MuscleProperties* agonistMusclesList;
-  size_t agonistMusclesNumber;
-  MuscleProperties* antagonistMusclesList;
-  size_t antagonistMusclesNumber;
+  unsigned int axisID;
+  unsigned int* muscleIDsTable[ MUSCLE_GROUPS_NUMBER ];
+  size_t muscleGroupsSizesList[ MUSCLE_GROUPS_NUMBER ];
 }
-EMGJointControl;
+EMGAxisControl;
 
-static EMGJointControl* emgJointControlsList = NULL;
+static EMGAxisControl* emgAxisControlsList = NULL;
+static size_t emgAxisControlsNumber = 0;
 
-const double coeffs_forceActiveRF[ ] = { 344.3169, -6.4302, 0.1123, 0.0016, 0.0 };
-const double coeffs_forcePassiveRF[ ] = { 0.0, 0.0, 0.0, 0.0, 0.0 };
-const double coeffs_momentArmRF[ ] = { 0.0479, -0.0006, 0.0, 0.0, 0.0 };
-const double coeffs_normLengthRF[ ] = { 0.2200, -0.0061, 0.0, 0.0, 0.0 };
+static void LoadEMGControlsProperties();
 
-const double coeffs_forceActiveBF[ ] = { 503.2041, -3.6544, 0.0714, 0.0011, 0.0 };
-const double coeffs_forcePassiveBF[ ] = { 572.0215, 14.477, 0.1017, -0.0001, 0.0};
-const double coeffs_momentArmBF[ ] = { -0.0275, 0.0005, 0.0, 0.0, 0.0 };
-const double coeffs_normLengthBF[ ] = { 1.5362, 0.0034, 0.0, 0.0, 0.0 };
-
-static double forceActiveRF, forcePassiveRF, momentArmRF, normLengthRF;
-static double forceActiveBF, forcePassiveBF, momentArmBF, normLengthBF;
-
-const double phiZeroRF = 0.08726646;
-const double phiZeroBF = 0.0;
-
-static double phiRF;
-static double phiBF;
-
-const double alphaRF = 1.0;
-const double alphaBF = 1.0;
-
-static double forceRF, torqueRF, forceBF, torqueBF, torqueMuscle, stiffnessMuscle;
-
-double EMGJointControl_GetTorque( double activationMeasure_1, double activationMeasure_2, double jointAngle )
+void EMGAxisControl_Init()
 {
-  //Rectus Femoris 
-  forceActiveRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forceActiveRF += coeffs_forceActiveRF[i] * pow( jointAngle, i );
+  EMGProcessing_Init();
+  AxisControl_Init();
   
-  forcePassiveRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forcePassiveRF += coeffs_forcePassiveRF[i] * pow( jointAngle, i );
-  
-  momentArmRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    momentArmRF += coeffs_momentArmRF[i] * pow( jointAngle, i );
-  
-  normLengthRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    normLengthRF += coeffs_normLengthRF[i] * pow( jointAngle, i );
-  
-  phiRF = asin(sin(phiZeroRF)/normLengthRF);
-  
-  forceRF = alphaRF * ( forceActiveRF * activationMeasure_1 + forcePassiveRF ) * cos( phiRF );
-  torqueRF = forceRF*momentArmRF;
-  
-  
-  //Biceps Femoris
-  forceActiveBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forceActiveBF += coeffs_forceActiveBF[i] * pow( jointAngle, i );
-  
-  forcePassiveBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forcePassiveBF += coeffs_forcePassiveBF[i] * pow( jointAngle, i );
-  
-  momentArmBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    momentArmBF += coeffs_momentArmBF[i] * pow( jointAngle, i );
-  
-  normLengthBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    normLengthBF += coeffs_normLengthBF[i] * pow( jointAngle, i );
-  
-  phiBF = asin(sin(phiZeroBF)/normLengthBF); 
-  
-  forceBF = alphaBF * ( forceActiveBF * activationMeasure_2 + forcePassiveBF ) * cos( phiBF );
-  torqueBF = forceBF * momentArmBF;
-  
-  
-  //Torque Total
-  torqueMuscle = torqueRF - torqueBF;
-  
-  return torqueMuscle;
+  LoadEMGControlsProperties();
 }
 
-double EMGJointControl_GetStiffness( double activationMeasure_1, double activationMeasure_2, double jointAngle )
+void EMGAxisControl_End()
 {
-  const double beta = 0.03;
+  AxisControl_End();
+  EMGProcessing_End();
   
-  //Rectus Femoris 
-  forceActiveRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forceActiveRF += coeffs_forceActiveRF[i] * pow( jointAngle, i );
+  if( emgAxisControlsList != NULL )
+  {
+    for( size_t controlID = 0; controlID < emgAxisControlsNumber; controlID++ )
+    {
+      EMGAxisControl* control = &(emgAxisControlsList[ controlID ]);
+      
+      for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
+      {
+        if( control->muscleIDsTable[ muscleGroupID ] != NULL )
+          free( control->muscleIDsTable[ muscleGroupID ] );
+      }
+    }
+    free( emgAxisControlsList );
+    emgAxisControlsList = NULL;
+    emgAxisControlsNumber = 0;
+  }
+}
+
+static void LoadEMGControlsProperties()
+{
+  char readBuffer[ MUSCLE_NAME_MAX_LEN ];
   
-  forcePassiveRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forcePassiveRF += coeffs_forcePassiveRF[i] * pow( jointAngle, i );
+  EMGAxisControl* newControl = NULL;
   
-  momentArmRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    momentArmRF += coeffs_momentArmRF[i] * pow( jointAngle, i );
+  FILE* configFile = fopen( "../config/emg_control_config.txt", "r" );
+  if( configFile != NULL ) 
+  {
+    while( fscanf( configFile, "%s", readBuffer ) != EOF )
+    {
+      if( strcmp( readBuffer, "BEGIN_EMG_AXIS_CONTROL" ) == 0 )
+      {
+        emgAxisControlsList = (EMGAxisControl*) realloc( emgAxisControlsList, sizeof(EMGAxisControl) * ( emgAxisControlsNumber + 1 ) );
   
-  normLengthRF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    normLengthRF += coeffs_normLengthRF[i] * pow( jointAngle, i );
+        newControl = &(emgAxisControlsList[ emgAxisControlsNumber ]);
   
-  phiRF = asin(sin(phiZeroRF)/normLengthRF);
+        fscanf( configFile, "%s", readBuffer );
+        
+        newControl->axisID = (unsigned int) AxisControl_GetAxisID( readBuffer );
+        
+        DEBUG_PRINT( "found EMG axis control %s (axis ID: %d)", readBuffer, newControl->axisID );
+        //DEBUG_EVENT( 0, "found EMG axis control %s (axis ID: %d)", readBuffer, newControl->axisID );
+        
+        for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
+        {
+          newControl->muscleIDsTable[ muscleGroupID ] = NULL;
+          newControl->muscleGroupsSizesList[ muscleGroupID ] = 0;
+        }
+      }
+      
+      if( newControl == NULL ) continue;
+      
+      if( strcmp( readBuffer, "agonist_muscle:" ) == 0 )
+      {
+        fscanf( configFile, "%s", readBuffer );
+        
+        int muscleID = EMGProcessing_GetMuscleID( readBuffer );
+        
+        if( muscleID != -1 )
+        {
+          newControl->muscleIDsTable[ MUSCLE_AGONIST ] = (unsigned int*) realloc( newControl->muscleIDsTable[ MUSCLE_AGONIST ], 
+                                                                                  sizeof(unsigned int) * ( newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] + 1 ) );
+          
+          newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] = (unsigned int) muscleID;
+          
+          DEBUG_PRINT( "found joint agonist muscle %u: %s (muscle ID: %u)", newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ], readBuffer, 
+                                                                            newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] );
+          //DEBUG_EVENT( 2, "found joint agonist muscle %s (ID: %u)", readBuffer, newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] );
+          
+          newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ]++;
+        }
+      }
+      else if( strcmp( readBuffer, "antagonist_muscle:" ) == 0 )
+      {
+        fscanf( configFile, "%s", readBuffer );
+        
+        int muscleID = EMGProcessing_GetMuscleID( readBuffer );
+        
+        if( muscleID != -1 )
+        {
+          newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ] = (unsigned int*) realloc( newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ], 
+                                                                                     sizeof(unsigned int) * ( newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] + 1 ) );
+          
+          newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] = (unsigned int) muscleID;
+          
+          DEBUG_PRINT( "found joint antagonist muscle %u: %s (muscle ID: %u)", newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ], readBuffer, 
+                                                                               newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] );
+          //DEBUG_EVENT( 3, "found joint antagonist muscle %s (ID: %u)", readBuffer, newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] );
+          
+          newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ]++;
+        }
+      }
+      else if( strcmp( readBuffer, "END_EMG_AXIS_CONTROL" ) == 0 )
+      {
+        if( (int) newControl->axisID != -1 )
+        {
+          emgAxisControlsNumber++;
+        
+          DEBUG_EVENT( 4, "%u joint controls added", emgAxisControlsNumber );
+        }
+      }
+      else if( strcmp( readBuffer, "#" ) == 0 )
+      {
+        char dummyChar;
+        
+        do { 
+          if( fscanf( configFile, "%c", &dummyChar ) == EOF ) 
+            break; 
+        } while( dummyChar != '\n' ); 
+      }
+    }
+    
+    fclose( configFile );
+  }
+}
+
+static inline EMGAxisControl* FindAxisControl( unsigned int axisID )
+{
+  for( size_t controlID = 0; controlID < emgAxisControlsNumber; controlID++ )
+  {
+    EMGAxisControl* control = &(emgAxisControlsList[ controlID ]);
+    
+    if( control->axisID == axisID )
+      return control;
+  }
   
-  forceRF = alphaRF * ( forceActiveRF * activationMeasure_1 + forcePassiveRF ) * cos( phiRF );
-  torqueRF = forceRF * momentArmRF;
+  return NULL;
+}
+
+double EMGAxisControl_GetTorque( unsigned int axisID )
+{
+  double jointTorque = 0.0;
   
+  EMGAxisControl* control = FindAxisControl( axisID );
   
-  //Biceps Femoris
-  forceActiveBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forceActiveBF += coeffs_forceActiveBF[i] * pow( jointAngle, i );
+  if( control == NULL ) return 0.0;
   
-  forcePassiveBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    forcePassiveBF += coeffs_forcePassiveBF[i] * pow( jointAngle, i );
+  double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
   
-  momentArmBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    momentArmBF += coeffs_momentArmBF[i] * pow( jointAngle, i );
+  if( motorMeasuresList == NULL ) return 0.0;
   
-  normLengthBF = 0.0;
-  for (int i=0; i < COEFFS_NUMBER; i++)
-    normLengthBF += coeffs_normLengthBF[i] * pow( jointAngle, i );
+  double jointAngle = -motorMeasuresList[ POSITION ] * 180.0 / PI;
   
-  phiBF = asin(sin(phiZeroBF)/normLengthBF); 
+  for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ MUSCLE_AGONIST ]; muscleIndex++ )
+    jointTorque += EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ MUSCLE_AGONIST ][ muscleIndex ], jointAngle );
   
-  forceBF = alphaBF * ( forceActiveBF * activationMeasure_2 + forcePassiveBF ) * cos( phiBF );
-  torqueBF = forceBF * momentArmBF;
+  for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ]; muscleIndex++ )
+    jointTorque -= EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ MUSCLE_ANTAGONIST ][ muscleIndex ], jointAngle );
   
-  //Stiffness Total
-  stiffnessMuscle = fabs( beta * ( torqueRF /*+ torqueBF*/ ) );
+  return jointTorque;
+}
+
+double EMGAxisControl_GetStiffness( unsigned int axisID )
+{
+  const double scaleFactor = 1.0;
   
-  if( stiffnessMuscle > 30.0 ) stiffnessMuscle = 30.0;
+  double jointStiffness = 0.0;
   
-  DEBUG_PRINT( "theta: %.3f - stiffness: %.3f", jointAngle, stiffnessMuscle );
+  EMGAxisControl* control = FindAxisControl( axisID );
   
-  return stiffnessMuscle;
+  if( control == NULL ) return 0.0;
+  
+  double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
+  
+  if( motorMeasuresList == NULL ) return 0.0;
+  
+  double jointAngle = -motorMeasuresList[ POSITION ] * 180.0 / PI;
+  
+  for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
+  {
+    for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ muscleGroupID ]; muscleIndex++ )
+      jointStiffness += EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ muscleGroupID ][ muscleIndex ], jointAngle );
+  }
+  
+  jointStiffness *= scaleFactor;
+  
+  DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );
+  
+  if( jointStiffness < 0.0 ) jointStiffness = 0.0;
+  else if( jointStiffness > 30.0 ) jointStiffness = 30.0;
+  
+  return jointStiffness;
+}
+
+void EMGAxisControl_ChangeState( unsigned int axisID, int muscleGroupID, int emgProcessingPhase )
+{
+  EMGAxisControl* control = FindAxisControl( axisID );
+  
+  if( control == NULL ) return;
+  
+  if( muscleGroupID < 0 || muscleGroupID >= MUSCLE_GROUPS_NUMBER ) return;
+
+  for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ muscleGroupID ]; muscleIndex++ )
+    EMGProcessing_ChangePhase( control->muscleIDsTable[ muscleGroupID ][ muscleIndex ], emgProcessingPhase );
 }
 
 #endif /* EMG_JOINT_CONTROL_H */

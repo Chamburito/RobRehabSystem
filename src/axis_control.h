@@ -67,7 +67,7 @@ const size_t CONTROL_SETPOINT_CACHE_LEN = 100;
 // Axes configuration loading auxiliary function
 static void LoadAxisControlsConfig()
 {
-  char readBuffer[ DEVICE_NAME_MAX_LENGTH ];
+  char readBuffer[ 64 ];
   
   AxisControl* newAxisControl = NULL;
   
@@ -76,7 +76,7 @@ static void LoadAxisControlsConfig()
   {
     while( fscanf( configFile, "%s", readBuffer ) != EOF )
     {
-      if( strcmp( readBuffer, "CONTROL" ) == 0 )
+      if( strcmp( readBuffer, "BEGIN_AXIS_CONTROL" ) == 0 )
       {
         axisControlsList = (AxisControl*) realloc( axisControlsList, sizeof(AxisControl) * ( axesNumber + 1 ) );
   
@@ -94,7 +94,7 @@ static void LoadAxisControlsConfig()
       
       if( newAxisControl == NULL ) continue;
       
-      if( strcmp( readBuffer, "MOTOR" ) == 0 )
+      if( strcmp( readBuffer, "motor:" ) == 0 )
       {
         unsigned int nodeID, resolution;
         fscanf( configFile, "%u %u", &nodeID, &resolution );
@@ -104,7 +104,7 @@ static void LoadAxisControlsConfig()
         newAxisControl->actuator = Motor_Connect( nodeID );
         MotorDrive_SetEncoderResolution( newAxisControl->actuator->controller, resolution );
       }
-      else if( strcmp( readBuffer, "ENCODER" ) == 0 )
+      else if( strcmp( readBuffer, "encoder:" ) == 0 )
       {
         unsigned int nodeID, resolution;
         fscanf( configFile, "%u %u", &nodeID, &resolution );
@@ -114,7 +114,7 @@ static void LoadAxisControlsConfig()
         newAxisControl->sensor = MotorDrive_Connect( nodeID );
         MotorDrive_SetEncoderResolution( newAxisControl->sensor, resolution ); 
       }
-      else if( strcmp( readBuffer, "FUNCTION" ) == 0 )
+      else if( strcmp( readBuffer, "function:" ) == 0 )
       {
         fscanf( configFile, "%s", readBuffer );
         
@@ -130,7 +130,7 @@ static void LoadAxisControlsConfig()
           }
         }
       }
-      else if( strcmp( readBuffer, "ENDCONTROL" ) == 0 )
+      else if( strcmp( readBuffer, "END_AXIS_CONTROL" ) == 0 )
       {
         for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
           newAxisControl->parametersList[ parameterIndex ] = 0.0;
@@ -193,22 +193,38 @@ void AxisControl_End()
 
   Timing_Delay( 2000 );
   
-  // Destroy axes data structures
-  for( size_t axisID = 0; axisID < axesNumber; axisID++ )
+  if( axisControlsList != NULL )
   {
-    axisControlsList[ axisID ].isRunning = false;
+    // Destroy axes data structures
+    for( size_t axisID = 0; axisID < axesNumber; axisID++ )
+    {
+      axisControlsList[ axisID ].isRunning = false;
     
-    if( axisControlsList[ axisID ].controlThread != -1 )
-      Thread_WaitExit( axisControlsList[ axisID ].controlThread, 5000 );
+      if( axisControlsList[ axisID ].controlThread != -1 )
+        Thread_WaitExit( axisControlsList[ axisID ].controlThread, 5000 );
     
-    Motor_Disconnect( axisControlsList[ axisID ].actuator );
-    MotorDrive_Disconnect( axisControlsList[ axisID ].sensor );
+      Motor_Disconnect( axisControlsList[ axisID ].actuator );
+      MotorDrive_Disconnect( axisControlsList[ axisID ].sensor );
+    }
+  
+    free( axisControlsList );
   }
   
   // End CAN network transmission
   EposNetwork_Stop();
   
   DEBUG_EVENT( 0, "Axis Control ended on thread %x", THREAD_ID );
+}
+
+int AxisControl_GetAxisID( const char* axisName )
+{
+  for( size_t axisID = 0; axisID < axesNumber; axisID++ )
+  {
+    if( strcmp( axisControlsList[ axisID ].name, axisName ) == 0 )
+      return (int) axisID;
+  }
+  
+  return -1;
 }
 
 extern inline size_t AxisControl_GetActiveAxesNumber()
