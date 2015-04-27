@@ -14,7 +14,31 @@
 
 Thread_Handle emgThreadID;
 
-enum { EMG_RELAXATION_PHASE, EMG_CONTRACTION_PHASE, EMG_ACTIVATION_PHASE, EMG_PROCESSING_PHASES_NUMBER };
+enum { EMG_ACTIVATION_PHASE, EMG_RELAXATION_PHASE, EMG_CONTRACTION_PHASE, EMG_PROCESSING_PHASES_NUMBER };
+
+const size_t AQUISITION_BUFFER_LEN = 10;
+const size_t OLD_SAMPLES_BUFFER_LEN = 100;
+const size_t HISTORY_BUFFER_LEN = OLD_SAMPLES_BUFFER_LEN + AQUISITION_BUFFER_LEN;
+
+const size_t FILTER_ORDER = 3;
+const double filter_A[ FILTER_ORDER ] = { 1.0, -1.9964, 0.9965 };
+const double filter_B[ FILTER_ORDER ] = { 1.576e-6, 3.153e-6, 1.576e-6 };
+
+const int FILTER_EXTRA_SAMPLES_NUMBER = FILTER_ORDER - 1;
+const int FILTER_BUFFER_LEN = FILTER_EXTRA_SAMPLES_NUMBER + AQUISITION_BUFFER_LEN;
+
+typedef struct _EMGData
+{
+  unsigned int channel;
+  double samplesBuffer[ HISTORY_BUFFER_LEN ];
+  size_t samplesBufferStartIndex;
+  double rectifiedBuffer[ FILTER_BUFFER_LEN ];
+  double filteredBuffer[ FILTER_BUFFER_LEN ];
+  unsigned int processingPhase;
+  double processingResultsList[ EMG_PROCESSING_PHASES_NUMBER ];
+  unsigned int preparationPassesCount;
+}
+EMGData;
 
 ThreadLock phasePassCountLock;
 
@@ -28,10 +52,8 @@ const size_t MUSCLE_NAME_MAX_LEN = 20;
 typedef struct _MuscleProperties
 {
   char name[ MUSCLE_NAME_MAX_LEN ];
-  unsigned int emgChannel;
+  EMGData emgData;
   MuscleCurve curvesFactorsList[ MUSCLE_CURVES_NUMBER ];
-  double emgValuesList[ EMG_PROCESSING_PHASES_NUMBER ];
-  unsigned int processingPhase, preparationPassesCount;
   double initialPenationAngle;
   double scaleFactor;
 }
@@ -61,22 +83,20 @@ static void LoadMusclesProperties()
   
         DEBUG_EVENT( 0, "found muscle %s", newMuscleProperties->name );
         
-        newMuscleProperties->emgChannel = 0;
         newMuscleProperties->initialPenationAngle = 0.0;
         newMuscleProperties->scaleFactor = 1.0;
         
-        for( size_t emgValueIndex = 0; emgValueIndex < EMG_PROCESSING_PHASES_NUMBER; emgValueIndex++ )
-          newMuscleProperties->emgValuesList[ emgValueIndex ] = 0.0;
-        
-        newMuscleProperties->processingPhase = EMG_ACTIVATION_PHASE;
-        newMuscleProperties->preparationPassesCount = 0;
+        newMuscleProperties->emgData.channel = 0;
+        newMuscleProperties->emgData.processingPhase = EMG_ACTIVATION_PHASE;
+        for( size_t processingPhase = 0; processingPhase < EMG_PROCESSING_PHASES_NUMBER; processingPhase++ )
+          newMuscleProperties->emgData.processingResultsList[ processingPhase ] = 0.0;
       }
       
       if( newMuscleProperties == NULL ) continue;
       
       if( strcmp( readBuffer, "emg_channel:" ) == 0 )
       {
-        fscanf( configFile, "%u", &(newMuscleProperties->emgChannel) );
+        fscanf( configFile, "%u", &(newMuscleProperties->emgData.channel) );
         
         DEBUG_EVENT( 8, "found muscle %s EMG channel", newMuscleProperties->name );
       }
@@ -122,9 +142,12 @@ static void LoadMusclesProperties()
       }
       else if( strcmp( readBuffer, "END_MUSCLE" ) == 0 )
       {
-        musclesNumber++;
+        if( newMuscleProperties->emgData.channel < SignalAquisition_GetChannelsNumber() )
+        {
+          musclesNumber++;
         
-        DEBUG_EVENT( 7, "muscle %s properties added", newMuscleProperties->name );
+          DEBUG_EVENT( 7, "muscle %s properties added", newMuscleProperties->name );
+        }
       }
       else if( strcmp( readBuffer, "#" ) == 0 )
       {
@@ -141,43 +164,16 @@ static void LoadMusclesProperties()
   }
 }
 
-const size_t AQUISITION_BUFFER_LEN = 10;
-typedef double AquisitionBuffer[ AQUISITION_BUFFER_LEN ];
-static AquisitionBuffer* newFilteredSamplesList = NULL;
-
-const size_t OLD_SAMPLES_BUFFER_LEN = 100;
-const size_t HISTORY_BUFFER_LEN = OLD_SAMPLES_BUFFER_LEN + AQUISITION_BUFFER_LEN;
-typedef double HistoryBuffer[ HISTORY_BUFFER_LEN ];
-static HistoryBuffer* samplesBuffer = NULL;
-
-const size_t FILTER_ORDER = 3;
-const double filter_A[ FILTER_ORDER ] = { 1.0, -1.9964, 0.9965 };
-const double filter_B[ FILTER_ORDER ] = { 1.576e-6, 3.153e-6, 1.576e-6 };
-
-const int FILTER_EXTRA_SAMPLES_NUMBER = FILTER_ORDER - 1;
-const int FILTER_BUFFER_LEN = FILTER_EXTRA_SAMPLES_NUMBER + AQUISITION_BUFFER_LEN;
-
-typedef double FilterBuffer[ FILTER_BUFFER_LEN ];
-static FilterBuffer* rectifiedBuffer = NULL;
-static FilterBuffer* filteredBuffer = NULL;
-
-static AquisitionBuffer* EMGProcessing_GetFilteredSignal();
+static double* EMGProcessing_GetFilteredSignal( EMGData* );
 static void* EMGProcessing_AsyncUpdate( void* );
 
 void EMGProcessing_Init()
 {
-  if( SignalAquisition_Init( AQUISITION_BUFFER_LEN ) < 0 ) return;
+  if( SignalAquisition_Init( "EMGReadTask", AQUISITION_BUFFER_LEN ) < 0 ) return;
   
   LoadMusclesProperties();
   
   phasePassCountLock = ThreadLock_Create();
-  
-  size_t emgChannelsNumber = SignalAquisition_GetChannelsNumber();
-  
-  newFilteredSamplesList = (AquisitionBuffer*) calloc( emgChannelsNumber, sizeof(AquisitionBuffer) );
-  samplesBuffer = (HistoryBuffer*) calloc( emgChannelsNumber, sizeof(HistoryBuffer) );
-  rectifiedBuffer = (FilterBuffer*) calloc( emgChannelsNumber, sizeof(FilterBuffer) );
-  filteredBuffer = (FilterBuffer*) calloc( emgChannelsNumber, sizeof(FilterBuffer) );
   
   isRunning = true;
   emgThreadID = Thread_Start( EMGProcessing_AsyncUpdate, NULL, JOINABLE );
@@ -189,14 +185,9 @@ void EMGProcessing_End()
   
   (void) Thread_WaitExit( emgThreadID, 5000 );
   
-  ThreadLock_Discard( phasePassCountLock );
-  
   if( musclePropertiesList != NULL ) free( musclePropertiesList );
   
-  if( newFilteredSamplesList != NULL ) free( newFilteredSamplesList );
-  if( samplesBuffer != NULL ) free( samplesBuffer );
-  if( rectifiedBuffer != NULL ) free( rectifiedBuffer );
-  if( filteredBuffer != NULL ) free( filteredBuffer );
+  ThreadLock_Discard( phasePassCountLock );
   
   SignalAquisition_End();
 }
@@ -212,120 +203,106 @@ int EMGProcessing_GetMuscleID( const char* muscleName )
   return -1;
 }
 
-static AquisitionBuffer* EMGProcessing_GetFilteredSignal()
+static double* EMGProcessing_GetFilteredSignal( EMGData* emgData )
 {
   const double DATA_AQUISITION_SCALE_FACTOR = 909.0;
   
-  static int oldSamplesBufferStart = 0, newSamplesBufferStart = OLD_SAMPLES_BUFFER_LEN;
+  static double newFilteredSamplesList[ AQUISITION_BUFFER_LEN ];
   
-  static double previousSamplesMean;
-  
-  double** newSamplesList = SignalAquisition_Read( SIGNAL_AQUISITION_INFINITE_TIMEOUT, NULL );
+  double* newSamplesList = SignalAquisition_Read( emgData->channel );
   
   if( newSamplesList != NULL ) 
   {
-    for( size_t muscleID = 0; muscleID < musclesNumber; muscleID++ )
+    size_t oldSamplesBufferStart = emgData->samplesBufferStartIndex;
+    size_t newSamplesBufferStart = oldSamplesBufferStart + OLD_SAMPLES_BUFFER_LEN;
+    for( int newSampleIndex = 0; newSampleIndex < AQUISITION_BUFFER_LEN; newSampleIndex++ )
+      emgData->samplesBuffer[ ( newSamplesBufferStart + newSampleIndex ) % HISTORY_BUFFER_LEN ] = newSamplesList[ newSampleIndex ] / DATA_AQUISITION_SCALE_FACTOR;
+    
+    double previousSamplesMean = 0.0;
+    for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
     {
-      MuscleProperties* muscleProperties = &(musclePropertiesList[ muscleID ]);
-      
-      unsigned int channel = muscleProperties->emgChannel;
-      
-      if( channel >= SignalAquisition_GetChannelsNumber() ) continue;
+      for( int previousSampleIndex = oldSamplesBufferStart + sampleIndex; previousSampleIndex < newSamplesBufferStart + sampleIndex; previousSampleIndex++ )
+        previousSamplesMean += emgData->samplesBuffer[ previousSampleIndex % HISTORY_BUFFER_LEN ] / OLD_SAMPLES_BUFFER_LEN;
 
-      for( int newSampleIndex = 0; newSampleIndex < AQUISITION_BUFFER_LEN; newSampleIndex++ )
-        samplesBuffer[ channel ][ ( newSamplesBufferStart + newSampleIndex ) % HISTORY_BUFFER_LEN ] = newSamplesList[ channel ][ newSampleIndex ] / DATA_AQUISITION_SCALE_FACTOR;
-      
-      previousSamplesMean = 0.0;
-      for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
+      emgData->rectifiedBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] = fabs( emgData->samplesBuffer[ ( newSamplesBufferStart + sampleIndex ) % HISTORY_BUFFER_LEN ] - previousSamplesMean );
+    }
+    
+    for( int sampleIndex = FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < FILTER_BUFFER_LEN; sampleIndex++ )
+    {
+      emgData->filteredBuffer[ sampleIndex ] = 0.0;
+      for( int factorIndex = 0; factorIndex < FILTER_ORDER; factorIndex++ )
       {
-        for( int previousSampleIndex = oldSamplesBufferStart + sampleIndex; previousSampleIndex < newSamplesBufferStart + sampleIndex; previousSampleIndex++ )
-          previousSamplesMean += samplesBuffer[ channel ][ previousSampleIndex % HISTORY_BUFFER_LEN ] / OLD_SAMPLES_BUFFER_LEN;
-        
-        rectifiedBuffer[ channel ][ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] = fabs( samplesBuffer[ channel ][ ( newSamplesBufferStart + sampleIndex ) % HISTORY_BUFFER_LEN ] 
-                                                                                  - previousSamplesMean );
+        emgData->filteredBuffer[ sampleIndex ] -= filter_A[ factorIndex ] * emgData->filteredBuffer[ sampleIndex - factorIndex ];
+        emgData->filteredBuffer[ sampleIndex ] += filter_B[ factorIndex ] * emgData->rectifiedBuffer[ sampleIndex - factorIndex ];
       }
-
-      for( int sampleIndex = FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < FILTER_BUFFER_LEN; sampleIndex++ )
-      {
-        filteredBuffer[ channel ][ sampleIndex ] = 0.0;
-        for( int factorIndex = 0; factorIndex < FILTER_ORDER; factorIndex++ )
-        {
-          filteredBuffer[ channel ][ sampleIndex ] -= filter_A[ factorIndex ] * filteredBuffer[ channel ][ sampleIndex - factorIndex ];
-          filteredBuffer[ channel ][ sampleIndex ] += filter_B[ factorIndex ] * rectifiedBuffer[ channel ][ sampleIndex - factorIndex ];
-        }
-        if( filteredBuffer[ channel ][ sampleIndex ] < 0.0 ) filteredBuffer[ channel ][ sampleIndex ] = 0.0;
-      }
-
-      for( int sampleIndex = 0; sampleIndex < FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex++ )
-      {
-        filteredBuffer[ channel ][ sampleIndex ] = filteredBuffer[ channel ][ AQUISITION_BUFFER_LEN + sampleIndex ];
-        rectifiedBuffer[ channel ][ sampleIndex ] = rectifiedBuffer[ channel ][ AQUISITION_BUFFER_LEN + sampleIndex ];
-      }
-
-      for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
-        newFilteredSamplesList[ channel ][ sampleIndex ] = filteredBuffer[ channel ][ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ];
+      if( emgData->filteredBuffer[ sampleIndex ] < 0.0 ) emgData->filteredBuffer[ sampleIndex ] = 0.0;
+    }
+    
+    for( int sampleIndex = 0; sampleIndex < FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex++ )
+    {
+      emgData->filteredBuffer[ sampleIndex ] = emgData->filteredBuffer[ AQUISITION_BUFFER_LEN + sampleIndex ];
+      emgData->rectifiedBuffer[ sampleIndex ] = emgData->rectifiedBuffer[ AQUISITION_BUFFER_LEN + sampleIndex ];
     }
 
-    oldSamplesBufferStart += AQUISITION_BUFFER_LEN;
-    newSamplesBufferStart += AQUISITION_BUFFER_LEN;
+    for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
+      newFilteredSamplesList[ sampleIndex ] = emgData->filteredBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ];
 
-    return newFilteredSamplesList;
+    emgData->samplesBufferStartIndex += AQUISITION_BUFFER_LEN;
+
+    return (double*) newFilteredSamplesList;
   }
   
   return NULL;
-  
 }
 
-static void* EMGProcessing_AsyncUpdate( void* referenceData )
+static void* EMGProcessing_AsyncUpdate( void* data )
 {
   while( isRunning )
   {
-    AquisitionBuffer* filteredSamplesList = EMGProcessing_GetFilteredSignal();
-    
-    if( filteredSamplesList != NULL )
+    for( size_t muscleID = 0; muscleID < musclesNumber; muscleID++ )
     {
-      for( size_t muscleID = 0; muscleID < musclesNumber; muscleID++ )
+      EMGData* emgData = &(musclePropertiesList[ muscleID ].emgData);
+
+      double* filteredSamplesList = EMGProcessing_GetFilteredSignal( emgData );
+      
+      if( filteredSamplesList != NULL )
       {
-        MuscleProperties* muscleProperties = &(musclePropertiesList[ muscleID ]);
-      
-        unsigned int channel = muscleProperties->emgChannel;
-      
-        if( channel >= SignalAquisition_GetChannelsNumber() ) continue;
-        
-        if( muscleProperties->processingPhase == EMG_RELAXATION_PHASE || muscleProperties->processingPhase == EMG_CONTRACTION_PHASE )
+        if( emgData->processingPhase == EMG_RELAXATION_PHASE || emgData->processingPhase == EMG_CONTRACTION_PHASE )
         {
-          DEBUG_PRINT( "emg filtered: %g", filteredSamplesList[ channel ][ 0 ] );
-          
+          //DEBUG_PRINT( "adding emg filtered: %g", filteredSamplesList[ 0 ] / AQUISITION_BUFFER_LEN );
+;
           for( size_t sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
-            muscleProperties->emgValuesList[ muscleProperties->processingPhase ] += filteredSamplesList[ channel ][ sampleIndex ] / AQUISITION_BUFFER_LEN;
+            emgData->processingResultsList[ emgData->processingPhase ] += ( filteredSamplesList[ sampleIndex ] / AQUISITION_BUFFER_LEN );
+          
+          //DEBUG_PRINT( "emg sum: %g", emgData->processingResultsList[ emgData->processingPhase ] );
 
           ThreadLock_Aquire( phasePassCountLock );
-          muscleProperties->preparationPassesCount++;
+          emgData->preparationPassesCount++;
           ThreadLock_Release( phasePassCountLock );
         }
-        else if( muscleProperties->processingPhase == EMG_ACTIVATION_PHASE )
+        else if( emgData->processingPhase == EMG_ACTIVATION_PHASE )
         {
           static double normalizedSample;
-
+          
           for( size_t sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
           {
             normalizedSample = 0.0;
 
-            if( muscleProperties->emgValuesList[ EMG_CONTRACTION_PHASE ] > 0.0 )
-              normalizedSample = ( filteredSamplesList[ channel ][ sampleIndex ] - muscleProperties->emgValuesList[ EMG_RELAXATION_PHASE ] )
-                                 / ( muscleProperties->emgValuesList[ EMG_CONTRACTION_PHASE ] - muscleProperties->emgValuesList[ EMG_RELAXATION_PHASE ] );
+            if( emgData->processingResultsList[ EMG_CONTRACTION_PHASE ] > 0.0 )
+              normalizedSample = ( filteredSamplesList[ sampleIndex ] - emgData->processingResultsList[ EMG_RELAXATION_PHASE ] )
+                                 / ( emgData->processingResultsList[ EMG_CONTRACTION_PHASE ] - emgData->processingResultsList[ EMG_RELAXATION_PHASE ] );
 
             if( normalizedSample > 1.0 ) normalizedSample = 1.0;
             else if( normalizedSample < 0.0 ) normalizedSample = 0.0;
 
-            muscleProperties->emgValuesList[ EMG_ACTIVATION_PHASE ] = ( exp( -2 * normalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
+            emgData->processingResultsList[ EMG_ACTIVATION_PHASE ] = ( exp( -2 * normalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
 
             //if( channel == 0 && sampleIndex == 0 && channelNormalizedSamplesList[ sampleIndex ] > 0.0 )
             //  DEBUG_PRINT( "emg norm: %g - activ: %g", channelNormalizedSamplesList[ sampleIndex ], channelActivationsList[ sampleIndex ] );
           }
-
-          //DEBUG_PRINT( "emg: (%g - %g)/(%g - %g) = %g", filteredSamplesList[ 1 ][ 0 ], muscleProperties->emgValuesList[ EMG_RELAXATION_PHASE ],
-          //                                              muscleProperties->emgValuesList[ EMG_CONTRACTION_PHASE ], muscleProperties->emgValuesList[ EMG_RELAXATION_PHASE ], normalizedSample );
+          
+          //DEBUG_PRINT( "emg: (%g - %g)/(%g - %g) = %g", filteredSamplesList[ 0 ], emgData->processingResultsList[ EMG_RELAXATION_PHASE ],
+          //                                              emgData->processingResultsList[ EMG_CONTRACTION_PHASE ], emgData->processingResultsList[ EMG_RELAXATION_PHASE ], normalizedSample );
         }
       }
     }
@@ -344,30 +321,26 @@ void EMGProcessing_ChangePhase( int muscleID, int newProcessingPhase )
   
   ThreadLock_Aquire( phasePassCountLock );
   
-  MuscleProperties* muscleProperties = &(musclePropertiesList[ muscleID ]);
+  EMGData* emgData = &(musclePropertiesList[ muscleID ].emgData);
 
-  unsigned int channel = muscleProperties->emgChannel;
-
-  if( channel >= SignalAquisition_GetChannelsNumber() ) return;
-
-  if( muscleProperties->processingPhase == EMG_RELAXATION_PHASE || muscleProperties->processingPhase == EMG_CONTRACTION_PHASE )
+  if( emgData->processingPhase == EMG_RELAXATION_PHASE || emgData->processingPhase == EMG_CONTRACTION_PHASE )
   {
-    if( muscleProperties->preparationPassesCount > 0 )
+    if( emgData->preparationPassesCount > 0 )
     {
-      DEBUG_PRINT( "new %s value: %g / %u = %g", ( muscleProperties->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
-                                                 muscleProperties->emgValuesList[ muscleProperties->processingPhase ],
-                                                 muscleProperties->preparationPassesCount, 
-                                                 muscleProperties->emgValuesList[ muscleProperties->processingPhase ] / muscleProperties->preparationPassesCount );
+      DEBUG_PRINT( "new %s value: %g / %u = %g", ( emgData->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
+                                                    emgData->processingResultsList[ emgData->processingPhase ],
+                                                    emgData->preparationPassesCount, 
+                                                    emgData->processingResultsList[ emgData->processingPhase ] / emgData->preparationPassesCount );
 
-      muscleProperties->emgValuesList[ muscleProperties->processingPhase ] /= muscleProperties->preparationPassesCount;
+      emgData->processingResultsList[ emgData->processingPhase ] /= emgData->preparationPassesCount;
     }
 
-    muscleProperties->preparationPassesCount = 0;
+    emgData->preparationPassesCount = 0;
   }
 
-  muscleProperties->emgValuesList[ newProcessingPhase ] = 0.0;
+  emgData->processingResultsList[ newProcessingPhase ] = 0.0;
   
-  muscleProperties->processingPhase = newProcessingPhase;
+  emgData->processingPhase = newProcessingPhase;
   
   ThreadLock_Release( phasePassCountLock );
 }
@@ -376,7 +349,7 @@ extern inline double EMGProcessing_GetMuscleActivation( int muscleID )
 {
   if( muscleID < 0 || muscleID >= (int) musclesNumber ) return 0.0;
   
-  return musclePropertiesList[ muscleID ].emgValuesList[ EMG_ACTIVATION_PHASE ];
+  return musclePropertiesList[ muscleID ].emgData.processingResultsList[ EMG_ACTIVATION_PHASE ];
 }
 
 double EMGProcessing_GetMuscleTorque( int muscleID, double jointAngle )
@@ -402,7 +375,7 @@ double EMGProcessing_GetMuscleTorque( int muscleID, double jointAngle )
   //               jointAngle, measuresList[ ACTIVE_FORCE ], measuresList[ PASSIVE_FORCE ], measuresList[ MOMENT_ARM ], measuresList[ NORM_LENGTH ], penationAngle );
   
   double resultingForce = muscleProperties->scaleFactor 
-                          * ( measuresList[ ACTIVE_FORCE ] * muscleProperties->emgValuesList[ EMG_ACTIVATION_PHASE ] + measuresList[ PASSIVE_FORCE ] ) 
+                          * ( measuresList[ ACTIVE_FORCE ] * muscleProperties->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ] + measuresList[ PASSIVE_FORCE ] ) 
                           * cos( penationAngle );
   
   return resultingForce * measuresList[ MOMENT_ARM ];

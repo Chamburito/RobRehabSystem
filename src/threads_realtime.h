@@ -17,6 +17,7 @@
 /////                                      THREADS HANDLING 									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const CmtThreadFunctionID INVALID_THREAD_HANDLE = -1;
 #define INFINITE CMT_WAIT_FOREVER
 
 // Returns unique identifier of the calling thread
@@ -48,7 +49,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
   {
     CmtGetErrorMessage( status, errorBuffer );
     ERROR_PRINT( "error starting new thread: %s", errorBuffer );
-    return -1;
+    return INVALID_THREAD_HANDLE;
   }
   
   DEBUG_PRINT( "created thread %x successfully", ( mode == JOINABLE ) ? threadID : 0 );
@@ -85,7 +86,7 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
   
   static char errorBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ]; 
 
-  if( handle > -1 )
+  if( handle != INVALID_THREAD_HANDLE )
   {
     DEBUG_PRINT( "waiting thread %x", handle );
 

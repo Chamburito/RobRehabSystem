@@ -35,6 +35,7 @@
 
 /* Include files */
 //#include <ansi_c.h>
+#include <stdbool.h>
 #include <cvinetv.h>
 #include <cvirte.h>		
 #include <userint.h>
@@ -49,20 +50,26 @@
 /* Global variables */
 static int panel;
 static CNVSubscriber gWaveSubscriber;
-static CNVWriter gMaxToggleWriter, gMinToggleWriter, gMotorToggleWriter;
+static CNVWriter gMaxToggleWriter, gMinToggleWriter, gMotorToggleWriter, gMaxStiffnessWriter, gSetpointWriter;
 
 /* Function prototypes */
+static void* UpdateData( void* );
 static void ConnectToNetworkVariables( void );
 int CVICALLBACK GainCallback( int, int, int, void*, int, int );
 void CVICALLBACK DataCallback( void*, CNVData, void* );
 
 int axisLogID;
-enum { POSITION, VELOCITY, CURRENT, TENSION, REFERENCE_VALUE, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, INTEGRAL_GAIN, DISPLAY_N_VALUES };
+enum { POSITION, VELOCITY, TORQUE, TENSION, REFERENCE_VALUE, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, INTEGRAL_GAIN, DISPLAY_N_VALUES };
 
 enum { AGONIST, ANTAGONIST };
 int muscleGroup = AGONIST;
 
 int axisID = 0;
+
+Thread_Handle dataConnectionThreadID;
+bool isDataUpdateRunning = false;
+
+char address[ 256 ] = "169.254.110.158";
 
 /* Program entry-point */
 int main( int argc, char *argv[] )
@@ -72,9 +79,9 @@ int main( int argc, char *argv[] )
 	if( InitCVIRTE( 0, argv, 0 ) == 0 )
 		return -1;
   
-  //int clientID = AsyncIPConnection_Open( "169.254.110.158", "50000", TCP );
-  
-  //AsyncIPConnection_WriteMessage( clientID, "Teste" );
+  //dataConnectionThreadID = Thread_Start( UpdateData, NULL, JOINABLE );
+  int dataClientID = AsyncIPConnection_Open( address, "50001", UDP );
+  AsyncIPConnection_WriteMessage( dataClientID, "0 0.0 0.0 0.0 0.0 0.0" );
 	
   axisLogID = DataLogging_CreateLog( NULL, "axis", DISPLAY_N_VALUES );
   
@@ -82,17 +89,16 @@ int main( int argc, char *argv[] )
 		return -1;
 
 	ConnectToNetworkVariables();
-  
-  CNVCreateScalarDataValue( &enableData, CNVBool, (char) 1 );
-	CNVWrite( gMotorToggleWriter, enableData, CNVDoNotWait );
 	
 	DisplayPanel( panel );
 	RunUserInterface();
 	
 	CNVCreateScalarDataValue( &enableData, CNVBool, (char) 0 );
 	CNVWrite( gMotorToggleWriter, enableData, CNVDoNotWait );
-	
-  //AsyncIPConnection_Close( clientID );
+  
+  //isDataUpdateRunning = false;
+  //Thread_WaitExit( dataConnectionThreadID, 5000 );
+  AsyncIPConnection_Close( dataClientID );
   
   DataLogging_CloseLog( axisLogID );
   
@@ -102,6 +108,8 @@ int main( int argc, char *argv[] )
 	CNVDispose( gMaxToggleWriter );
 	CNVDispose( gMinToggleWriter );
 	CNVDispose( gMotorToggleWriter );
+  CNVDispose( gMaxStiffnessWriter );
+  CNVDispose( gSetpointWriter );
 	CNVFinish();
   
 	DiscardPanel( panel );
@@ -111,9 +119,26 @@ int main( int argc, char *argv[] )
 	return 0;
 }
 
+static void* UpdateData( void* callbackData )
+{
+  int dataClientID = AsyncIPConnection_Open( address, "50001", UDP );
+  
+  if( dataClientID != -1 ) isDataUpdateRunning = true;
+  
+  while( isDataUpdateRunning )
+  {
+    AsyncIPConnection_WriteMessage( dataClientID, "0 0.0 0.0 0.0 0.0 0.0" );
+  }
+  
+  AsyncIPConnection_Close( dataClientID );
+  
+  Thread_Exit( 0 );
+  return NULL;
+}
+
 static void ConnectToNetworkVariables( void )
 {
-	char address[ 256 ] = "169.254.110.158" , path[ 512 ];
+	char path[ 512 ];
 	
 	// Get address of real-time target.
 	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
@@ -127,6 +152,12 @@ static void ConnectToNetworkVariables( void )
 
 	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, ENABLE_VARIABLE );
 	CNVCreateWriter( path, 0, 0, 10000, 0, &gMotorToggleWriter );
+  
+  sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, STIFFNESS_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gMaxStiffnessWriter );
+  
+  sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, SETPOINT_VARIABLE );
+	CNVCreateWriter( path, 0, 0, 10000, 0, &gSetpointWriter );
 
 	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, WAVE_VARIABLE );
 	CNVCreateSubscriber( path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber );
@@ -139,6 +170,9 @@ static void ConnectToNetworkVariables( void )
 	ChangeStateCallback( panel, PANEL_MAX_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
 	ChangeStateCallback( panel, PANEL_MIN_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
   ChangeStateCallback( panel, PANEL_MOTOR_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
+  
+	ChangeValueCallback( panel, PANEL_STIFFNESS, EVENT_COMMIT, 0, 0, 0 );
+  ChangeValueCallback( panel, PANEL_SETPOINT, EVENT_COMMIT, 0, 0, 0 );
 }
 
 int CVICALLBACK ChangeMuscleGroupCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
@@ -187,6 +221,32 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
 	return 0;
 }
 
+int  CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
+{
+  CNVData	data;
+	double value;
+	
+	switch( event )
+	{
+		case EVENT_COMMIT:
+			// Get the new value.
+			GetCtrlVal( panel, control, &value );
+      
+			CNVCreateScalarDataValue( &data, CNVDouble, value );
+		
+			// Write the new value to the appropriate network variable.
+			if( control == PANEL_STIFFNESS )
+				CNVWrite( gMaxStiffnessWriter, data, CNVDoNotWait );
+			else if( control == PANEL_SETPOINT )
+				CNVWrite( gSetpointWriter, data, CNVDoNotWait );
+		
+			CNVDisposeData( data );
+      
+			break;
+	}
+	return 0;
+}
+
 int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int eventData1, int eventData2 )
 {
   switch( event )
@@ -203,7 +263,7 @@ int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int even
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
 	static double dataArray[ DISPLAY_N_VALUES * NUM_POINTS ];
-  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], currentValues[ NUM_POINTS ], tensionValues[ NUM_POINTS ];
+  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ], tensionValues[ NUM_POINTS ];
   static double pGainValues[ NUM_POINTS ], dGainValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ];
 	
 	// Get the published data.
@@ -218,15 +278,15 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     setpointValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + REFERENCE_VALUE ];
     pGainValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + PROPORTIONAL_GAIN ];
     dGainValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + DERIVATIVE_GAIN ];
-    currentValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + CURRENT ];
+    torqueValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TORQUE ];
     tensionValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_N_VALUES + TENSION ];
   }
   
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_POSITION, -1, VAL_DELAYED_DRAW );
-	//PlotY( panel, PANEL_GRAPH_POSITION, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
-  //PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
-  PlotY( panel, PANEL_GRAPH_POSITION, currentValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+	PlotY( panel, PANEL_GRAPH_POSITION, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+  PlotY( panel, PANEL_GRAPH_POSITION, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
+  PlotY( panel, PANEL_GRAPH_POSITION, torqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
   PlotY( panel, PANEL_GRAPH_POSITION, tensionValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_MAGENTA );
   
   DeleteGraphPlot( panel, PANEL_GRAPH_EMG, -1, VAL_DELAYED_DRAW );

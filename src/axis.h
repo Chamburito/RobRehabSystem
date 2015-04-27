@@ -43,7 +43,7 @@ enum Control { SWITCH_ON, ENABLE_VOLTAGE, QUICK_STOP, ENABLE_OPERATION,
                NEW_SETPOINT, CHANGE_IMMEDIATEDLY, ABS_REL, FAULT_RESET, HALT, AXIS_CONTROLS_NUMBER };
 static const uint16_t controlValues[ AXIS_CONTROLS_NUMBER ] = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
 
-enum Dimension { POSITION, VELOCITY, CURRENT, TENSION, AXIS_DIMS_NUMBER }; 
+enum Dimension { POSITION, VELOCITY, TORQUE, TENSION, AXIS_DIMS_NUMBER }; 
 
 enum Setpoint { POSITION_SETPOINT, VELOCITY_SETPOINT, AXIS_SETPTS_NUMBER }; 
 
@@ -56,6 +56,7 @@ typedef struct _MotorDrive
   CANFrame* writeFramesList[ AXIS_FRAME_TYPES_NUMBER ];
   double measuresList[ AXIS_DIMS_NUMBER ];
   unsigned int encoderResolution;
+  double currentToTorqueRatio;
   uint16_t statusWord, controlWord;
   uint16_t digitalOutput;
 }
@@ -75,7 +76,8 @@ void Motor_Enable( Motor* );
 void Motor_Disable( Motor* );
 void Motor_Disconnect( Motor* );
 void MotorDrive_Disconnect( MotorDrive* );
-void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
+extern inline void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
+extern inline void MotorDrive_SetTorqueConstant( MotorDrive*, double );
 double MotorDrive_GetMeasure( MotorDrive*, enum Dimension );
 double Motor_GetSetpoint( Motor*, enum Setpoint );
 void Motor_SetSetpoint( Motor*, enum Setpoint, double );
@@ -129,6 +131,7 @@ MotorDrive* MotorDrive_Connect( unsigned int networkIndex )
     controller->measuresList[ i ] = 10.0;
   
   controller->encoderResolution = 1;
+  controller->currentToTorqueRatio = 0.0;
   
   controller->statusWord = controller->controlWord = 0;
   
@@ -188,10 +191,16 @@ void MotorDrive_Disconnect( MotorDrive* controller )
   }
 }
 
-void MotorDrive_SetEncoderResolution( MotorDrive* controller, unsigned int resolution )
+extern inline void MotorDrive_SetEncoderResolution( MotorDrive* controller, unsigned int resolution )
 {
   if( resolution >= 1 )
     controller->encoderResolution = resolution;
+}
+
+extern inline void MotorDrive_SetTorqueConstant( MotorDrive* controller, double currentToTorqueRatio )
+{
+  if( currentToTorqueRatio >= 0.0 )
+    controller->currentToTorqueRatio = currentToTorqueRatio;
 }
 
 void Motor_Enable( Motor* motor )
@@ -307,7 +316,10 @@ void MotorDrive_ReadValues( MotorDrive* controller )
   // Update values from PDO01
   double rawPosition = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
   controller->measuresList[ POSITION ] = ( rawPosition / controller->encoderResolution ) * ( 2 * PI );
-  controller->measuresList[ CURRENT ] = payload[5] * 0x100 + payload[4];
+  
+  double current = payload[5] * 0x100 + payload[4];
+  controller->measuresList[ TORQUE ] = current * controller->currentToTorqueRatio;
+  
   controller->statusWord = payload[7] * 0x100 + payload[6];
 
   // Read values from PDO02 (Velocity and Tension) to buffer

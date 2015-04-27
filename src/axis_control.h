@@ -96,13 +96,15 @@ static void LoadAxisControlsConfig()
       
       if( strcmp( readBuffer, "motor:" ) == 0 )
       {
-        unsigned int nodeID, resolution;
-        fscanf( configFile, "%u %u", &nodeID, &resolution );
+        unsigned int nodeID, encoderResolution;
+        double currentToTorqueRatio;
+        fscanf( configFile, "%u %u %lf", &nodeID, &encoderResolution, &currentToTorqueRatio );
         
-        DEBUG_EVENT( 1, "found %s motor on node ID %u with resolution %u", newAxisControl->name, nodeID, resolution );
+        DEBUG_EVENT( 1, "found %s motor on node ID %u with encoder resolution %u and torque constant %g", newAxisControl->name, nodeID, encoderResolution, currentToTorqueRatio );
         
         newAxisControl->actuator = Motor_Connect( nodeID );
-        MotorDrive_SetEncoderResolution( newAxisControl->actuator->controller, resolution );
+        MotorDrive_SetEncoderResolution( newAxisControl->actuator->controller, encoderResolution );
+        MotorDrive_SetTorqueConstant( newAxisControl->actuator->controller, currentToTorqueRatio );
       }
       else if( strcmp( readBuffer, "encoder:" ) == 0 )
       {
@@ -372,7 +374,7 @@ static void* AsyncControl( void* args )
     
       static double setpointValue;
       if( DataQueue_Pop( axisControl->setpointsQueue, (void*) &setpointValue, QUEUE_READ_NOWAIT ) > 0 )
-        axisControl->parametersList[ REFERENCE_VALUE ] = setpointValue; 
+        axisControl->parametersList[ REFERENCE_VALUE ] = setpointValue;
       
       // If the motor is being actually controlled, call control pass algorhitm
       if( axisControl->actuator->active ) axisControl->controlFunction->ref_Run( axisControl );

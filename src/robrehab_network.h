@@ -35,8 +35,10 @@ static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing u
 
 static CNVData data = 0;
 
-static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber, gMotorToggleSubscriber;
+static double maxStiffness, networkSetpoint;
+static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber, gMotorToggleSubscriber, gMaxStiffnessSubscriber, gSetpointSubscriber;
 void CVICALLBACK ChangeStateDataCallback( void*, CNVData, void* );
+void CVICALLBACK ChangeValueDataCallback( void*, CNVData, void* );
 
 static CNVBufferedWriter gWavePublisher;
 
@@ -97,6 +99,11 @@ int RobRehabNetwork_Init()
   status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" ENABLE_VARIABLE, ChangeStateDataCallback, 0, 0, 10000, 0, &gMotorToggleSubscriber );
 	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
   
+  status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" STIFFNESS_VARIABLE, ChangeValueDataCallback, 0, 0, 10000, 0, &gMaxStiffnessSubscriber );
+	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" SETPOINT_VARIABLE, ChangeValueDataCallback, 0, 0, 10000, 0, &gSetpointSubscriber );
+	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+  
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
   
   return 0;
@@ -146,23 +153,19 @@ void RobRehabNetwork_Update()
   }
   
   if( (newDataClient = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
+  {
+    DEBUG_PRINT( "new data client found with ID %d", newDataClient );
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
+  }
   
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
     networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = 0;
   
   ProcessAxisCommandFunction ref_ProcessAxisCommand;
-  //ref_ProcessAxisCommand = ProcessAxisControlState;
-  //ListApplyToEach( infoClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
-  //ref_ProcessAxisCommand = ProcessAxisControlData;
-  //ListApplyToEach( dataClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
-  
-  // Test
-  int dummyClientID = 0;
   ref_ProcessAxisCommand = ProcessAxisControlState;
-  //UpdateAxisControl( 0, &dummyClientID, (void*) &ref_ProcessAxisCommand );
+  ListApplyToEach( infoClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
   ref_ProcessAxisCommand = ProcessAxisControlData;
-  UpdateAxisControl( 0, &dummyClientID, (void*) &ref_ProcessAxisCommand );
+  ListApplyToEach( dataClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
 }
 
 
@@ -171,13 +174,13 @@ static int CVICALLBACK UpdateAxisControl( int index, void* ref_clientID, void* r
   int clientID = *((int*) ref_clientID);
   ProcessAxisCommandFunction ref_ProcessAxisCommand = *((ProcessAxisCommandFunction*) ref_callback);
   
-  //static char* messageIn;
-  const char* messageIn = "0 0.0 0.0 0.0 0.0 0.0";
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
-  //if( (messageIn = AsyncIPConnection_ReadMessage( clientID )) == NULL ) return 0;
+  char* messageIn = AsyncIPConnection_ReadMessage( clientID );
   
-  DEBUG_UPDATE( "received input message: %s", messageIn );
+  if( messageIn == NULL ) return 0;
+  
+  DEBUG_PRINT( "received input message: %s", messageIn );
   
   strcpy( messageOut, "" );
   for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
@@ -186,7 +189,7 @@ static int CVICALLBACK UpdateAxisControl( int index, void* ref_clientID, void* r
     
     if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
     
-    DEBUG_UPDATE( "parsing axis %u command \"%s\"", axisID, axisCommand );
+    DEBUG_PRINT( "parsing axis %u command \"%s\"", axisID, axisCommand );
     char* readout = ref_ProcessAxisCommand( clientID, axisID, axisCommand );
     if( strcmp( readout, "" ) != 0 )
     {
@@ -241,8 +244,6 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
   
   static char readout[ VALUE_MAX_LEN * CONTROL_VALUES_NUMBER + 1 ];
   
-  static double controlParametersList[ CONTROL_PARAMS_NUMBER ];
-  
   static double setpointsList[ SETPOINTS_MAX_NUMBER ];
   static double setpointValue;
   static size_t setpointsCount;
@@ -251,33 +252,29 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
   {
     networkAxesList[ axisID ].dataClient = clientID;
     
-    //static size_t setpointIndex; // Gamb
+    static size_t setpointIndex; // Gamb
     setpointsCount = 0;
     while( *command != '\0' )
     {
       setpointValue = strtod( command, &command );
-      setpointsList[ setpointsCount++ ] = 0.2; //setpointValue;
-      //setpointsList[ setpointsCount++ ] = fileSetpointsList[ setpointIndex % FILE_SETPOINTS_NUMBER ]; // Gamb
-      //setpointIndex++; // Gamb
+      //setpointsList[ setpointsCount++ ] = networkSetpoint; //setpointValue;
+      setpointsList[ setpointsCount++ ] = fileSetpointsList[ setpointIndex % FILE_SETPOINTS_NUMBER ]; // Gamb
+      setpointIndex++; // Gamb
     }
     //DEBUG_PRINT( "loading %u setpoints (%u - %u) to axis %u control", setpointsCount, setpointIndex - setpointsCount, setpointIndex, axisID );
     AxisControl_EnqueueSetpoints( axisID, setpointsList, setpointsCount );
     
     double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
-    double* motorParametersList = AxisControl_GetParameters( axisID );
     if( motorMeasuresList != NULL )
     {
+      double* motorParametersList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
+      
       strcpy( readout, "" );
       for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorMeasuresList[ dimensionIndex ] );
       for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
         sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
       readout[ strlen( readout ) - 1 ] = '\0';
-      
-      controlParametersList[ PROPORTIONAL_GAIN ] = EMGAxisControl_GetStiffness( 0 );
-      controlParametersList[ DERIVATIVE_GAIN ] = 5.0;  
-      
-      AxisControl_SetParameters( axisID, controlParametersList );
       
       //Gamb 
       static size_t valuesCount;
@@ -290,14 +287,14 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
         dataArray[ valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + parameterIndex ) ] = motorParametersList[ parameterIndex ];
       
       //size_t dataIndex = valuesCount * CONTROL_VALUES_NUMBER + ( AXIS_DIMS_NUMBER + REFERENCE_VALUE );
-      //DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, CONTROL_VALUES_NUMBER, AXIS_DIMS_NUMBER, POSITION_SETPOINT, dataIndex );
-      //DEBUG_PRINT( "got position setpoint %d value %g", dataIndex, dataArray[ dataIndex ] );
+      //DEBUG_PRINT( "position setpoint index: %u * %u + %u + %u = %u", valuesCount, CONTROL_VALUES_NUMBER, AXIS_DIMS_NUMBER, REFERENCE_VALUE, dataIndex );
+      //DEBUG_PRINT( "got position setpoint %u value %g", dataIndex, dataArray[ dataIndex ] );
       
-      dataArray[ valuesCount * CONTROL_VALUES_NUMBER + CURRENT ] = EMGProcessing_GetMuscleActivation( 0 );
+      dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TORQUE ] = EMGProcessing_GetMuscleActivation( 0 );
       dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ] = EMGProcessing_GetMuscleActivation( 1 );
       
-      DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + CURRENT ],
-                                                                                    dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ], motorParametersList[ PROPORTIONAL_GAIN ] );
+      //DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TORQUE ],
+      //                                                                              dataArray[ valuesCount * CONTROL_VALUES_NUMBER + TENSION ], motorParametersList[ PROPORTIONAL_GAIN ] );
       
       valuesCount++;
       
@@ -349,6 +346,25 @@ void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* call
   
     DEBUG_PRINT( "motor %u %s", axisID, enabled ? "enabled" : "disabled" );
   }
+}
+
+void CVICALLBACK ChangeValueDataCallback( void* handle, CNVData data, void* callbackData )
+{
+  double value;
+  CNVGetScalarDataValue( data, CNVDouble, &value );
+  
+  if( handle == gMaxStiffnessSubscriber )
+	{
+    maxStiffness = value; 
+    
+    DEBUG_PRINT( "new maximum stiffness: %g", maxStiffness );
+	}
+	else if( handle == gSetpointSubscriber )
+	{
+    networkSetpoint = value;
+    
+    DEBUG_PRINT( "new position setpoint: %g", networkSetpoint );
+	}
 }
 
 

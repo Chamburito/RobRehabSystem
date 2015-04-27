@@ -207,13 +207,13 @@ static int CVICALLBACK AsyncConnect( void* connectionData )
   if( statusCode < 0 ) 
     connection->networkRole = DISCONNECTED;
   else
-    DEBUG_EVENT( 0, "starting to process system events for connection %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
+    DEBUG_PRINT( "starting to process system events for connection %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
   
   while( connection->networkRole != DISCONNECTED ) 
   {
     ProcessSystemEvents();
     #ifdef _LINK_CVI_LVRT_
-    SleepUS( 100 );
+    SleepUS( 1000 );
     #else
     Sleep( 1 );
     #endif
@@ -263,11 +263,11 @@ static AsyncConnection* AddConnection( unsigned int connectionHandle, unsigned i
   }
   
   if( globalConnectionsList == NULL )
-        globalConnectionsList = ListCreate( sizeof(AsyncConnection*) ); 
+    globalConnectionsList = ListCreate( sizeof(AsyncConnection*) ); 
   
   ListInsertItem( globalConnectionsList, &connection, END_OF_LIST );
   
-  DEBUG_EVENT( 0, "%u active connections listed", ListNumItems( globalConnectionsList ) );
+  DEBUG_PRINT( "%u active connections listed", ListNumItems( globalConnectionsList ) );
   
   return connection;
 }
@@ -417,15 +417,14 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
   unsigned int sourcePort;
   char sourceHost[ IP_HOST_LENGTH ];
   
-  DEBUG_UPDATE( "called for connection handle %u on thread %x", channel, CmtGetCurrentThreadID() );
+  DEBUG_PRINT( "called for connection handle %u on thread %x", channel, CmtGetCurrentThreadID() );
   
   if( eventType == UDP_DATAREADY )
   {
     if( (errorCode = UDPRead( channel, NULL, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, &sourcePort, sourceHost )) < 0 )
     {
       ERROR_EVENT( "%s", GetUDPErrorString( errorCode ) );
-      if( channel == connection->handle )
-        CloseConnection( 0, &connection, NULL ); 
+      if( channel == connection->ref_server->handle ) CloseConnection( 0, &connection, NULL ); 
       return -1;
     }
     
@@ -439,11 +438,11 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
         {
           CmtGetErrorMessage( errorCode, messageBuffer );
           ERROR_EVENT( "%s", messageBuffer );
-                    CloseConnection( 0, &connection, NULL );
+          CloseConnection( 0, &connection, NULL );
           return -1;
         }
         
-        DEBUG_UPDATE( "UDP connection handle %u (received %u) received right message: %s", connection->handle, channel, messageBuffer );
+        DEBUG_PRINT( "UDP connection handle %u (server %u) received right message: %s", connection->handle, channel, messageBuffer );
       }
     }
   }
@@ -591,38 +590,42 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
   
   AsyncConnection* client = NULL;
   
-  char message_buffer[ IP_CONNECTION_MSG_LEN ];
+  char messageBuffer[ IP_CONNECTION_MSG_LEN ];
   
-  DEBUG_UPDATE( "called for connection handle %u on server %u on thread %x", channel, connection->handle, CmtGetCurrentThreadID() );
+  static unsigned int clientPort;
+  static char clientHost[ IP_HOST_LENGTH ];
+  
+  DEBUG_PRINT( "called for connection handle %u on thread %x", channel, CmtGetCurrentThreadID() );
   
   if( eventType == UDP_DATAREADY )
   {
-    if( connection->networkRole == SERVER )
-    {
-      if( (client = FindConnection( connection->clientsList, channel, PEEK )) == NULL )
-      {
-        client = AddConnection( channel, client->address.port, client->address.host, UDP | CLIENT );
-        ListInsertItem( connection->clientsList, &client, END_OF_LIST );
-      
-        //DEBUG_EVENT( 0, "client accepted !\n" );
-      }
-    }
-    
-    if( (errorCode = UDPRead( channel, message_buffer, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, &(client->address.port), client->address.host )) < 0 )
+    if( (errorCode = UDPRead( channel, messageBuffer, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, &(clientPort), clientHost )) < 0 )
     {
       ERROR_EVENT( "%s", GetUDPErrorString( errorCode ) );
       (void) CloseConnection( 0, &client, NULL );
       return -1;
     }
     
-    if( (errorCode = CmtWriteTSQData( client->readQueue, message_buffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
+    if( connection->networkRole == SERVER )
     {
-      CmtGetErrorMessage( errorCode, message_buffer );
-      ERROR_EVENT( "%s", message_buffer );
-      return -1;
-    }
+      unsigned int clientHandle = channel + clientPort;
+      if( (client = FindConnection( connection->clientsList, clientHandle, PEEK )) == NULL )
+      {
+        client = AddConnection( clientHandle, clientPort, clientHost, UDP | CLIENT );
+        ListInsertItem( connection->clientsList, &client, END_OF_LIST );
+      
+        DEBUG_PRINT( "client with handle %u accepted !", client->handle );
+      }
+      
+      if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
+      {
+        CmtGetErrorMessage( errorCode, messageBuffer );
+        ERROR_EVENT( "%s", messageBuffer );
+        return -1;
+      }
 
-    DEBUG_UPDATE( "UDP connection handle %u (server handle %u) received message: %s", channel, connection->handle, message_buffer );
+      DEBUG_PRINT( "UDP connection handle %u (server handle %u) received message: %s", channel, connection->handle, messageBuffer );
+    }
   }
   
   return 0;
@@ -748,7 +751,7 @@ int AsyncIPConnection_GetClient( int serverID )
     return -1;
   }
   
-  DEBUG_UPDATE( "new client connection ID %d from server connection ID %d", clientID , serverID );  
+  DEBUG_PRINT( "new client connection ID %d from server connection ID %d", clientID , serverID );  
   
   return clientID; 
 }
@@ -761,7 +764,7 @@ int AsyncIPConnection_GetClient( int serverID )
 // Handle proper destruction of any given connection type
 static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* closingData )
 {
-    AsyncConnection* connection = *((AsyncConnection**) ref_connection);
+  AsyncConnection* connection = *((AsyncConnection**) ref_connection);
   
   static int statusCode;
   
@@ -806,7 +809,7 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
           
           (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
           
-                CloseConnection( 0, &(connection->ref_server), NULL );
+          CloseConnection( 0, &(connection->ref_server), NULL );
         }
       
         break;
@@ -839,7 +842,7 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
         {
           (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
           
-                CloseConnection( 0, &(connection->ref_server), NULL );
+          CloseConnection( 0, &(connection->ref_server), NULL );
         }
       
         break;

@@ -209,12 +209,33 @@ double EMGAxisControl_GetStiffness( unsigned int axisID )
   
   jointStiffness *= scaleFactor;
   
-  DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );
+  //DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );
   
   if( jointStiffness < 0.0 ) jointStiffness = 0.0;
-  else if( jointStiffness > 30.0 ) jointStiffness = 30.0;
   
   return jointStiffness;
+}
+
+double* EMGAxisControl_ApplyGains( unsigned int axisID, double maxGain )
+{
+  const double forgettingFactor = 0.9;
+  
+  static double controlParametersList[ CONTROL_PARAMS_NUMBER ];
+  
+  EMGAxisControl* control = FindAxisControl( axisID );
+  
+  if( control == NULL ) return NULL;
+  
+  double* motorParametersList = AxisControl_GetParameters( axisID );
+  
+  double jointStiffness = EMGAxisControl_GetStiffness( axisID );
+  if( jointStiffness > maxGain ) jointStiffness = maxGain;
+  
+  controlParametersList[ PROPORTIONAL_GAIN ] = forgettingFactor * motorParametersList[ PROPORTIONAL_GAIN ] + ( 1 - forgettingFactor ) * ( maxGain - jointStiffness );
+      
+  AxisControl_SetParameters( axisID, controlParametersList );
+  
+  return motorParametersList;
 }
 
 void EMGAxisControl_ChangeState( unsigned int axisID, int muscleGroupID, int emgProcessingPhase )

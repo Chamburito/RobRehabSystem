@@ -20,6 +20,8 @@
 /////                                      THREADS HANDLING 									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const HANDLE INVALID_THREAD_HANDLE = NULL;
+
 // Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()
 
@@ -39,10 +41,10 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
   static HANDLE handle;
   static unsigned int thread_id;
   
-  if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == NULL )
+  if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == INVALID_HANDLE )
   {
     ERROR_PRINT( "_beginthreadex: failed creating new thread with function %p", function );
-    return 0;
+    return INVALID_HANDLE;
   }
   
   DEBUG_PRINT( "created thread %x successfully", handle );
@@ -70,24 +72,27 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
   static DWORD exitCode = 0;
   static DWORD exitStatus = WAIT_OBJECT_0;
 
-  DEBUG_PRINT( "waiting thread %x\n", handle );
-
-  exitStatus = WaitForSingleObject( handle, (DWORD) milliseconds );
-  
-  if( exitStatus == WAIT_FAILED )
-    ERROR_PRINT( "WaitForSingleObject: error waiting for thread %x end: code: %x\n", handle, GetLastError() );
-  else if( exitStatus == WAIT_TIMEOUT )
-    ERROR_PRINT( "WaitForSingleObject: wait for thread %x timed out\n", handle );
-  else
+  if( handle != INVALID_THREAD_HANDLE )
   {
-    DEBUG_PRINT( "thread %x returned\n", handle );
-    
-    if( GetExitCodeThread( handle, &exitCode ) != 0 )
-      DEBUG_PRINT( "thread exit code: %u\n", exitCode ); 
-  }
+    DEBUG_PRINT( "waiting thread %x\n", handle );
+
+    exitStatus = WaitForSingleObject( handle, (DWORD) milliseconds );
   
-  if( CloseHandle( handle ) == 0 )
-    ERROR_PRINT( "CloseHandle: error trying to close thread handle %x: code: %x", handle, GetLastError() );
+    if( exitStatus == WAIT_FAILED )
+      ERROR_PRINT( "WaitForSingleObject: error waiting for thread %x end: code: %x\n", handle, GetLastError() );
+    else if( exitStatus == WAIT_TIMEOUT )
+      ERROR_PRINT( "WaitForSingleObject: wait for thread %x timed out\n", handle );
+    else
+    {
+      DEBUG_PRINT( "thread %x returned\n", handle );
+    
+      if( GetExitCodeThread( handle, &exitCode ) != 0 )
+        DEBUG_PRINT( "thread exit code: %u\n", exitCode ); 
+    }
+  
+    if( CloseHandle( handle ) == 0 )
+      ERROR_PRINT( "CloseHandle: error trying to close thread handle %x: code: %x", handle, GetLastError() );
+  }
 
   return exitCode;
 }
