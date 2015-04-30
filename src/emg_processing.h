@@ -218,9 +218,10 @@ static double* EMGProcessing_GetFilteredSignal( EMGData* emgData )
     for( int newSampleIndex = 0; newSampleIndex < AQUISITION_BUFFER_LEN; newSampleIndex++ )
       emgData->samplesBuffer[ ( newSamplesBufferStart + newSampleIndex ) % HISTORY_BUFFER_LEN ] = newSamplesList[ newSampleIndex ] / DATA_AQUISITION_SCALE_FACTOR;
     
-    double previousSamplesMean = 0.0;
+    static double previousSamplesMean;
     for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
     {
+      previousSamplesMean = 0.0;
       for( int previousSampleIndex = oldSamplesBufferStart + sampleIndex; previousSampleIndex < newSamplesBufferStart + sampleIndex; previousSampleIndex++ )
         previousSamplesMean += emgData->samplesBuffer[ previousSampleIndex % HISTORY_BUFFER_LEN ] / OLD_SAMPLES_BUFFER_LEN;
 

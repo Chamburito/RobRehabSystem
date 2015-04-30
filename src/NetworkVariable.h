@@ -14,8 +14,8 @@
      /* Panels and Controls: */
 
 #define  PANEL                            1       /* callback function: QuitCallback */
-#define  PANEL_GRAPH_EMG                  2       /* control type: graph, callback function: (none) */
-#define  PANEL_GRAPH_POSITION             3       /* control type: graph, callback function: (none) */
+#define  PANEL_GRAPH_2                    2       /* control type: graph, callback function: (none) */
+#define  PANEL_GRAPH_1                    3       /* control type: graph, callback function: (none) */
 #define  PANEL_MOTOR_TOGGLE               4       /* control type: textButton, callback function: ChangeStateCallback */
 #define  PANEL_MIN_TOGGLE                 5       /* control type: textButton, callback function: ChangeStateCallback */
 #define  PANEL_MAX_TOGGLE                 6       /* control type: textButton, callback function: ChangeStateCallback */

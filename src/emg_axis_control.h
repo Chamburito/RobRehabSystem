@@ -8,6 +8,8 @@
 
 enum { MUSCLE_AGONIST, MUSCLE_ANTAGONIST, MUSCLE_GROUPS_NUMBER };
 
+enum { JOINT_TORQUE, JOINT_STIFFNESS, JOINT_MEASURES_NUMBER };
+
 typedef struct _EMGAxisControl
 {
   unsigned int axisID;
@@ -73,8 +75,7 @@ static void LoadEMGControlsProperties()
         
         newControl->axisID = (unsigned int) AxisControl_GetAxisID( readBuffer );
         
-        DEBUG_PRINT( "found EMG axis control %s (axis ID: %d)", readBuffer, newControl->axisID );
-        //DEBUG_EVENT( 0, "found EMG axis control %s (axis ID: %d)", readBuffer, newControl->axisID );
+        DEBUG_EVENT( 0, "found EMG axis control %s (axis ID: %d)", readBuffer, newControl->axisID );
         
         for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
         {
@@ -98,9 +99,8 @@ static void LoadEMGControlsProperties()
           
           newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] = (unsigned int) muscleID;
           
-          DEBUG_PRINT( "found joint agonist muscle %u: %s (muscle ID: %u)", newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ], readBuffer, 
-                                                                            newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] );
-          //DEBUG_EVENT( 2, "found joint agonist muscle %s (ID: %u)", readBuffer, newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] );
+          DEBUG_EVENT( 2, "found joint agonist muscle %u: %s (muscle ID: %u)", newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ], readBuffer, 
+                                                                               newControl->muscleIDsTable[ MUSCLE_AGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ] ] );
           
           newControl->muscleGroupsSizesList[ MUSCLE_AGONIST ]++;
         }
@@ -118,9 +118,8 @@ static void LoadEMGControlsProperties()
           
           newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] = (unsigned int) muscleID;
           
-          DEBUG_PRINT( "found joint antagonist muscle %u: %s (muscle ID: %u)", newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ], readBuffer, 
-                                                                               newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] );
-          //DEBUG_EVENT( 3, "found joint antagonist muscle %s (ID: %u)", readBuffer, newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] );
+          DEBUG_EVENT( 3, "found joint antagonist muscle %u: %s (muscle ID: %u)", newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ], readBuffer, 
+                                                                                  newControl->muscleIDsTable[ MUSCLE_ANTAGONIST ][ newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ] ] );
           
           newControl->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ]++;
         }
@@ -174,13 +173,13 @@ double EMGAxisControl_GetTorque( unsigned int axisID )
   
   if( motorMeasuresList == NULL ) return 0.0;
   
-  double jointAngle = -motorMeasuresList[ POSITION ] * 180.0 / PI;
+  double jointAngle = -motorMeasuresList[ AXIS_POSITION ] * 180.0 / PI;
   
   for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ MUSCLE_AGONIST ]; muscleIndex++ )
-    jointTorque += EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ MUSCLE_AGONIST ][ muscleIndex ], jointAngle );
+    jointTorque += fabs( EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ MUSCLE_AGONIST ][ muscleIndex ], jointAngle ) );
   
   for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ]; muscleIndex++ )
-    jointTorque -= EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ MUSCLE_ANTAGONIST ][ muscleIndex ], jointAngle );
+    jointTorque -= fabs( EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ MUSCLE_ANTAGONIST ][ muscleIndex ], jointAngle ) );
   
   return jointTorque;
 }
@@ -199,12 +198,12 @@ double EMGAxisControl_GetStiffness( unsigned int axisID )
   
   if( motorMeasuresList == NULL ) return 0.0;
   
-  double jointAngle = -motorMeasuresList[ POSITION ] * 180.0 / PI;
+  double jointAngle = -motorMeasuresList[ AXIS_POSITION ] * 180.0 / PI;
   
   for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
   {
     for( size_t muscleIndex = 0; muscleIndex < control->muscleGroupsSizesList[ muscleGroupID ]; muscleIndex++ )
-      jointStiffness += EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ muscleGroupID ][ muscleIndex ], jointAngle );
+      jointStiffness += fabs( EMGProcessing_GetMuscleTorque( control->muscleIDsTable[ muscleGroupID ][ muscleIndex ], jointAngle ) );
   }
   
   jointStiffness *= scaleFactor;
@@ -221,21 +220,22 @@ double* EMGAxisControl_ApplyGains( unsigned int axisID, double maxGain )
   const double forgettingFactor = 0.9;
   
   static double controlParametersList[ CONTROL_PARAMS_NUMBER ];
-  
-  EMGAxisControl* control = FindAxisControl( axisID );
-  
-  if( control == NULL ) return NULL;
+  static double jointMeasuresList[ JOINT_MEASURES_NUMBER ];
   
   double* motorParametersList = AxisControl_GetParameters( axisID );
   
-  double jointStiffness = EMGAxisControl_GetStiffness( axisID );
-  if( jointStiffness > maxGain ) jointStiffness = maxGain;
+  jointMeasuresList[ JOINT_TORQUE ] = EMGAxisControl_GetTorque( axisID );
   
-  controlParametersList[ PROPORTIONAL_GAIN ] = forgettingFactor * motorParametersList[ PROPORTIONAL_GAIN ] + ( 1 - forgettingFactor ) * ( maxGain - jointStiffness );
+  jointMeasuresList[ JOINT_STIFFNESS ] = EMGAxisControl_GetStiffness( axisID );
+  if( jointMeasuresList[ JOINT_STIFFNESS ] > maxGain ) jointMeasuresList[ JOINT_STIFFNESS ] = maxGain;
+  
+  controlParametersList[ CONTROL_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
+  controlParametersList[ PROPORTIONAL_GAIN ] = forgettingFactor * motorParametersList[ PROPORTIONAL_GAIN ] 
+                                               + ( 1 - forgettingFactor ) * ( maxGain - jointMeasuresList[ JOINT_STIFFNESS ] );
       
   AxisControl_SetParameters( axisID, controlParametersList );
   
-  return motorParametersList;
+  return jointMeasuresList;
 }
 
 void EMGAxisControl_ChangeState( unsigned int axisID, int muscleGroupID, int emgProcessingPhase )
