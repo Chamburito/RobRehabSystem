@@ -141,12 +141,12 @@ static void* UpdateData( void* callbackData )
   while( isDataUpdateRunning )
   {
     strcpy( dataMessage, "0" );
-    for( size_t i = 0; i < 4; i++ )
+    for( size_t i = 0; i < 1; i++ )
       sprintf( &dataMessage[ strlen( dataMessage ) ], " %lf", fileSetpointsList[ setpointIndex++ % FILE_SETPOINTS_NUMBER ] );
     
     AsyncIPConnection_WriteMessage( dataClientID, dataMessage );
     
-    Sleep( 20 );
+    Sleep( 5 );
   }
   
   AsyncIPConnection_Close( dataClientID );

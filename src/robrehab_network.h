@@ -167,7 +167,7 @@ static int CVICALLBACK UpdateAxisControl( int index, void* ref_clientID, void* r
   
   if( messageIn == NULL ) return 0;
   
-  DEBUG_PRINT( "received input message: %s", messageIn );
+  DEBUG_UPDATE( "received input message: %s", messageIn );
   
   strcpy( messageOut, "" );
   for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
@@ -245,7 +245,6 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       //setpointsList[ setpointsCount ] = networkSetpoint; // Gamb
       setpointsCount++;
     }
-    DEBUG_PRINT( "loading %u setpoints to axis %u control", setpointsCount, axisID );
     AxisControl_EnqueueSetpoints( axisID, setpointsList, setpointsCount );
     
     double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );

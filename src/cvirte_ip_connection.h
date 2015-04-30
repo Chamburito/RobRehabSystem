@@ -300,9 +300,9 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
     return -1;
   }
   
-    newConnection = AddConnection( 0, portNumber, 
-                                   ( host != NULL ) ? host : "0.0.0.0",
-                                   ( ( host == NULL ) ? SERVER : CLIENT ) | protocol );
+  newConnection = AddConnection( 0, portNumber, 
+                                 ( host != NULL ) ? host : "0.0.0.0",
+                                 ( ( host == NULL ) ? SERVER : CLIENT ) | protocol );
   
   CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, AsyncConnect, newConnection, &(newConnection->callbackThreadID) );
   
@@ -599,6 +599,8 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
   static unsigned int clientPort;
   static char clientHost[ IP_HOST_LENGTH ];
   
+  static unsigned long execTime;
+  
   DEBUG_UPDATE( "called for connection handle %u on thread %x", channel, CmtGetCurrentThreadID() );
   
   if( eventType == UDP_DATAREADY )
@@ -628,6 +630,11 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
         }
       
         DEBUG_EVENT( 0, "client with handle %u accepted !", client->handle );
+      }
+      else
+      {
+        DEBUG_PRINT( "elapsed time: %u", Timing_GetExecTimeMilliseconds() - execTime );
+        execTime = Timing_GetExecTimeMilliseconds();
       }
       
       if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
