@@ -169,7 +169,7 @@ double EMGAxisControl_GetTorque( unsigned int axisID )
   
   if( control == NULL ) return 0.0;
   
-  double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
+  double* motorMeasuresList = AxisControl_GetMeasures( axisID );
   
   if( motorMeasuresList == NULL ) return 0.0;
   
@@ -194,11 +194,11 @@ double EMGAxisControl_GetStiffness( unsigned int axisID )
   
   if( control == NULL ) return 0.0;
   
-  double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
+  double* motorMeasuresList = AxisControl_GetMeasures( axisID );
   
   if( motorMeasuresList == NULL ) return 0.0;
   
-  double jointAngle = -motorMeasuresList[ AXIS_POSITION ] * 180.0 / PI;
+  double jointAngle = motorMeasuresList[ AXIS_POSITION ] * 180.0 / PI;
   
   for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
   {
@@ -225,13 +225,11 @@ double* EMGAxisControl_ApplyGains( unsigned int axisID, double maxGain )
   double* motorParametersList = AxisControl_GetParameters( axisID );
   
   jointMeasuresList[ JOINT_TORQUE ] = EMGAxisControl_GetTorque( axisID );
-  
   jointMeasuresList[ JOINT_STIFFNESS ] = EMGAxisControl_GetStiffness( axisID );
-  if( jointMeasuresList[ JOINT_STIFFNESS ] > maxGain ) jointMeasuresList[ JOINT_STIFFNESS ] = maxGain;
   
   controlParametersList[ CONTROL_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
   controlParametersList[ PROPORTIONAL_GAIN ] = forgettingFactor * motorParametersList[ PROPORTIONAL_GAIN ] 
-                                               + ( 1 - forgettingFactor ) * ( maxGain - jointMeasuresList[ JOINT_STIFFNESS ] );
+                                               + ( 1 - forgettingFactor ) * ( ( jointMeasuresList[ JOINT_STIFFNESS ] < maxGain ) ? maxGain - jointMeasuresList[ JOINT_STIFFNESS ] : 0.0 );
       
   AxisControl_SetParameters( axisID, controlParametersList );
   

@@ -33,7 +33,7 @@ static NetworkAxis* networkAxesList;
 
 static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
 
-enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_STIFFNESS, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
+enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
 
 static CNVData data = 0;
 
@@ -242,12 +242,12 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
     while( *command != '\0' )
     {
       setpointsList[ setpointsCount ] = strtod( command, &command );
-      //setpointsList[ setpointsCount ] = networkSetpoint; // Gamb
+      setpointsList[ setpointsCount ] = networkSetpoint; // Gamb
       setpointsCount++;
     }
     AxisControl_EnqueueSetpoints( axisID, setpointsList, setpointsCount );
     
-    double* motorMeasuresList = AxisControl_GetSensorMeasures( axisID );
+    double* motorMeasuresList = AxisControl_GetMeasures( axisID );
     if( motorMeasuresList != NULL )
     {
       double* motorParametersList = AxisControl_GetParameters( axisID );
@@ -265,17 +265,18 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
       static double dataArray[ DISPLAY_VALUES_NUMBER * NUM_POINTS ];
       static size_t arrayDims = DISPLAY_VALUES_NUMBER * NUM_POINTS;
 
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = motorMeasuresList[ AXIS_POSITION ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = motorMeasuresList[ AXIS_VELOCITY ];
+      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = -motorMeasuresList[ CONTROL_POSITION ];
+      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = motorMeasuresList[ CONTROL_VELOCITY ];
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = motorParametersList[ PROPORTIONAL_GAIN ];
+      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = motorMeasuresList[ CONTROL_TORQUE ];
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = jointMeasuresList[ JOINT_TORQUE ];
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = jointMeasuresList[ JOINT_STIFFNESS ];
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_AGONIST ] = EMGProcessing_GetMuscleActivation( 0 );
       dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ] = EMGProcessing_GetMuscleActivation( 1 );
       
-      //DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_TORQUE ],
+      //DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_CURRENT ],
       //                                                                              dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_TENSION ], motorParametersList[ PROPORTIONAL_GAIN ] );
       
       valuesCount++;

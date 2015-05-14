@@ -60,7 +60,7 @@ void CVICALLBACK DataCallback( void*, CNVData, void* );
 
 int axisLogID;
 
-enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_STIFFNESS, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
+enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
 
 enum { AGONIST, ANTAGONIST };
 int muscleGroup = AGONIST;
@@ -94,7 +94,7 @@ int main( int argc, char *argv[] )
   
   dataConnectionThreadID = Thread_Start( UpdateData, NULL, JOINABLE );
 	
-  axisLogID = DataLogging_CreateLog( NULL, "axis", 5 );
+  axisLogID = DataLogging_CreateLog( NULL, "axis", DISPLAY_VALUES_NUMBER );
   
 	if( (panel = LoadPanel( 0, "NetworkVariable.uir", PANEL )) < 0 )
 		return -1;
@@ -282,14 +282,13 @@ int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int even
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
 	static double dataArray[ DISPLAY_VALUES_NUMBER * NUM_POINTS ];
-  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ]; 
+  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ];
+  static double robotTorqueValues[ NUM_POINTS ], patientTorqueValues[ NUM_POINTS ];
   static double robotStiffnessValues[ NUM_POINTS ], patientStiffnessValues[ NUM_POINTS ], maxStiffnessValues[ NUM_POINTS ];
-  static double emgAgonistValues[ NUM_POINTS ], emgAntagonistValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ];
+  static double emgAgonistValues[ NUM_POINTS ], emgAntagonistValues[ NUM_POINTS ]; 
 	
 	// Get the published data.
 	CNVGetArrayDataValue( data, CNVDouble, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
-  
-  DataLogging_SaveData( axisLogID, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
   
   for( size_t pointIndex = 0; pointIndex < NUM_POINTS; pointIndex++ )
   {
@@ -299,10 +298,14 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     robotStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ];
     maxStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ];
     patientStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ];
-    torqueValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ];
+    robotTorqueValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ];
+    patientTorqueValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ];
     emgAgonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_AGONIST ];
     emgAntagonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ];
   }
+  
+  if( emgAgonistValues[ NUM_POINTS - 1 ] > 0.0 && emgAntagonistValues[ NUM_POINTS - 1 ] > 0.0 )
+    DataLogging_SaveData( axisLogID, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
   
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
@@ -313,7 +316,8 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   
   DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
   PlotY( panel, PANEL_GRAPH_2, maxStiffnessValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_MAGENTA );
-  PlotY( panel, PANEL_GRAPH_2, torqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+  PlotY( panel, PANEL_GRAPH_2, robotTorqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
+  PlotY( panel, PANEL_GRAPH_2, patientTorqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
   PlotY( panel, PANEL_GRAPH_2, robotStiffnessValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
   PlotY( panel, PANEL_GRAPH_2, patientStiffnessValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
 		

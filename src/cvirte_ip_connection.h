@@ -633,7 +633,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
       }
       else
       {
-        DEBUG_PRINT( "elapsed time: %u", Timing_GetExecTimeMilliseconds() - execTime );
+        //DEBUG_PRINT( "elapsed time: %u", Timing_GetExecTimeMilliseconds() - execTime );
         execTime = Timing_GetExecTimeMilliseconds();
       }
       

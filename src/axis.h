@@ -43,7 +43,7 @@ enum Control { SWITCH_ON, ENABLE_VOLTAGE, QUICK_STOP, ENABLE_OPERATION,
                NEW_SETPOINT, CHANGE_IMMEDIATEDLY, ABS_REL, FAULT_RESET, HALT, AXIS_CONTROLS_NUMBER };
 static const uint16_t controlValues[ AXIS_CONTROLS_NUMBER ] = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
 
-enum Dimension { AXIS_POSITION, AXIS_VELOCITY, AXIS_TORQUE, AXIS_TENSION, AXIS_DIMS_NUMBER }; 
+enum Dimension { AXIS_POSITION, AXIS_VELOCITY, AXIS_CURRENT, AXIS_TENSION, AXIS_DIMS_NUMBER }; 
 
 enum Setpoint { MOTOR_POSITION_SETPOINT, MOTOR_VELOCITY_SETPOINT, MOTOR_SETPTS_NUMBER }; 
 
@@ -56,7 +56,7 @@ typedef struct _MotorDrive
   CANFrame* writeFramesList[ AXIS_FRAME_TYPES_NUMBER ];
   double measuresList[ AXIS_DIMS_NUMBER ];
   unsigned int encoderResolution;
-  double currentToTorqueRatio;
+  double gearReduction;
   uint16_t statusWord, controlWord;
   uint16_t digitalOutput;
 }
@@ -65,6 +65,7 @@ MotorDrive;
 typedef struct _Motor
 {
   MotorDrive* controller;
+  double currentToTorqueRatio;
   double setpointsList[ MOTOR_SETPTS_NUMBER ];
   bool active;
 }
@@ -77,7 +78,7 @@ void Motor_Disable( Motor* );
 void Motor_Disconnect( Motor* );
 void MotorDrive_Disconnect( MotorDrive* );
 extern inline void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
-extern inline void MotorDrive_SetTorqueConstant( MotorDrive*, double );
+extern inline void MotorDrive_SetGearReduction( MotorDrive*, double );
 double MotorDrive_GetMeasure( MotorDrive*, enum Dimension );
 double Motor_GetSetpoint( Motor*, enum Setpoint );
 void Motor_SetSetpoint( Motor*, enum Setpoint, double );
@@ -105,6 +106,8 @@ Motor* Motor_Connect( unsigned int networkIndex )
   for( int i = 0; i < MOTOR_SETPTS_NUMBER; i++ )
     motor->setpointsList[ i ] = 0.0;
   
+  motor->currentToTorqueRatio = 0.0;
+  
   if( (motor->controller = MotorDrive_Connect( networkIndex )) == NULL )
   {
     Motor_Disconnect( motor );
@@ -131,7 +134,7 @@ MotorDrive* MotorDrive_Connect( unsigned int networkIndex )
     controller->measuresList[ i ] = 10.0;
   
   controller->encoderResolution = 1;
-  controller->currentToTorqueRatio = 0.0;
+  controller->gearReduction = 1.0;
   
   controller->statusWord = controller->controlWord = 0;
   
@@ -197,10 +200,10 @@ extern inline void MotorDrive_SetEncoderResolution( MotorDrive* controller, unsi
     controller->encoderResolution = resolution;
 }
 
-extern inline void MotorDrive_SetTorqueConstant( MotorDrive* controller, double currentToTorqueRatio )
+extern inline void MotorDrive_SetGearReduction( MotorDrive* controller, double gearReduction )
 {
-  if( currentToTorqueRatio >= 0.0 )
-    controller->currentToTorqueRatio = currentToTorqueRatio;
+  if( gearReduction != 0.0 )
+    controller->gearReduction = gearReduction;
 }
 
 void Motor_Enable( Motor* motor )
@@ -315,10 +318,10 @@ void MotorDrive_ReadValues( MotorDrive* controller )
   CANFrame_Read( controller->readFramesList[ PDO01 ], payload );  
   // Update values from PDO01
   double rawPosition = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
-  controller->measuresList[ AXIS_POSITION ] = ( rawPosition / controller->encoderResolution ) * ( 2 * PI );
+  controller->measuresList[ AXIS_POSITION ] = rawPosition / ( controller->encoderResolution * controller->gearReduction );
   
-  double current = payload[5] * 0x100 + payload[4];
-  controller->measuresList[ AXIS_TORQUE ] = current * controller->currentToTorqueRatio;
+  //int rawCurrent = payload[5] * 0x100 + payload[4];
+  controller->measuresList[ AXIS_CURRENT ] = ( (double) payload[4] ) / 1000.0;
   
   controller->statusWord = payload[7] * 0x100 + payload[6];
 
@@ -334,7 +337,7 @@ void Motor_WriteConfig( Motor* motor )
   // Create writing buffer
   static uint8_t payload[8];
 
-  int rawPositionSetpoint = (int) ( ( motor->setpointsList[ MOTOR_POSITION_SETPOINT ] / ( 2 * PI ) ) * motor->controller->encoderResolution );
+  int rawPositionSetpoint = (int) ( motor->setpointsList[ MOTOR_POSITION_SETPOINT ] * motor->controller->encoderResolution * motor->controller->gearReduction );
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[0] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );

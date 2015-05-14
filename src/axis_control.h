@@ -17,6 +17,7 @@
 const char* CAN_DATABASE = "database";
 const char* CAN_CLUSTER = "NETCAN";
 
+enum ControlMeasure { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_TORQUE, CONTROL_MEASURES_NUMBER };
 enum ControlParameter { CONTROL_SETPOINT, PROPORTIONAL_GAIN, DERIVATIVE_GAIN, INTEGRAL_GAIN, CONTROL_PARAMS_NUMBER };
 
 typedef struct _AxisControlFunction AxisControlFunction;
@@ -28,7 +29,9 @@ typedef struct _AxisControl
   MotorDrive* sensor;                                  // Passive (extra measurement) axis
   AxisControlFunction* controlFunction;                // Control method definition structure
   Thread_Handle controlThread;                         // Processing thread handle
+  double measuresList[ CONTROL_MEASURES_NUMBER ];      // List of control parameters (gains and reference)
   double parametersList[ CONTROL_PARAMS_NUMBER ];      // List of control parameters (gains and reference)
+  double baseStiffness, baseDamping;                   // Minimal stiffness and damping of the actuator
   DataQueue* setpointsQueue;                           // Thread safe external control values (double format)
   bool isRunning;                                      // Is control thread running ?
 }
@@ -88,6 +91,7 @@ static void LoadAxisControlsConfig()
         
         newAxisControl->actuator = NULL;
         newAxisControl->sensor = NULL;
+        newAxisControl->baseStiffness = newAxisControl->baseDamping = 0.0;
         newAxisControl->controlFunction = NULL;
         newAxisControl->controlThread = -1;
       }
@@ -97,24 +101,35 @@ static void LoadAxisControlsConfig()
       if( strcmp( readBuffer, "motor:" ) == 0 )
       {
         unsigned int nodeID, encoderResolution;
-        double currentToTorqueRatio;
-        fscanf( configFile, "%u %u %lf", &nodeID, &encoderResolution, &currentToTorqueRatio );
+        double gearReduction;
+        fscanf( configFile, "%u %u %lf", &nodeID, &encoderResolution, &gearReduction );
         
-        DEBUG_EVENT( 1, "found %s motor on node ID %u with encoder resolution %u and torque constant %g", newAxisControl->name, nodeID, encoderResolution, currentToTorqueRatio );
+        DEBUG_PRINT( "found %s motor on node ID %u with encoder resolution %u and gear reduction %g", newAxisControl->name, nodeID, encoderResolution, gearReduction );
         
         newAxisControl->actuator = Motor_Connect( nodeID );
         MotorDrive_SetEncoderResolution( newAxisControl->actuator->controller, encoderResolution );
-        MotorDrive_SetTorqueConstant( newAxisControl->actuator->controller, currentToTorqueRatio );
+        MotorDrive_SetGearReduction( newAxisControl->actuator->controller, gearReduction );
       }
       else if( strcmp( readBuffer, "encoder:" ) == 0 )
       {
-        unsigned int nodeID, resolution;
-        fscanf( configFile, "%u %u", &nodeID, &resolution );
+        unsigned int nodeID, encoderResolution;
+        double gearReduction;
+        fscanf( configFile, "%u %u %lf", &nodeID, &encoderResolution, &gearReduction );
         
-        DEBUG_EVENT( 2, "found %s sensor on node ID %u with resolution %u", newAxisControl->name, nodeID, resolution );
+        DEBUG_PRINT( "found %s sensor on node ID %u with encoder resolution %u and gear reduction %g", newAxisControl->name, nodeID, encoderResolution, gearReduction );
         
         newAxisControl->sensor = MotorDrive_Connect( nodeID );
-        MotorDrive_SetEncoderResolution( newAxisControl->sensor, resolution ); 
+        MotorDrive_SetEncoderResolution( newAxisControl->sensor, encoderResolution );
+        MotorDrive_SetGearReduction( newAxisControl->sensor, gearReduction );
+      }
+      else if( strcmp( readBuffer, "base_impedance:" ) == 0 )
+      {
+        fscanf( configFile, "%lf %lf", &(newAxisControl->baseStiffness), &(newAxisControl->baseDamping) );
+        
+        DEBUG_EVENT( 4, "found %s base impedance values: ( k: %g - b: %g )", newAxisControl->name, newAxisControl->baseStiffness, newAxisControl->baseDamping );
+        
+        if( newAxisControl->baseStiffness < 0.0 ) newAxisControl->baseStiffness = 0.0;
+        if( newAxisControl->baseDamping < 0.0 ) newAxisControl->baseDamping = 0.0;
       }
       else if( strcmp( readBuffer, "function:" ) == 0 )
       {
@@ -278,7 +293,7 @@ extern inline int AxisControl_SetParameters( size_t axisID, double parametersLis
   if( axisControlsList[ axisID ].actuator == NULL ) return 0;
   
   for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
-    axisControlsList[ axisID ].parametersList[ parameterIndex ] = parametersList[ parameterIndex ];
+    axisControlsList[ axisID ].parametersList[ parameterIndex ] = ( parametersList[ parameterIndex ] > 0.0 ) ? parametersList[ parameterIndex ] : 0.0;
   
   return (int) CONTROL_PARAMS_NUMBER;
 }
@@ -311,18 +326,11 @@ extern inline bool* AxisControl_GetMotorStatus( size_t axisID )
   return (bool*) statesList;
 }
 
-extern inline double* AxisControl_GetSensorMeasures( size_t axisID )
+extern inline double* AxisControl_GetMeasures( size_t axisID )
 {
-  static double measuresList[ AXIS_DIMS_NUMBER ];
-  
   if( (int) axisID < 0 || axisID >= axesNumber ) return NULL;
-  
-  if( axisControlsList[ axisID ].actuator == NULL ) return NULL;
-  
-  for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
-    measuresList[ dimensionIndex ] = MotorDrive_GetMeasure( axisControlsList[ axisID ].sensor, dimensionIndex );
-  
-  return (double*) measuresList;
+
+  return (double*) axisControlsList[ axisID ].measuresList;
 }
 
 extern inline const char* AxisControl_GetAxisName( size_t axisID )
@@ -358,8 +366,6 @@ static void* AsyncControl( void* args )
     unsigned long execTime, elapsedTime;
   
     axisControl->isRunning = true;
-    
-    //int axisLogID = DataLogging_CreateLog( axisControl->name, 4 );
   
     DEBUG_EVENT( 0, "starting to run control for Axis %s", axisControl->name );
   
@@ -371,6 +377,12 @@ static void* AsyncControl( void* args )
 
       MotorDrive_ReadValues( axisControl->sensor );
       if( axisControl->actuator->controller != axisControl->sensor ) MotorDrive_ReadValues( axisControl->actuator->controller );
+      
+      axisControl->measuresList[ CONTROL_POSITION ] = MotorDrive_GetMeasure( axisControl->sensor, AXIS_POSITION ) * ( 2 * PI );
+      axisControl->measuresList[ CONTROL_VELOCITY ] = MotorDrive_GetMeasure( axisControl->sensor, AXIS_VELOCITY );
+      
+      double actuatorPosition = MotorDrive_GetMeasure( axisControl->actuator->controller, AXIS_POSITION ) * ( 2 * PI );
+      axisControl->measuresList[ CONTROL_TORQUE ] = axisControl->baseStiffness * ( actuatorPosition - axisControl->measuresList[ CONTROL_POSITION ] );;
     
       static double setpointValue;
       if( DataQueue_Pop( axisControl->setpointsQueue, (void*) &setpointValue, QUEUE_READ_NOWAIT ) > 0 )
@@ -380,11 +392,6 @@ static void* AsyncControl( void* args )
       if( axisControl->actuator->active ) axisControl->controlFunction->ref_Run( axisControl );
 
       Motor_WriteConfig( axisControl->actuator );
-    
-      /*DataLogging_Register( axisLogID, MotorDrive_GetMeasure( axisControl->actuator->controller, AXIS_POSITION ), 
-                                       MotorDrive_GetMeasure( axisControl->actuator->controller, AXIS_VELOCITY ),
-                                       ( axisControl->sensor != NULL ) ? MotorDrive_GetMeasure( axisControl->sensor, AXIS_POSITION ) : 0.0, 
-                                       ( axisControl->sensor != NULL ) ? MotorDrive_GetMeasure( axisControl->sensor, AXIS_VELOCITY ) : 0.0 );*/
       
       elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
       DEBUG_UPDATE( "control pass for Axis %s (before delay): elapsed time: %u ms", axisControl->name, elapsedTime );
@@ -393,8 +400,6 @@ static void* AsyncControl( void* args )
 
       DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u ms", axisControl->name, Timing_GetExecTimeMilliseconds() - execTime );
     }
-    
-    //DataLogging_CloseLog( axisLogID );
   }
   
   Thread_Exit( 0 );
@@ -460,12 +465,11 @@ static void ControlHips( AxisControl* hipsControl )
 
   double actuatorForce = -HIPS_FORCE_SENSOR_STIFFNESS * ( sensorPosition_0 - sensorPosition ); // N
 
-  Motor_SetSetpoint( hipsControl->actuator, MOTOR_POSITION_SETPOINT, hipsControl->parametersList[ CONTROL_SETPOINT ] );
-  angPositionInSetpoint = Motor_GetSetpoint( hipsControl->actuator, MOTOR_POSITION_SETPOINT );
-  printf( "Angle setpoint: %g\n", angPositionInSetpoint );
+  Motor_SetSetpoint( hipsControl->actuator, MOTOR_POSITION_SETPOINT, hipsControl->parametersList[ CONTROL_SETPOINT ] / ( 2 * PI ) );
+  angPositionInSetpoint = Motor_GetSetpoint( hipsControl->actuator, MOTOR_POSITION_SETPOINT ) * ( 2 * PI );
 
   // Relation between axis rotation and effector linear displacement
-  double actuatorEncoderPosition = MotorDrive_GetMeasure( hipsControl->sensor, AXIS_POSITION );
+  double actuatorEncoderPosition = MotorDrive_GetMeasure( hipsControl->sensor, AXIS_POSITION ) * ( 2 * PI );
   double effectorDeltaLength = actuatorEncoderPosition * HIPS_ACTUATOR_STEP + ( sensorPosition_0 - sensorPosition ) / 1000; // m
 
   double effectorLength = HIPS_EFFECTOR_BASE_LENGTH + effectorDeltaLength; // m
@@ -531,61 +535,46 @@ const double d3 = 0.0015;
 
 static void ControlKnee( AxisControl* kneeControl )
 {
-  static double angPositionOut[2];
-  
-  static double angVelocityOut[3];
-  static double angVelOutFiltered[3];
-  static double torque[3];
-  static double torqueFiltered[3];
+  static double angPosition, angPositionSetpoint;
+  static double angVelocity[3], angVelocityFiltered[3], angVelocitySetpoint[3];
+  static double torque[3], torqueFiltered[3];
   static double error[3];
 
-  static double angPositionIn, angPosInReduced, angPositionOutSetpoint;
-  
-  static double angVelocityInSetpoint[3];
-  
-  angPositionIn = ( MotorDrive_GetMeasure( kneeControl->actuator->controller, AXIS_POSITION ) );
-  angPosInReduced = angPositionIn / KNEE_JOINT_REDUCTION;
-
-  Motor_SetSetpoint( kneeControl->actuator, MOTOR_POSITION_SETPOINT, kneeControl->parametersList[ CONTROL_SETPOINT ] );
-  angPositionOutSetpoint = -Motor_GetSetpoint( kneeControl->actuator, MOTOR_POSITION_SETPOINT );
+  angPositionSetpoint = -kneeControl->parametersList[ CONTROL_SETPOINT ];
   
   // Impedance Control Vitual Stiffness
-  if( kneeControl->parametersList[ PROPORTIONAL_GAIN ] < 0.0 ) kneeControl->parametersList[ PROPORTIONAL_GAIN ] = 0.0;
-  else if( kneeControl->parametersList[ PROPORTIONAL_GAIN ] > KNEE_BASE_STIFFNESS ) kneeControl->parametersList[ PROPORTIONAL_GAIN ] = KNEE_BASE_STIFFNESS;
+  if( kneeControl->parametersList[ PROPORTIONAL_GAIN ] > kneeControl->baseStiffness ) kneeControl->parametersList[ PROPORTIONAL_GAIN ] = kneeControl->baseStiffness;
   double Kv = kneeControl->parametersList[ PROPORTIONAL_GAIN ];
   // Impedance Control Virtual Damping
-  if( kneeControl->parametersList[ DERIVATIVE_GAIN ] < 0.0 ) kneeControl->parametersList[ DERIVATIVE_GAIN ] = 0.0;
   double Bv = kneeControl->parametersList[ DERIVATIVE_GAIN ];
 
-  angPositionOut[0] = -MotorDrive_GetMeasure( kneeControl->sensor, AXIS_POSITION );
+  angVelocity[0] = ( kneeControl->measuresList[ CONTROL_POSITION ] - angPosition ) / CONTROL_SAMPLING_INTERVAL;
+  angPosition = kneeControl->measuresList[ CONTROL_POSITION ];
 
-  angVelocityOut[0] = ( angPositionOut[0] - angPositionOut[1] ) / CONTROL_SAMPLING_INTERVAL;
-  angPositionOut[1] = angPositionOut[0];
+  angVelocityFiltered[0] = -c2 * angVelocityFiltered[1] - c3 * angVelocityFiltered[2] + d1 * angVelocity[0] + d2 * angVelocity[1] + d3 * angVelocity[2];
 
-  angVelOutFiltered[0] = -c2 * angVelOutFiltered[1] - c3 * angVelOutFiltered[2] + d1 * angVelocityOut[0] + d2 * angVelocityOut[1] + d3 * angVelocityOut[2];
+  double torqueSetpoint = -Kv * ( angPosition - angPositionSetpoint ) - Bv * angVelocityFiltered[0];
 
-  double torqueSetpoint = -Kv * ( angPositionOut[0] - angPositionOutSetpoint ) - Bv * ( angVelOutFiltered[0] /*- angVelocityInSetpoint[0]*/ );
-
-  torque[0] = KNEE_BASE_STIFFNESS * ( angPosInReduced - angPositionOut[0] );
+  torque[0] = kneeControl->measuresList[ CONTROL_TORQUE ];
 
   torqueFiltered[0] = -a2 * torqueFiltered[1] - a3 * torqueFiltered[2] + b1 * torque[0] + b2 * torque[1] + b3 * torque[2];
 
-  error[0] = ( torqueSetpoint - torqueFiltered[0] );
+  error[0] = torqueSetpoint - torqueFiltered[0];
 
-  angVelocityInSetpoint[0] += 408.0 * ( error[0] - error[1] ) + 1.95 * CONTROL_SAMPLING_INTERVAL * error[0];
+  angVelocitySetpoint[0] += 408.0 * ( error[0] - error[1] ) + 1.95 * CONTROL_SAMPLING_INTERVAL * error[0];
   
   //angVelocityInSetpoint[0] = 0.9884 * angVelocityInSetpoint[1] + 0.007935 * angVelocityInSetpoint[2] + 357.1 * error[1] - 355.8 * error[2]; //5ms
   
   for( int i = 2; i > 0; i-- )
   {
     error[ i ] = error[ i - 1 ];
-    angVelocityOut[ i ] = angVelocityOut[ i - 1 ];
-    angVelOutFiltered[ i ] = angVelOutFiltered[ i - 1 ];
+    angVelocity[ i ] = angVelocity[ i - 1 ];
+    angVelocityFiltered[ i ] = angVelocityFiltered[ i - 1 ];
     torqueFiltered[ i ] = torqueFiltered[ i - 1 ];
-    angVelocityInSetpoint[ i ] = angVelocityInSetpoint[ i - 1 ];
+    angVelocitySetpoint[ i ] = angVelocitySetpoint[ i - 1 ];
   }
   
-  Motor_SetSetpoint( kneeControl->actuator, MOTOR_VELOCITY_SETPOINT, angVelocityInSetpoint[0] );
+  Motor_SetSetpoint( kneeControl->actuator, MOTOR_VELOCITY_SETPOINT, angVelocitySetpoint[0] );
 }
 
 /////////////////////////////////////////////////////////////////////////////////
