@@ -169,7 +169,7 @@ double EMGAxisControl_GetTorque( unsigned int axisID )
   
   if( control == NULL ) return 0.0;
   
-  double* motorMeasuresList = AxisControl_GetMeasures( axisID );
+  double* motorMeasuresList = AxisControl_GetMeasuresList( axisID );
   
   if( motorMeasuresList == NULL ) return 0.0;
   
@@ -194,7 +194,7 @@ double EMGAxisControl_GetStiffness( unsigned int axisID )
   
   if( control == NULL ) return 0.0;
   
-  double* motorMeasuresList = AxisControl_GetMeasures( axisID );
+  double* motorMeasuresList = AxisControl_GetMeasuresList( axisID );
   
   if( motorMeasuresList == NULL ) return 0.0;
   
@@ -217,21 +217,21 @@ double EMGAxisControl_GetStiffness( unsigned int axisID )
 
 double* EMGAxisControl_ApplyGains( unsigned int axisID, double maxGain )
 {
-  const double forgettingFactor = 0.9;
+  //const double forgettingFactor = 0.9;
   
-  static double controlParametersList[ CONTROL_PARAMS_NUMBER ];
+  //static double controlParametersList[ CONTROL_PARAMS_NUMBER ];
   static double jointMeasuresList[ JOINT_MEASURES_NUMBER ];
   
-  double* motorParametersList = AxisControl_GetParameters( axisID );
+  //double* motorParametersList = AxisControl_GetParametersList( axisID );
   
   jointMeasuresList[ JOINT_TORQUE ] = EMGAxisControl_GetTorque( axisID );
   jointMeasuresList[ JOINT_STIFFNESS ] = EMGAxisControl_GetStiffness( axisID );
   
-  controlParametersList[ CONTROL_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
-  controlParametersList[ PROPORTIONAL_GAIN ] = forgettingFactor * motorParametersList[ PROPORTIONAL_GAIN ] 
-                                               + ( 1 - forgettingFactor ) * ( ( jointMeasuresList[ JOINT_STIFFNESS ] < maxGain ) ? maxGain - jointMeasuresList[ JOINT_STIFFNESS ] : 0.0 );
+  //controlParametersList[ CONTROL_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
+  //controlParametersList[ CONTROL_STIFFNESS ] = forgettingFactor * motorParametersList[ CONTROL_STIFFNESS ] 
+  //                                             + ( 1 - forgettingFactor ) * ( ( jointMeasuresList[ JOINT_STIFFNESS ] < maxGain ) ? maxGain - jointMeasuresList[ JOINT_STIFFNESS ] : 0.0 );
       
-  AxisControl_SetParameters( axisID, controlParametersList );
+  //AxisControl_SetParameters( axisID, controlParametersList );
   
   return jointMeasuresList;
 }

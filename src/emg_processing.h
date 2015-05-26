@@ -328,10 +328,10 @@ void EMGProcessing_ChangePhase( int muscleID, int newProcessingPhase )
   {
     if( emgData->preparationPassesCount > 0 )
     {
-      DEBUG_PRINT( "new %s value: %g / %u = %g", ( emgData->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
-                                                    emgData->processingResultsList[ emgData->processingPhase ],
-                                                    emgData->preparationPassesCount, 
-                                                    emgData->processingResultsList[ emgData->processingPhase ] / emgData->preparationPassesCount );
+      //DEBUG_PRINT( "new %s value: %g / %u = %g", ( emgData->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
+      //                                              emgData->processingResultsList[ emgData->processingPhase ],
+      //                                              emgData->preparationPassesCount, 
+      //                                              emgData->processingResultsList[ emgData->processingPhase ] / emgData->preparationPassesCount );
 
       emgData->processingResultsList[ emgData->processingPhase ] /= emgData->preparationPassesCount;
     }

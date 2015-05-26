@@ -11,6 +11,8 @@
   #include "async_ip_connection.h"
 #endif
 
+#include "network_axis.h"
+
 #include "emg_axis_control.h"
 
 #include "async_debug.h"
@@ -23,9 +25,9 @@ static ListType dataClientsList;
 
 typedef struct _NetworkAxis
 {
-  unsigned int axisID;
   int infoClient;
   int dataClient;
+  TrajectoryPlanner* trajectoryPlanner;
 } 
 NetworkAxis;
 
@@ -33,12 +35,12 @@ static NetworkAxis* networkAxesList;
 
 static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
 
-enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
+enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
 
 static CNVData data = 0;
 
-static double maxStiffness, networkSetpoint;
-static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber, gMotorToggleSubscriber, gMaxStiffnessSubscriber, gSetpointSubscriber;
+static double maxStiffness;
+static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber, gMotorToggleSubscriber, gMaxStiffnessSubscriber;
 void CVICALLBACK ChangeStateDataCallback( void*, CNVData, void* );
 void CVICALLBACK ChangeValueDataCallback( void*, CNVData, void* );
 
@@ -70,6 +72,7 @@ int RobRehabNetwork_Init()
       snprintf( axesInfoString, IP_CONNECTION_MSG_LEN, "%s%u:%s:", axesInfoString, axisID, AxisControl_GetAxisName( axisID ) );
     
     networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = 0;
+    networkAxesList[ axisID ].trajectoryPlanner = TrajectoryPlanner_Init();
   }
   
   if( strlen( axesInfoString ) > 0 )
@@ -91,8 +94,6 @@ int RobRehabNetwork_Init()
   
   status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" STIFFNESS_VARIABLE, ChangeValueDataCallback, 0, 0, 10000, 0, &gMaxStiffnessSubscriber );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-	status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" SETPOINT_VARIABLE, ChangeValueDataCallback, 0, 0, 10000, 0, &gSetpointSubscriber );
-	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
   
@@ -109,11 +110,16 @@ void RobRehabNetwork_End()
   ListDispose( infoClientsList );
   ListDispose( dataClientsList );
   
+  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
+    TrajectoryPlanner_End( networkAxesList[ axisID ].trajectoryPlanner );
+  free( networkAxesList );
+  
   if( data ) CNVDisposeData( data );
   if( gMaxToggleSubscriber ) CNVDispose( gMaxToggleSubscriber );
 	if( gMinToggleSubscriber ) CNVDispose( gMinToggleSubscriber );
   if( gWavePublisher ) CNVDispose( gWavePublisher );
   if( gMotorToggleSubscriber ) CNVDispose( gMotorToggleSubscriber );
+  if( gMaxStiffnessSubscriber ) CNVDispose( gMaxStiffnessSubscriber );
 	CNVFinish();
   
   EMGAxisControl_End();
@@ -145,14 +151,53 @@ void RobRehabNetwork_Update()
   if( (newDataClient = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
   
-  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
-    networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = 0;
-  
   ProcessAxisCommandFunction ref_ProcessAxisCommand;
   ref_ProcessAxisCommand = ProcessAxisControlState;
   ListApplyToEach( infoClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
   ref_ProcessAxisCommand = ProcessAxisControlData;
   ListApplyToEach( dataClientsList, 1, UpdateAxisControl, &ref_ProcessAxisCommand );
+  
+  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
+  {
+    networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = 0;
+    
+    double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
+
+    double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ axisID ].trajectoryPlanner );
+    
+    //DEBUG_PRINT( "next setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
+    
+    AxisControl_SetSetpoint( axisID, targetList[ TRAJECTORY_POSITION ] );
+
+    //Gamb
+    static size_t valuesCount;
+    static double dataArray[ DISPLAY_VALUES_NUMBER * NUM_POINTS ];
+    static size_t arrayDims = DISPLAY_VALUES_NUMBER * NUM_POINTS;
+
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = targetList[ TRAJECTORY_TIME ];//controlMeasuresList[ CONTROL_VELOCITY ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = targetList[ TRAJECTORY_POSITION ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = AxisControl_GetError( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlMeasuresList[ CONTROL_STIFFNESS ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_TORQUE ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = EMGAxisControl_GetTorque( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = EMGAxisControl_GetStiffness( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_AGONIST ] = EMGProcessing_GetMuscleActivation( 0 );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ] = EMGProcessing_GetMuscleActivation( 1 );
+
+    //DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_CURRENT ],
+    //                                                                              dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_TENSION ], motorParametersList[ CONTROL_STIFFNESS ] );
+
+    valuesCount++;
+
+    if( valuesCount >= NUM_POINTS )
+    {
+      CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dataArray, 1, &arrayDims );
+      CNVPutDataInBuffer( gWavePublisher, data, 1000 );
+      valuesCount = 0;
+    }
+  }
 }
 
 
@@ -226,12 +271,10 @@ static char* ProcessAxisControlState( int clientID, unsigned int axisID, const c
 static char* ProcessAxisControlData( int clientID, unsigned int axisID, const char* command )
 {
   const size_t VALUE_MAX_LEN = 10;
-  const size_t SETPOINTS_MAX_NUMBER = IP_CONNECTION_MSG_LEN / VALUE_MAX_LEN;
-  const size_t CONTROL_VALUES_NUMBER = AXIS_DIMS_NUMBER + CONTROL_PARAMS_NUMBER;
   
-  static char readout[ VALUE_MAX_LEN * CONTROL_VALUES_NUMBER + 1 ];
+  static char readout[ VALUE_MAX_LEN * CONTROL_DIMS_NUMBER + 1 ];
   
-  static double setpointsList[ SETPOINTS_MAX_NUMBER ];
+  static double setpointsList[ TRAJECTORY_VALUES_NUMBER ];
   static size_t setpointsCount;
   
   if( networkAxesList[ axisID ].dataClient == 0 )
@@ -239,54 +282,23 @@ static char* ProcessAxisControlData( int clientID, unsigned int axisID, const ch
     networkAxesList[ axisID ].dataClient = clientID;
     
     setpointsCount = 0;
-    while( *command != '\0' )
+    while( *command != '\0' && setpointsCount < TRAJECTORY_VALUES_NUMBER )
     {
       setpointsList[ setpointsCount ] = strtod( command, &command );
-      setpointsList[ setpointsCount ] = networkSetpoint; // Gamb
       setpointsCount++;
     }
-    AxisControl_EnqueueSetpoints( axisID, setpointsList, setpointsCount );
-    
-    double* motorMeasuresList = AxisControl_GetMeasures( axisID );
-    if( motorMeasuresList != NULL )
+
+    TrajectoryPlanner_SetCurve( networkAxesList[ axisID ].trajectoryPlanner, setpointsList );
+
+    double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
+    if( controlMeasuresList != NULL )
     {
-      double* motorParametersList = AxisControl_GetParameters( axisID );
-      double* jointMeasuresList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
+      //double* jointMeasuresList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
       
       strcpy( readout, "" );
-      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMS_NUMBER; dimensionIndex++ )
-        sprintf( &readout[ strlen( readout ) ], "%.3f ", motorMeasuresList[ dimensionIndex ] );
-      for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
-        sprintf( &readout[ strlen( readout ) ], "%.3f ", motorParametersList[ parameterIndex ] );
+      for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
+        sprintf( &readout[ strlen( readout ) ], "%.3f ", controlMeasuresList[ dimensionIndex ] );
       readout[ strlen( readout ) - 1 ] = '\0';
-      
-      //Gamb 
-      static size_t valuesCount;
-      static double dataArray[ DISPLAY_VALUES_NUMBER * NUM_POINTS ];
-      static size_t arrayDims = DISPLAY_VALUES_NUMBER * NUM_POINTS;
-
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = -motorMeasuresList[ CONTROL_POSITION ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = motorMeasuresList[ CONTROL_VELOCITY ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = motorParametersList[ PROPORTIONAL_GAIN ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = motorMeasuresList[ CONTROL_TORQUE ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = jointMeasuresList[ JOINT_TORQUE ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = jointMeasuresList[ JOINT_STIFFNESS ];
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_AGONIST ] = EMGProcessing_GetMuscleActivation( 0 );
-      dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ] = EMGProcessing_GetMuscleActivation( 1 );
-      
-      //DEBUG_PRINT( "EMG activation 1: %.3f - activation 2: %.3f - stiffness: %.3f", dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_CURRENT ],
-      //                                                                              dataArray[ valuesCount * CONTROL_VALUES_NUMBER + AXIS_TENSION ], motorParametersList[ PROPORTIONAL_GAIN ] );
-      
-      valuesCount++;
-      
-      if( valuesCount >= NUM_POINTS )
-      {
-        CNVCreateArrayDataValue( (CNVData*) &data, CNVDouble, dataArray, 1, &arrayDims );
-    	  CNVPutDataInBuffer( gWavePublisher, data, 1000 );
-        valuesCount = 0;
-      }
     }
   }
   
@@ -338,15 +350,10 @@ void CVICALLBACK ChangeValueDataCallback( void* handle, CNVData data, void* call
   
   if( handle == gMaxStiffnessSubscriber )
 	{
-    maxStiffness = value; 
+    maxStiffness = value;
+    AxisControl_SetImpedance( 0, maxStiffness, 0.0 );
     
     DEBUG_PRINT( "new maximum stiffness: %g", maxStiffness );
-	}
-	else if( handle == gSetpointSubscriber )
-	{
-    networkSetpoint = value;
-    
-    DEBUG_PRINT( "new position setpoint: %g", networkSetpoint );
 	}
 }
 

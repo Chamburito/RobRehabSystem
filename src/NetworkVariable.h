@@ -22,7 +22,6 @@
 #define  PANEL_AXIS_SELECTOR              7       /* control type: ring, callback function: (none) */
 #define  PANEL_MUSCLE_GROUP               8       /* control type: binary, callback function: ChangeMuscleGroupCallback */
 #define  PANEL_STIFFNESS                  9       /* control type: scale, callback function: ChangeValueCallback */
-#define  PANEL_SETPOINT                   10      /* control type: scale, callback function: ChangeValueCallback */
 
 
      /* Control Arrays: */

@@ -67,7 +67,7 @@ void CVIFUNC_C RTmain( void )
 	{
     RobRehabNetwork_Update();
     
-    //SleepUS( 1000 ); // Sleep to give the desired loop rate.
+    SleepUntilNextMultipleUS( 100 ); // Sleep to give the desired loop rate.
 	}
 
   RobRehabNetwork_End();
