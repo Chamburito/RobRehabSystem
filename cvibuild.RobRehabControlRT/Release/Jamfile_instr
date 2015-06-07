@@ -67,3 +67,5 @@ Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.
 NoCare "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\version_lvrt.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin\\msvc\\visa.lib" ;
 NoCare "c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin\\msvc\\visa.lib" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\WSock32_lvrt.Lib" ;
+NoCare "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\WSock32_lvrt.Lib" ;

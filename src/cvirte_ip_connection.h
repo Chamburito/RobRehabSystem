@@ -13,6 +13,7 @@
 #include <udpsupp.h>
 #include <utility.h>
 #include <toolbox.h>
+#include <userint.h>
 
   
 //////////////////////////////////////////////////////////////////////////
@@ -36,15 +37,14 @@ struct _AsyncConnection
 {
   unsigned int handle;
   uint8_t protocol, networkRole;
-  CmtThreadFunctionID callbackThreadID;
-  int (CVICALLBACK *ref_SendMessage)( void* );
+  Thread_Handle callbackThreadID;
+  int (*ref_SendMessage)( AsyncConnection*, const char* );
   struct
   {
     unsigned int port;
     char host[ IP_HOST_LENGTH ];
   } address;
   CmtTSQHandle readQueue;
-  char writeBuffer[ IP_CONNECTION_MSG_LEN ];
   union
   {
     ListType clientsList;
@@ -156,14 +156,15 @@ static int CVICALLBACK AcceptTCPClient( unsigned, int, int, void* );
 static int CVICALLBACK AcceptUDPClient( unsigned, int, int, void* );
 static int CVICALLBACK ReceiveTCPMessage( unsigned, int, int, void* );
 static int CVICALLBACK ReceiveUDPMessage( unsigned, int, int, void* );
-static int CVICALLBACK SendTCPMessage( void* );
-static int CVICALLBACK SendUDPMessage( void* );
-static int CVICALLBACK SendMessageToAll( void* );
+
+static int SendTCPMessage( AsyncConnection*, const char* );
+static int SendUDPMessage( AsyncConnection*, const char* );
+static int SendMessageToAll( AsyncConnection*, const char* );
 
 static int CVICALLBACK CloseConnection( int, void*, void* );
 
 // Asyncronous callback for ip connection setup and event processing
-static int CVICALLBACK AsyncConnect( void* connectionData )
+static void* AsyncConnect( void* connectionData )
 {
   AsyncConnection* connection = (AsyncConnection*) connectionData;
   
@@ -207,23 +208,18 @@ static int CVICALLBACK AsyncConnect( void* connectionData )
   if( statusCode < 0 ) 
     connection->networkRole = DISCONNECTED;
   else
-    DEBUG_EVENT( 0, "starting to process system events for connection %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
+    DEBUG_EVENT( 0, "starting to process system events for connection %u on thread %x", connection->handle, THREAD_ID );
   
   while( connection->networkRole != DISCONNECTED ) 
   {
     ProcessSystemEvents();
-    /*#ifdef _LINK_CVI_LVRT_
-    SleepUS( 1000 );
-    #else
-    Sleep( 1 );
-    #endif*/
+    Timing_Delay( 10 );
   }
   
-  DEBUG_EVENT( 1, "connection handle %u closed. exiting event loop on thread %x", connection->handle, CmtGetCurrentThreadID() );
+  DEBUG_PRINT( "connection handle %u closed. exiting event loop on thread %x", connection->handle, THREAD_ID );
   
-  CmtExitThreadPoolThread( statusCode );
-  
-  return statusCode;
+  Thread_Exit( statusCode );
+  return NULL;
 }
 
 // Generate connection data structure based on input arguments
@@ -304,17 +300,14 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
                                  ( host != NULL ) ? host : "0.0.0.0",
                                  ( ( host == NULL ) ? SERVER : CLIENT ) | protocol );
   
-  CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, AsyncConnect, newConnection, &(newConnection->callbackThreadID) );
+  newConnection->callbackThreadID = Thread_Start( AsyncConnect, newConnection, THREAD_JOINABLE );
   
-  SetBreakOnLibraryErrors( 0 );
-  (void) CmtWaitForThreadPoolFunctionCompletionEx( DEFAULT_THREAD_POOL_HANDLE, newConnection->callbackThreadID, 0, 1000 );
-  SetBreakOnLibraryErrors( 1 );
+  (void) Thread_WaitExit( newConnection->callbackThreadID, 1000 );
   
   if( newConnection->networkRole == DISCONNECTED )
   {
     ListRemoveItem( globalConnectionsList, NULL, END_OF_LIST );
     
-    CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, newConnection->callbackThreadID );
     newConnection->callbackThreadID = -1;
     
     CloseConnection( 0, newConnection, NULL );
@@ -380,34 +373,29 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
 }
 
 // Send given message through the given TCP connection
-static int CVICALLBACK SendTCPMessage( void* connectionData )
+static int SendTCPMessage( AsyncConnection* connection, const char* message )
 {
-  AsyncConnection* connection = (AsyncConnection*) connectionData;
-  
   int errorCode;
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
   
   if( connection->networkRole == CLIENT )
   {
-    DEBUG_UPDATE( "TCP connection handle %u sending message: %s", connection->handle, connection->writeBuffer );
+    DEBUG_UPDATE( "TCP connection handle %u sending message: %s", connection->handle, message );
     
-    if( (errorCode = ClientTCPWrite( connection->handle, connection->writeBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
+    if( (errorCode = ClientTCPWrite( connection->handle, message, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
     {
       ERROR_EVENT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
       CloseConnection( 0, &connection, NULL );
-      CmtExitThreadPoolThread( errorCode );
       return errorCode;
     }
   }
   else
   {
     DEBUG_EVENT( 0, "connection handle %u is closed", connection->handle );
-    CmtExitThreadPoolThread( -1 );
     return -1;
   }
   
-  CmtExitThreadPoolThread( 0 );
   return 0;
 }
 
@@ -456,34 +444,31 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
 }
 
 // Send given message through the given UDP connection
-static int CVICALLBACK SendUDPMessage( void* connectionData )
+static int SendUDPMessage( AsyncConnection* connection, const char* message )
 {
-  AsyncConnection* connection = (AsyncConnection*) connectionData;
-  
   int errorCode;
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
   
   if( connection->networkRole == CLIENT )
   {
-    DEBUG_UPDATE( "UDP connection handle %u sending message: %s", connection->handle, connection->writeBuffer );
+    unsigned int channel = ( connection->ref_server == NULL ) ? connection->handle : connection->ref_server->handle;
     
-    if( (errorCode = UDPWrite( connection->handle, connection->address.port, connection->address.host, connection->writeBuffer, IP_CONNECTION_MSG_LEN )) )
+    DEBUG_UPDATE( "UDP connection handle %u (channel %u) sending message: %s", connection->handle, channel, message );
+    
+    if( (errorCode = UDPWrite( channel, connection->address.port, connection->address.host, message, IP_CONNECTION_MSG_LEN )) )
     {
       ERROR_EVENT( "%s", GetUDPErrorString( errorCode ) );
       CloseConnection( 0, &connection, NULL );
-      CmtExitThreadPoolThread( errorCode );
       return errorCode;
     }
   }
   else
   {
     DEBUG_EVENT( 0, "connection handle %u is closed", connection->handle );
-    CmtExitThreadPoolThread( -1 );
     return -1;
   } 
   
-  CmtExitThreadPoolThread( 0 );
   return 0;
 }
 
@@ -491,23 +476,19 @@ static int CVICALLBACK SendMessageToClient( size_t index, void* ref_client, void
 {
   AsyncConnection* client = *((AsyncConnection**) ref_client);
   
-  strncpy( client->writeBuffer, (const char*) messageData, IP_CONNECTION_MSG_LEN );
+  client->ref_SendMessage( client, (const char*) messageData );
   
-  return client->ref_SendMessage( client );
+  return 0;
 }
 
 // Send given message to all the clients of the given server connection
-static int CVICALLBACK SendMessageToAll( void* connectionData )
+static int SendMessageToAll( AsyncConnection* connection, const char* message )
 {
-  AsyncConnection* connection = (AsyncConnection*) connectionData;
-  
   static int statusCode;
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connection->handle, CmtGetCurrentThreadID() );
   
-  statusCode = ListApplyToEachEx( connection->clientsList, 1, SendMessageToClient, (void*) connection->writeBuffer );
-  
-  CmtExitThreadPoolThread( statusCode );
+  statusCode = ListApplyToEachEx( connection->clientsList, 1, SendMessageToClient, (void*) message );
   
   return statusCode;
 }
@@ -599,8 +580,6 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
   static unsigned int clientPort;
   static char clientHost[ IP_HOST_LENGTH ];
   
-  static unsigned long execTime;
-  
   DEBUG_UPDATE( "called for connection handle %u on thread %x", channel, CmtGetCurrentThreadID() );
   
   if( eventType == UDP_DATAREADY )
@@ -630,11 +609,6 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
         }
       
         DEBUG_EVENT( 0, "client with handle %u accepted !", client->handle );
-      }
-      else
-      {
-        //DEBUG_PRINT( "elapsed time: %u", Timing_GetExecTimeMilliseconds() - execTime );
-        execTime = Timing_GetExecTimeMilliseconds();
       }
       
       if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
@@ -718,12 +692,7 @@ int AsyncIPConnection_WriteMessage( int connectionID, const char* message )
     return -1;
   }
   
-  strncpy( connection->writeBuffer, message, IP_CONNECTION_MSG_LEN );
-  
-  if( CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, connection->ref_SendMessage, connection, NULL ) < 0 )
-    return -1;
-  
-  return 0;
+  return connection->ref_SendMessage( connection, message );
 }
 
 int AsyncIPConnection_GetClient( int serverID )
@@ -874,8 +843,7 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
     
     if( connection->callbackThreadID != -1 )
     {
-      CmtWaitForThreadPoolFunctionCompletion( DEFAULT_THREAD_POOL_HANDLE, connection->callbackThreadID, OPT_TP_PROCESS_EVENTS_WHILE_WAITING );
-      CmtReleaseThreadPoolFunctionID( DEFAULT_THREAD_POOL_HANDLE, connection->callbackThreadID );
+      (void) Thread_WaitExit( connection->callbackThreadID, INFINITE );
       
       DEBUG_EVENT( 0, "connection callback thread %x returned successfully", connection->callbackThreadID );
       

@@ -58,32 +58,32 @@ Batch Build Debug = False
 [File 0001]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/Common.h"
 File Type = "Include"
-Disk Date = 3515501395
+Disk Date = 3516541324
 In Projects = "1,2,"
 Window Top = 31
-Window Z-Order = 9
-Source Window State = "1,4,4,4,8,18,8,0,0,70,0,0,0,0,0,28,0,0,4,25,400,600,1,11,"
+Window Z-Order = 5
+Source Window State = "1,11,11,11,0,38,38,0,0,70,0,0,0,0,0,28,0,0,10,44,400,600,1,11,"
 
 [File 0002]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariableHost."
 Path Line0002 = "c"
 File Type = "CSource"
-Disk Date = 3515514077
+Disk Date = 3516549091
 In Projects = "1,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 5
-Source Window State = "1,193,195,195,0,60,60,0,0,80,0,132,0,0,0,25,107,0,192,64,349,683,1,0,"
+Window Z-Order = 2
+Source Window State = "1,176,178,178,0,186,186,0,0,80,0,132,0,0,0,25,156,0,175,43,349,683,1,0,"
 
 [File 0003]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariableRT.c"
 File Type = "CSource"
-Disk Date = 3515502962
+Disk Date = 3516541430
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 8
-Source Window State = "1,69,69,69,4,11,4,0,0,85,0,0,0,0,0,25,36,0,69,31,349,723,1,0,"
+Window Z-Order = 4
+Source Window State = "1,64,65,65,0,38,38,0,0,85,0,0,0,0,0,25,38,0,63,25,349,723,1,0,"
 
 [File 0004]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.h"
@@ -92,7 +92,7 @@ Disk Date = 3515514077
 In Projects = "1,2,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 4
+Window Z-Order = 17
 Source Window State = "1,17,17,17,21,29,29,0,3,80,0,0,0,0,0,25,0,0,17,21,349,683,1,0,"
 
 [File 0005]
@@ -102,7 +102,7 @@ Disk Date = 3514283672
 In Projects = "2,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 11
+Window Z-Order = 20
 Source Window State = "1,37,37,37,64,69,64,0,0,80,0,273,0,0,0,25,273,0,302,75,349,683,1,11,"
 
 [File 0006]
@@ -121,18 +121,18 @@ Disk Date = 3510321189
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 16
+Window Z-Order = 21
 Source Window State = "1,68,68,68,5,23,5,0,0,85,0,0,0,0,0,25,7,0,33,39,349,723,1,0,"
 
 [File 0008]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"
 File Type = "Include"
-Disk Date = 3515514117
+Disk Date = 3516548599
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 2
-Source Window State = "1,41,41,41,26,43,43,0,0,85,0,302,0,0,0,25,14,0,41,26,349,723,1,14,"
+Window Z-Order = 3
+Source Window State = "1,304,304,304,10,27,10,0,0,85,0,302,0,0,0,25,269,0,304,42,349,723,1,14,"
 
 [File 0009]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug.h"
@@ -141,39 +141,39 @@ Disk Date = 3513172169
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 20
+Window Z-Order = 23
 Source Window State = "1,28,28,28,10,22,22,0,0,85,0,0,0,0,0,25,12,0,28,69,349,723,1,0,"
 
 [File 0010]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/async_debug.h"
 File Type = "Include"
-Disk Date = 3510665912
+Disk Date = 3516089565
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 13
-Source Window State = "1,86,89,89,0,15,15,0,0,85,0,0,0,0,0,25,3,0,20,36,349,723,1,0,"
+Window Z-Order = 12
+Source Window State = "1,122,122,122,44,52,52,0,0,85,0,0,0,0,0,25,30,0,122,44,349,723,1,0,"
 
 [File 0011]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/cvirte_ip_connection"
 Path Line0002 = ".h"
 File Type = "Include"
-Disk Date = 3514191393
+Disk Date = 3516540354
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 12
-Source Window State = "1,645,646,646,6,50,50,0,0,85,0,455,0,0,0,25,497,0,497,59,349,723,1,11,"
+Window Z-Order = 6
+Source Window State = "1,694,699,699,2,2,2,0,0,85,0,455,0,0,0,25,693,0,694,2,349,723,1,11,"
 
 [File 0012]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis_control.h"
 File Type = "Include"
-Disk Date = 3515514262
+Disk Date = 3516089565
 In Projects = "2,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 1
-Source Window State = "1,564,564,564,2,40,2,0,0,201,0,431,0,0,0,49,557,0,578,2,349,723,1,15,"
+Window Z-Order = 13
+Source Window State = "1,150,150,150,92,100,100,0,0,85,0,431,0,0,0,25,138,29,150,92,349,723,1,15,"
 
 [File 0013]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/data_logging.h"
@@ -182,18 +182,18 @@ Disk Date = 3510829163
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 7
+Window Z-Order = 18
 Source Window State = "1,65,65,65,5,53,5,0,0,85,0,0,0,0,0,25,15,0,78,65,349,723,1,0,"
 
 [File 0014]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_realtime.h"
 File Type = "Include"
-Disk Date = 3512996222
+Disk Date = 3516457226
 In Projects = "2,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 18
-Source Window State = "1,235,235,235,96,107,96,0,0,85,0,242,0,242,0,25,193,0,236,93,349,723,1,0,"
+Window Z-Order = 9
+Source Window State = "1,229,229,229,21,36,21,0,0,85,0,244,0,244,0,25,192,0,233,42,349,723,1,0,"
 
 [File 0015]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.uir"
@@ -204,17 +204,17 @@ Window Top = 64
 Window Left = 26
 Window Height = 349
 Window Width = 723
-Window Z-Order = 3
+Window Z-Order = 16
 
 [File 0016]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/emg_processing.h"
 File Type = "Include"
-Disk Date = 3515146458
+Disk Date = 3516089565
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
 Window Z-Order = 15
-Source Window State = "1,229,232,232,0,173,173,0,0,85,0,182,0,0,0,25,78,0,333,8,349,723,1,15,"
+Source Window State = "1,178,178,178,63,71,71,0,0,85,0,182,0,0,0,25,166,0,178,63,349,723,1,15,"
 
 [File 0017]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/emg_axis_control.h"
@@ -223,79 +223,81 @@ Disk Date = 3515331946
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 10
+Window Z-Order = 19
 Source Window State = "1,227,227,227,41,79,41,0,0,85,0,0,0,0,0,25,206,0,227,82,349,723,1,11,"
 
 [File 0018]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition_cv"
 Path Line0002 = "i.h"
 File Type = "Include"
-Disk Date = 3512745208
+Disk Date = 3516089565
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 23
-Source Window State = "1,53,53,53,83,102,102,0,0,85,0,0,0,0,0,25,40,24,52,87,349,723,1,0,"
+Window Z-Order = 14
+Source Window State = "1,35,35,35,55,63,63,0,0,85,0,0,0,0,0,25,23,24,35,55,349,723,1,0,"
 
 [File 0019]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_windows.h"
 File Type = "Include"
-Disk Date = 3512996310
+Disk Date = 3516089565
 In Projects = "1,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 19
-Source Window State = "1,76,93,76,2,108,2,0,0,85,0,0,0,0,0,25,37,0,76,4,349,723,1,0,"
+Window Z-Order = 11
+Source Window State = "1,53,53,53,14,22,22,0,0,85,0,0,0,0,0,25,87,0,46,60,349,723,1,0,"
 
 [File 0020]
-Path = "/c/Program Files (x86)/National Instruments/CVI2013/include/utility.h"
-File Type = "Include"
-Disk Date = 3486510000
-In Projects = ""
-Window Top = 126
-Window Left = 58
-Window Z-Order = 22
-Source Window State = "1,193,193,193,12,31,31,0,3,85,0,0,0,0,0,25,181,0,193,12,349,723,1,0,"
-
-[File 0021]
-Path = "/c/Program Files (x86)/National Instruments/CVI2013/include/udpsupp.h"
-File Type = "Include"
-Disk Date = 3486510000
-In Projects = ""
-Window Top = 188
-Window Left = 90
-Window Z-Order = 21
-Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,85,0,97,93,349,723,1,0,"
-
-[File 0022]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/network_axis.h"
 File Type = "Include"
-Disk Date = 3515513600
+Disk Date = 3516550687
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 6
-Source Window State = "1,70,71,71,0,165,165,0,0,85,0,0,0,0,0,25,6,0,17,24,349,723,1,0,"
+Window Z-Order = 1
+Source Window State = "1,68,68,68,61,69,69,0,0,201,0,0,0,0,0,49,38,0,68,140,349,723,1,0,"
 
-[File 0023]
+[File 0021]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
 File Type = "Include"
 Disk Date = 3509979879
 In Projects = "1,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 17
+Window Z-Order = 22
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,0,0,349,723,1,0,"
 
-[File 0024]
-Path = "/c/Program Files (x86)/National Instruments/CVI2013/include/clang/2.9/tgmath.h"
+[File 0022]
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/async_ip_connection."
+Path Line0002 = "h"
 File Type = "Include"
-Disk Date = 3486510000
-In Projects = ""
+Disk Date = 3516458239
+In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 14
-Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,17,0,68,33,349,723,1,0,"
+Window Z-Order = 8
+Source Window State = "1,347,347,347,0,28,28,0,0,85,0,0,0,0,0,25,6,0,395,189,349,723,1,0,"
+
+[File 0023]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_connection.h"
+File Type = "Include"
+Disk Date = 3516471526
+In Projects = "2,"
+Window Top = 95
+Window Left = 42
+Window Z-Order = 7
+Source Window State = "1,299,299,299,2,50,2,0,0,85,0,0,0,0,0,25,261,0,267,153,349,723,1,0,"
+
+[File 0024]
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_data_structu"
+Path Line0002 = "res.h"
+File Type = "Include"
+Disk Date = 3509957523
+In Projects = "2,"
+Window Top = 64
+Window Left = 26
+Window Z-Order = 10
+Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,12,0,74,45,349,723,1,0,"
 
 [File 0025]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_realtime.h"
@@ -305,6 +307,13 @@ In Projects = "2,"
 Window Top = 64
 Window Left = 26
 Source Window State = "1,21,21,21,29,33,29,0,0,0,0,0,0,0,0,0,0,0,21,47,349,723,1,0,"
+
+[File 0026]
+Path Line0001 = "/c/program files (x86)/national instruments/cvi2013/sdk/lib/msvc/WSock32_lvrt.Li"
+Path Line0002 = "b"
+File Type = "Library"
+Disk Date = 3486510000
+In Projects = "2,"
 
 [Tab Order]
 Tab 0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/Common.h"
@@ -328,12 +337,14 @@ Tab 0016 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/emg_axis
 Tab 0017 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition_cv"
 Tab 0017 Line0002 = "i.h"
 Tab 0018 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_windows.h"
-Tab 0019 = "/c/Program Files (x86)/National Instruments/CVI2013/include/utility.h"
-Tab 0020 = "/c/Program Files (x86)/National Instruments/CVI2013/include/udpsupp.h"
-Tab 0021 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/network_axis.h"
-Tab 0022 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
-Tab 0023 = "/c/Program Files (x86)/National Instruments/CVI2013/include/clang/2.9/tgmath.h"
-Tab 0024 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.h"
+Tab 0019 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/network_axis.h"
+Tab 0020 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
+Tab 0021 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.h"
+Tab 0022 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/async_ip_connection."
+Tab 0022 Line0002 = "h"
+Tab 0023 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_data_structu"
+Tab 0023 Line0002 = "res.h"
+Tab 0024 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_connection.h"
 
 [Default Build Config 0001 Debug]
 Generate Browse Info = True
@@ -441,7 +452,7 @@ Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
 Debugging Level = "Standard"
-Execution Trace = "Disabled"
+Execution Trace = "User-defined functions only"
 Command Line Args = ""
 Working Directory = ""
 Environment Options = ""
@@ -477,7 +488,7 @@ Number of Dependencies = 0
 [Build Options 0002]
 Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
-Execution Trace = "Disabled"
+Execution Trace = "User-defined functions only"
 Profile = "Disabled"
 Debugging Level = "Standard"
 Break On Library Errors = True

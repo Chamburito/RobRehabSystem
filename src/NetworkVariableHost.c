@@ -103,7 +103,7 @@ int main( int argc, char *argv[] )
   for( size_t i = 0; i < FILE_SETPOINTS_NUMBER; i++ )
     fileSetpointsDerivative2List[ i ] = ( fileSetpointsDerivativeList[ ( i + 1 ) % FILE_SETPOINTS_NUMBER ] - fileSetpointsDerivativeList[ i ] ) / CONTROL_SAMPLING_INTERVAL;
   
-  dataConnectionThreadID = Thread_Start( UpdateData, NULL, JOINABLE );
+  dataConnectionThreadID = Thread_Start( UpdateData, NULL, THREAD_JOINABLE );
 	
   axisLogID = DataLogging_CreateLog( NULL, "axis", DISPLAY_VALUES_NUMBER );
   
@@ -141,9 +141,17 @@ int main( int argc, char *argv[] )
 
 static void* UpdateData( void* callbackData )
 {
-  const size_t UPDATE_SETPOINTS_NUMBER = 20;
+  const double SETPOINT_UPDATE_INTERVAL = 10 * CONTROL_SAMPLING_INTERVAL;
   
-  static char dataMessage[ IP_CONNECTION_MSG_LEN ];
+  char dataMessageOut[ IP_CONNECTION_MSG_LEN ];
+  
+  double serverDispatchTime = 0.0, clientReceiveTime = 0.0, clientDispatchTime = 0.0, serverReceiveTime = 0.0;
+  
+  double initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  
+  double elapsedTime = 0.0, absoluteTime = initialTime; 
+  
+  double deltaTime = 0.0;
   
   int dataClientID = AsyncIPConnection_Open( address, "50001", UDP );
   
@@ -151,19 +159,42 @@ static void* UpdateData( void* callbackData )
   
   while( isDataUpdateRunning )
   {
-    size_t dataIndex = setpointIndex % FILE_SETPOINTS_NUMBER;
+    deltaTime += ( ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - absoluteTime );
+    absoluteTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+    elapsedTime = absoluteTime - initialTime;
     
-    strcpy( dataMessage, "0" );
-    sprintf( &dataMessage[ strlen( dataMessage ) ], " %lf", -fileSetpointsList[ dataIndex ] );
-    sprintf( &dataMessage[ strlen( dataMessage ) ], " %lf", -fileSetpointsDerivativeList[ dataIndex ] );
-    sprintf( &dataMessage[ strlen( dataMessage ) ], " %lf", -fileSetpointsDerivative2List[ dataIndex ] );
-    sprintf( &dataMessage[ strlen( dataMessage ) ], " %lf", setpointIndex * CONTROL_SAMPLING_INTERVAL );
-    setpointIndex++;
+    char* messageIn = AsyncIPConnection_ReadMessage( dataClientID );
+    if( messageIn != NULL )
+    {
+      for( char* axisData = strtok( messageIn, ":" ); axisData != NULL; axisData = strtok( NULL, ":" ) )
+      {
+        if( (unsigned int) strtoul( axisData, &axisData, 0 ) == 0 )
+        {
+          clientDispatchTime = strtod( axisData, &axisData );
+          serverReceiveTime = strtod( axisData, &axisData );
+          serverDispatchTime = strtod( axisData, &axisData );
+          clientReceiveTime = absoluteTime;
+        }
+      }
+    }
     
-    AsyncIPConnection_WriteMessage( dataClientID, dataMessage );
+    setpointIndex = (size_t) ( elapsedTime / CONTROL_SAMPLING_INTERVAL );
     
-    setpointIndex += UPDATE_SETPOINTS_NUMBER;
-    Sleep( ( UPDATE_SETPOINTS_NUMBER ) * (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) );
+    //if( fileSetpointsDerivativeList[ ( setpointIndex - 1 ) % FILE_SETPOINTS_NUMBER ] * fileSetpointsDerivativeList[ ( setpointIndex + 1 ) % FILE_SETPOINTS_NUMBER ] < 0.0
+    //    || fileSetpointsDerivative2List[ ( setpointIndex - 1 ) % FILE_SETPOINTS_NUMBER ] * fileSetpointsDerivative2List[ ( setpointIndex + 1 ) % FILE_SETPOINTS_NUMBER ] < 0.0 )
+    if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
+    {
+      deltaTime = 0.0;
+      
+      size_t dataIndex = setpointIndex % FILE_SETPOINTS_NUMBER;
+    
+      strcpy( dataMessageOut, "0" );
+      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime );
+      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %lf %lf %lf", -fileSetpointsList[ dataIndex ], -fileSetpointsDerivativeList[ dataIndex ], -fileSetpointsDerivative2List[ dataIndex ] );
+      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %.3f", SETPOINT_UPDATE_INTERVAL );
+    
+      AsyncIPConnection_WriteMessage( dataClientID, dataMessageOut );
+    }
   }
   
   AsyncIPConnection_Close( dataClientID );
@@ -292,6 +323,19 @@ int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int even
 
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
+  static double execTime, elapsedTime;
+  
+  elapsedTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - execTime;
+  execTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  
+  size_t referencePointsNumber = (size_t) ( elapsedTime / CONTROL_SAMPLING_INTERVAL );
+  if( referencePointsNumber > NUM_POINTS ) referencePointsNumber = NUM_POINTS;
+  else if( referencePointsNumber <= 0 ) referencePointsNumber = 1;
+  
+  size_t pointLength = NUM_POINTS / referencePointsNumber;
+  
+  size_t setpointStart = ( setpointIndex > NUM_POINTS ) ? ( setpointIndex - NUM_POINTS + 1 ) : 0;
+  
   static double referenceValues[ NUM_POINTS ];
   
 	static double dataArray[ DISPLAY_VALUES_NUMBER * NUM_POINTS ];
@@ -303,7 +347,6 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 	// Get the published data.
 	CNVGetArrayDataValue( data, CNVDouble, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
   
-  double setpointTime;
   for( size_t pointIndex = 0; pointIndex < NUM_POINTS; pointIndex++ )
   {
     positionValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ];
@@ -318,8 +361,7 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     emgAgonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_AGONIST ];
     emgAntagonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ];
     
-    setpointTime = velocityValues[ pointIndex ] / CONTROL_SAMPLING_INTERVAL;
-    referenceValues[ pointIndex ] = fileSetpointsList[ ( (int) setpointTime ) % FILE_SETPOINTS_NUMBER ];
+    referenceValues[ pointIndex ] = fileSetpointsList[ ( setpointStart + pointIndex / pointLength ) % FILE_SETPOINTS_NUMBER ];
   }
   
   //if( emgAgonistValues[ NUM_POINTS - 1 ] > 0.0 && emgAntagonistValues[ NUM_POINTS - 1 ] > 0.0 )

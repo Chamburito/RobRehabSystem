@@ -33,7 +33,7 @@ int SignalAquisition_Init( const char* configFileName, size_t aquisitionSamplesN
   DAQmxStartTask( signalReadTask );
   
   isReading = true;
-  aquisitionThreadID = Thread_Start( ReadBuffer, NULL, JOINABLE );
+  aquisitionThreadID = Thread_Start( ReadBuffer, NULL, THREAD_JOINABLE );
   
   return 0;
 }

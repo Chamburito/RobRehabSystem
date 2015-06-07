@@ -176,7 +176,7 @@ void EMGProcessing_Init()
   phasePassCountLock = ThreadLock_Create();
   
   isRunning = true;
-  emgThreadID = Thread_Start( EMGProcessing_AsyncUpdate, NULL, JOINABLE );
+  emgThreadID = Thread_Start( EMGProcessing_AsyncUpdate, NULL, THREAD_JOINABLE );
 }
 
 void EMGProcessing_End()

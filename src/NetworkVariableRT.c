@@ -60,14 +60,14 @@ void CVIFUNC_C RTmain( void )
 		if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
 		SleepUS( 10000 );
 	}
-	
+  
   RobRehabNetwork_Init();
 		
 	while( !RTIsShuttingDown() ) // Check for program termination conditions
 	{
     RobRehabNetwork_Update();
     
-    SleepUntilNextMultipleUS( 100 ); // Sleep to give the desired loop rate.
+    SleepUntilNextMultipleUS( 5000 ); // Sleep to give the desired loop rate.
 	}
 
   RobRehabNetwork_End();

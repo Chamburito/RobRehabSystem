@@ -25,9 +25,9 @@ const HANDLE INVALID_THREAD_HANDLE = NULL;
 // Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()
 
-// Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
-// when calling Thread_WaitExit on it. DETACHED if you want it to do that by itself.
-enum { DETACHED, JOINABLE };
+// Controls the thread opening mode. THREAD_JOINABLE if you want the thread to only end and free its resources
+// when calling Thread_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
+enum { THREAD_DETACHED, THREAD_JOINABLE };
 
 // Aliases for platform abstraction
 typedef HANDLE Thread_Handle;
@@ -51,7 +51,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
 
   threadsNumber++;
   
-  if( mode == DETACHED ) CloseHandle( handle );
+  if( mode == THREAD_DETACHED ) CloseHandle( handle );
 
   return handle;
 }

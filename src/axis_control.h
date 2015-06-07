@@ -32,7 +32,6 @@ typedef struct _AxisControl
   double referenceStiffness, baseStiffness;            // Virtual and real stiffness of the actuator
   double referenceDamping, baseDamping;                // Virtual and real damping of the actuator
   double setpoint, error;                              // Control reference value and error (calculated by the control algorithm)
-  unsigned int execTime;
   bool isRunning;                                      // Is control thread running ?
 }
 AxisControl;
@@ -92,7 +91,6 @@ static void LoadAxisControlsConfig()
         newAxisControl->baseStiffness = newAxisControl->baseDamping = 0.0;
         newAxisControl->referenceStiffness = newAxisControl->referenceStiffness = 0.0;
         newAxisControl->setpoint = newAxisControl->error = 0.0;
-        newAxisControl->execTime = 0;
         newAxisControl->controlFunction = NULL;
         newAxisControl->controlThread = -1;
       }
@@ -150,7 +148,7 @@ static void LoadAxisControlsConfig()
       }
       else if( strcmp( readBuffer, "END_AXIS_CONTROL" ) == 0 )
       {
-        newAxisControl->controlThread = Thread_Start( AsyncControl, (void*) newAxisControl, JOINABLE );
+        newAxisControl->controlThread = Thread_Start( AsyncControl, (void*) newAxisControl, THREAD_JOINABLE );
         
         DEBUG_EVENT( 5, "running %s control on thread %x", newAxisControl->name, newAxisControl->controlThread );
         
@@ -262,7 +260,6 @@ extern inline void AxisControl_EnableMotor( size_t axisID )
   Motor_Enable( axisControlsList[ axisID ].actuator );
   
   axisControlsList[ axisID ].error = 0.0;
-  axisControlsList[ axisID ].execTime = 0;
 }
 
 extern inline void AxisControl_DisableMotor( size_t axisID )
@@ -274,7 +271,6 @@ extern inline void AxisControl_DisableMotor( size_t axisID )
   Motor_Disable( axisControlsList[ axisID ].actuator );
   
   axisControlsList[ axisID ].error = 0.0;
-  axisControlsList[ axisID ].execTime = 0;
 }
 
 extern inline void AxisControl_Reset( size_t axisID )
@@ -290,7 +286,6 @@ extern inline void AxisControl_Reset( size_t axisID )
   }
   
   axisControlsList[ axisID ].error = 0.0;
-  axisControlsList[ axisID ].execTime = 0;
 }
 
 extern inline bool* AxisControl_GetMotorStatus( size_t axisID )
@@ -377,7 +372,7 @@ static void* AsyncControl( void* args )
     
     Motor_SetOperationMode( axisControl->actuator, axisControl->controlFunction->operationMode );
   
-    unsigned long elapsedTime;
+    unsigned long execTime, elapsedTime;
   
     axisControl->isRunning = true;
   
@@ -387,7 +382,7 @@ static void* AsyncControl( void* args )
     {
       DEBUG_UPDATE( "running control for Axis %s", axisControl->name );
     
-      axisControl->execTime = Timing_GetExecTimeMilliseconds();
+      execTime = Timing_GetExecTimeMilliseconds();
 
       MotorDrive_ReadValues( axisControl->sensor );
       if( axisControl->actuator->controller != axisControl->sensor ) MotorDrive_ReadValues( axisControl->actuator->controller );
@@ -406,12 +401,12 @@ static void* AsyncControl( void* args )
 
       Motor_WriteConfig( axisControl->actuator );
       
-      elapsedTime = Timing_GetExecTimeMilliseconds() - axisControl->execTime;
+      elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
       DEBUG_UPDATE( "control pass for Axis %s (before delay): elapsed time: %u ms", axisControl->name, elapsedTime );
       
       if( elapsedTime < (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_SAMPLING_INTERVAL - elapsedTime );
 
-      DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u ms", axisControl->name, Timing_GetExecTimeMilliseconds() - axisControl->execTime );
+      DEBUG_UPDATE( "control pass for Axis %s (after delay): elapsed time: %u ms", axisControl->name, Timing_GetExecTimeMilliseconds() - execTime );
     }
   }
   

@@ -23,9 +23,9 @@ const CmtThreadFunctionID INVALID_THREAD_HANDLE = -1;
 // Returns unique identifier of the calling thread
 #define THREAD_ID CmtGetCurrentThreadID()
 
-// Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
-// when calling Thread_WaitExit on it. DETACHED if you want it to do that by itself.
-enum { DETACHED, JOINABLE };
+// Controls the thread opening mode. THREAD_JOINABLE if you want the thread to only end and free its resources
+// when calling Thread_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
+enum { THREAD_DETACHED, THREAD_JOINABLE };
 
 // Aliases for platform abstraction
 typedef CmtThreadFunctionID Thread_Handle;
@@ -43,7 +43,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
   
   if( threadPool == NULL ) CmtNewThreadPool( 50, &threadPool );
   
-  CmtThreadFunctionID* ref_threadID = ( mode == JOINABLE ) ? &threadID : NULL; 
+  CmtThreadFunctionID* ref_threadID = ( mode == THREAD_JOINABLE ) ? &threadID : NULL; 
   
   if( (status = CmtScheduleThreadPoolFunction( threadPool, (int (CVICALLBACK *) (void*)) function, args, ref_threadID )) < 0 )
   {
@@ -52,7 +52,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
     return INVALID_THREAD_HANDLE;
   }
   
-  DEBUG_PRINT( "created thread %x successfully", ( mode == JOINABLE ) ? threadID : 0 );
+  //DEBUG_PRINT( "created thread %x successfully", ( mode == THREAD_JOINABLE ) ? threadID : 0 );
 
   return threadID;
 }
@@ -61,7 +61,7 @@ static int CVICALLBACK ClearThreadPool( void* data )
 {
   if( threadPool != NULL )
   {
-    CmtDiscardThreadPool( threadPool );
+    //CmtDiscardThreadPool( threadPool );
     threadPool = NULL;
   }
   
@@ -71,7 +71,7 @@ static int CVICALLBACK ClearThreadPool( void* data )
 // Exit the calling thread, returning the given value
 void Thread_Exit( uint32_t exitCode )
 {
-  DEBUG_PRINT( "thread exiting with code: %u", exitCode );
+  //DEBUG_PRINT( "thread exiting with code: %u", exitCode );
 
   CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, ClearThreadPool, NULL, NULL );
   
@@ -88,8 +88,9 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
 
   if( handle != INVALID_THREAD_HANDLE )
   {
-    DEBUG_PRINT( "waiting thread %x", handle );
+    //DEBUG_PRINT( "waiting thread %x", handle );
 
+    SetBreakOnLibraryErrors( 0 );
     if( (exitStatus = CmtWaitForThreadPoolFunctionCompletionEx( threadPool, handle, 0, milliseconds )) < 0 )
     {
       CmtGetErrorMessage( exitStatus, errorBuffer );
@@ -97,16 +98,17 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
     }
     else
     {
-      DEBUG_PRINT( "thread %x returned !", handle );
+      //DEBUG_PRINT( "thread %x returned !", handle );
 
       if( (exitStatus = CmtGetThreadPoolFunctionAttribute( threadPool, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exitCode )) < 0 )
       {
         CmtGetErrorMessage( exitStatus, errorBuffer );
         ERROR_PRINT( "error getting function return value: %s:", errorBuffer );
       }
+      
+      CmtReleaseThreadPoolFunctionID( threadPool, handle );
     }
-  
-    CmtReleaseThreadPoolFunctionID( threadPool, handle );
+    SetBreakOnLibraryErrors( 1 );
   }
 
   return exitCode;
@@ -233,7 +235,7 @@ extern inline int DataQueue_Pop( DataQueue* queue, void* buffer, enum QueueReadM
   return CmtReadTSQData( *queue, buffer, 1, (int) mode, 0 );
 }
 
-enum QueueWriteMode { QUEUE_APPEND_WAIT = 0, QUEUE_APPEND_OVERWRITE = OPT_TSQ_AUTO_FLUSH_EXACT, QUEUE_FLUSH = OPT_TSQ_AUTO_FLUSH_ALL };
+enum QueueWriteMode { QUEUE_APPEND_WAIT = 0, QUEUE_APPEND_OVERWRITE = OPT_TSQ_AUTO_FLUSH_EXACT, QUEUE_APPEND_FLUSH = OPT_TSQ_AUTO_FLUSH_ALL };
 extern inline int DataQueue_Push( DataQueue* queue, void* buffer, enum QueueWriteMode mode )
 {
   if( queue == NULL ) return -1;

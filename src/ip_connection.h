@@ -8,9 +8,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-
-#include "async_debug.h"
   
 #ifdef WIN32
   
@@ -28,6 +25,7 @@
   
 #else
   
+  #include <fcntl.h>
   #include <unistd.h>
   #include <errno.h>
   #include <sys/types.h>
@@ -42,20 +40,22 @@
   typedef int Socket;
   
 #endif
+  
+#include "async_debug.h"
 
 /////////////////////////////////////////////////////////////////////////  
 /////                    PREPROCESSOR DIRECTIVES                    /////
 /////////////////////////////////////////////////////////////////////////
 
-const int QUEUE_SIZE = 20;
-const int IP_CONNECTION_MSG_LEN = 256;
+const size_t QUEUE_SIZE = 20;
+const size_t IP_CONNECTION_MSG_LEN = 256;
 
-const int IP_HOST_LENGTH = 40;
-const int IP_PORT_LENGTH = 6;
-const int IP_ADDRESS_LENGTH = IP_HOST_LENGTH + IP_PORT_LENGTH;
+const size_t IP_HOST_LENGTH = 40;
+const size_t IP_PORT_LENGTH = 6;
+const size_t IP_ADDRESS_LENGTH = IP_HOST_LENGTH + IP_PORT_LENGTH;
 
-const int IP_HOST = 0;
-const int IP_PORT = IP_HOST_LENGTH;
+const size_t IP_HOST = 0;
+const size_t IP_PORT = IP_HOST_LENGTH;
 
 enum Property { CLIENT = 0x01, SERVER = 0x02, NETWORK_ROLE_MASK = 0x0f, TCP = 0x10, UDP = 0x20, PROTOCOL_MASK = 0xf0 };
 
@@ -99,13 +99,13 @@ static fd_set socketReadFDs; // stores all the socket file descriptors in use (f
 // Utility method to request an address (host and port) string for client connections (returns default values for server connections)
 char* IPConnection_GetAddress( IPConnection* connection )
 {
-  static char addressString[ ADDRESS_LENGTH ];
+  static char addressString[ IP_ADDRESS_LENGTH ];
   static int error = 0;
   
   DEBUG_EVENT( 0, "getting address string for socket fd: %d", connection->socketFD );
   
   error = getnameinfo( (struct sockaddr*) (connection->address), sizeof(struct sockaddr_in6), 
-                    &addressString[ HOST ], IP_HOST_LENGTH, &addressString[ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+                    &addressString[ IP_HOST ], IP_HOST_LENGTH, &addressString[ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
 
   if( error != 0 )
   {
@@ -119,25 +119,25 @@ char* IPConnection_GetAddress( IPConnection* connection )
 // More complete (but slow) method for verifying the remote address of incoming messages
 static int CompareAddresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
 {
-  static char addressStrings[ 2 ][ ADDRESS_LENGTH ];
+  char addressStrings[ 2 ][ IP_ADDRESS_LENGTH ];
   static int error = 0;
   
-  error = getnameinfo( addr_1, sizeof(struct sockaddr_in6), &addressStrings[ 0 ][ HOST ], IP_HOST_LENGTH, &addressStrings[ 0 ][ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+  error = getnameinfo( addr_1, sizeof(struct sockaddr_in6), &addressStrings[ 0 ][ IP_HOST ], IP_HOST_LENGTH, &addressStrings[ 0 ][ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
   if( error != 0 )
   {
     ERROR_EVENT( "getnameinfo: failed getting address 1 string: %s", gai_strerror( error ) );
     return -1;
   }
   
-  error = getnameinfo( addr_2, sizeof(struct sockaddr_in6), &addressStrings[ 1 ][ HOST ], IP_HOST_LENGTH, &addressStrings[ 1 ][ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+  error = getnameinfo( addr_2, sizeof(struct sockaddr_in6), &addressStrings[ 1 ][ IP_HOST ], IP_HOST_LENGTH, &addressStrings[ 1 ][ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
   if( error != 0 )
   {
     ERROR_EVENT( "getnameinfo: failed getting address 2 string: %s", gai_strerror( error ) );
     return -1;
   }
   
-  if( strcmp( (const char*) &addressStrings[ 0 ][ PORT ], (const char*) &addressStrings[ 1 ][ PORT ] ) == 0 )
-    return ( strcmp( (const char*) &addressStrings[ 0 ][ HOST ], (const char*) &addressStrings[ 1 ][ HOST ] ) );
+  if( strcmp( (const char*) &addressStrings[ 0 ][ IP_PORT ], (const char*) &addressStrings[ 1 ][ IP_PORT ] ) == 0 )
+    return ( strcmp( (const char*) &addressStrings[ 0 ][ IP_HOST ], (const char*) &addressStrings[ 1 ][ IP_HOST ] ) );
   else
     return -1;
 }
@@ -287,22 +287,31 @@ IPConnection* IPConnection_Open( const char* host, const char* port, uint8_t pro
   else
     networkRole = CLIENT;
 
+  #ifndef _CVI_DLL_
   if( (rw = getaddrinfo( host, port, &hints, &hostsInfoList )) != 0 )
   {
     ERROR_EVENT( "getaddrinfo: error reading host info: %s\n", gai_strerror( rw ) );
     return NULL;
   }
+  #else
+  hostInfo = &hints;
+  hostInfo->ai_family = AF_INET6;
+  hostInfo->ai_addr->sa_family = AF_INET6;
+  ((struct sockaddr_in6*) hostInfo->ai_addr)->sin6_port = htons( (short) portNumber );
+  ((struct sockaddr_in6*) hostInfo->ai_addr)->sin6_addr = in6addr_any;
+  hostInfo->ai_next = NULL;
+  #endif
 
   // loop through all the results and bind to the first we can
   for( hostInfo = hostsInfoList; hostInfo != NULL; hostInfo = hostInfo->ai_next ) 
   {
     // Extended connection info for debug builds
-    static char addressString[ ADDRESS_LENGTH ];
+    static char addressString[ IP_ADDRESS_LENGTH ];
     getnameinfo( hostInfo->ai_addr, sizeof(struct sockaddr), 
-                 &addressString[ HOST ], IP_HOST_LENGTH, &addressString[ PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
+                 &addressString[ IP_HOST ], IP_HOST_LENGTH, &addressString[ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
     
     DEBUG_EVENT( 0, "trying to %s to: host: %s - port: %s - protocol: %s - version: %s", ( host == NULL ) ? "bind" : "connect",
-                                                                                      &addressString[ HOST ], &addressString[ PORT ],
+                                                                                      &addressString[ IP_HOST ], &addressString[ IP_PORT ],
                                                                                       ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
                                                                                       ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4" );
 
@@ -373,7 +382,7 @@ IPConnection* IPConnection_Open( const char* host, const char* port, uint8_t pro
       // Connect TCP client socket to given remote address
       if( connect( socketFD, hostInfo->ai_addr, hostInfo->ai_addrlen ) == SOCKET_ERROR )
       {
-        ERROR_EVENT( "connect: failed on connecting socket %d to remote address %s/%s", socketFD, &addressString[ HOST ], &addressString[ PORT ] );
+        ERROR_EVENT( "connect: failed on connecting socket %d to remote address %s/%s", socketFD, &addressString[ IP_HOST ], &addressString[ IP_PORT ] );
         close( socketFD );
         continue;
       }
@@ -497,13 +506,13 @@ static int SendTCPMessage( IPConnection* connection, const char* message )
 static char* ReceiveUDPMessage( IPConnection* connection )
 {
   struct sockaddr_in6 address;
-  socklen_t addr_len = sizeof(struct sockaddr_storage);
+  socklen_t addressLength = sizeof(struct sockaddr_storage);
   static uint8_t* addressString[ 2 ];
   static char* empty_message = { '\0' };
 
   memset( connection->buffer, 0, IP_CONNECTION_MSG_LEN );
   // Blocks until there is something to be read in the socket
-  if( recvfrom( connection->socketFD, connection->buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &address, &addr_len ) == SOCKET_ERROR )
+  if( recvfrom( connection->socketFD, connection->buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &address, &addressLength ) == SOCKET_ERROR )
   {
     ERROR_EVENT( "recvfrom: error reading from socket %d", connection->socketFD );
     return NULL;
@@ -571,9 +580,9 @@ static IPConnection* AcceptTCPClient( IPConnection* server )
   IPConnection* client;
   int clientSocketFD;
   static struct sockaddr_storage clientAddress;
-  static socklen_t addr_len = sizeof(clientAddress);
+  static socklen_t addressLength = sizeof(clientAddress);
   
-  clientSocketFD = accept( server->socketFD, (struct sockaddr *) &clientAddress, &addr_len );
+  clientSocketFD = accept( server->socketFD, (struct sockaddr *) &clientAddress, &addressLength );
 
   if( clientSocketFD == INVALID_SOCKET )
   {
@@ -596,13 +605,12 @@ static IPConnection* AcceptUDPClient( IPConnection* server )
   size_t clientIndex, clientsNumber;
   IPConnection* client;
   static struct sockaddr_storage clientAddress;
-  static socklen_t addr_len = sizeof(clientAddress);
+  static socklen_t addressLength = sizeof(clientAddress);
   static char buffer[ IP_CONNECTION_MSG_LEN ];
   static uint8_t* addressString[2];
-  static IPConnection dummy_connection;
-  int bytes_received;
+  static IPConnection dummyConnection;
 
-  if( recvfrom( server->socketFD, buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &clientAddress, &addr_len ) == SOCKET_ERROR )
+  if( recvfrom( server->socketFD, buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &clientAddress, &addressLength ) == SOCKET_ERROR )
   {
     ERROR_EVENT( "recvfrom: error reading from socket %d", server->socketFD );
     return NULL;
@@ -619,7 +627,7 @@ static IPConnection* AcceptUDPClient( IPConnection* server )
       addressString[0] = server->clientsList[ clientIndex ]->address->sin6_addr.s6_addr;
       addressString[1] = ((struct sockaddr_in6*) &clientAddress)->sin6_addr.s6_addr;
       if( strncmp( (const char*) addressString[0], (const char*) addressString[1], sizeof(struct in6_addr) ) == 0 )
-        return &dummy_connection;
+        return &dummyConnection;
     }
   }
   

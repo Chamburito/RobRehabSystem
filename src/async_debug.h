@@ -120,7 +120,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     {
       messageUpdate = 0;
       //printLock = ThreadLock_Create();
-      Thread_Start( AsyncDebug_Print, NULL, DETACHED );
+      Thread_Start( AsyncDebug_Print, NULL, THREAD_DETACHED );
     }
     
     if( debugMessagesCount < MAX_DEBUG_MESSAGES ) 
