@@ -82,6 +82,8 @@ static size_t setpointIndex;
 
 const double CONTROL_SAMPLING_INTERVAL = 0.005;           // Sampling interval
 
+static double clientDispatchTime;
+
 /* Program entry-point */
 int main( int argc, char *argv[] )
 {
@@ -102,6 +104,13 @@ int main( int argc, char *argv[] )
     
   for( size_t i = 0; i < FILE_SETPOINTS_NUMBER; i++ )
     fileSetpointsDerivative2List[ i ] = ( fileSetpointsDerivativeList[ ( i + 1 ) % FILE_SETPOINTS_NUMBER ] - fileSetpointsDerivativeList[ i ] ) / CONTROL_SAMPLING_INTERVAL;
+  
+  int infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
+  char* infoMessage = NULL;
+  while( infoMessage == NULL )
+    infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
+  
+  fprintf( stderr, "received info message: %s", infoMessage );
   
   dataConnectionThreadID = Thread_Start( UpdateData, NULL, THREAD_JOINABLE );
 	
@@ -145,7 +154,8 @@ static void* UpdateData( void* callbackData )
   
   char dataMessageOut[ IP_CONNECTION_MSG_LEN ];
   
-  double serverDispatchTime = 0.0, clientReceiveTime = 0.0, clientDispatchTime = 0.0, serverReceiveTime = 0.0;
+  double serverDispatchTime = 0.0, clientReceiveTime = 0.0, serverReceiveTime = 0.0;
+  double latency = 0.0;
   
   double initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
   
@@ -174,6 +184,8 @@ static void* UpdateData( void* callbackData )
           serverReceiveTime = strtod( axisData, &axisData );
           serverDispatchTime = strtod( axisData, &axisData );
           clientReceiveTime = absoluteTime;
+          
+          latency = ( ( clientReceiveTime - clientDispatchTime ) - ( serverDispatchTime - serverReceiveTime ) ) / 2;
         }
       }
     }
@@ -184,15 +196,14 @@ static void* UpdateData( void* callbackData )
     //    || fileSetpointsDerivative2List[ ( setpointIndex - 1 ) % FILE_SETPOINTS_NUMBER ] * fileSetpointsDerivative2List[ ( setpointIndex + 1 ) % FILE_SETPOINTS_NUMBER ] < 0.0 )
     if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      deltaTime = 0.0;
-      
       size_t dataIndex = setpointIndex % FILE_SETPOINTS_NUMBER;
     
       strcpy( dataMessageOut, "0" );
-      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime );
-      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %lf %lf %lf", -fileSetpointsList[ dataIndex ], -fileSetpointsDerivativeList[ dataIndex ], -fileSetpointsDerivative2List[ dataIndex ] );
-      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %.3f", SETPOINT_UPDATE_INTERVAL );
+      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %g %g %g %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime,
+                                                                                  -fileSetpointsList[ dataIndex ], -fileSetpointsDerivativeList[ dataIndex ], deltaTime );
     
+      deltaTime = 0.0;
+      
       AsyncIPConnection_WriteMessage( dataClientID, dataMessageOut );
     }
   }
@@ -324,9 +335,12 @@ int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int even
 void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
 {
   static double execTime, elapsedTime;
+  static double responseTime;
   
   elapsedTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - execTime;
   execTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  
+  responseTime = execTime - clientDispatchTime;
   
   size_t referencePointsNumber = (size_t) ( elapsedTime / CONTROL_SAMPLING_INTERVAL );
   if( referencePointsNumber > NUM_POINTS ) referencePointsNumber = NUM_POINTS;
@@ -334,7 +348,11 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   
   size_t pointLength = NUM_POINTS / referencePointsNumber;
   
-  size_t setpointStart = ( setpointIndex > NUM_POINTS ) ? ( setpointIndex - NUM_POINTS + 1 ) : 0;
+  size_t setpointOffset = (size_t) ( 2 * responseTime / CONTROL_SAMPLING_INTERVAL );
+  
+  //fprintf( stderr, "offset: 2 * %f / %.3f = %u\r", responseTime, CONTROL_SAMPLING_INTERVAL, setpointOffset );
+  
+  size_t setpointStart = ( setpointIndex > NUM_POINTS + setpointOffset ) ? ( setpointIndex - setpointOffset - NUM_POINTS + 1 ) : 0;
   
   static double referenceValues[ NUM_POINTS ];
   

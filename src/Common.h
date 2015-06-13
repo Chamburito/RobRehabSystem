@@ -2,7 +2,7 @@
 // CVI RealTime Network Variable example.
 //-----------------------------------------------------------------------------
 
-#define NUM_POINTS			400
+#define NUM_POINTS			800
 
 #define MAX_TOGGLE_VARIABLE	"MaxToggle"
 #define MIN_TOGGLE_VARIABLE	"MinToggle"

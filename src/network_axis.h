@@ -12,6 +12,7 @@ typedef struct _TrajectoryPlanner
   double referenceCurve[ TRAJECTORY_CURVE_ORDER + 1 ];
   double initialTime, lastPointTime, curveTimeLength;
   double targetList[ TRAJECTORY_VALUES_NUMBER ];
+  double maxLimit, minLimit;
 } 
 TrajectoryPlanner;
 
@@ -25,6 +26,7 @@ TrajectoryPlanner* TrajectoryPlanner_Init()
     planner->targetList[ i ] = 0.0;
   
   planner->lastPointTime = planner->initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  planner->maxLimit = planner->minLimit = 0.0;
   
   return planner;
 }
@@ -38,48 +40,54 @@ double* TrajectoryPlanner_GetTargetList( TrajectoryPlanner* planner )
 {
   double elapsedTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - planner->initialTime;
   
-  /*if( elapsedTime > planner->curveTimeLength )
-  {
-    planner->referenceCurve[ 2 ] = - 0.1 * planner->referenceCurve[ 1 ] / fabs( planner->referenceCurve[ 1 ] );
-    planner->referenceCurve[ 3 ] = 0.0;
-  }*/
-  
   planner->targetList[ TRAJECTORY_POSITION ] = planner->referenceCurve[ 0 ];
   for( size_t i = 1; i <= TRAJECTORY_CURVE_ORDER; i++ )
     planner->targetList[ TRAJECTORY_POSITION ] += planner->referenceCurve[ i ] * pow( elapsedTime, i );
-  
+
   planner->targetList[ TRAJECTORY_VELOCITY ] = planner->referenceCurve[ 1 ];
   for( size_t i = 2; i <= TRAJECTORY_CURVE_ORDER; i++ )
     planner->targetList[ TRAJECTORY_VELOCITY ] += i * planner->referenceCurve[ i ] * pow( elapsedTime, i - 1 );
-  
-  planner->targetList[ TRAJECTORY_ACCELERATION ] = 2 * planner->referenceCurve[ 2 ] + 6 * planner->referenceCurve[ 3 ] * elapsedTime;
-  
-  planner->targetList[ TRAJECTORY_TIME ] = elapsedTime;
+
+  planner->targetList[ TRAJECTORY_ACCELERATION ] = 2 * planner->referenceCurve[ 2 ];
+  for( size_t i = 3; i <= TRAJECTORY_CURVE_ORDER; i++ )
+    planner->targetList[ TRAJECTORY_ACCELERATION ] += i * ( i - 1 ) * planner->referenceCurve[ i ] * elapsedTime;
+
+  if( planner->targetList[ TRAJECTORY_POSITION ] > planner->maxLimit )
+    planner->targetList[ TRAJECTORY_POSITION ] = planner->maxLimit;
+  else if( planner->targetList[ TRAJECTORY_POSITION ] < planner->minLimit ) 
+    planner->targetList[ TRAJECTORY_POSITION ] = planner->minLimit;
   
   return (double*) planner->targetList;
 }
 
-void TrajectoryPlanner_SetCurve( TrajectoryPlanner* planner, double setpointsList[ TRAJECTORY_VALUES_NUMBER ] )
+void TrajectoryPlanner_SetCurve( TrajectoryPlanner* planner, double setpoint, double setpointDerivative, double curveTimeLength )
 {
+  const double DEVIATION_LIMIT = 1.1;
+  
   (void) TrajectoryPlanner_GetTargetList( planner );
   
   planner->initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
   
   planner->referenceCurve[ 0 ] = planner->targetList[ TRAJECTORY_POSITION ];
-  planner->referenceCurve[ 1 ] = ( setpointsList[ TRAJECTORY_POSITION ] - planner->referenceCurve[ 0 ] ) / setpointsList[ TRAJECTORY_TIME ];
-  planner->referenceCurve[ 2 ] = ( setpointsList[ TRAJECTORY_VELOCITY ] - planner->referenceCurve[ 1 ] ) / ( 2 * setpointsList[ TRAJECTORY_TIME ] );
   
-  /*planner->referenceCurve[ 2 ] = 3 * ( setpointsList[ TRAJECTORY_POSITION ] - planner->referenceCurve[ 0 ] ) / pow( setpointsList[ TRAJECTORY_TIME ], 2 )
-                                 - ( setpointsList[ TRAJECTORY_VELOCITY ] - 2 * planner->referenceCurve[ 1 ] ) / setpointsList[ TRAJECTORY_TIME ];
+  planner->referenceCurve[ 1 ] = ( planner->targetList[ TRAJECTORY_VELOCITY ] + ( setpoint - planner->referenceCurve[ 0 ] ) / curveTimeLength ) / 2;
 
-  planner->referenceCurve[ 3 ] = ( setpointsList[ TRAJECTORY_VELOCITY ] - planner->referenceCurve[ 1 ] ) / pow( setpointsList[ TRAJECTORY_TIME ], 2 )
-                                 - 2 * ( setpointsList[ TRAJECTORY_VELOCITY ] - 2 * planner->referenceCurve[ 1 ] ) / pow( setpointsList[ TRAJECTORY_TIME ], 3 );*/
-    
-  planner->curveTimeLength = setpointsList[ TRAJECTORY_TIME ];
+  planner->referenceCurve[ 2 ] = ( setpointDerivative - planner->referenceCurve[ 1 ] ) / ( 2 * curveTimeLength );
   
-  DEBUG_PRINT( "setpoints: %.3f %.3f %.3f - interval: %.3f", setpointsList[ TRAJECTORY_POSITION ], setpointsList[ TRAJECTORY_VELOCITY ], setpointsList[ TRAJECTORY_ACCELERATION ], setpointsList[ TRAJECTORY_TIME ] );
+  /*planner->referenceCurve[ 2 ] = 3 * ( setpoint - planner->referenceCurve[ 0 ] ) / pow( curveTimeLength, 2 )
+                                 - ( setpointDerivative + 2 * planner->referenceCurve[ 1 ] ) / curveTimeLength;
   
-  DEBUG_PRINT( "poly: %.3ft^3 %+.3ft^2 %+.3ft %+.3f", planner->referenceCurve[ 3 ], planner->referenceCurve[ 2 ], planner->referenceCurve[ 1 ], planner->referenceCurve[ 0 ] );
+  planner->referenceCurve[ 3 ] = ( setpoint - planner->referenceCurve[ 0 ] ) / pow( curveTimeLength, 3 )
+                                 - ( setpointDerivative + planner->referenceCurve[ 1 ] ) / ( 2 * pow( curveTimeLength, 2 ) );*/
+  
+  planner->curveTimeLength = curveTimeLength;
+  
+  if( setpoint * DEVIATION_LIMIT > planner->maxLimit ) planner->maxLimit = setpoint * DEVIATION_LIMIT;
+  else if( setpoint * DEVIATION_LIMIT < planner->minLimit ) planner->minLimit = setpoint * DEVIATION_LIMIT;
+  
+  //DEBUG_PRINT( "setpoints: %f %f - interval: %.3f", setpoint, setpointDerivative, curveTimeLength );
+  
+  //DEBUG_PRINT( "poly: %.3ft^3 %+.3ft^2 %+.3ft %+.3f", planner->referenceCurve[ 3 ], planner->referenceCurve[ 2 ], planner->referenceCurve[ 1 ], planner->referenceCurve[ 0 ] );
 }
 
 #endif // TRAJECTORY_PLANNING_H 

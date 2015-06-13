@@ -52,7 +52,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
     return INVALID_THREAD_HANDLE;
   }
   
-  //DEBUG_PRINT( "created thread %x successfully", ( mode == THREAD_JOINABLE ) ? threadID : 0 );
+  DEBUG_PRINT( "created thread %x successfully", ( mode == THREAD_JOINABLE ) ? threadID : 0 );
 
   return threadID;
 }
@@ -71,7 +71,7 @@ static int CVICALLBACK ClearThreadPool( void* data )
 // Exit the calling thread, returning the given value
 void Thread_Exit( uint32_t exitCode )
 {
-  //DEBUG_PRINT( "thread exiting with code: %u", exitCode );
+  DEBUG_PRINT( "thread exiting with code: %u", exitCode );
 
   CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, ClearThreadPool, NULL, NULL );
   
@@ -88,7 +88,7 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
 
   if( handle != INVALID_THREAD_HANDLE )
   {
-    //DEBUG_PRINT( "waiting thread %x", handle );
+    DEBUG_PRINT( "waiting thread %x", handle );
 
     SetBreakOnLibraryErrors( 0 );
     if( (exitStatus = CmtWaitForThreadPoolFunctionCompletionEx( threadPool, handle, 0, milliseconds )) < 0 )
@@ -98,7 +98,7 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
     }
     else
     {
-      //DEBUG_PRINT( "thread %x returned !", handle );
+      DEBUG_PRINT( "thread %x returned !", handle );
 
       if( (exitStatus = CmtGetThreadPoolFunctionAttribute( threadPool, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exitCode )) < 0 )
       {

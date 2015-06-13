@@ -71,17 +71,17 @@ int RobRehabNetwork_Init()
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
   {
     if( AxisControl_GetAxisName( axisID ) != NULL )
-      snprintf( axesInfoString, IP_CONNECTION_MSG_LEN, "%s%u:%s:", axesInfoString, axisID, AxisControl_GetAxisName( axisID ) );
+    {
+      if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, ":" );
+      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u %s", axisID, AxisControl_GetAxisName( axisID ) );
+    }
     
     networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = -1;
     networkAxesList[ axisID ].trajectoryPlanner = TrajectoryPlanner_Init();
     networkAxesList[ axisID ].lastReceivedTime = networkAxesList[ axisID ].lastLocalTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
     networkAxesList[ axisID ].latency = 0.0;
   }
-  
-  if( strlen( axesInfoString ) > 0 )
-    axesInfoString[ strlen( axesInfoString ) - 1 ] = '\0';
-  
+
   int status = 0;
   
   // Create network variable connections.
@@ -142,6 +142,7 @@ void RobRehabNetwork_Update()
   
   if( (newInfoClient = AsyncIPConnection_GetClient( infoServerConnectionID )) != -1 )
   {
+    DEBUG_PRINT( "New TCP client %d from %s", newInfoClient, AsyncIPConnection_GetAddress( newInfoClient ) );
     AsyncIPConnection_WriteMessage( newInfoClient, axesInfoString );
     ListInsertItem( infoClientsList, &newInfoClient, END_OF_LIST );
   }
@@ -261,7 +262,7 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, voi
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
   static double serverDispatchTime, clientReceiveTime, clientDispatchTime, serverReceiveTime, latency;
-  static double setpointsList[ TRAJECTORY_VALUES_NUMBER ];
+  static double setpoint, setpointDerivative, setpointsInterval;
   
   char* messageIn = AsyncIPConnection_ReadMessage( clientID );
   
@@ -297,14 +298,12 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, voi
       networkAxesList[ axisID ].lastReceivedTime = clientDispatchTime;
       networkAxesList[ axisID ].lastLocalTime = serverReceiveTime;
       
-      setpointsList[ TRAJECTORY_POSITION ] = strtod( axisCommand, &axisCommand );
-      setpointsList[ TRAJECTORY_VELOCITY ] = strtod( axisCommand, &axisCommand );
-      setpointsList[ TRAJECTORY_ACCELERATION ] = strtod( axisCommand, &axisCommand );
-      setpointsList[ TRAJECTORY_TIME ] = strtod( axisCommand, &axisCommand );
+      setpoint = strtod( axisCommand, &axisCommand );
+      setpointDerivative = strtod( axisCommand, &axisCommand );
+      setpointsInterval = strtod( axisCommand, &axisCommand );
       
-      if( setpointsList[ TRAJECTORY_TIME ] > latency ) setpointsList[ TRAJECTORY_TIME ] -= latency;
-        
-      TrajectoryPlanner_SetCurve( networkAxesList[ axisID ].trajectoryPlanner, setpointsList );
+      if( setpointsInterval > latency )
+        TrajectoryPlanner_SetCurve( networkAxesList[ axisID ].trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval - latency );
     }
   }
   
@@ -324,10 +323,10 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, voi
         serverReceiveTime = networkAxesList[ axisID ].lastLocalTime;
         serverDispatchTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
       
-        sprintf( &messageOut[ strlen( messageOut ) ], "%u %g %g %g", axisID, clientDispatchTime, serverReceiveTime, serverDispatchTime );
+        sprintf( &messageOut[ strlen( messageOut ) ], "%u %f %f %f", axisID, clientDispatchTime, serverReceiveTime, serverDispatchTime );
         
         for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
-          sprintf( &messageOut[ strlen( messageOut ) ], " %.3f", controlMeasuresList[ dimensionIndex ] );
+          sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
       }
     }
   }

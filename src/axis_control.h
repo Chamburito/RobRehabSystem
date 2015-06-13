@@ -560,9 +560,9 @@ static void ControlKnee( AxisControl* kneeControl )
   //DEBUG_PRINT( "current setpoint value: %g (index: %d)", positionSetpoint, (int) kneeControl->setpointIndex ); 
   if( stepTime >= 2.22 )
   {
-    if( positionSetpointSum > 0.0 ) kneeControl->error = positionErrorSum / positionSetpointSum;
+    /*if( positionSetpointSum > 0.0 ) kneeControl->error = positionErrorSum / positionSetpointSum;
     else kneeControl->error = 1.0;
-    if( kneeControl->error > 1.0 ) kneeControl->error = 1.0;
+    if( kneeControl->error > 1.0 )*/ kneeControl->error = 1.0;
     stiffnessSetpoint = kneeControl->referenceStiffness * kneeControl->error;
     DEBUG_PRINT( "updating stiffness value: %g", stiffnessSetpoint );
     

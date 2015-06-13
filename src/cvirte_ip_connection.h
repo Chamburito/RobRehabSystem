@@ -99,7 +99,7 @@ static char* GetAddress( AsyncConnection* connection )
 {
   static char address_string[ IP_ADDRESS_LENGTH ];
   
-  DEBUG_EVENT( 0, "getting address string for connection handle: %u", connection->handle );
+  DEBUG_PRINT( "getting address string for connection handle: %u", connection->handle );
   
   sprintf( address_string, "%s/%u", connection->address.host, connection->address.port );
   
@@ -213,7 +213,7 @@ static void* AsyncConnect( void* connectionData )
   while( connection->networkRole != DISCONNECTED ) 
   {
     ProcessSystemEvents();
-    Timing_Delay( 10 );
+    Timing_Delay( 1 );
   }
   
   DEBUG_PRINT( "connection handle %u closed. exiting event loop on thread %x", connection->handle, THREAD_ID );
@@ -336,6 +336,7 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
   char messageBuffer[ IP_CONNECTION_MSG_LEN ];
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connectionHandle, CmtGetCurrentThreadID() );
+  fprintf( stderr, "called for connection handle %u on thread %x", connectionHandle, CmtGetCurrentThreadID() );
   
   switch( eventType )
   {
@@ -383,7 +384,10 @@ static int SendTCPMessage( AsyncConnection* connection, const char* message )
   {
     DEBUG_UPDATE( "TCP connection handle %u sending message: %s", connection->handle, message );
     
-    if( (errorCode = ClientTCPWrite( connection->handle, message, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
+    if( connection->ref_server == NULL ) errorCode = ClientTCPWrite( connection->handle, message, IP_CONNECTION_MSG_LEN, 0 );
+    else errorCode = ServerTCPWrite( connection->handle - connection->ref_server->handle, message, IP_CONNECTION_MSG_LEN, 0 );
+    
+    if( errorCode < 0 )
     {
       ERROR_EVENT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
       CloseConnection( 0, &connection, NULL );
@@ -521,7 +525,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
       
       if( connection->networkRole == SERVER )
       {
-        client = AddConnection( clientHandle, 0, NULL, TCP | CLIENT );
+        client = AddConnection( clientHandle + connection->handle, 0, NULL, TCP | CLIENT );
         GetTCPPeerAddr( client->handle, client->address.host, IP_HOST_LENGTH );
         client->ref_server = connection;
       
@@ -534,7 +538,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
           break;
         }
         
-        DEBUG_EVENT( 0, "TCP connection handle %u accepted client: %u (%s/%u)", connection->handle, client->handle, client->address.host, client->address.port );
+        DEBUG_PRINT( "TCP connection handle %u accepted client: %u (%s/%u)", connection->handle, client->handle, client->address.host, client->address.port );
       }
       else
         DEBUG_EVENT( 0, "TCP connection handle %u not accepting more clients", connection->handle );
@@ -692,6 +696,8 @@ int AsyncIPConnection_WriteMessage( int connectionID, const char* message )
     return -1;
   }
   
+  DEBUG_UPDATE( "writing \"%s\" to handle %d", message, connectionID );
+  
   return connection->ref_SendMessage( connection, message );
 }
 
@@ -704,7 +710,7 @@ int AsyncIPConnection_GetClient( int serverID )
   static int errorCode;
   
   connection = FindConnection( globalConnectionsList, (unsigned int) serverID, PEEK ); 
-
+  
   if( serverID < 0 || connection == NULL )
   {
     ERROR_EVENT( "no queue available for connection ID %d", serverID );
@@ -731,7 +737,6 @@ int AsyncIPConnection_GetClient( int serverID )
     return -1;
   }
   
-  
   if( (errorCode = CmtReadTSQData( connection->readQueue, &clientID, 1, TSQ_INFINITE_TIMEOUT, 0 )) < 0 )
   {
     char errorMessage[ DEBUG_MESSAGE_LENGTH ]; 
@@ -740,7 +745,7 @@ int AsyncIPConnection_GetClient( int serverID )
     return -1;
   }
   
-  DEBUG_EVENT( 0, "new client connection ID %d from server connection ID %d", clientID , serverID );  
+  DEBUG_PRINT( "new client connection ID %d from server connection ID %d", clientID , serverID );  
   
   return clientID; 
 }
