@@ -387,8 +387,9 @@ static void* AsyncControl( void* args )
       MotorDrive_ReadValues( axisControl->sensor );
       if( axisControl->actuator->controller != axisControl->sensor ) MotorDrive_ReadValues( axisControl->actuator->controller );
       
-      axisControl->measuresList[ CONTROL_POSITION ] = MotorDrive_GetMeasure( axisControl->sensor, AXIS_POSITION ) * ( 2 * PI );
-      axisControl->measuresList[ CONTROL_VELOCITY ] = MotorDrive_GetMeasure( axisControl->sensor, AXIS_VELOCITY );
+      double sensorPosition = MotorDrive_GetMeasure( axisControl->sensor, AXIS_POSITION ) * ( 2 * PI );
+      //axisControl->measuresList[ CONTROL_VELOCITY ] = ( sensorPosition - axisControl->measuresList[ CONTROL_POSITION ] ) / CONTROL_SAMPLING_INTERVAL;
+      axisControl->measuresList[ CONTROL_POSITION ] = sensorPosition;
       
       double actuatorPosition = MotorDrive_GetMeasure( axisControl->actuator->controller, AXIS_POSITION ) * ( 2 * PI );
       axisControl->measuresList[ CONTROL_TORQUE ] = axisControl->baseStiffness * ( actuatorPosition - axisControl->measuresList[ CONTROL_POSITION ] );
@@ -549,7 +550,7 @@ static void ControlKnee( AxisControl* kneeControl )
   
   static double stiffnessSetpoint;
   static double Kv, Bv;
-  const double forgettingFactor = 0.95;
+  const double forgettingFactor = 0.99;
 
   static double stepTime;
   
@@ -564,7 +565,6 @@ static void ControlKnee( AxisControl* kneeControl )
     else kneeControl->error = 1.0;
     if( kneeControl->error > 1.0 )*/ kneeControl->error = 1.0;
     stiffnessSetpoint = kneeControl->referenceStiffness * kneeControl->error;
-    DEBUG_PRINT( "updating stiffness value: %g", stiffnessSetpoint );
     
     positionErrorSum = 0.0;
     positionSetpointSum = 0.0;

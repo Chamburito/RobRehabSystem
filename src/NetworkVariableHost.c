@@ -105,12 +105,12 @@ int main( int argc, char *argv[] )
   for( size_t i = 0; i < FILE_SETPOINTS_NUMBER; i++ )
     fileSetpointsDerivative2List[ i ] = ( fileSetpointsDerivativeList[ ( i + 1 ) % FILE_SETPOINTS_NUMBER ] - fileSetpointsDerivativeList[ i ] ) / CONTROL_SAMPLING_INTERVAL;
   
-  int infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
+  /*int infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
   char* infoMessage = NULL;
   while( infoMessage == NULL )
     infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
   
-  fprintf( stderr, "received info message: %s", infoMessage );
+  fprintf( stderr, "received info message: %s", infoMessage );*/
   
   dataConnectionThreadID = Thread_Start( UpdateData, NULL, THREAD_JOINABLE );
 	
@@ -380,6 +380,7 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     emgAntagonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ];
     
     referenceValues[ pointIndex ] = fileSetpointsList[ ( setpointStart + pointIndex / pointLength ) % FILE_SETPOINTS_NUMBER ];
+    dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = -referenceValues[ pointIndex ];
   }
   
   //if( emgAgonistValues[ NUM_POINTS - 1 ] > 0.0 && emgAntagonistValues[ NUM_POINTS - 1 ] > 0.0 )

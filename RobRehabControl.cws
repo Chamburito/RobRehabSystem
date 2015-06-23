@@ -10,7 +10,7 @@ IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
 Number of Projects = 2
-Active Project = 2
+Active Project = 1
 Project 0001 = "RobRehabControlGui.prj"
 Project 0002 = "RobRehabControlRT.prj"
 Drag Bar Left = 273
@@ -68,12 +68,12 @@ Source Window State = "1,11,11,11,0,38,38,0,0,70,0,0,0,0,0,28,0,0,4,25,400,600,1
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariableHost."
 Path Line0002 = "c"
 File Type = "CSource"
-Disk Date = 3516974136
+Disk Date = 3517928506
 In Projects = "1,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 2
-Source Window State = "1,158,158,158,2,69,2,0,0,80,0,132,0,0,0,25,326,0,384,54,349,683,1,0,"
+Window Z-Order = 1
+Source Window State = "1,382,382,382,71,72,71,0,0,201,0,132,0,0,0,49,129,0,152,43,349,683,1,0,"
 
 [File 0003]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariableRT.c"
@@ -82,8 +82,8 @@ Disk Date = 3516610591
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 8
-Source Window State = "1,64,65,65,0,38,38,0,0,85,0,0,0,0,0,25,38,0,69,31,349,723,1,0,"
+Window Z-Order = 4
+Source Window State = "1,64,65,65,0,38,38,0,0,85,0,0,0,0,0,25,35,0,74,32,349,723,1,0,"
 
 [File 0004]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.h"
@@ -127,12 +127,12 @@ Source Window State = "1,68,68,68,5,23,5,0,0,85,0,0,0,0,0,25,7,0,33,39,349,723,1
 [File 0008]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"
 File Type = "Include"
-Disk Date = 3516974702
+Disk Date = 3517929923
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 1
-Source Window State = "1,142,142,142,7,20,7,0,0,201,0,125,0,0,0,49,287,0,297,58,349,723,1,15,"
+Window Z-Order = 2
+Source Window State = "1,182,182,182,95,96,95,0,0,85,0,125,0,0,0,25,177,0,167,56,349,723,1,15,"
 
 [File 0009]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug.h"
@@ -141,7 +141,7 @@ Disk Date = 3513172169
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 7
+Window Z-Order = 5
 Source Window State = "1,28,28,28,10,22,22,0,0,85,0,0,0,0,0,25,12,0,28,69,349,723,1,0,"
 
 [File 0010]
@@ -162,18 +162,18 @@ Disk Date = 3516978848
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 3
+Window Z-Order = 6
 Source Window State = "1,698,698,698,4,71,71,0,0,85,0,455,0,0,0,25,161,0,185,24,349,723,1,11,"
 
 [File 0012]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis_control.h"
 File Type = "Include"
-Disk Date = 3516637740
+Disk Date = 3517928350
 In Projects = "2,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 4
-Source Window State = "1,150,150,150,92,100,100,0,0,85,0,431,0,0,0,25,540,0,564,39,349,723,1,15,"
+Window Z-Order = 3
+Source Window State = "1,586,587,587,0,141,141,0,0,85,0,431,0,0,0,25,3,0,576,57,349,723,1,15,"
 
 [File 0013]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/data_logging.h"
@@ -192,7 +192,7 @@ Disk Date = 3516623753
 In Projects = "2,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 6
+Window Z-Order = 8
 Source Window State = "1,229,229,229,21,36,21,0,0,85,0,244,0,244,0,25,93,0,54,2,349,723,1,0,"
 
 [File 0015]
@@ -254,7 +254,7 @@ Disk Date = 3516956763
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 5
+Window Z-Order = 7
 Source Window State = "1,70,70,70,33,75,33,0,0,85,0,0,0,0,0,25,45,0,72,147,349,723,1,0,"
 
 [File 0021]

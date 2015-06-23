@@ -72,8 +72,8 @@ int RobRehabNetwork_Init()
   {
     if( AxisControl_GetAxisName( axisID ) != NULL )
     {
-      if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, ":" );
-      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u %s", axisID, AxisControl_GetAxisName( axisID ) );
+      if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
+      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", axisID, AxisControl_GetAxisName( axisID ) );
     }
     
     networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = -1;
@@ -100,6 +100,10 @@ int RobRehabNetwork_Init()
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
+  
+  AxisControl_Reset( 0 );
+  AxisControl_SetImpedance( 0, 0.0, 0.0 );
+  AxisControl_EnableMotor( 0 );
   
   return 0;
 }
@@ -142,13 +146,16 @@ void RobRehabNetwork_Update()
   
   if( (newInfoClient = AsyncIPConnection_GetClient( infoServerConnectionID )) != -1 )
   {
-    DEBUG_PRINT( "New TCP client %d from %s", newInfoClient, AsyncIPConnection_GetAddress( newInfoClient ) );
     AsyncIPConnection_WriteMessage( newInfoClient, axesInfoString );
     ListInsertItem( infoClientsList, &newInfoClient, END_OF_LIST );
   }
   
   if( (newDataClient = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
+  {
+    DEBUG_PRINT( "New UDP client %d from %s", newDataClient, AsyncIPConnection_GetAddress( newDataClient ) );
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
+    DEBUG_PRINT( "%u UDP clients", ListNumItems( dataClientsList ) );
+  }
   
   ListApplyToEach( infoClientsList, 1, UpdateAxisControlState, NULL );
   ListApplyToEach( dataClientsList, 1, UpdateAxisControlData, NULL );
@@ -173,7 +180,7 @@ void RobRehabNetwork_Update()
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = targetList[ TRAJECTORY_POSITION ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = AxisControl_GetError( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = networkAxesList[ axisID ].latency;// AxisControl_GetError( axisID );
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlMeasuresList[ CONTROL_STIFFNESS ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_TORQUE ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
@@ -310,8 +317,8 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, voi
   strcpy( messageOut, "" );
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
   {
-    if( networkAxesList[ axisID ].dataClient == clientID )
-    {
+    //if( networkAxesList[ axisID ].dataClient == clientID )
+    //{
       double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
       if( controlMeasuresList != NULL )
       {
@@ -328,12 +335,12 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, voi
         for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
           sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
       }
-    }
+    //}
   }
   
   if( strlen( messageOut ) > 0 ) 
   {
-    DEBUG_UPDATE( "outgoing message: %s", messageOut );
+    DEBUG_UPDATE( "sending message %s to client %d", messageOut, clientID );
     AsyncIPConnection_WriteMessage( clientID, messageOut );
   } 
   
