@@ -26,14 +26,21 @@ static ListType dataClientsList;
 
 typedef struct _NetworkAxis
 {
-  int infoClient;
-  int dataClient;
+  int dataClientID;
   TrajectoryPlanner* trajectoryPlanner;
-  double lastReceivedTime, lastLocalTime, latency;
 } 
 NetworkAxis;
 
 static NetworkAxis* networkAxesList;
+
+typedef struct _DataClient
+{
+  int clientID;
+  double lastReceivedTime, lastLocalTime;
+}
+DataClient;
+
+static double latency = 0.0; // hack
 
 static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
 
@@ -62,7 +69,7 @@ int RobRehabNetwork_Init()
   DEBUG_EVENT( 1, "Received server connection IDs: %d (State), %d (Data)", infoServerConnectionID, dataServerConnectionID );
   
   infoClientsList = ListCreate( sizeof(int) );
-  dataClientsList = ListCreate( sizeof(int) );
+  dataClientsList = ListCreate( sizeof(DataClient) );
   
   EMGAxisControl_Init();
   
@@ -76,10 +83,8 @@ int RobRehabNetwork_Init()
       snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", axisID, AxisControl_GetAxisName( axisID ) );
     }
     
-    networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = -1;
+    networkAxesList[ axisID ].dataClientID = -1;
     networkAxesList[ axisID ].trajectoryPlanner = TrajectoryPlanner_Init();
-    networkAxesList[ axisID ].lastReceivedTime = networkAxesList[ axisID ].lastLocalTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
-    networkAxesList[ axisID ].latency = 0.0;
   }
 
   int status = 0;
@@ -100,10 +105,6 @@ int RobRehabNetwork_Init()
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
-  
-  AxisControl_Reset( 0 );
-  AxisControl_SetImpedance( 0, 0.0, 0.0 );
-  AxisControl_EnableMotor( 0 );
   
   return 0;
 }
@@ -141,20 +142,19 @@ static int CVICALLBACK UpdateAxisControlData( int, void*, void* );
 
 void RobRehabNetwork_Update()
 {
-  static int newInfoClient;
-  static int newDataClient;
+  static int newInfoClientID, newDataClientID;
   
-  if( (newInfoClient = AsyncIPConnection_GetClient( infoServerConnectionID )) != -1 )
+  if( (newInfoClientID = AsyncIPConnection_GetClient( infoServerConnectionID )) != -1 )
   {
-    AsyncIPConnection_WriteMessage( newInfoClient, axesInfoString );
-    ListInsertItem( infoClientsList, &newInfoClient, END_OF_LIST );
+    AsyncIPConnection_WriteMessage( newInfoClientID, axesInfoString );
+    ListInsertItem( infoClientsList, &newInfoClientID, END_OF_LIST );
   }
   
-  if( (newDataClient = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
+  if( (newDataClientID = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
   {
-    DEBUG_PRINT( "New UDP client %d from %s", newDataClient, AsyncIPConnection_GetAddress( newDataClient ) );
+    DataClient newDataClient = { .clientID = newDataClientID };
+    newDataClient.lastReceivedTime = newDataClient.lastReceivedTime = Timing_GetExecTimeSeconds();
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
-    DEBUG_PRINT( "%u UDP clients", ListNumItems( dataClientsList ) );
   }
   
   ListApplyToEach( infoClientsList, 1, UpdateAxisControlState, NULL );
@@ -180,7 +180,7 @@ void RobRehabNetwork_Update()
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = targetList[ TRAJECTORY_POSITION ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = networkAxesList[ axisID ].latency;// AxisControl_GetError( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = latency;// AxisControl_GetError( axisID );
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlMeasuresList[ CONTROL_STIFFNESS ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_TORQUE ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
@@ -214,17 +214,15 @@ static int CVICALLBACK UpdateAxisControlState( int index, void* ref_clientID, vo
   
   if( messageIn != NULL ) 
   {
-    DEBUG_UPDATE( "received input message: %s", messageIn );
+    DEBUG_PRINT( "received input message: %s", messageIn );
   
     for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
       unsigned int axisID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
     
       if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
-      
-      networkAxesList[ axisID ].infoClient = clientID;
     
-      DEBUG_UPDATE( "parsing axis %u command \"%s\"", axisID, axisCommand );
+      DEBUG_PRINT( "parsing axis %u command \"%s\"", axisID, axisCommand );
       
       bool motorEnabled = (bool) strtoul( axisCommand, &axisCommand, 0 );
 
@@ -233,64 +231,81 @@ static int CVICALLBACK UpdateAxisControlState( int index, void* ref_clientID, vo
 
       bool reset = (bool) strtoul( axisCommand, NULL, 0 );
 
-      if( reset ) AxisControl_Reset( axisID );
+      if( reset ) 
+      {
+        AxisControl_Reset( axisID );
+        networkAxesList[ axisID ].dataClientID = -1;
+      }
     }
   }
   
   strcpy( messageOut, "" );
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
   {
-    if( networkAxesList[ axisID ].infoClient == clientID )
+    bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
+    if( motorStatesList != NULL )
     {
-      bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
-      if( motorStatesList != NULL )
-      {
-        if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
-        for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
-          strcat( messageOut, ( motorStatesList[ stateIndex ] == true ) ? "1 " : "0 " );
-        messageOut[ strlen( messageOut ) - 1 ] = '\0';
-      }
+      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
+      
+      sprintf( &messageOut[ strlen( messageOut ) ], "%u", axisID );
+      
+      for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
+        strcat( messageOut, ( motorStatesList[ stateIndex ] == true ) ? " 1" : " 0" );
     }
   }
   
   if( strlen( messageOut ) > 0 ) 
   {
-    DEBUG_UPDATE( "outgoing message: %s", messageOut );
+    DEBUG_UPDATE( "sending message %s to client %d", messageOut, clientID );
     AsyncIPConnection_WriteMessage( clientID, messageOut );
   }
   
   return 0;
 }
 
-static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, void* ref_callback )
+static int CVICALLBACK UpdateAxisControlData( int index, void* ref_dataClient, void* ref_callback )
 {
-  int clientID = *((int*) ref_clientID);
+  DataClient* dataClient = (DataClient*) ref_dataClient;
   
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
-  static double serverDispatchTime, clientReceiveTime, clientDispatchTime, serverReceiveTime, latency;
+  static double serverDispatchTime, clientReceiveTime, clientDispatchTime, serverReceiveTime;
   static double setpoint, setpointDerivative, setpointsInterval;
   
-  char* messageIn = AsyncIPConnection_ReadMessage( clientID );
+  char* messageIn = AsyncIPConnection_ReadMessage( dataClient->clientID );
   
   if( messageIn != NULL ) 
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
+    
+    char* timeData = strtok( messageIn, "|" );
+    
+    serverDispatchTime = strtod( timeData, &timeData );
+    clientReceiveTime = strtod( timeData, &timeData );
+    clientDispatchTime = strtod( timeData, &timeData );
+    serverReceiveTime = Timing_GetExecTimeSeconds();
+    
+    dataClient->lastReceivedTime = clientDispatchTime;
+    dataClient->lastLocalTime = serverReceiveTime;
+    
+    char* axesData = strtok( NULL, "|" );
   
-    for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
+    for( char* axisCommand = strtok( axesData, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
       unsigned int axisID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
     
       if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
       
-      networkAxesList[ axisID ].dataClient = clientID;
+      NetworkAxis* networkAxis = &(networkAxesList[ axisID ]);
+      
+      if( networkAxis->dataClientID == -1 )
+      {
+        DEBUG_PRINT( "new client for axis %u: %d", axisID, dataClient->clientID );
+        networkAxis->dataClientID = dataClient->clientID;
+      }
+      else if( networkAxis->dataClientID != dataClient->clientID ) continue;
       
       DEBUG_UPDATE( "parsing axis %u command \"%s\"", axisID, axisCommand );
-      
-      serverDispatchTime = strtod( axisCommand, &axisCommand );
-      clientReceiveTime = strtod( axisCommand, &axisCommand );
-      clientDispatchTime = strtod( axisCommand, &axisCommand );
-      serverReceiveTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
       
       if( serverDispatchTime > 0.0 && clientReceiveTime > 0.0 )
       {
@@ -300,49 +315,44 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_clientID, voi
       else
         latency = 0.0;
       
-      //DEBUG_PRINT( "lag: ( ( %.3f - %.3f ) - ( %.3f - %.3f ) ) / 2 = %g", serverReceiveTime, serverDispatchTime, clientDispatchTime, clientReceiveTime, latency );
-      
-      networkAxesList[ axisID ].lastReceivedTime = clientDispatchTime;
-      networkAxesList[ axisID ].lastLocalTime = serverReceiveTime;
+      DEBUG_UPDATE( "lag: ( ( %.3f - %.3f ) - ( %.3f - %.3f ) ) / 2 = %g", serverReceiveTime, serverDispatchTime, clientDispatchTime, clientReceiveTime, latency );
       
       setpoint = strtod( axisCommand, &axisCommand );
       setpointDerivative = strtod( axisCommand, &axisCommand );
       setpointsInterval = strtod( axisCommand, &axisCommand );
       
       if( setpointsInterval > latency )
-        TrajectoryPlanner_SetCurve( networkAxesList[ axisID ].trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval - latency );
+        TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval - latency );
     }
   }
   
   strcpy( messageOut, "" );
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
   {
-    //if( networkAxesList[ axisID ].dataClient == clientID )
-    //{
-      double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
-      if( controlMeasuresList != NULL )
-      {
-        //double* jointMeasuresList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
-    
-        if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
+    double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
+    if( controlMeasuresList != NULL )
+    {
+      //double* jointMeasuresList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
+
+      clientDispatchTime = dataClient->lastReceivedTime;
+      serverReceiveTime = dataClient->lastLocalTime;
+      serverDispatchTime = Timing_GetExecTimeSeconds();
       
-        clientDispatchTime = networkAxesList[ axisID ].lastReceivedTime;
-        serverReceiveTime = networkAxesList[ axisID ].lastLocalTime;
-        serverDispatchTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
-      
-        sprintf( &messageOut[ strlen( messageOut ) ], "%u %f %f %f", axisID, clientDispatchTime, serverReceiveTime, serverDispatchTime );
-        
-        for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
-          sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
-      }
-    //}
+      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
+      else sprintf( messageOut, "%f %f %f|", clientDispatchTime, serverReceiveTime, serverDispatchTime );
+
+      sprintf( &messageOut[ strlen( messageOut ) ], "%u", axisID );
+
+      for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
+        sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
+    }
   }
   
   if( strlen( messageOut ) > 0 ) 
   {
-    DEBUG_UPDATE( "sending message %s to client %d", messageOut, clientID );
-    AsyncIPConnection_WriteMessage( clientID, messageOut );
-  } 
+    DEBUG_UPDATE( "sending message %s to client %d", messageOut, dataClient->clientID );
+    AsyncIPConnection_WriteMessage( dataClient->clientID, messageOut );
+  }
   
   return 0;
 }
@@ -433,13 +443,13 @@ void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* call
 	{
     EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_CONTRACTION_PHASE : EMG_ACTIVATION_PHASE ); 
     
-    DEBUG_PRINT( "axis %u %s %s EMG contraction phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
+    //DEBUG_PRINT( "axis %u %s %s EMG contraction phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
 	}
 	else if( handle == gMinToggleSubscriber )
 	{
     EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
     
-    DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
+    //DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
 	}
   else if( handle == gMotorToggleSubscriber )
   {
@@ -451,7 +461,7 @@ void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* call
     else
       AxisControl_DisableMotor( axisID );
   
-    DEBUG_PRINT( "motor %u %s", axisID, enabled ? "enabled" : "disabled" );
+    //DEBUG_PRINT( "motor %u %s", axisID, enabled ? "enabled" : "disabled" );
   }
 }
 
@@ -465,7 +475,7 @@ void CVICALLBACK ChangeValueDataCallback( void* handle, CNVData data, void* call
     maxStiffness = value;
     AxisControl_SetImpedance( 0, maxStiffness, 0.0 );
     
-    DEBUG_PRINT( "new maximum stiffness: %g", maxStiffness );
+    //DEBUG_PRINT( "new maximum stiffness: %g", maxStiffness );
 	}
 }
 

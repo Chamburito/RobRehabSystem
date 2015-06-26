@@ -23,9 +23,9 @@ extern inline unsigned long Timing_GetExecTimeMilliseconds()
 }
 
 // Get system time in seconds
-extern inline unsigned int Timing_GetExecTimeSeconds()
+extern inline double Timing_GetExecTimeSeconds()
 {
-  return ( (unsigned int) ( GetTimeUS() / 1000000 ) );
+  return ( (double) GetTimeUS() ) / 1000000.0;
 }
 
 #endif /* TIMING_H */

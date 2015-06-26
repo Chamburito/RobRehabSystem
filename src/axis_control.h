@@ -388,7 +388,7 @@ static void* AsyncControl( void* args )
       if( axisControl->actuator->controller != axisControl->sensor ) MotorDrive_ReadValues( axisControl->actuator->controller );
       
       double sensorPosition = MotorDrive_GetMeasure( axisControl->sensor, AXIS_POSITION ) * ( 2 * PI );
-      //axisControl->measuresList[ CONTROL_VELOCITY ] = ( sensorPosition - axisControl->measuresList[ CONTROL_POSITION ] ) / CONTROL_SAMPLING_INTERVAL;
+      axisControl->measuresList[ CONTROL_VELOCITY ] = ( sensorPosition - axisControl->measuresList[ CONTROL_POSITION ] ) / CONTROL_SAMPLING_INTERVAL;
       axisControl->measuresList[ CONTROL_POSITION ] = sensorPosition;
       
       double actuatorPosition = MotorDrive_GetMeasure( axisControl->actuator->controller, AXIS_POSITION ) * ( 2 * PI );
@@ -583,7 +583,7 @@ static void ControlKnee( AxisControl* kneeControl )
   position = kneeControl->measuresList[ CONTROL_POSITION ];
 
   velocityFiltered[0] = -c2 * velocityFiltered[1] - c3 * velocityFiltered[2] + d1 * velocity[0] + d2 * velocity[1] + d3 * velocity[2];
-  kneeControl->measuresList[ CONTROL_VELOCITY ] = velocityFiltered[0];
+  //kneeControl->measuresList[ CONTROL_VELOCITY ] = velocityFiltered[0];
   
   double positionError = position - positionSetpoint;
   positionErrorSum += CONTROL_SAMPLING_INTERVAL * positionError * positionError;

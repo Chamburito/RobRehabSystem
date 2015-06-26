@@ -25,7 +25,7 @@ TrajectoryPlanner* TrajectoryPlanner_Init()
   for( size_t i = 0; i < TRAJECTORY_VALUES_NUMBER; i++ )
     planner->targetList[ i ] = 0.0;
   
-  planner->lastPointTime = planner->initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  planner->lastPointTime = planner->initialTime = Timing_GetExecTimeSeconds();
   planner->maxLimit = planner->minLimit = 0.0;
   
   return planner;
@@ -38,7 +38,7 @@ void TrajectoryPlanner_End( TrajectoryPlanner* planner )
 
 double* TrajectoryPlanner_GetTargetList( TrajectoryPlanner* planner )
 {
-  double elapsedTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - planner->initialTime;
+  double elapsedTime = Timing_GetExecTimeSeconds() - planner->initialTime;
   
   planner->targetList[ TRAJECTORY_POSITION ] = planner->referenceCurve[ 0 ];
   for( size_t i = 1; i <= TRAJECTORY_CURVE_ORDER; i++ )
@@ -66,7 +66,7 @@ void TrajectoryPlanner_SetCurve( TrajectoryPlanner* planner, double setpoint, do
   
   (void) TrajectoryPlanner_GetTargetList( planner );
   
-  planner->initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  planner->initialTime = Timing_GetExecTimeSeconds();
   
   planner->referenceCurve[ 0 ] = planner->targetList[ TRAJECTORY_POSITION ];
   

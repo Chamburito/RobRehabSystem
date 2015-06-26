@@ -514,7 +514,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
     
       if( (client = FindConnection( connection->clientsList, clientHandle, REMOVE )) != NULL )
       {
-        DEBUG_EVENT( 0, "TCP client handle %u disconnected", client->handle );
+        /*ERROR_EVENT( 0, */DEBUG_PRINT( "TCP client handle %u disconnected", client->handle );
         
         (void) CloseConnection( 0, &client, NULL );
       }
@@ -547,24 +547,24 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
       
     case TCP_DATAREADY:
       
-      if( (client = FindConnection( connection->clientsList, clientHandle, PEEK )) != NULL )
+      if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
       {
-        if( (errorCode = ServerTCPRead( client->handle, messageBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
-        {
-          ERROR_EVENT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
-          (void) CloseConnection( 0, &client, NULL );
-          break;
-        }
+        /*ERROR_EVENT( 0, */DEBUG_PRINT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
+        (void) CloseConnection( 0, &client, NULL );
+        break;
+      }
       
+      if( (client = FindConnection( connection->clientsList, clientHandle + connection->handle, PEEK )) != NULL )
+      {
         if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
         { 
           CmtGetErrorMessage( errorCode, messageBuffer );
-          ERROR_EVENT( "%s", messageBuffer );
+          /*ERROR_EVENT( 0, */DEBUG_PRINT( "%s", messageBuffer );
           break;
         }
+        
+        DEBUG_PRINT( "TCP connection handle %u (server_handle %u) received message: %s", client->handle, connection->handle, messageBuffer );
       }
-      
-      DEBUG_UPDATE( "TCP connection handle %u (server_handle %u) received message: %s", clientHandle, connection->handle, messageBuffer );
     
       break;
   }
@@ -679,7 +679,8 @@ char* AsyncIPConnection_ReadMessage( int clientID )
     return NULL;
   }
   
-  DEBUG_UPDATE( "message from connection ID %d: %s", clientID, messageBuffer );  
+  if( connection->protocol == TCP )
+    DEBUG_PRINT( "message from connection ID %d: %s", clientID, messageBuffer );  
   
   return messageBuffer;
 }
@@ -803,7 +804,8 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
           
           (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
           
-          CloseConnection( 0, &(connection->ref_server), NULL );
+          DEBUG_PRINT( "client %u closed", connection->handle );
+          //CloseConnection( 0, &(connection->ref_server), NULL );
         }
       
         break;
@@ -836,7 +838,7 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
         {
           (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
           
-          CloseConnection( 0, &(connection->ref_server), NULL );
+          //CloseConnection( 0, &(connection->ref_server), NULL );
         }
       
         break;

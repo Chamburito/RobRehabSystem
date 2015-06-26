@@ -22,7 +22,7 @@ void Timing_Delay( unsigned long milliseconds )
 unsigned long Timing_GetExecTimeMilliseconds()
 {
     LARGE_INTEGER ticks;
-	double exec_time;
+	  double exec_time;
     
     QueryPerformanceFrequency( &TICKS_PER_SECOND );
     QueryPerformanceCounter( &ticks );
@@ -33,15 +33,15 @@ unsigned long Timing_GetExecTimeMilliseconds()
 }
 
 // Get system time in seconds
-unsigned int Timing_GetExecTimeSeconds()
+double Timing_GetExecTimeSeconds()
 {
     LARGE_INTEGER ticks;
-    unsigned int exec_time;
+    double exec_time;
     
     QueryPerformanceFrequency( &TICKS_PER_SECOND );
     QueryPerformanceCounter( &ticks );
     
-    exec_time = (unsigned int) ( ticks.QuadPart / TICKS_PER_SECOND.QuadPart );
+    exec_time = (double) ticks.QuadPart / TICKS_PER_SECOND.QuadPart;
     
     return exec_time;
 }

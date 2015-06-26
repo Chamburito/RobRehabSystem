@@ -105,12 +105,22 @@ int main( int argc, char *argv[] )
   for( size_t i = 0; i < FILE_SETPOINTS_NUMBER; i++ )
     fileSetpointsDerivative2List[ i ] = ( fileSetpointsDerivativeList[ ( i + 1 ) % FILE_SETPOINTS_NUMBER ] - fileSetpointsDerivativeList[ i ] ) / CONTROL_SAMPLING_INTERVAL;
   
-  /*int infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
+  int infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
   char* infoMessage = NULL;
   while( infoMessage == NULL )
     infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
   
-  fprintf( stderr, "received info message: %s", infoMessage );*/
+  fprintf( stderr, "received info message: %s\n", infoMessage );
+  
+  char initMessage[ IP_CONNECTION_MSG_LEN ];
+  strcpy( initMessage, "0 0 1" );
+  AsyncIPConnection_WriteMessage( infoClientID, initMessage );
+  
+  /*infoMessage = NULL;
+  while( infoMessage == NULL )
+    infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
+  
+  fprintf( stderr, "received info message: %s\n", infoMessage );*/
   
   dataConnectionThreadID = Thread_Start( UpdateData, NULL, THREAD_JOINABLE );
 	
@@ -157,7 +167,7 @@ static void* UpdateData( void* callbackData )
   double serverDispatchTime = 0.0, clientReceiveTime = 0.0, serverReceiveTime = 0.0;
   double latency = 0.0;
   
-  double initialTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  double initialTime = Timing_GetExecTimeSeconds();
   
   double elapsedTime = 0.0, absoluteTime = initialTime; 
   
@@ -169,22 +179,26 @@ static void* UpdateData( void* callbackData )
   
   while( isDataUpdateRunning )
   {
-    deltaTime += ( ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - absoluteTime );
-    absoluteTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+    deltaTime += ( Timing_GetExecTimeSeconds()  - absoluteTime );
+    absoluteTime = Timing_GetExecTimeSeconds();
     elapsedTime = absoluteTime - initialTime;
     
     char* messageIn = AsyncIPConnection_ReadMessage( dataClientID );
     if( messageIn != NULL )
     {
-      for( char* axisData = strtok( messageIn, ":" ); axisData != NULL; axisData = strtok( NULL, ":" ) )
+      char* timeData = strtok( messageIn, "|" );
+    
+      clientDispatchTime = strtod( timeData, &timeData );
+      serverReceiveTime = strtod( timeData, &timeData );
+      serverDispatchTime = strtod( timeData, &timeData );
+      clientReceiveTime = Timing_GetExecTimeSeconds();
+      
+      char* axesData = strtok( NULL, "|" );
+      
+      for( char* axisData = strtok( axesData, ":" ); axisData != NULL; axisData = strtok( NULL, ":" ) )
       {
         if( (unsigned int) strtoul( axisData, &axisData, 0 ) == 0 )
         {
-          clientDispatchTime = strtod( axisData, &axisData );
-          serverReceiveTime = strtod( axisData, &axisData );
-          serverDispatchTime = strtod( axisData, &axisData );
-          clientReceiveTime = absoluteTime;
-          
           latency = ( ( clientReceiveTime - clientDispatchTime ) - ( serverDispatchTime - serverReceiveTime ) ) / 2;
         }
       }
@@ -198,9 +212,8 @@ static void* UpdateData( void* callbackData )
     {
       size_t dataIndex = setpointIndex % FILE_SETPOINTS_NUMBER;
     
-      strcpy( dataMessageOut, "0" );
-      sprintf( &dataMessageOut[ strlen( dataMessageOut ) ], " %g %g %g %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime,
-                                                                                  -fileSetpointsList[ dataIndex ], -fileSetpointsDerivativeList[ dataIndex ], deltaTime );
+      sprintf( dataMessageOut, "%g %g %g|0 %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime,
+                                                      -fileSetpointsList[ dataIndex ], -fileSetpointsDerivativeList[ dataIndex ], deltaTime );
     
       deltaTime = 0.0;
       
@@ -337,8 +350,8 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   static double execTime, elapsedTime;
   static double responseTime;
   
-  elapsedTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0 - execTime;
-  execTime = ( (double) Timing_GetExecTimeMilliseconds() ) / 1000.0;
+  elapsedTime = Timing_GetExecTimeSeconds()  - execTime;
+  execTime = Timing_GetExecTimeSeconds();
   
   responseTime = execTime - clientDispatchTime;
   
@@ -370,7 +383,7 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     positionValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ];
     velocityValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ];
     setpointValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ];
-    errorValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ];
+    errorValues[ pointIndex ] = 100.0 * dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ];
     robotStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ];
     maxStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ];
     patientStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ];

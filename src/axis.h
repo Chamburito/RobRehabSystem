@@ -328,7 +328,8 @@ void MotorDrive_ReadValues( MotorDrive* controller )
   // Read values from PDO02 (Velocity and Tension) to buffer
   CANFrame_Read( controller->readFramesList[ PDO02 ], payload );  
   // Update values from PDO02
-  controller->measuresList[ AXIS_VELOCITY ] = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
+  double rpmVelocity = payload[3] * 0x1000000 + payload[2] * 0x10000 + payload[1] * 0x100 + payload[0];
+  controller->measuresList[ AXIS_VELOCITY ] = rpmVelocity / ( controller->gearReduction * 60.0 );
   controller->measuresList[ AXIS_TENSION ] = payload[5] * 0x100 + payload[4];
 }
 
