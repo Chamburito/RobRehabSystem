@@ -49,9 +49,8 @@ enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFN
 static CNVData data = 0;
 
 static double maxStiffness;
-static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber, gMotorToggleSubscriber, gMaxStiffnessSubscriber;
+static CNVSubscriber gMaxToggleSubscriber, gMinToggleSubscriber;
 void CVICALLBACK ChangeStateDataCallback( void*, CNVData, void* );
-void CVICALLBACK ChangeValueDataCallback( void*, CNVData, void* );
 
 static CNVBufferedWriter gWavePublisher;
 
@@ -98,12 +97,6 @@ int RobRehabNetwork_Init()
   status = CNVCreateBufferedWriter( "\\\\localhost\\" PROCESS "\\" WAVE_VARIABLE, 0, 0, 0, 10, 10000, 0, &gWavePublisher );
 	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
   
-  status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" ENABLE_VARIABLE, ChangeStateDataCallback, 0, 0, 10000, 0, &gMotorToggleSubscriber );
-	if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
-  
-  status = CNVCreateSubscriber( "\\\\localhost\\" PROCESS "\\" STIFFNESS_VARIABLE, ChangeValueDataCallback, 0, 0, 10000, 0, &gMaxStiffnessSubscriber );
-	if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-  
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", CmtGetCurrentThreadID() );
   
   return 0;
@@ -127,8 +120,6 @@ void RobRehabNetwork_End()
   if( gMaxToggleSubscriber ) CNVDispose( gMaxToggleSubscriber );
 	if( gMinToggleSubscriber ) CNVDispose( gMinToggleSubscriber );
   if( gWavePublisher ) CNVDispose( gWavePublisher );
-  if( gMotorToggleSubscriber ) CNVDispose( gMotorToggleSubscriber );
-  if( gMaxStiffnessSubscriber ) CNVDispose( gMaxStiffnessSubscriber );
 	CNVFinish();
   
   EMGAxisControl_End();
@@ -162,8 +153,6 @@ void RobRehabNetwork_Update()
   
   for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
   {
-    //networkAxesList[ axisID ].infoClient = networkAxesList[ axisID ].dataClient = 0;
-    
     double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
 
     double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ axisID ].trajectoryPlanner );
@@ -180,7 +169,7 @@ void RobRehabNetwork_Update()
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = targetList[ TRAJECTORY_POSITION ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = latency;// AxisControl_GetError( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = AxisControl_GetError( axisID ); //Timing_GetExecTimeSeconds();
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlMeasuresList[ CONTROL_STIFFNESS ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_TORQUE ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
@@ -229,35 +218,42 @@ static int CVICALLBACK UpdateAxisControlState( int index, void* ref_clientID, vo
       if( motorEnabled ) AxisControl_EnableMotor( axisID );
       else AxisControl_DisableMotor( axisID );
 
-      bool reset = (bool) strtoul( axisCommand, NULL, 0 );
+      bool reset = (bool) strtoul( axisCommand, &axisCommand, 0 );
 
       if( reset ) 
       {
         AxisControl_Reset( axisID );
         networkAxesList[ axisID ].dataClientID = -1;
       }
+      
+      double impedanceStiffness = strtod( axisCommand, &axisCommand );
+      double impedanceDamping = strtod( axisCommand, NULL );
+      
+      AxisControl_SetImpedance( axisID, impedanceStiffness, impedanceDamping );
+      
+      maxStiffness = impedanceStiffness;
     }
-  }
-  
-  strcpy( messageOut, "" );
-  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
-  {
-    bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
-    if( motorStatesList != NULL )
+    
+    strcpy( messageOut, "" );
+    for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
     {
-      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
+      bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
+      if( motorStatesList != NULL )
+      {
+        if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
       
-      sprintf( &messageOut[ strlen( messageOut ) ], "%u", axisID );
+        sprintf( &messageOut[ strlen( messageOut ) ], "%u", axisID );
       
-      for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
-        strcat( messageOut, ( motorStatesList[ stateIndex ] == true ) ? " 1" : " 0" );
+        for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
+          strcat( messageOut, ( motorStatesList[ stateIndex ] == true ) ? " 1" : " 0" );
+      }
     }
-  }
   
-  if( strlen( messageOut ) > 0 ) 
-  {
-    DEBUG_UPDATE( "sending message %s to client %d", messageOut, clientID );
-    AsyncIPConnection_WriteMessage( clientID, messageOut );
+    if( strlen( messageOut ) > 0 ) 
+    {
+      DEBUG_UPDATE( "sending message %s to client %d", messageOut, clientID );
+      AsyncIPConnection_WriteMessage( clientID, messageOut );
+    }
   }
   
   return 0;
@@ -450,32 +446,6 @@ void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* call
     EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
     
     //DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
-	}
-  else if( handle == gMotorToggleSubscriber )
-  {
-    if( enabled )
-    {
-      AxisControl_Reset( axisID );
-  		AxisControl_EnableMotor( axisID );
-    }
-    else
-      AxisControl_DisableMotor( axisID );
-  
-    //DEBUG_PRINT( "motor %u %s", axisID, enabled ? "enabled" : "disabled" );
-  }
-}
-
-void CVICALLBACK ChangeValueDataCallback( void* handle, CNVData data, void* callbackData )
-{
-  double value;
-  CNVGetScalarDataValue( data, CNVDouble, &value );
-  
-  if( handle == gMaxStiffnessSubscriber )
-	{
-    maxStiffness = value;
-    AxisControl_SetImpedance( 0, maxStiffness, 0.0 );
-    
-    //DEBUG_PRINT( "new maximum stiffness: %g", maxStiffness );
 	}
 }
 

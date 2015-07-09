@@ -31,9 +31,12 @@
 
 #include "async_debug.h"
 
-enum OperationMode { HOMMING_MODE, PROFILE_VELOCITY_MODE, PROFILE_POSITION_MODE, POSITION_MODE, 
+/*enum OperationMode { HOMMING_MODE, PROFILE_VELOCITY_MODE, PROFILE_POSITION_MODE, POSITION_MODE, 
                      VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_MODES_NUMBER };
-static const uint8_t operationModes[ AXIS_MODES_NUMBER ] = { 0x06, 0x03, 0x01, 0xFF, 0xFE, 0xFD, 0xFB, 0xFA };
+static const uint8_t operationModes[ AXIS_MODES_NUMBER ] = { 0x06, 0x03, 0x01, 0xFF, 0xFE, 0xFD, 0xFB, 0xFA };*/
+
+enum OperationMode { POSITION_MODE, VELOCITY_MODE, AXIS_OP_MODES_NUMBER };
+static const uint8_t operationModes[ AXIS_OP_MODES_NUMBER ] = { 0xFF, 0xFE };
 
 enum State { READY_2_SWITCH_ON, SWITCHED_ON, OPERATION_ENABLED, FAULT, VOLTAGE_ENABLED, 
               QUICK_STOPPED, SWITCH_ON_DISABLE, REMOTE_NMT, TARGET_REACHED, SETPOINT_ACK, AXIS_STATES_NUMBER };
@@ -44,8 +47,6 @@ enum Control { SWITCH_ON, ENABLE_VOLTAGE, QUICK_STOP, ENABLE_OPERATION,
 static const uint16_t controlValues[ AXIS_CONTROLS_NUMBER ] = { 1, 2, 4, 8, 16, 32, 64, 128, 256 };
 
 enum Dimension { AXIS_POSITION, AXIS_VELOCITY, AXIS_CURRENT, AXIS_TENSION, AXIS_DIMS_NUMBER }; 
-
-enum Setpoint { MOTOR_POSITION_SETPOINT, MOTOR_VELOCITY_SETPOINT, MOTOR_SETPTS_NUMBER }; 
 
 enum FrameType { SDO, PDO01, PDO02, AXIS_FRAME_TYPES_NUMBER };
 static const char* CAN_FRAME_NAMES[ AXIS_FRAME_TYPES_NUMBER ] = { "SDO", "PDO01", "PDO02" };
@@ -66,7 +67,7 @@ typedef struct _Motor
 {
   MotorDrive* controller;
   double currentToTorqueRatio;
-  double setpointsList[ MOTOR_SETPTS_NUMBER ];
+  double setpointsList[ AXIS_OP_MODES_NUMBER ];
   bool active;
 }
 Motor;
@@ -80,8 +81,8 @@ void MotorDrive_Disconnect( MotorDrive* );
 extern inline void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
 extern inline void MotorDrive_SetGearReduction( MotorDrive*, double );
 double MotorDrive_GetMeasure( MotorDrive*, enum Dimension );
-double Motor_GetSetpoint( Motor*, enum Setpoint );
-void Motor_SetSetpoint( Motor*, enum Setpoint, double );
+double Motor_GetSetpoint( Motor*, enum OperationMode );
+void Motor_SetSetpoint( Motor*, enum OperationMode, double );
 bool MotorDrive_CheckState( MotorDrive*, enum State );
 void MotorDrive_Reset( MotorDrive* );
 static void SetControl( MotorDrive*, enum Control, bool );
@@ -254,9 +255,9 @@ double MotorDrive_GetMeasure( MotorDrive* controller, enum Dimension index )
   return controller->measuresList[ index ];
 }
  
-double Motor_GetSetpoint( Motor* motor, enum Setpoint index )
+double Motor_GetSetpoint( Motor* motor, enum OperationMode index )
 {
-  if( index >= MOTOR_SETPTS_NUMBER )
+  if( index >= AXIS_OP_MODES_NUMBER )
   {
     ERROR_EVENT( "invalid setpoint type index: %d\n", index );
     return 0;
@@ -265,14 +266,14 @@ double Motor_GetSetpoint( Motor* motor, enum Setpoint index )
   return motor->setpointsList[ index ];
 }
 
-void Motor_SetSetpoint( Motor* motor, enum Setpoint index, double value )
+void Motor_SetSetpoint( Motor* motor, enum OperationMode operationMode, double value )
 {
-  if( index >= MOTOR_SETPTS_NUMBER )
+  if( index >= AXIS_OP_MODES_NUMBER )
   {
     ERROR_EVENT( "invalid setpoint type index: %d\n", index );
     return;
   }
-      
+  
   motor->setpointsList[ index ] = value;
 }
 
@@ -338,7 +339,7 @@ void Motor_WriteConfig( Motor* motor )
   // Create writing buffer
   static uint8_t payload[8];
 
-  int rawPositionSetpoint = (int) ( motor->setpointsList[ MOTOR_POSITION_SETPOINT ] * motor->controller->encoderResolution * motor->controller->gearReduction );
+  int rawPositionSetpoint = (int) ( motor->setpointsList[ POSITION_MODE ] * motor->controller->encoderResolution * motor->controller->gearReduction );
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[0] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );
@@ -353,7 +354,7 @@ void Motor_WriteConfig( Motor* motor )
   // Write values from buffer to PDO01 
   CANFrame_Write( motor->controller->writeFramesList[ PDO01 ], payload );
 
-  int velocitySetpoint = (int) motor->setpointsList[ MOTOR_VELOCITY_SETPOINT ];
+  int velocitySetpoint = (int) motor->setpointsList[ VELOCITY_MODE ];
   
   // Set values for PDO02 (Velocity Setpoint and Digital Output)
   payload[0] = (uint8_t) ( velocitySetpoint & 0x000000ff );

@@ -343,25 +343,28 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
     case TCP_DISCONNECT:
 
       if( connectionHandle == connection->handle )
-            CloseConnection( 0, &connection, NULL );
+      {
+        DEBUG_PRINT( "sender %u disconnected", connectionHandle ); 
+        CloseConnection( 0, &connection, NULL );
+      }
       break;
       
     case TCP_DATAREADY:
         
       if( (errorCode = ClientTCPRead( connectionHandle, messageBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
       {
-        ERROR_EVENT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
+        /*ERROR_EVENT*/DEBUG_PRINT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
         if( connectionHandle == connection->handle )
-                CloseConnection( 0, &connection, NULL );
+          CloseConnection( 0, &connection, NULL );
         break;
       }
       
       if( (errorCode = CmtWriteTSQData( connection->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
       {
         CmtGetErrorMessage( errorCode, messageBuffer );
-        ERROR_EVENT( "%s", messageBuffer );
+        /*ERROR_EVENT*/DEBUG_PRINT( "%s", messageBuffer );
         if( connectionHandle == connection->handle )
-                CloseConnection( 0, &connection, NULL );
+          CloseConnection( 0, &connection, NULL );
         break;
       }
       
@@ -390,7 +393,7 @@ static int SendTCPMessage( AsyncConnection* connection, const char* message )
     if( errorCode < 0 )
     {
       ERROR_EVENT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
-      CloseConnection( 0, &connection, NULL );
+      //CloseConnection( 0, &connection, NULL );
       return errorCode;
     }
   }
@@ -590,7 +593,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
   {
     if( (errorCode = UDPRead( channel, messageBuffer, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, &(clientPort), clientHost )) < 0 )
     {
-      ERROR_EVENT( "%s", GetUDPErrorString( errorCode ) );
+      /*ERROR_EVENT*/DEBUG_PRINT( "%s", GetUDPErrorString( errorCode ) );
       (void) CloseConnection( 0, &client, NULL );
       return -1;
     }
