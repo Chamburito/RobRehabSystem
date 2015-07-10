@@ -14,7 +14,9 @@
 
 #include "network_axis.h"
 
-#include "emg_axis_control.h"
+//#include "emg_axis_control.h"
+#include "aes_control.h"
+#include "emg_processing.h"
 
 #include "async_debug.h"
 
@@ -70,16 +72,19 @@ int RobRehabNetwork_Init()
   infoClientsList = ListCreate( sizeof(int) );
   dataClientsList = ListCreate( sizeof(DataClient) );
   
-  EMGAESControl_Init();
+  //EMGAESControl_Init();
+  AESControl_Init();
+  EMGProcessing_Init();
   
   networkAxesList = (NetworkAxis*) calloc( AESControl_GetDevicesNumber(), sizeof(NetworkAxis) );
   
   for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
   {
-    if( AESControl_GetDeviceName( deviceID ) != NULL )
+    char* deviceName = AESControl_GetDeviceName( deviceID );
+    if( deviceName != NULL )
     {
       if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", deviceID, AESControl_GetDeviceName( deviceID ) );
+      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", deviceID, deviceName );
     }
     
     networkAxesList[ deviceID ].dataClientID = -1;
@@ -122,7 +127,9 @@ void RobRehabNetwork_End()
   if( gWavePublisher ) CNVDispose( gWavePublisher );
 	CNVFinish();
   
-  EMGAESControl_End();
+  //EMGAESControl_End();
+  EMGProcessing_End();
+  AESControl_End();
   
   DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
 }
@@ -154,10 +161,11 @@ void RobRehabNetwork_Update()
   for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
   {
     double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
+    double* controlParametersList = AESControl_GetParametersList( deviceID );
 
     double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ deviceID ].trajectoryPlanner );
     
-    //DEBUG_PRINT( "next setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
+    DEBUG_PRINT( "\tnext setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
     
     AESControl_SetSetpoint( deviceID, targetList[ TRAJECTORY_POSITION ] );
 
@@ -168,13 +176,13 @@ void RobRehabNetwork_Update()
 
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = targetList[ TRAJECTORY_POSITION ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = AESControl_GetError( deviceID ); //Timing_GetExecTimeSeconds();
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlMeasuresList[ CONTROL_STIFFNESS ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_TORQUE ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = controlParametersList[ CONTROL_SETPOINT ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = controlMeasuresList[ CONTROL_ERROR ]; //Timing_GetExecTimeSeconds();
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlParametersList[ CONTROL_STIFFNESS ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_FORCE ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = EMGAESControl_GetTorque( deviceID );
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = EMGAESControl_GetStiffness( deviceID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = 0.0;//EMGAESControl_GetTorque( deviceID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = 0.0;//EMGAESControl_GetStiffness( deviceID );
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_AGONIST ] = EMGProcessing_GetMuscleActivation( 0 );
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ] = EMGProcessing_GetMuscleActivation( 1 );
 
@@ -317,6 +325,8 @@ static int CVICALLBACK UpdateControlData( int index, void* ref_dataClient, void*
       setpointDerivative = strtod( axisCommand, &axisCommand );
       setpointsInterval = strtod( axisCommand, &axisCommand );
       
+      DEBUG_PRINT( "received setpoint: %f", setpoint );
+      
       if( setpointsInterval > latency )
         TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval - latency );
     }
@@ -428,7 +438,7 @@ static char* ReadAxisControlData( unsigned int deviceID )
 
 void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* callbackData )
 {
-	int messageCode;
+	/*int messageCode;
   CNVGetScalarDataValue( data, CNVInt32, &messageCode );
   
   unsigned int deviceID = (unsigned int) ( messageCode & 0x000000ff );
@@ -446,7 +456,7 @@ void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* call
     EMGAESControl_ChangeState( deviceID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
     
     //DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", deviceID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
-	}
+	}*/
 }
 
 

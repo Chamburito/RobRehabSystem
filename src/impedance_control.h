@@ -67,9 +67,9 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-/*static double RunVelocityControl( ImpedanceControlData* controlData, double deltaTime )
+static double RunVelocityControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
-  static double sensorTension_0, sensorPosition_0;
+  /*static double sensorTension_0, sensorPosition_0;
 
   // Sampling of last voltage signal values for filtering (average filter)
   static double analogSamples[ HIPS_CONTROL_SAMPLING_NUMBER ];
@@ -131,8 +131,9 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
   int velocityRPMSetpoint = ( velocitySetpoint / HIPS_ACTUATOR_STEP ) * 60 / ( 2 * PI ); // rpm
 
   //Motor_SetSetpoint( hipsControl->actuator, MOTOR_VELOCITY_SETPOINT, velocityRPMSetpoint );
-  return velocityRPMSetpoint;
-}*/
+  return velocityRPMSetpoint;*/
+  return 0.0;
+}
 
 
 /////////////////////////////////////////////////////////////////////////////////

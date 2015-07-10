@@ -52,8 +52,8 @@ Splined3Curve* Spline3Interp_LoadCurve( const char* curveName )
         newCurveData->splinesList = (SplineCoeffs*) realloc( newCurveData->splinesList, ( newCurveData->splinesNumber + 1 ) * sizeof(SplineCoeffs) );
         newCurveData->splineTimes = (SplineBounds*) realloc( newCurveData->splineTimes, ( newCurveData->splinesNumber + 1 ) * sizeof(SplineBounds) );
         
-        SplineCoeffs* splineCoeffs = &(newCurveData->splinesList[ newCurveData->splinesNumber ]);
-        SplineBounds* splineBounds = &(newCurveData->splineTimes[ newCurveData->splinesNumber ]);
+        double* splineCoeffs = newCurveData->splinesList[ newCurveData->splinesNumber ];
+        double* splineBounds = newCurveData->splineTimes[ newCurveData->splinesNumber ];
         
         fscanf( configFile, "%lf %lf", &(splineBounds[ 0 ]), &(splineBounds[ 1 ]) );
         
@@ -66,6 +66,12 @@ Splined3Curve* Spline3Interp_LoadCurve( const char* curveName )
       }
       else if( strcmp( readBuffer, "END_CURVE" ) == 0 ) 
       {
+        if( newCurveData->splinesNumber == 0 )
+        {
+          free( newCurveData );
+          newCurveData = NULL;
+        }
+        
         break;
       }
       else if( strcmp( readBuffer, "#" ) == 0 )
@@ -91,6 +97,8 @@ void Spline3Interp_UnloadCurve( Splined3Curve* curveData )
   {
     free( curveData->splinesList );
     free( curveData->splineTimes );
+    
+    free( curveData );
   }
 }
 
@@ -98,21 +106,33 @@ double Spline3Interp_GetValue( Splined3Curve* curveData, double valuePoint )
 {
   if( curveData == NULL ) return 1.0;
   
-  SplineCoeffs* splineCoeffs = NULL;
+  double* splineCoeffs = NULL;
   double relativePoint = 0.0;
   
-  for( size_t splineID = 0; splineID < curveData->splinesList[ splineID ].splinesNumber; splineID++ )
+  for( size_t splineID = 0; splineID < curveData->splinesNumber; splineID++ )
   {
-    if( valuePoint > curveData->splineTimes[ splineID ][ 0 ] )
+    if( valuePoint >= curveData->splineTimes[ splineID ][ 0 ] && valuePoint < curveData->splineTimes[ splineID ][ 1 ] )
     {
-      splineCoeffs = &(curveData->splinesList[ splineID ]);
+      //DEBUG_PRINT( "interval: %f - %f", curveData->splineTimes[ splineID ][ 0 ], curveData->splineTimes[ splineID ][ 1 ] );
       
-      if( valuePoint <= curveData->splineTimes[ splineID ][ 1 ] )
+      splineCoeffs = curveData->splinesList[ splineID ];
+      
+      relativePoint = valuePoint - curveData->splineTimes[ splineID ][ 0 ];
+      
+      break;
+      
+      /*if( valuePoint < curveData->splineTimes[ splineID ][ 1 ] )
+      {
         relativePoint = valuePoint - curveData->splineTimes[ splineID ][ 0 ];
+        break;
+      }
       else
-        relativePoint = curveData->splineTimes[ splineID ][ 1 ] - curveData->splineTimes[ splineID ][ 0 ];
+        relativePoint = curveData->splineTimes[ splineID ][ 1 ] - curveData->splineTimes[ splineID ][ 0 ];*/
     }
   }
+  
+  //DEBUG_PRINT( "value point: %f - relative point: %f", valuePoint, relativePoint );
+  //DEBUG_PRINT( "coeffs: %.3f %.3f %.3f %.3f", splineCoeffs[ 0 ], splineCoeffs[ 1 ], splineCoeffs[ 2 ], splineCoeffs[ 3 ] );
   
   double curveValue = 0.0;
   

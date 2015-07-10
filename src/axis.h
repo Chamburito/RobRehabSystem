@@ -35,7 +35,7 @@
                      VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_MODES_NUMBER };
 static const uint8_t operationModes[ AXIS_MODES_NUMBER ] = { 0x06, 0x03, 0x01, 0xFF, 0xFE, 0xFD, 0xFB, 0xFA };*/
 
-enum OperationMode { POSITION_MODE, VELOCITY_MODE, AXIS_OP_MODES_NUMBER };
+enum OperationMode { AXIS_OP_MODE_POSITION, AXIS_OP_MODE_VELOCITY, AXIS_OP_MODES_NUMBER };
 static const uint8_t operationModes[ AXIS_OP_MODES_NUMBER ] = { 0xFF, 0xFE };
 
 enum State { READY_2_SWITCH_ON, SWITCHED_ON, OPERATION_ENABLED, FAULT, VOLTAGE_ENABLED, 
@@ -266,7 +266,7 @@ double Motor_GetSetpoint( Motor* motor, enum OperationMode index )
   return motor->setpointsList[ index ];
 }
 
-void Motor_SetSetpoint( Motor* motor, enum OperationMode operationMode, double value )
+void Motor_SetSetpoint( Motor* motor, enum OperationMode index, double value )
 {
   if( index >= AXIS_OP_MODES_NUMBER )
   {
@@ -339,7 +339,7 @@ void Motor_WriteConfig( Motor* motor )
   // Create writing buffer
   static uint8_t payload[8];
 
-  int rawPositionSetpoint = (int) ( motor->setpointsList[ POSITION_MODE ] * motor->drive->encoderResolution * motor->drive->gearReduction );
+  int rawPositionSetpoint = (int) ( motor->setpointsList[ AXIS_OP_MODE_POSITION ] * motor->drive->encoderResolution * motor->drive->gearReduction );
   
   // Set values for PDO01 (Position Setpoint and Control Word)
   payload[0] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );
@@ -354,7 +354,7 @@ void Motor_WriteConfig( Motor* motor )
   // Write values from buffer to PDO01 
   CANFrame_Write( motor->drive->writeFramesList[ PDO01 ], payload );
 
-  int velocitySetpoint = (int) motor->setpointsList[ VELOCITY_MODE ];
+  int velocitySetpoint = (int) motor->setpointsList[ AXIS_OP_MODE_VELOCITY ];
   
   // Set values for PDO02 (Velocity Setpoint and Digital Output)
   payload[0] = (uint8_t) ( velocitySetpoint & 0x000000ff );

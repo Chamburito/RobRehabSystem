@@ -1,9 +1,9 @@
-#ifndef CONTROL_H
-#define CONTROL_H
+#ifndef AES_CONTROL_H
+#define AES_CONTROL_H
 
 #include "axis.h"
-#include "axis_control_functions.h"
-#include "splined3_curves.h"
+#include "impedance_control.h"
+#include "spline3_interpolation.h"
 
 #include "async_debug.h"
 
@@ -31,6 +31,7 @@ typedef struct _AESController
   SimpleKalmanFilter* positionFilter;
   double parametersList[ CONTROL_PARAMS_NUMBER ];
   Splined3Curve* parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
+  double setpoint;
   double maxReach, minReach;
   double maxStiffness, maxDamping, physicalStiffness;               // Real stiffness and damping of the actuator
   bool isRunning;                                                   // Is control thread running ?
@@ -62,7 +63,7 @@ static void LoadControllersConfig()
         
         fscanf( configFile, "%s", newController->name );
   
-        DEBUG_EVENT( 0, "found axis control %s", newController->name );
+        /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "found %s AES control config", newController->name );
         
         newController->actuator = NULL;
         newController->sensor = NULL;
@@ -109,7 +110,7 @@ static void LoadControllersConfig()
       {
         fscanf( configFile, "%lf", &(newController->physicalStiffness) );
         
-        DEBUG_EVENT( 4, "found %s base stiffness value: %g", newController->name, newController->physicalStiffness );
+        /*DEBUG_EVENT( 4,*/DEBUG_PRINT( "found %s base stiffness value: %g", newController->name, newController->physicalStiffness );
         
         if( newController->physicalStiffness < 0.0 ) newController->physicalStiffness = 0.0;
       }
@@ -117,7 +118,7 @@ static void LoadControllersConfig()
       {
         fscanf( configFile, "%lf %lf", &(newController->minReach), &(newController->maxReach) );
         
-        DEBUG_EVENT( 8, "found %s reach value limit: %g <-> %g", newController->name, newController->minReach, newController->maxReach );
+        /*DEBUG_EVENT( 8,*/DEBUG_PRINT( "found %s reach value limits: %g <-> %g", newController->name, newController->minReach, newController->maxReach );
         
         if( newController->physicalStiffness < 0.0 ) newController->physicalStiffness = 0.0;
       }
@@ -125,7 +126,7 @@ static void LoadControllersConfig()
       {
         fscanf( configFile, "%s", readBuffer );
         
-        DEBUG_EVENT( 3, "setting %s control function to %s", newController->name, readBuffer );
+        /*DEBUG_EVENT( 3,*/DEBUG_PRINT( "setting %s control function to %s", newController->name, readBuffer );
         
         newController->ref_RunControl = ImpedanceControl_GetFunction( readBuffer );
       }
@@ -133,12 +134,12 @@ static void LoadControllersConfig()
       {
         fscanf( configFile, "%s", readBuffer );
         
-        DEBUG_EVENT( 7, "setting %s operation mode to %s", newController->name, readBuffer );
+        /*DEBUG_EVENT( 7,*/DEBUG_PRINT( "setting %s operation mode to %s", newController->name, readBuffer );
         
         if( strcmp( readBuffer, "POSITION" ) == 0 )
-          newController->operationMode = POSITION_MODE;
+          newController->operationMode = AXIS_OP_MODE_POSITION;
         else if( strcmp( readBuffer, "VELOCITY" ) == 0 )
-          newController->operationMode = VELOCITY_MODE;
+          newController->operationMode = AXIS_OP_MODE_VELOCITY;
       }
       else if( strcmp( readBuffer, "parameter_curves:" ) == 0 )
       {
@@ -146,7 +147,7 @@ static void LoadControllersConfig()
         {
           fscanf( configFile, "%s", readBuffer );
         
-          DEBUG_EVENT( 6, "setting %s parameter curve %s", newController->name, readBuffer );
+          /*DEBUG_EVENT( 6,*/DEBUG_PRINT( "setting %s parameter curve %s", newController->name, readBuffer );
         
           newController->parameterCurvesList[ parameterIndex ] = Spline3Interp_LoadCurve( readBuffer );
         }
@@ -224,7 +225,9 @@ void AESControl_End()
       MotorDrive_Disconnect( controllersList[ deviceID ].sensor );
       
       SimpleKalman_DiscardFilter( controllersList[ deviceID ].positionFilter );
-      Spline3Interp_UnloadCurve( controllersList[ deviceID ].parameterCurvesList );
+      
+      for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+        Spline3Interp_UnloadCurve( controllersList[ deviceID ].parameterCurvesList[ parameterIndex ] );
     }
   
     free( controllersList );
@@ -323,21 +326,7 @@ extern inline void AESControl_SetSetpoint( size_t deviceID, double setpoint )
 {
   if( !CheckController( deviceID ) ) return;
   
-  AESController* controller = &(controllersList[ deviceID ]);
-  double* parametersList = &(controllersList[ deviceID ].parametersList);
-  Splined3Curve* parameterCurvesList = &(controllersList[ deviceID ].parameterCurvesList);
-  
-  parametersList[ CONTROL_SETPOINT ] = Spline3Interp_GetValue( parameterCurvesList[ CONTROL_SETPOINT ], setpoint );
-  if( parametersList[ CONTROL_SETPOINT ] > controller->maxReach ) parametersList[ CONTROL_SETPOINT ] = controller->maxReach;
-  else if( parametersList[ CONTROL_SETPOINT ] < controller->minReach ) parametersList[ CONTROL_SETPOINT ] = controller->minReach;
-  
-  parametersList[ CONTROL_STIFFNESS ] = controller->maxStiffness * Spline3Interp_GetValue( parameterCurvesList[ CONTROL_STIFFNESS ], setpoint );
-  if( parametersList[ CONTROL_STIFFNESS ] > controller->maxStiffness ) parametersList[ CONTROL_STIFFNESS ] = controller->maxStiffness;
-  else if( parametersList[ CONTROL_STIFFNESS ] < 0.0 ) parametersList[ CONTROL_STIFFNESS ] = 0.0;
-  
-  parametersList[ CONTROL_DAMPING ] = controller->maxDamping * Spline3Interp_GetValue( parameterCurvesList[ CONTROL_DAMPING ], setpoint );
-  if( parametersList[ CONTROL_DAMPING ] > controller->maxDamping ) parametersList[ CONTROL_DAMPING ] = controller->maxDamping;
-  else if( parametersList[ CONTROL_DAMPING ] < 0.0 ) parametersList[ CONTROL_DAMPING ] = 0.0;
+  controllersList[ deviceID ].setpoint = setpoint;
 }
 
 extern inline void AESControl_SetImpedance( size_t deviceID, double referenceStiffness, double referenceDamping )
@@ -361,14 +350,59 @@ extern inline const char* AESControl_GetDeviceName( size_t deviceID )
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-/////                           COMMON CONSTANTS                            /////
+/////                         ASYNCRONOUS CONTROL                           /////
 /////////////////////////////////////////////////////////////////////////////////
 
-#ifndef PI
-const double PI = 3.141592;        // Duh...
-#endif
-
 const double CONTROL_SAMPLING_INTERVAL = 0.005;           // Sampling interval
+
+static inline void UpdateControlMeasures( AESController* controller )
+{
+  MotorDrive_ReadValues( controller->sensor );
+  if( controller->actuator->drive != controller->sensor ) MotorDrive_ReadValues( controller->actuator->drive );
+
+  double sensorPosition = MotorDrive_GetMeasure( controller->sensor, AXIS_POSITION );
+
+  double* filteredMeasures = SimpleKalman_Update( controller->positionFilter, sensorPosition, CONTROL_SAMPLING_INTERVAL );
+
+  controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ];
+  controller->measuresList[ CONTROL_VELOCITY ] = filteredMeasures[ KALMAN_DERIVATIVE ];
+  controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];
+
+  double actuatorPosition = MotorDrive_GetMeasure( controller->actuator->drive, AXIS_POSITION );
+  controller->measuresList[ CONTROL_FORCE ] = controller->physicalStiffness * ( actuatorPosition - sensorPosition );
+}
+
+static inline void UpdateControlParameters( AESController* controller )
+{
+  double* parametersList = (double*) controller->parametersList;
+  Splined3Curve** parameterCurvesList = (Splined3Curve**) controller->parameterCurvesList;
+  
+  parametersList[ CONTROL_SETPOINT ] = Spline3Interp_GetValue( parameterCurvesList[ CONTROL_SETPOINT ], controller->setpoint );
+  if( parametersList[ CONTROL_SETPOINT ] > controller->maxReach ) parametersList[ CONTROL_SETPOINT ] = controller->maxReach;
+  else if( parametersList[ CONTROL_SETPOINT ] < controller->minReach ) parametersList[ CONTROL_SETPOINT ] = controller->minReach;
+  
+  parametersList[ CONTROL_STIFFNESS ] = controller->maxStiffness * Spline3Interp_GetValue( parameterCurvesList[ CONTROL_STIFFNESS ], controller->setpoint );
+  if( parametersList[ CONTROL_STIFFNESS ] > controller->maxStiffness ) parametersList[ CONTROL_STIFFNESS ] = controller->maxStiffness;
+  else if( parametersList[ CONTROL_STIFFNESS ] < 0.0 ) parametersList[ CONTROL_STIFFNESS ] = 0.0;
+  
+  parametersList[ CONTROL_DAMPING ] = controller->maxDamping * Spline3Interp_GetValue( parameterCurvesList[ CONTROL_DAMPING ], controller->setpoint );
+  if( parametersList[ CONTROL_DAMPING ] > controller->maxDamping ) parametersList[ CONTROL_DAMPING ] = controller->maxDamping;
+  else if( parametersList[ CONTROL_DAMPING ] < 0.0 ) parametersList[ CONTROL_DAMPING ] = 0.0;
+}
+
+static inline void RunControl( AESController* controller )
+{
+  static double controlOutput;
+  
+  // If the motor is being actually controlled, call control pass algorhitm
+  if( controller->actuator->active )
+  {
+    controlOutput = controller->ref_RunControl( controller->measuresList, controller->parametersList, CONTROL_SAMPLING_INTERVAL );
+    Motor_SetSetpoint( controller->actuator, controller->operationMode, controlOutput );
+  }
+
+  Motor_WriteConfig( controller->actuator );
+}
 
 // Method that runs the control functions asyncronously
 static void* AsyncControl( void* args )
@@ -395,28 +429,11 @@ static void* AsyncControl( void* args )
     
       execTime = Timing_GetExecTimeMilliseconds();
       
-      MotorDrive_ReadValues( controller->sensor );
-      if( controller->actuator->drive != controller->sensor ) MotorDrive_ReadValues( controller->actuator->drive );
-
-      double sensorPosition = MotorDrive_GetMeasure( controller->sensor, AXIS_POSITION );
-
-      double* filteredMeasures = SimpleKalman_Update( controller->positionFilter, sensorPosition, CONTROL_SAMPLING_INTERVAL );
-
-      controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ];// * ( 2 * PI );
-      controller->measuresList[ CONTROL_VELOCITY ] = filteredMeasures[ KALMAN_DERIVATIVE ];// * ( 2 * PI );
-      controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];// * ( 2 * PI );
-
-      double actuatorPosition = MotorDrive_GetMeasure( controller->actuator->drive, AXIS_POSITION );
-      controller->measuresList[ CONTROL_FORCE ] = controller->physicalStiffness * ( actuatorPosition - sensorPosition );// * ( 2 * PI );
-
-      // If the motor is being actually controlled, call control pass algorhitm
-      if( controller->actuator->active ) 
-      {
-        double controlOutput = controller->ref_RunControl( controller->measuresList, controller->parametersList, CONTROL_SAMPLING_INTERVAL );
-        Motor_SetSetpoint( controller->actuator, controller->operationMode, controlOutput );  
-      }
-  
-      Motor_WriteConfig( controller->actuator );
+      UpdateControlMeasures( controller );
+      
+      UpdateControlParameters( controller );
+      
+      RunControl( controller );
       
       elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
       DEBUG_UPDATE( "control pass for %s AES (before delay): elapsed time: %u ms", controller->name, elapsedTime );
@@ -431,4 +448,4 @@ static void* AsyncControl( void* args )
   return NULL;
 }
 
-#endif /* CONTROL_H */ 
+#endif /* AES_CONTROL_H */ 

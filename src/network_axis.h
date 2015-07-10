@@ -68,11 +68,13 @@ void TrajectoryPlanner_SetCurve( TrajectoryPlanner* planner, double setpoint, do
   
   planner->initialTime = Timing_GetExecTimeSeconds();
   
-  planner->referenceCurve[ 0 ] = planner->targetList[ TRAJECTORY_POSITION ];
+  planner->referenceCurve[ 0 ] = setpoint;
   
-  planner->referenceCurve[ 1 ] = ( planner->targetList[ TRAJECTORY_VELOCITY ] + ( setpoint - planner->referenceCurve[ 0 ] ) / curveTimeLength ) / 2;
+  //planner->referenceCurve[ 0 ] = planner->targetList[ TRAJECTORY_POSITION ];
+  
+  //planner->referenceCurve[ 1 ] = ( planner->targetList[ TRAJECTORY_VELOCITY ] + ( setpoint - planner->referenceCurve[ 0 ] ) / curveTimeLength ) / 2;
 
-  planner->referenceCurve[ 2 ] = ( setpointDerivative - planner->referenceCurve[ 1 ] ) / ( 2 * curveTimeLength );
+  //planner->referenceCurve[ 2 ] = ( setpointDerivative - planner->referenceCurve[ 1 ] ) / ( 2 * curveTimeLength );
   
   /*planner->referenceCurve[ 2 ] = 3 * ( setpoint - planner->referenceCurve[ 0 ] ) / pow( curveTimeLength, 2 )
                                  - ( setpointDerivative + 2 * planner->referenceCurve[ 1 ] ) / curveTimeLength;

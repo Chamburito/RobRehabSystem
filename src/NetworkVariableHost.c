@@ -77,17 +77,6 @@ char address[ 256 ] = "169.254.110.158";
 
 int infoClientID, dataClientID;
 
-const size_t SETPOINT_CURVES_NUMBER = 5;
-const size_t CURVE_SIZE = 4;
-
-const double CURVE_TIMES[ SETPOINT_CURVES_NUMBER ] = { 0.0, 0.128, 0.421, 0.588, 0.755 };
-const double CURVE_IMPEDANCES[ SETPOINT_CURVES_NUMBER ] = { 20.0, 20.0, 20.0, 20.0, 20.0 };
-const double CURVE_COEFFS[ /*SETPOINT_CURVES_NUMBER*/5 ][ /*CURVE_SIZE*/4 ] = { { -0.113, 0.000, -22.80, 118.4 },
-                                                                      { -0.238, 0.028, 6.269, -14.50 },
-                                                                      { -0.056, -0.037, -8.266, -7.105 },
-                                                                      { -0.325, -3.467, -29.64, 162.9 },
-                                                                      { -0.972, 0.194, 42.76, -119.4 } };
-
 const double TOTAL_CURVE_INTERVAL = 2.22;
 const double CONTROL_SAMPLING_INTERVAL = 0.005;
 const double NORMALIZED_SAMPLING_INTERVAL = CONTROL_SAMPLING_INTERVAL / TOTAL_CURVE_INTERVAL;
@@ -203,26 +192,12 @@ static void* UpdateData( void* callbackData )
     
     if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      double normalizedTime = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
+      double setpointValue = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
     
-      size_t curveIndex;
-      for( curveIndex = 0; curveIndex < SETPOINT_CURVES_NUMBER - 1; curveIndex++ )
-      {
-        if( normalizedTime < CURVE_TIMES[ curveIndex + 1 ] ) break;
-      }
-    
-      double relativeTime = normalizedTime - CURVE_TIMES[ curveIndex ];
-    
-      double setpointValue = CURVE_COEFFS[ curveIndex ][ 0 ];
-      for( size_t coeffIndex = 1; coeffIndex < CURVE_SIZE; coeffIndex++ ) 
-        setpointValue += CURVE_COEFFS[ curveIndex ][ coeffIndex ] * pow( relativeTime, coeffIndex );
-    
-      double setpointDerivative = CURVE_COEFFS[ curveIndex ][ 1 ];
-      for( size_t coeffIndex = 2; coeffIndex < CURVE_SIZE; coeffIndex++ ) 
-        setpointDerivative += coeffIndex * CURVE_COEFFS[ curveIndex ][ coeffIndex ] * pow( relativeTime, coeffIndex - 1 );
+      double setpointDerivative = 1.0 / TOTAL_CURVE_INTERVAL;
       
       for( size_t i = 0; i < WAIT_SAMPLES; i++ )
-        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = -( setpointValue /*+ setpointDerivative * i * NORMALIZED_SAMPLING_INTERVAL*/ );
+        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointValue + setpointDerivative * i * NORMALIZED_SAMPLING_INTERVAL;
       setpointIndex += WAIT_SAMPLES;
     
       sprintf( dataMessageOut, "%g %g %g|0 %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime, setpointValue, setpointDerivative, deltaTime );
@@ -406,7 +381,7 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
-  PlotY( panel, PANEL_GRAPH_1, referenceValues + setpointOffset, NUM_POINTS - setpointOffset, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
+  PlotY( panel, PANEL_GRAPH_1, referenceValues /*+ setpointOffset*/, NUM_POINTS /*- setpointOffset*/, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
 	PlotY( panel, PANEL_GRAPH_1, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
   PlotY( panel, PANEL_GRAPH_1, errorValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
   PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
