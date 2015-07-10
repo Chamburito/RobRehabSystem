@@ -70,20 +70,20 @@ int RobRehabNetwork_Init()
   infoClientsList = ListCreate( sizeof(int) );
   dataClientsList = ListCreate( sizeof(DataClient) );
   
-  EMGAxisControl_Init();
+  EMGAESControl_Init();
   
-  networkAxesList = (NetworkAxis*) calloc( AxisControl_GetActiveAxesNumber(), sizeof(NetworkAxis) );
+  networkAxesList = (NetworkAxis*) calloc( AESControl_GetDevicesNumber(), sizeof(NetworkAxis) );
   
-  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
+  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
   {
-    if( AxisControl_GetAxisName( axisID ) != NULL )
+    if( AESControl_GetDeviceName( deviceID ) != NULL )
     {
       if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", axisID, AxisControl_GetAxisName( axisID ) );
+      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", deviceID, AESControl_GetDeviceName( deviceID ) );
     }
     
-    networkAxesList[ axisID ].dataClientID = -1;
-    networkAxesList[ axisID ].trajectoryPlanner = TrajectoryPlanner_Init();
+    networkAxesList[ deviceID ].dataClientID = -1;
+    networkAxesList[ deviceID ].trajectoryPlanner = TrajectoryPlanner_Init();
   }
 
   int status = 0;
@@ -112,8 +112,8 @@ void RobRehabNetwork_End()
   ListDispose( infoClientsList );
   ListDispose( dataClientsList );
   
-  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
-    TrajectoryPlanner_End( networkAxesList[ axisID ].trajectoryPlanner );
+  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
+    TrajectoryPlanner_End( networkAxesList[ deviceID ].trajectoryPlanner );
   free( networkAxesList );
   
   if( data ) CNVDisposeData( data );
@@ -122,13 +122,13 @@ void RobRehabNetwork_End()
   if( gWavePublisher ) CNVDispose( gWavePublisher );
 	CNVFinish();
   
-  EMGAxisControl_End();
+  EMGAESControl_End();
   
   DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
 }
 
-static int CVICALLBACK UpdateAxisControlState( int, void*, void* );
-static int CVICALLBACK UpdateAxisControlData( int, void*, void* );
+static int CVICALLBACK UpdateControlState( int, void*, void* );
+static int CVICALLBACK UpdateControlData( int, void*, void* );
 
 
 void RobRehabNetwork_Update()
@@ -148,18 +148,18 @@ void RobRehabNetwork_Update()
     ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
   }
   
-  ListApplyToEach( infoClientsList, 1, UpdateAxisControlState, NULL );
-  ListApplyToEach( dataClientsList, 1, UpdateAxisControlData, NULL );
+  ListApplyToEach( infoClientsList, 1, UpdateControlState, NULL );
+  ListApplyToEach( dataClientsList, 1, UpdateControlData, NULL );
   
-  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
+  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
   {
-    double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
+    double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
 
-    double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ axisID ].trajectoryPlanner );
+    double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ deviceID ].trajectoryPlanner );
     
     //DEBUG_PRINT( "next setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
     
-    AxisControl_SetSetpoint( axisID, targetList[ TRAJECTORY_POSITION ] );
+    AESControl_SetSetpoint( deviceID, targetList[ TRAJECTORY_POSITION ] );
 
     //Gamb
     static size_t valuesCount;
@@ -169,12 +169,12 @@ void RobRehabNetwork_Update()
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = targetList[ TRAJECTORY_POSITION ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = AxisControl_GetError( axisID ); //Timing_GetExecTimeSeconds();
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = AESControl_GetError( deviceID ); //Timing_GetExecTimeSeconds();
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlMeasuresList[ CONTROL_STIFFNESS ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_TORQUE ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ] = maxStiffness;
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = EMGAxisControl_GetTorque( axisID );
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = EMGAxisControl_GetStiffness( axisID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ] = EMGAESControl_GetTorque( deviceID );
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ] = EMGAESControl_GetStiffness( deviceID );
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_AGONIST ] = EMGProcessing_GetMuscleActivation( 0 );
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ] = EMGProcessing_GetMuscleActivation( 1 );
 
@@ -193,7 +193,7 @@ void RobRehabNetwork_Update()
 }
 
 
-static int CVICALLBACK UpdateAxisControlState( int index, void* ref_clientID, void* ref_callback )
+static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* ref_callback )
 {
   int clientID = *((int*) ref_clientID);
   
@@ -207,42 +207,42 @@ static int CVICALLBACK UpdateAxisControlState( int index, void* ref_clientID, vo
   
     for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
-      unsigned int axisID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
+      unsigned int deviceID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
     
-      if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
+      if( deviceID < 0 || deviceID >= AESControl_GetDevicesNumber() ) continue;
     
-      DEBUG_PRINT( "parsing axis %u command \"%s\"", axisID, axisCommand );
+      DEBUG_PRINT( "parsing axis %u command \"%s\"", deviceID, axisCommand );
       
       bool motorEnabled = (bool) strtoul( axisCommand, &axisCommand, 0 );
 
-      if( motorEnabled ) AxisControl_EnableMotor( axisID );
-      else AxisControl_DisableMotor( axisID );
+      if( motorEnabled ) AESControl_EnableMotor( deviceID );
+      else AESControl_DisableMotor( deviceID );
 
       bool reset = (bool) strtoul( axisCommand, &axisCommand, 0 );
 
       if( reset ) 
       {
-        AxisControl_Reset( axisID );
-        networkAxesList[ axisID ].dataClientID = -1;
+        AESControl_Reset( deviceID );
+        networkAxesList[ deviceID ].dataClientID = -1;
       }
       
       double impedanceStiffness = strtod( axisCommand, &axisCommand );
       double impedanceDamping = strtod( axisCommand, NULL );
       
-      AxisControl_SetImpedance( axisID, impedanceStiffness, impedanceDamping );
+      AESControl_SetImpedance( deviceID, impedanceStiffness, impedanceDamping );
       
       maxStiffness = impedanceStiffness;
     }
     
     strcpy( messageOut, "" );
-    for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
+    for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
     {
-      bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
+      bool* motorStatesList = AESControl_GetMotorStatus( deviceID );
       if( motorStatesList != NULL )
       {
         if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
       
-        sprintf( &messageOut[ strlen( messageOut ) ], "%u", axisID );
+        sprintf( &messageOut[ strlen( messageOut ) ], "%u", deviceID );
       
         for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
           strcat( messageOut, ( motorStatesList[ stateIndex ] == true ) ? " 1" : " 0" );
@@ -259,7 +259,7 @@ static int CVICALLBACK UpdateAxisControlState( int index, void* ref_clientID, vo
   return 0;
 }
 
-static int CVICALLBACK UpdateAxisControlData( int index, void* ref_dataClient, void* ref_callback )
+static int CVICALLBACK UpdateControlData( int index, void* ref_dataClient, void* ref_callback )
 {
   DataClient* dataClient = (DataClient*) ref_dataClient;
   
@@ -288,20 +288,20 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_dataClient, v
   
     for( char* axisCommand = strtok( axesData, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
-      unsigned int axisID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
+      unsigned int deviceID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
     
-      if( axisID < 0 || axisID >= AxisControl_GetActiveAxesNumber() ) continue;
+      if( deviceID < 0 || deviceID >= AESControl_GetDevicesNumber() ) continue;
       
-      NetworkAxis* networkAxis = &(networkAxesList[ axisID ]);
+      NetworkAxis* networkAxis = &(networkAxesList[ deviceID ]);
       
       if( networkAxis->dataClientID == -1 )
       {
-        DEBUG_PRINT( "new client for axis %u: %d", axisID, dataClient->clientID );
+        DEBUG_PRINT( "new client for axis %u: %d", deviceID, dataClient->clientID );
         networkAxis->dataClientID = dataClient->clientID;
       }
       else if( networkAxis->dataClientID != dataClient->clientID ) continue;
       
-      DEBUG_UPDATE( "parsing axis %u command \"%s\"", axisID, axisCommand );
+      DEBUG_UPDATE( "parsing axis %u command \"%s\"", deviceID, axisCommand );
       
       if( serverDispatchTime > 0.0 && clientReceiveTime > 0.0 )
       {
@@ -323,12 +323,12 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_dataClient, v
   }
   
   strcpy( messageOut, "" );
-  for( size_t axisID = 0; axisID < AxisControl_GetActiveAxesNumber(); axisID++ )
+  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
   {
-    double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
+    double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
     if( controlMeasuresList != NULL )
     {
-      //double* jointMeasuresList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
+      //double* jointMeasuresList = EMGAESControl_ApplyGains( deviceID, maxStiffness );
 
       clientDispatchTime = dataClient->lastReceivedTime;
       serverReceiveTime = dataClient->lastLocalTime;
@@ -337,7 +337,7 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_dataClient, v
       if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
       else sprintf( messageOut, "%f %f %f|", clientDispatchTime, serverReceiveTime, serverDispatchTime );
 
-      sprintf( &messageOut[ strlen( messageOut ) ], "%u", axisID );
+      sprintf( &messageOut[ strlen( messageOut ) ], "%u", deviceID );
 
       for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
         sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
@@ -353,24 +353,24 @@ static int CVICALLBACK UpdateAxisControlData( int index, void* ref_dataClient, v
   return 0;
 }
 
-/*static void WriteAxisControlState( unsigned int axisID, const char* command )
+/*static void WriteAxisControlState( unsigned int deviceID, const char* command )
 {
   bool motorEnabled = (bool) strtoul( command, &command, 0 );
 
-  if( motorEnabled ) AxisControl_EnableMotor( axisID );
-  else AxisControl_DisableMotor( axisID );
+  if( motorEnabled ) AESControl_EnableMotor( deviceID );
+  else AESControl_DisableMotor( deviceID );
 
   bool reset = (bool) strtoul( command, NULL, 0 );
 
-  if( reset ) AxisControl_Reset( axisID );
+  if( reset ) AESControl_Reset( deviceID );
 }
 
-static char* ReadAxisControlState( unsigned int axisID )
+static char* ReadAxisControlState( unsigned int deviceID )
 {
   const size_t STATE_MAX_LEN = 2;
   static char readout[ STATE_MAX_LEN * AXIS_STATES_NUMBER + 1 ];
   
-  bool* motorStatesList = AxisControl_GetMotorStatus( axisID );
+  bool* motorStatesList = AESControl_GetMotorStatus( deviceID );
   if( motorStatesList != NULL )
   {
     strcpy( readout, "" );
@@ -384,14 +384,14 @@ static char* ReadAxisControlState( unsigned int axisID )
   return readout;
 }
 
-static void WriteAxisControlData( unsigned int axisID, const char* command )
+static void WriteAxisControlData( unsigned int deviceID, const char* command )
 {
   static double setpointsList[ TRAJECTORY_VALUES_NUMBER ];
   static size_t setpointsCount;
   
   if( clientID != -1 ) return;
   
-  networkAxesList[ axisID ].dataClient = clientID;
+  networkAxesList[ deviceID ].dataClient = clientID;
 
   setpointsCount = 0;
   while( *command != '\0' && setpointsCount < TRAJECTORY_VALUES_NUMBER )
@@ -400,19 +400,19 @@ static void WriteAxisControlData( unsigned int axisID, const char* command )
     setpointsCount++;
   }
 
-  TrajectoryPlanner_SetCurve( networkAxesList[ axisID ].trajectoryPlanner, setpointsList );
+  TrajectoryPlanner_SetCurve( networkAxesList[ deviceID ].trajectoryPlanner, setpointsList );
 }
 
-static char* ReadAxisControlData( unsigned int axisID )
+static char* ReadAxisControlData( unsigned int deviceID )
 {
   const size_t VALUE_MAX_LEN = 10;
   
   static char readout[ VALUE_MAX_LEN * CONTROL_DIMS_NUMBER + 1 ];
   
-  double* controlMeasuresList = AxisControl_GetMeasuresList( axisID );
+  double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
   if( controlMeasuresList != NULL )
   {
-    //double* jointMeasuresList = EMGAxisControl_ApplyGains( axisID, maxStiffness );
+    //double* jointMeasuresList = EMGAESControl_ApplyGains( deviceID, maxStiffness );
       
     strcpy( readout, "" );
     for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
@@ -431,21 +431,21 @@ void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* call
 	int messageCode;
   CNVGetScalarDataValue( data, CNVInt32, &messageCode );
   
-  unsigned int axisID = (unsigned int) ( messageCode & 0x000000ff );
+  unsigned int deviceID = (unsigned int) ( messageCode & 0x000000ff );
   bool enabled = (bool) ( ( messageCode & 0x0000ff00 ) / 0x100 );
   unsigned int muscleGroup = (unsigned int) ( ( messageCode & 0x00ff0000 ) / 0x10000 ); 
 
 	if( handle == gMaxToggleSubscriber )
 	{
-    EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_CONTRACTION_PHASE : EMG_ACTIVATION_PHASE ); 
+    EMGAESControl_ChangeState( deviceID, muscleGroup, enabled ? EMG_CONTRACTION_PHASE : EMG_ACTIVATION_PHASE ); 
     
-    //DEBUG_PRINT( "axis %u %s %s EMG contraction phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
+    //DEBUG_PRINT( "axis %u %s %s EMG contraction phase", deviceID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
 	}
 	else if( handle == gMinToggleSubscriber )
 	{
-    EMGAxisControl_ChangeState( axisID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
+    EMGAESControl_ChangeState( deviceID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
     
-    //DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", axisID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
+    //DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", deviceID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
 	}
 }
 

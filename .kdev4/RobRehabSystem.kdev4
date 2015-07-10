@@ -4,6 +4,7 @@ BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x
 [CMake]
 Build Directory Count=2
 Current Build Directory Index=1
+ProjectRootRelative=./
 
 [CMake][CMake Build Directory 0]
 Build Directory Path=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/bin
@@ -16,10 +17,10 @@ Install Directory=
 [CMake][CMake Build Directory 1]
 Build Directory Path=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/build
 Build Type=RelWithDebInfo
-CMake Binary=/usr/bin/cmake
+CMake Binary=file:///usr/bin/cmake
 Environment Profile=
 Extra Arguments=
-Install Directory=/usr/local
+Install Directory=file:///usr/local
 
 [CustomDefinesAndIncludes][ProjectPath0]
 Defines=\x00\x00\x00\x03\x00\x00\x00\x14\x00D\x00E\x00E\x00P\x00_\x00D\x00E\x00B\x00U\x00G\x00\x00\x00\n\x00\x00\x00\x00\x02\x001\x00\x00\x00\x18\x00S\x00I\x00M\x00P\x00L\x00E\x00_\x00D\x00E\x00B\x00U\x00G\x00\x00\x00\n\x00\x00\x00\x00\x02\x001\x00\x00\x00\n\x00D\x00E\x00B\x00U\x00G\x00\x00\x00\n\x00\x00\x00\x00\x02\x001

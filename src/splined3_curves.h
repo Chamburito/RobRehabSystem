@@ -1,27 +1,27 @@
-#ifndef SPLINED3_CURVES_H
-#define SPLINED3_CURVES_H
+#ifndef SPLINE3_INTERP_H
+#define SPLINE3_INTERP_H
 
 #include <math.h>
 
 const size_t CURVE_NAME_MAX_LENGTH = 16;
 
 const size_t SPLINE_COEFFS_NUMBER = 4;
-typedef double SplineCoeffs[ CURVE_COEFFS_NUMBER ];
+typedef double SplineCoeffs[ SPLINE_COEFFS_NUMBER ];
 typedef double SplineBounds[ 2 ];
 
-typedef struct _Splined3CurveData
+typedef struct _Splined3Curve
 {
   SplineCoeffs* splinesList;
   SplineBounds* splineTimes;
   size_t splinesNumber;
 }
-Splined3CurveData;
+Splined3Curve;
 
-Splined3CurveData* Splined3Curves_Load( const char* curveName )
+Splined3Curve* Spline3Interp_LoadCurve( const char* curveName )
 {
   char readBuffer[ CURVE_NAME_MAX_LENGTH ];
   
-  Splined3CurveData* newCurveData = NULL;
+  Splined3Curve* newCurveData = NULL;
   
   FILE* configFile = fopen( "../config/splined3_curves_data.txt", "r" );
   
@@ -35,7 +35,7 @@ Splined3CurveData* Splined3Curves_Load( const char* curveName )
         
         if( strncmp( readBuffer, curveName, CURVE_NAME_MAX_LENGTH ) == 0 )
         {
-          newCurveData = (Splined3CurveData*) malloc( sizeof(Splined3CurveData) );
+          newCurveData = (Splined3Curve*) malloc( sizeof(Splined3Curve) );
         
           DEBUG_PRINT( "found curve %s", readBuffer );
         
@@ -85,7 +85,7 @@ Splined3CurveData* Splined3Curves_Load( const char* curveName )
   return newCurveData;
 }
 
-void Splined3Curves_Unload( Splined3CurveData* curveData )
+void Spline3Interp_UnloadCurve( Splined3Curve* curveData )
 {
   if( curveData != NULL )
   {
@@ -94,28 +94,35 @@ void Splined3Curves_Unload( Splined3CurveData* curveData )
   }
 }
 
-double Splined3Curves_GetValue( Splined3CurveData* curveData, double valuePoint, double defaultValue )
+double Spline3Interp_GetValue( Splined3Curve* curveData, double valuePoint )
 {
-  if( curveData == NULL ) return defaultValue;
+  if( curveData == NULL ) return 1.0;
   
   SplineCoeffs* splineCoeffs = NULL;
-  for( size_t splineID = 0; splineID < splinesNumber; splineID++ )
+  double relativePoint = 0.0;
+  
+  for( size_t splineID = 0; splineID < curveData->splinesList[ splineID ].splinesNumber; splineID++ )
   {
-    if( valuePoint > curveData->splineTimes[ splineID ][ 0 ] && valuePoint <= curveData->splineTimes[ splineID ][ 1 ] )
+    if( valuePoint > curveData->splineTimes[ splineID ][ 0 ] )
     {
-      double relativePoint = valuePoint - curveData->splineTimes[ splineID ][ 0 ];
-      
       splineCoeffs = &(curveData->splinesList[ splineID ]);
       
-      double curveValue = splineCoeffs[ 0 ]; 
-      for( size_t coeffIndex = 1; coeffIndex < SPLINE_COEFFS_NUMBER; coeffIndex++ ) 
-        curveValue += splineCoeffs[ coeffIndex ] * pow( relativePoint, coeffIndex );
-      
-      return curveValue;
+      if( valuePoint <= curveData->splineTimes[ splineID ][ 1 ] )
+        relativePoint = valuePoint - curveData->splineTimes[ splineID ][ 0 ];
+      else
+        relativePoint = curveData->splineTimes[ splineID ][ 1 ] - curveData->splineTimes[ splineID ][ 0 ];
     }
   }
   
-  return defaultValue;
+  double curveValue = 0.0;
+  
+  if( splineCoeffs != NULL )
+  {
+    for( size_t coeffIndex = 0; coeffIndex < SPLINE_COEFFS_NUMBER; coeffIndex++ ) 
+      curveValue += splineCoeffs[ coeffIndex ] * pow( relativePoint, coeffIndex );
+  }
+  
+  return curveValue;
 }
 
-#endif  /* SPLINED3_CURVES_H */
+#endif  /* SPLINE3_INTERP_H */

@@ -7,36 +7,29 @@
 enum { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_ACCELERATION, CONTROL_FORCE, CONTROL_ERROR, CONTROL_DIMS_NUMBER };
 enum { CONTROL_SETPOINT, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_PARAMS_NUMBER };
 
-// Control method definition structure
-typedef struct _ImpedanceControlFunction
-{
-  char* name;                                                                                         // Identifier string
-  unsigned int operationMode;                                                                         // Actuator operation mode (Position or velocity)
-  void (*ref_Run)( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );          // Control pass algorithm (function pointer)
-}
-ImpedanceControlFunction;
+typedef double (*ImpedanceControlFunction)( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
 
 // Control algorhitms
 static double RunDefaultControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
-static double RunTestControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
 static double RunForcePIControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
 static double RunVelocityControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
 
 // Available precompiled control methods
-ImpedanceControlFunction controlFunctionsList[] = { { "Position", POSITION_MODE, RunDefaultControl },
-                                                    { "Velocity", VELOCITY_MODE, RunDefaultControl },
-                                                    { "Test", VELOCITY_MODE, RunTestControl }, 
-                                                    { "Impedance_Force_PI", VELOCITY_MODE, RunForcePIControl }, 
-                                                    { "Impedance_Velocity", VELOCITY_MODE, RunVelocityControl } };
+struct IndexedFunction
+{
+  char* name;                                   // Identifier string
+  ImpedanceControlFunction ref_RunControl;      // Control pass algorithm (function pointer)
+}
+controlFunctionsList[] = { { "Default", RunDefaultControl }, { "Impedance_Force_PI", RunForcePIControl }, { "Impedance_Velocity", RunVelocityControl } };
 
-static size_t functionsNumber = sizeof(controlFunctionsList) / sizeof(ImpedanceControlFunction);
+static size_t functionsNumber = sizeof(controlFunctionsList) / sizeof(struct IndexedFunction);
 
-ImpedanceControlFunction* ImpedanceControl_GetFunction( const char* functionName )
+ImpedanceControlFunction ImpedanceControl_GetFunction( const char* functionName )
 {
   for( size_t functionID = 0; functionID < functionsNumber; functionID++ )
   {
     if( strcmp( functionName, controlFunctionsList[ functionID ].name ) == 0 )
-      return &(controlFunctionsList[ functionID ]);
+      return controlFunctionsList[ functionID ].ref_RunControl;
   }
   
   return NULL;
@@ -74,7 +67,7 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunVelocityControl( ImpedanceControlData* controlData, double deltaTime )
+/*static double RunVelocityControl( ImpedanceControlData* controlData, double deltaTime )
 {
   static double sensorTension_0, sensorPosition_0;
 
@@ -129,7 +122,7 @@ static double RunVelocityControl( ImpedanceControlData* controlData, double delt
   double actuatorStiffness = controlData->stiffness * lengthToThetaRatio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
   double actuatorDamping = controlData->damping * lengthToThetaRatio * ( 1 / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta ) );
 
-  double Fv_q = ( controlData->stiffness * controlData->setpoint /*positionInSetpoint*/ ) / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta );
+  double Fv_q = ( controlData->stiffness * positionInSetpoint ) / ( HIPS_STRUCT_DIMS[ A2B ] * sin_eta );
 
   // Control law
   double velocitySetpoint = ( Fv_q - actuatorStiffness * ( actuatorEncoderPosition * HIPS_ACTUATOR_STEP )
@@ -139,7 +132,7 @@ static double RunVelocityControl( ImpedanceControlData* controlData, double delt
 
   //Motor_SetSetpoint( hipsControl->actuator, MOTOR_VELOCITY_SETPOINT, velocityRPMSetpoint );
   return velocityRPMSetpoint;
-}
+}*/
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -164,56 +157,40 @@ const double d3 = 0.0015;
 /////                          KNEE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunForcePIControl( ImpedanceControlData* controlData, double deltaTime )
+static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
   static double position, positionSetpoint, positionErrorSum, positionSetpointSum;
   static double velocity[3], velocityFiltered[3], velocitySetpoint[3];
   static double force[3], forceFiltered[3], forceError[3];
   
-  static double stiffnessSetpoint;
-  static double Kv, Bv;
-  const double forgettingFactor = 0.99;
-
-  static double stepTime;
-  
-  if( controlData->setpoint < -90.0 ) controlData->setpoint = -90.0;
-  else if( controlData->setpoint > 0.0 ) controlData->setpoint = 0.0;
-  
   //DEBUG_PRINT( "current setpoint value: %g (index: %d)", positionSetpoint, (int) kneeControl->setpointIndex ); 
-  if( stepTime >= 2.22 )
+  if( measuresList[ CONTROL_ERROR ] == 0.0 )
   {
-    /*if( positionSetpointSum > 0.0 ) controlData->error = positionErrorSum / positionSetpointSum;
-    else controlData->error = 1.0;
-    if( controlData->error > 1.0 )*/ controlData->error = 1.0;
-    stiffnessSetpoint = controlData->stiffness * controlData->error;
+    /*if( positionSetpointSum > 0.0 ) measuresList[ CONTROL_ERROR ] = positionErrorSum / positionSetpointSum;
+    else measuresList[ CONTROL_ERROR ] = 1.0;
+    if( measuresList[ CONTROL_ERROR ] > 1.0 )*/ measuresList[ CONTROL_ERROR ] = 1.0;
     
     positionErrorSum = 0.0;
     positionSetpointSum = 0.0;
-    stepTime = 0.0;
   }
-  
-  stepTime += deltaTime;
 
   // Impedance Control Vitual Stiffness
-  Kv = forgettingFactor * Kv + ( 1 - forgettingFactor ) * stiffnessSetpoint;
-  controlData->stiffness = Kv;
-  // Impedance Control Virtual Damping
-  Bv = controlData->damping;
+  parametersList[ CONTROL_STIFFNESS ] *= measuresList[ CONTROL_ERROR ];
 
-  velocity[0] = ( controlData->position - position ) / deltaTime;
-  position = controlData->position;
+  velocity[0] = ( measuresList[ CONTROL_POSITION ] - position ) / deltaTime;
+  position = measuresList[ CONTROL_POSITION ];
 
   velocityFiltered[0] = -c2 * velocityFiltered[1] - c3 * velocityFiltered[2] + d1 * velocity[0] + d2 * velocity[1] + d3 * velocity[2];
   
-  double positionError = position - controlData->setpoint;
+  double positionError = position - parametersList[ CONTROL_SETPOINT ];
   positionErrorSum += deltaTime * positionError * positionError;
   positionSetpointSum += deltaTime * positionSetpoint * positionSetpoint;
   
-  double forceSetpoint = -Kv * positionError - Bv * velocityFiltered[0];
+  double forceSetpoint = -parametersList[ CONTROL_STIFFNESS ] * positionError - parametersList[ CONTROL_DAMPING ] * velocityFiltered[0];
 
-  force[0] = controlData->force;
+  force[0] = measuresList[ CONTROL_FORCE ];
   forceFiltered[0] = -a2 * forceFiltered[1] - a3 * forceFiltered[2] + b1 * force[0] + b2 * force[1] + b3 * force[2];
-  controlData->force = forceFiltered[0];
+  measuresList[ CONTROL_FORCE ] = forceFiltered[0];
 
   forceError[0] = forceSetpoint - forceFiltered[0];
 
@@ -230,36 +207,16 @@ static double RunForcePIControl( ImpedanceControlData* controlData, double delta
     velocitySetpoint[ i ] = velocitySetpoint[ i - 1 ];
   }
   
-  //Motor_SetSetpoint( kneeControl->actuator, MOTOR_VELOCITY_SETPOINT, velocitySetpoint[0] );
   return velocitySetpoint[0];
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-/////                         ANKLE CONTROL FUNCTION                        /////
-/////////////////////////////////////////////////////////////////////////////////
-
-static double RunTestControl( ImpedanceControlData* controlData, double deltaTime )
-{
-  static int velocitySetpoint;
-
-  /*if( controlData->setpoint > 1.0 ) Motor_SetSetpoint( ankleControl->actuator, MOTOR_POSITION_SETPOINT, 1.0 );
-  else if( ankleControl->setpoint < -1.0 ) Motor_SetSetpoint( ankleControl->actuator, MOTOR_POSITION_SETPOINT, -1.0 );
-  else Motor_SetSetpoint( ankleControl->actuator, MOTOR_POSITION_SETPOINT, ankleControl->setpoint );
-  
-  velocitySetpoint = -( MotorDrive_GetMeasure( ankleControl->sensor, AXIS_POSITION ) - Motor_GetSetpoint( ankleControl->actuator, MOTOR_POSITION_SETPOINT ) ) * 100.0;
-  velocitySetpoint *= ankleControl->referenceStiffness;*/
-  
-  //Motor_SetSetpoint( ankleControl->actuator, MOTOR_VELOCITY_SETPOINT, velocitySetpoint );
-  return (double) velocitySetpoint;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                        DEFAULT CONTROL FUNCTION                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunDefaultControl( ImpedanceControlData* controlData, double deltaTime )
+static double RunDefaultControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
-  return controlData->setpoint;
+  return parametersList[ CONTROL_SETPOINT ];
 }
 
 #endif  /* IMPEDANCE_CONTROL_H */
