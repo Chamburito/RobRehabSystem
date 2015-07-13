@@ -336,7 +336,6 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
   char messageBuffer[ IP_CONNECTION_MSG_LEN ];
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connectionHandle, CmtGetCurrentThreadID() );
-  fprintf( stderr, "called for connection handle %u on thread %x", connectionHandle, CmtGetCurrentThreadID() );
   
   switch( eventType )
   {
@@ -681,9 +680,6 @@ char* AsyncIPConnection_ReadMessage( int clientID )
     connection->networkRole = DISCONNECTED;
     return NULL;
   }
-  
-  if( connection->protocol == TCP )
-    DEBUG_PRINT( "message from connection ID %d: %s", clientID, messageBuffer );  
   
   return messageBuffer;
 }

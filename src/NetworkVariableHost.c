@@ -192,15 +192,15 @@ static void* UpdateData( void* callbackData )
     
     if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      double setpointValue = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
+      double setpointValue = elapsedTime / TOTAL_CURVE_INTERVAL;
     
       double setpointDerivative = 1.0 / TOTAL_CURVE_INTERVAL;
       
       for( size_t i = 0; i < WAIT_SAMPLES; i++ )
-        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointValue + setpointDerivative * i * NORMALIZED_SAMPLING_INTERVAL;
+        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = fmod( setpointValue, 1.0 );
       setpointIndex += WAIT_SAMPLES;
     
-      sprintf( dataMessageOut, "%g %g %g|0 %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime, setpointValue, setpointDerivative, deltaTime );
+      sprintf( dataMessageOut, "%g %g %g|0 %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime, setpointValue, setpointDerivative, SETPOINT_UPDATE_INTERVAL );
     
       deltaTime = 0.0;
       
@@ -341,9 +341,9 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   if( referencePointsNumber > NUM_POINTS ) referencePointsNumber = NUM_POINTS;
   else if( referencePointsNumber <= 0 ) referencePointsNumber = 1;
   
-  size_t pointLength = NUM_POINTS / referencePointsNumber;
+  //size_t pointLength = NUM_POINTS / referencePointsNumber;
   
-  size_t setpointOffset = (size_t) ( 2 * responseTime / CONTROL_SAMPLING_INTERVAL );
+  size_t setpointOffset = 0;//(size_t) ( responseTime / CONTROL_SAMPLING_INTERVAL );
   
   //fprintf( stderr, "offset: 2 * %f / %.3f = %u\r", responseTime, CONTROL_SAMPLING_INTERVAL, setpointOffset );
   
@@ -353,7 +353,9 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ], errorValues[ NUM_POINTS ];
   static double robotTorqueValues[ NUM_POINTS ], patientTorqueValues[ NUM_POINTS ];
   static double robotStiffnessValues[ NUM_POINTS ], patientStiffnessValues[ NUM_POINTS ], maxStiffnessValues[ NUM_POINTS ];
-  static double emgAgonistValues[ NUM_POINTS ], emgAntagonistValues[ NUM_POINTS ]; 
+  static double emgAgonistValues[ NUM_POINTS ], emgAntagonistValues[ NUM_POINTS ];
+  
+  static double originalValues[ NUM_POINTS ];
 	
 	// Get the published data.
 	CNVGetArrayDataValue( data, CNVDouble, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
@@ -372,7 +374,8 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
     emgAgonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_AGONIST ];
     emgAntagonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ];
     
-    //referenceValues[ pointIndex ] = fileSetpointsList[ ( setpointStart + pointIndex / pointLength ) % FILE_SETPOINTS_NUMBER ];
+    //if( pointIndex >= setpointOffset )
+    //  originalValues[ pointIndex ] = referenceValues[ pointIndex - setpointOffset ];
     //dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = -referenceValues[ pointIndex ];
   }
   
@@ -381,7 +384,8 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   
 	// Plot the data to the graph.
 	DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
-  PlotY( panel, PANEL_GRAPH_1, referenceValues /*+ setpointOffset*/, NUM_POINTS /*- setpointOffset*/, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
+  //PlotY( panel, PANEL_GRAPH_1, originalValues, NUM_POINTS - setpointOffset, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
+  //PlotY( panel, PANEL_GRAPH_1, setpointValues + setpointOffset, NUM_POINTS - setpointOffset, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
 	PlotY( panel, PANEL_GRAPH_1, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
   PlotY( panel, PANEL_GRAPH_1, errorValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
   PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );

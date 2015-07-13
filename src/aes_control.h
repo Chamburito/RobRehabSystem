@@ -339,6 +339,8 @@ extern inline void AESControl_SetImpedance( size_t deviceID, double referenceSti
   else if( referenceStiffness > controller->physicalStiffness ) referenceStiffness = controller->physicalStiffness;
   controller->maxStiffness = referenceStiffness;
   
+  DEBUG_PRINT( "new max stiffness: %g -> %g", referenceStiffness, controller->maxStiffness );
+  
   controller->maxDamping = ( referenceDamping > 0.0 ) ? referenceDamping : 0.0;
 }
 
@@ -395,9 +397,10 @@ static inline void RunControl( AESController* controller )
   static double controlOutput;
   
   // If the motor is being actually controlled, call control pass algorhitm
-  if( controller->actuator->active )
+  if( Motor_IsActive( controller->actuator ) )
   {
     controlOutput = controller->ref_RunControl( controller->measuresList, controller->parametersList, CONTROL_SAMPLING_INTERVAL );
+    
     Motor_SetSetpoint( controller->actuator, controller->operationMode, controlOutput );
   }
 

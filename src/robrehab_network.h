@@ -165,7 +165,7 @@ void RobRehabNetwork_Update()
 
     double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ deviceID ].trajectoryPlanner );
     
-    DEBUG_PRINT( "\tnext setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
+    //DEBUG_PRINT( "\tnext setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
     
     AESControl_SetSetpoint( deviceID, targetList[ TRAJECTORY_POSITION ] );
 
@@ -176,7 +176,7 @@ void RobRehabNetwork_Update()
 
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = controlParametersList[ CONTROL_SETPOINT ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = /*targetList[ TRAJECTORY_POSITION ];*/controlParametersList[ CONTROL_SETPOINT ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = controlMeasuresList[ CONTROL_ERROR ]; //Timing_GetExecTimeSeconds();
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlParametersList[ CONTROL_STIFFNESS ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_FORCE ];
@@ -211,7 +211,7 @@ static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* 
   
   if( messageIn != NULL ) 
   {
-    DEBUG_PRINT( "received input message: %s", messageIn );
+    DEBUG_UPDATE( "received input message: %s", messageIn );
   
     for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
@@ -219,7 +219,7 @@ static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* 
     
       if( deviceID < 0 || deviceID >= AESControl_GetDevicesNumber() ) continue;
     
-      DEBUG_PRINT( "parsing axis %u command \"%s\"", deviceID, axisCommand );
+      DEBUG_UPDATE( "parsing axis %u command \"%s\"", deviceID, axisCommand );
       
       bool motorEnabled = (bool) strtoul( axisCommand, &axisCommand, 0 );
 
@@ -325,7 +325,7 @@ static int CVICALLBACK UpdateControlData( int index, void* ref_dataClient, void*
       setpointDerivative = strtod( axisCommand, &axisCommand );
       setpointsInterval = strtod( axisCommand, &axisCommand );
       
-      DEBUG_PRINT( "received setpoint: %f", setpoint );
+      //DEBUG_PRINT( "received setpoint: %f", setpoint );
       
       if( setpointsInterval > latency )
         TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval - latency );

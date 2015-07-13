@@ -78,6 +78,7 @@ void Motor_Enable( Motor* );
 void Motor_Disable( Motor* );
 void Motor_Disconnect( Motor* );
 void MotorDrive_Disconnect( MotorDrive* );
+extern inline bool Motor_IsActive( Motor* );
 extern inline void MotorDrive_SetEncoderResolution( MotorDrive*, unsigned int );
 extern inline void MotorDrive_SetGearReduction( MotorDrive*, double );
 double MotorDrive_GetMeasure( MotorDrive*, enum Dimension );
@@ -193,6 +194,11 @@ void MotorDrive_Disconnect( MotorDrive* drive )
     free( drive );
     drive = NULL;
   }
+}
+
+extern inline bool Motor_IsActive( Motor* motor )
+{
+  return motor->active;
 }
 
 extern inline void MotorDrive_SetEncoderResolution( MotorDrive* drive, unsigned int resolution )

@@ -183,6 +183,8 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
 
   velocityFiltered[0] = -c2 * velocityFiltered[1] - c3 * velocityFiltered[2] + d1 * velocity[0] + d2 * velocity[1] + d3 * velocity[2];
   
+  DEBUG_PRINT( "running with setpoint %.3f and stiffness %.3f", parametersList[ CONTROL_SETPOINT ], parametersList[ CONTROL_STIFFNESS ] );
+  
   double positionError = position - parametersList[ CONTROL_SETPOINT ];
   positionErrorSum += deltaTime * positionError * positionError;
   positionSetpointSum += deltaTime * positionSetpoint * positionSetpoint;
@@ -191,8 +193,7 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
 
   force[0] = measuresList[ CONTROL_FORCE ];
   forceFiltered[0] = -a2 * forceFiltered[1] - a3 * forceFiltered[2] + b1 * force[0] + b2 * force[1] + b3 * force[2];
-  measuresList[ CONTROL_FORCE ] = forceFiltered[0];
-
+  
   forceError[0] = forceSetpoint - forceFiltered[0];
 
   velocitySetpoint[0] += 370.0 * ( forceError[0] - forceError[1] ) + 3.5 * deltaTime * forceError[0];
@@ -207,6 +208,8 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
     forceFiltered[ i ] = forceFiltered[ i - 1 ];
     velocitySetpoint[ i ] = velocitySetpoint[ i - 1 ];
   }
+  
+  //DEBUG_PRINT( "control: %g", velocitySetpoint[ 0 ] );
   
   return velocitySetpoint[0];
 }
