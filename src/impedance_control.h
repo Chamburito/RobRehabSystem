@@ -160,34 +160,35 @@ const double d3 = 0.0015;
 
 static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
-  static double position, positionSetpoint, positionErrorSum, positionSetpointSum;
+  static double position, positionSetpoint, positionError, positionErrorSum, positionSetpointSum;
   static double velocity[3], velocityFiltered[3], velocitySetpoint[3];
   static double force[3], forceFiltered[3], forceError[3];
   
-  //DEBUG_PRINT( "current setpoint value: %g (index: %d)", positionSetpoint, (int) kneeControl->setpointIndex ); 
+  static double error;
+  
   if( measuresList[ CONTROL_ERROR ] == 0.0 )
   {
-    /*if( positionSetpointSum > 0.0 ) measuresList[ CONTROL_ERROR ] = positionErrorSum / positionSetpointSum;
-    else measuresList[ CONTROL_ERROR ] = 1.0;
-    if( measuresList[ CONTROL_ERROR ] > 1.0 )*/ measuresList[ CONTROL_ERROR ] = 1.0;
+    /*error = ( positionSetpointSum > 0.0 ) ? positionErrorSum / positionSetpointSum : 1.0;
+    if( error > 1.0 )*/ error = 1.0;
     
     positionErrorSum = 0.0;
     positionSetpointSum = 0.0;
   }
 
   // Impedance Control Vitual Stiffness
-  parametersList[ CONTROL_STIFFNESS ] *= measuresList[ CONTROL_ERROR ];
+  parametersList[ CONTROL_STIFFNESS ] *= error;
 
   velocity[0] = ( measuresList[ CONTROL_POSITION ] - position ) / deltaTime;
   position = measuresList[ CONTROL_POSITION ];
 
   velocityFiltered[0] = -c2 * velocityFiltered[1] - c3 * velocityFiltered[2] + d1 * velocity[0] + d2 * velocity[1] + d3 * velocity[2];
   
-  DEBUG_PRINT( "running with setpoint %.3f and stiffness %.3f", parametersList[ CONTROL_SETPOINT ], parametersList[ CONTROL_STIFFNESS ] );
-  
-  double positionError = position - parametersList[ CONTROL_SETPOINT ];
+  positionSetpoint = parametersList[ CONTROL_SETPOINT ];
+  positionError = position - positionSetpoint;
   positionErrorSum += deltaTime * positionError * positionError;
   positionSetpointSum += deltaTime * positionSetpoint * positionSetpoint;
+  
+  measuresList[ CONTROL_ERROR ] = positionError / positionSetpoint;
   
   double forceSetpoint = -parametersList[ CONTROL_STIFFNESS ] * positionError - parametersList[ CONTROL_DAMPING ] * velocityFiltered[0];
 
@@ -208,8 +209,6 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
     forceFiltered[ i ] = forceFiltered[ i - 1 ];
     velocitySetpoint[ i ] = velocitySetpoint[ i - 1 ];
   }
-  
-  //DEBUG_PRINT( "control: %g", velocitySetpoint[ 0 ] );
   
   return velocitySetpoint[0];
 }

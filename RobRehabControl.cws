@@ -61,19 +61,19 @@ File Type = "Include"
 Disk Date = 3519645657
 In Projects = "1,2,"
 Window Top = 31
-Window Z-Order = 9
-Source Window State = "1,9,10,10,0,44,44,0,0,70,0,0,0,0,0,28,0,0,4,25,400,600,1,11,"
+Window Z-Order = 6
+Source Window State = "1,7,7,7,29,38,29,0,0,70,0,0,0,0,0,28,0,0,11,50,400,600,1,11,"
 
 [File 0002]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariableHost."
 Path Line0002 = "c"
 File Type = "CSource"
-Disk Date = 3519647150
+Disk Date = 3520169195
 In Projects = "1,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 6
-Source Window State = "1,307,307,307,38,48,38,0,0,80,0,132,0,0,0,25,282,0,307,58,349,683,1,0,"
+Window Z-Order = 3
+Source Window State = "1,307,307,307,38,48,38,0,0,80,0,132,0,0,0,25,349,0,371,38,349,683,1,0,"
 
 [File 0003]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariableRT.c"
@@ -102,7 +102,7 @@ Disk Date = 3519659034
 In Projects = "2,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 7
+Window Z-Order = 8
 Source Window State = "1,38,38,38,70,74,70,0,3,80,0,273,0,0,0,25,328,0,38,74,349,683,1,11,"
 
 [File 0006]
@@ -131,8 +131,8 @@ Disk Date = 3519661683
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 4
-Source Window State = "1,227,228,228,0,59,59,0,0,85,0,125,0,0,0,25,205,0,236,65,349,723,1,15,"
+Window Z-Order = 2
+Source Window State = "1,222,222,222,200,201,200,0,0,85,0,125,0,0,0,25,173,77,185,140,349,723,1,15,"
 
 [File 0009]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug.h"
@@ -158,12 +158,12 @@ Source Window State = "1,98,98,98,10,64,64,0,0,85,0,0,0,0,0,25,65,0,98,10,349,72
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/cvirte_ip_connection"
 Path Line0002 = ".h"
 File Type = "Include"
-Disk Date = 3519661390
+Disk Date = 3519819518
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
 Window Z-Order = 5
-Source Window State = "1,682,684,684,0,80,80,0,0,85,0,455,0,0,0,25,653,0,690,42,349,723,1,11,"
+Source Window State = "1,518,518,518,25,38,38,0,0,85,0,455,0,0,0,25,506,0,518,8,349,723,1,11,"
 
 [File 0012]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/data_logging.h"
@@ -183,7 +183,7 @@ In Projects = "2,"
 Window Top = 188
 Window Left = 90
 Window Z-Order = 22
-Source Window State = "1,229,229,229,21,36,21,0,0,85,0,244,0,244,0,25,93,0,124,56,349,723,1,0,"
+Source Window State = "1,229,229,229,21,36,21,0,0,85,0,244,0,244,0,25,112,0,124,56,349,723,1,0,"
 
 [File 0014]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/NetworkVariable.uir"
@@ -204,7 +204,7 @@ In Projects = "2,"
 Window Top = 33
 Window Left = 10
 Window Z-Order = 10
-Source Window State = "1,181,181,181,5,24,5,0,3,85,0,182,0,0,0,25,166,0,181,24,349,723,1,15,"
+Source Window State = "1,181,181,181,5,24,5,0,3,85,0,182,0,0,0,25,169,0,181,24,349,723,1,15,"
 
 [File 0016]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/emg_axis_control.h"
@@ -214,7 +214,7 @@ In Projects = "2,"
 Window Top = 64
 Window Left = 26
 Window Z-Order = 11
-Source Window State = "1,58,147,58,2,30,2,0,0,85,0,0,0,0,0,25,0,0,121,85,349,723,1,11,"
+Source Window State = "1,58,147,58,2,30,2,0,0,85,0,0,0,0,0,25,109,22,121,85,349,723,1,11,"
 
 [File 0017]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition_cv"
@@ -225,7 +225,7 @@ In Projects = "2,"
 Window Top = 33
 Window Left = 10
 Window Z-Order = 25
-Source Window State = "1,35,35,35,55,63,63,0,0,85,0,0,0,0,0,25,23,24,35,55,349,723,1,0,"
+Source Window State = "1,35,35,35,55,63,63,0,0,85,0,0,0,0,0,25,23,0,35,55,349,723,1,0,"
 
 [File 0018]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_windows.h"
@@ -235,7 +235,7 @@ In Projects = "1,"
 Window Top = 64
 Window Left = 26
 Window Z-Order = 18
-Source Window State = "1,18,20,20,0,103,103,0,3,85,0,0,0,0,0,25,3,0,18,0,349,723,1,0,"
+Source Window State = "1,18,20,20,0,103,103,0,3,85,0,0,0,0,0,25,6,0,18,0,349,723,1,0,"
 
 [File 0019]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/network_axis.h"
@@ -244,8 +244,8 @@ Disk Date = 3519641000
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 8
-Source Window State = "1,69,70,70,0,44,44,0,0,85,0,0,0,0,0,25,42,0,72,45,349,723,1,0,"
+Window Z-Order = 9
+Source Window State = "1,69,70,70,0,44,44,0,0,85,0,0,0,0,0,25,69,0,72,45,349,723,1,0,"
 
 [File 0020]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
@@ -312,33 +312,33 @@ Source Window State = "1,29,30,30,0,40,40,0,0,85,0,0,0,0,0,25,1,0,78,59,349,723,
 [File 0026]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/aes_control.h"
 File Type = "Include"
-Disk Date = 3519664151
+Disk Date = 3520169221
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
 Window Z-Order = 1
-Source Window State = "1,388,389,389,0,130,130,0,0,201,0,0,0,0,0,49,373,0,387,97,349,723,1,0,"
+Source Window State = "1,143,143,143,36,48,36,0,0,201,0,0,0,0,0,49,349,0,376,47,349,723,1,0,"
 
 [File 0027]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/spline3_interpolatio"
 Path Line0002 = "n.h"
 File Type = "Include"
-Disk Date = 3519663770
+Disk Date = 3520168885
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 2
-Source Window State = "1,86,86,86,14,19,19,0,0,85,0,0,0,0,0,25,39,0,78,10,349,723,1,0,"
+Window Z-Order = 4
+Source Window State = "1,30,30,30,0,51,51,0,0,85,0,0,0,0,0,25,3,0,30,0,349,723,1,0,"
 
 [File 0028]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/impedance_control.h"
 File Type = "Include"
-Disk Date = 3519663236
+Disk Date = 3519736409
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 3
-Source Window State = "1,192,193,193,0,84,84,0,0,85,0,0,0,0,0,25,163,0,185,2,349,723,1,0,"
+Window Z-Order = 7
+Source Window State = "1,185,185,185,2,18,2,0,0,85,0,0,0,0,0,25,157,0,190,67,349,723,1,0,"
 
 [File 0029]
 Path Line0001 = "/c/program files (x86)/national instruments/cvi2013/sdk/lib/msvc/WSock32_lvrt.Li"

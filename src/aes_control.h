@@ -31,9 +31,10 @@ typedef struct _AESController
   SimpleKalmanFilter* positionFilter;
   double parametersList[ CONTROL_PARAMS_NUMBER ];
   Splined3Curve* parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
+  Splined3Curve* interactionForceCurve;
   double setpoint;
   double maxReach, minReach;
-  double maxStiffness, maxDamping, physicalStiffness;               // Real stiffness and damping of the actuator
+  double maxStiffness, maxDamping;
   bool isRunning;                                                   // Is control thread running ?
 }
 AESController;
@@ -74,8 +75,9 @@ static void LoadControllersConfig()
           newController->parametersList[ parameterIndex ] = 0.0;
           newController->parameterCurvesList[ parameterIndex ] = NULL;
         }
+        newController->interactionForceCurve = NULL;
         newController->maxReach = newController->minReach = 0.0;
-        newController->maxStiffness = newController->maxDamping = newController->physicalStiffness = 0.0;
+        newController->maxStiffness = newController->maxDamping;
         newController->ref_RunControl = NULL;
         newController->controlThread = -1;
       }
@@ -106,21 +108,19 @@ static void LoadControllersConfig()
         MotorDrive_SetEncoderResolution( newController->sensor, encoderResolution );
         MotorDrive_SetGearReduction( newController->sensor, gearReduction );
       }
-      else if( strcmp( readBuffer, "base_stiffness:" ) == 0 )
+      /*else if( strcmp( readBuffer, "base_stiffness:" ) == 0 )
       {
         fscanf( configFile, "%lf", &(newController->physicalStiffness) );
         
-        /*DEBUG_EVENT( 4,*/DEBUG_PRINT( "found %s base stiffness value: %g", newController->name, newController->physicalStiffness );
+        DEBUG_EVENT( 4,"found %s base stiffness value: %g", newController->name, newController->physicalStiffness );
         
         if( newController->physicalStiffness < 0.0 ) newController->physicalStiffness = 0.0;
-      }
+      }*/
       else if( strcmp( readBuffer, "min_max_reach:" ) == 0 )
       {
         fscanf( configFile, "%lf %lf", &(newController->minReach), &(newController->maxReach) );
         
         /*DEBUG_EVENT( 8,*/DEBUG_PRINT( "found %s reach value limits: %g <-> %g", newController->name, newController->minReach, newController->maxReach );
-        
-        if( newController->physicalStiffness < 0.0 ) newController->physicalStiffness = 0.0;
       }
       else if( strcmp( readBuffer, "control_type:" ) == 0 )
       {
@@ -140,6 +140,14 @@ static void LoadControllersConfig()
           newController->operationMode = AXIS_OP_MODE_POSITION;
         else if( strcmp( readBuffer, "VELOCITY" ) == 0 )
           newController->operationMode = AXIS_OP_MODE_VELOCITY;
+      }
+      else if( strcmp( readBuffer, "force_curve:" ) == 0 )
+      {
+        fscanf( configFile, "%s", readBuffer );
+        
+        /*DEBUG_EVENT( 4,*/DEBUG_PRINT( "setting %s interaction force curve %s", newController->name, readBuffer );
+        
+        newController->interactionForceCurve = Spline3Interp_LoadCurve( readBuffer );
       }
       else if( strcmp( readBuffer, "parameter_curves:" ) == 0 )
       {
@@ -334,13 +342,8 @@ extern inline void AESControl_SetImpedance( size_t deviceID, double referenceSti
   if( !CheckController( deviceID ) ) return;
   
   AESController* controller = &(controllersList[ deviceID ]);
-  
-  if( referenceStiffness < 0.0 ) referenceStiffness = 0.0;
-  else if( referenceStiffness > controller->physicalStiffness ) referenceStiffness = controller->physicalStiffness;
-  controller->maxStiffness = referenceStiffness;
-  
-  DEBUG_PRINT( "new max stiffness: %g -> %g", referenceStiffness, controller->maxStiffness );
-  
+
+  controller->maxStiffness = ( referenceStiffness > 0.0 ) ? referenceStiffness : 0.0;
   controller->maxDamping = ( referenceDamping > 0.0 ) ? referenceDamping : 0.0;
 }
 
@@ -371,7 +374,9 @@ static inline void UpdateControlMeasures( AESController* controller )
   controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];
 
   double actuatorPosition = MotorDrive_GetMeasure( controller->actuator->drive, AXIS_POSITION );
-  controller->measuresList[ CONTROL_FORCE ] = controller->physicalStiffness * ( actuatorPosition - sensorPosition );
+  controller->measuresList[ CONTROL_FORCE ] = -Spline3Interp_GetValue( controller->interactionForceCurve, sensorPosition - actuatorPosition );
+  
+  DEBUG_PRINT( "delta: %.3f - torque: %.3f", sensorPosition - actuatorPosition, controller->measuresList[ CONTROL_FORCE ] );   
 }
 
 static inline void UpdateControlParameters( AESController* controller )

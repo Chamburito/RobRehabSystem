@@ -516,7 +516,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
     
       if( (client = FindConnection( connection->clientsList, clientHandle, REMOVE )) != NULL )
       {
-        /*ERROR_EVENT( 0, */DEBUG_PRINT( "TCP client handle %u disconnected", client->handle );
+        ERROR_EVENT( 0, "TCP client handle %u disconnected", client->handle );
         
         (void) CloseConnection( 0, &client, NULL );
       }
@@ -551,7 +551,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
       
       if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
       {
-        /*ERROR_EVENT( 0, */DEBUG_PRINT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
+        ERROR_EVENT( 0, "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
         (void) CloseConnection( 0, &client, NULL );
         break;
       }
@@ -561,7 +561,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
         if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
         { 
           CmtGetErrorMessage( errorCode, messageBuffer );
-          /*ERROR_EVENT( 0, */DEBUG_PRINT( "%s", messageBuffer );
+          ERROR_EVENT( 0, "%s", messageBuffer );
           break;
         }
         
