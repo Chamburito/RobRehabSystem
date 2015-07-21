@@ -14,11 +14,12 @@
 #include <errno.h>
 #include <malloc.h>
 
-#define INFINITE 0xffffffff
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const CmtThreadFunctionID INVALID_THREAD_HANDLE = -1;
+#define INFINITE 0xffffffff
   
 // Returns unique identifier of the calling thread
 #define THREAD_ID pthread_self()
@@ -49,7 +50,7 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
   if( pthread_create( &handle, NULL, function, args ) != 0 )
   {
     ERROR_PRINT( "pthread_create: failed creating new thread with function %p", function );
-    return 0;
+    return INVALID_THREAD_HANDLE;
   }
 
   DEBUG_PRINT( "created thread %x successfully\n", handle );
@@ -95,46 +96,49 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
   Controller control_args = { handle };
   int control_result;
 
-  clock_gettime( CLOCK_REALTIME, &timeout );
-
-  if( timeout.tv_sec + ( milisseconds / 1000 ) < INFINITE )
+  if( handle != INVALID_THREAD_HANDLE )
   {
-    timeout.tv_sec += (time_t) ( milisseconds / 1000 );
-    timeout.tv_nsec += (long) 1000000 * ( milisseconds % 1000 );
-  }
-  
-  pthread_mutex_init( &(control_args.lock), 0 );
-  pthread_cond_init( &(control_args.condition), 0 );
-  pthread_mutex_lock( &(control_args.lock) );
+    clock_gettime( CLOCK_REALTIME, &timeout );
 
-  if( pthread_create( &control_handle, NULL, Waiter, (void*) &control_args ) != 0 )
-  {
-    perror( "wait_thread_end: pthread_create: error creating waiter thread:" );
-    return 0;
-  }
+    if( timeout.tv_sec + ( milisseconds / 1000 ) < INFINITE )
+    {
+      timeout.tv_sec += (time_t) ( milisseconds / 1000 );
+      timeout.tv_nsec += (long) 1000000 * ( milisseconds % 1000 );
+    }
   
-  DEBUG_PRINT( "waiting thread %x exit", handle );
-  
-  do control_result = pthread_cond_timedwait( &(control_args.condition), &(control_args.lock), &timeout );
-  while( control_args.result != NULL && control_result != ETIMEDOUT );
+    pthread_mutex_init( &(control_args.lock), 0 );
+    pthread_cond_init( &(control_args.condition), 0 );
+    pthread_mutex_lock( &(control_args.lock) );
 
-  pthread_cancel( control_handle );
-  pthread_join( control_handle, NULL );
+    if( pthread_create( &control_handle, NULL, Waiter, (void*) &control_args ) != 0 )
+    {
+      perror( "wait_thread_end: pthread_create: error creating waiter thread:" );
+      return 0;
+    }
+  
+    DEBUG_PRINT( "waiting thread %x exit", handle );
+  
+    do control_result = pthread_cond_timedwait( &(control_args.condition), &(control_args.lock), &timeout );
+    while( control_args.result != NULL && control_result != ETIMEDOUT );
 
-  pthread_cond_destroy( &(control_args.condition) );
-  pthread_mutex_destroy( &(control_args.lock) );
+    pthread_cancel( control_handle );
+    pthread_join( control_handle, NULL );
+
+    pthread_cond_destroy( &(control_args.condition) );
+    pthread_mutex_destroy( &(control_args.lock) );
   
-  DEBUG_PRINT( "waiter for thread %x exited", handle );
+    DEBUG_PRINT( "waiter for thread %x exited", handle );
   
-  if( control_args.result != NULL )
-  {
-    DEBUG_PRINT( "thread %x exit code: %u", handle, *((uint32_t*) (control_args.result)) );
+    if( control_args.result != NULL )
+    {
+      DEBUG_PRINT( "thread %x exit code: %u", handle, *((uint32_t*) (control_args.result)) );
     
-    return *((uint32_t*) (control_args.result));
+      return *((uint32_t*) (control_args.result));
+    }
+    else 
+      DEBUG_PRINT( "waiting for thread %x timed out", handle );
   }
-  else 
-    DEBUG_PRINT( "waiting for thread %x timed out", handle );
-  
+
   return 0;
 }
 
@@ -154,9 +158,9 @@ typedef pthread_mutex_t* ThreadLock;
 // Request new unique mutex for using in thread syncronization
 ThreadLock ThreadLock_Create()
 {
-  pthread_mutex_t* lock = (pthread_mutex_t*) malloc( sizeof(pthread_mutex_t) );
-  pthread_mutex_init( lock, NULL );
-  return lock;
+  pthread_mutex_t* newLock = (pthread_mutex_t*) malloc( sizeof(pthread_mutex_t) );
+  pthread_mutex_init( newLock, NULL );
+  return newLock;
 }
 
 extern inline void ThreadLock_Discard( pthread_mutex_t* lock )

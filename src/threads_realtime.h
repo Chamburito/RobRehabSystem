@@ -134,9 +134,9 @@ typedef CmtThreadLockHandle ThreadLock;
 // Request new unique mutex for using in thread syncronization
 ThreadLock ThreadLock_Create()
 {
-  CmtThreadLockHandle new_lock;
-  CmtNewLock( NULL, 0, &new_lock );
-  return new_lock;
+  CmtThreadLockHandle newLock;
+  CmtNewLock( NULL, 0, &newLock );
+  return newLock;
 }
 
 // Properly discard mutex variable
