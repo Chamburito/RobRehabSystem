@@ -235,9 +235,13 @@ static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* 
       }
       
       double impedanceStiffness = strtod( axisCommand, &axisCommand );
-      double impedanceDamping = strtod( axisCommand, NULL );
+      double impedanceDamping = strtod( axisCommand, &axisCommand );
       
       AESControl_SetImpedance( deviceID, impedanceStiffness, impedanceDamping );
+      
+      double positionOffset = strtod( axisCommand, NULL );
+      
+      AESControl_SetOffset( deviceID, positionOffset );
       
       maxStiffness = impedanceStiffness;
     }

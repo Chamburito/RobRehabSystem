@@ -199,7 +199,7 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
 
   velocitySetpoint[0] += 370.0 * ( forceError[0] - forceError[1] ) + 3.5 * deltaTime * forceError[0];
   
-  //velocitySetpoint[0] = 0.9884 * velocitySetpoint[1] + 0.007935 * velocitySetpoint[2] + 357.1 * forceError[1] - 355.8 * forceError[2]; //5ms
+  //velocitySetpoint[0] = 0.9822 * velocitySetpoint[1] + 0.01407 * velocitySetpoint[2] + 338.6 * forceError[1] - 337.4 * forceError[2]; //5ms
   
   for( int i = 2; i > 0; i-- )
   {

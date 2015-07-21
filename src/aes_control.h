@@ -31,9 +31,10 @@ typedef struct _AESController
   SimpleKalmanFilter* positionFilter;
   double parametersList[ CONTROL_PARAMS_NUMBER ];
   Splined3Curve* parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
-  Splined3Curve* interactionForceCurve;
   double setpoint;
   double maxReach, minReach;
+  double positionOffset, deformationOffset;
+  Splined3Curve* interactionForceCurve;
   double maxStiffness, maxDamping;
   bool isRunning;                                                   // Is control thread running ?
 }
@@ -108,14 +109,6 @@ static void LoadControllersConfig()
         MotorDrive_SetEncoderResolution( newController->sensor, encoderResolution );
         MotorDrive_SetGearReduction( newController->sensor, gearReduction );
       }
-      /*else if( strcmp( readBuffer, "base_stiffness:" ) == 0 )
-      {
-        fscanf( configFile, "%lf", &(newController->physicalStiffness) );
-        
-        DEBUG_EVENT( 4,"found %s base stiffness value: %g", newController->name, newController->physicalStiffness );
-        
-        if( newController->physicalStiffness < 0.0 ) newController->physicalStiffness = 0.0;
-      }*/
       else if( strcmp( readBuffer, "min_max_reach:" ) == 0 )
       {
         fscanf( configFile, "%lf %lf", &(newController->minReach), &(newController->maxReach) );
@@ -347,6 +340,18 @@ extern inline void AESControl_SetImpedance( size_t deviceID, double referenceSti
   controller->maxDamping = ( referenceDamping > 0.0 ) ? referenceDamping : 0.0;
 }
 
+extern inline void AESControl_SetOffset( size_t deviceID, double positionOffset )
+{
+  if( !CheckController( deviceID ) ) return;
+  
+  AESController* controller = &(controllersList[ deviceID ]);
+
+  controller->positionOffset = positionOffset;
+  controller->deformationOffset = MotorDrive_GetMeasure( controller->sensor, AXIS_POSITION ) - MotorDrive_GetMeasure( controller->actuator->drive, AXIS_POSITION );
+  
+  DEBUG_PRINT( "offset: %g - %g", controller->positionOffset, controller->deformationOffset );
+}
+
 extern inline const char* AESControl_GetDeviceName( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return NULL;
@@ -369,14 +374,15 @@ static inline void UpdateControlMeasures( AESController* controller )
 
   double* filteredMeasures = SimpleKalman_Update( controller->positionFilter, sensorPosition, CONTROL_SAMPLING_INTERVAL );
 
-  controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ];
+  controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ] - controller->positionOffset;
   controller->measuresList[ CONTROL_VELOCITY ] = filteredMeasures[ KALMAN_DERIVATIVE ];
   controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];
 
   double actuatorPosition = MotorDrive_GetMeasure( controller->actuator->drive, AXIS_POSITION );
-  controller->measuresList[ CONTROL_FORCE ] = -Spline3Interp_GetValue( controller->interactionForceCurve, sensorPosition - actuatorPosition );
+  double deformation = sensorPosition - actuatorPosition - controller->deformationOffset;
+  controller->measuresList[ CONTROL_FORCE ] = Spline3Interp_GetValue( controller->interactionForceCurve, deformation );
   
-  DEBUG_PRINT( "delta: %.3f - torque: %.3f", sensorPosition - actuatorPosition, controller->measuresList[ CONTROL_FORCE ] );   
+  //DEBUG_PRINT( "delta: %.3f - torque: %.3f", sensorPosition - actuatorPosition, controller->measuresList[ CONTROL_FORCE ] );   
 }
 
 static inline void UpdateControlParameters( AESController* controller )

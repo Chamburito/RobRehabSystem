@@ -70,6 +70,10 @@ int axisID = 0;
 int motorEnabled = 0;
 double maxStiffness = 0.0;
 
+int calibrationRunning = 0;
+double maxReach = 0.0, minReach = 0.0;
+double positionOffset = 0.0;
+
 Thread_Handle dataConnectionThreadID;
 bool isDataUpdateRunning = false;
 
@@ -283,8 +287,22 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
       {
         char enableMessage[ IP_CONNECTION_MSG_LEN ];
         motorEnabled = enabled;
-        sprintf( enableMessage, "0 %d 0 %.3f 0.000", motorEnabled, maxStiffness );
+        sprintf( enableMessage, "0 %d 0 %.3f 0.000 %.3f", motorEnabled, maxStiffness, positionOffset );
         AsyncIPConnection_WriteMessage( infoClientID, enableMessage );
+      }
+      else if( control == PANEL_OFFSET_TOGGLE )
+      {
+        calibrationRunning = enabled;
+        if( calibrationRunning == 0 )
+        {
+          char offsetMessage[ IP_CONNECTION_MSG_LEN ];
+          positionOffset = ( maxReach + minReach ) / 2.0;
+          fprintf( stderr, "offset = ( %g + %g ) / 2 = %g\n", maxReach, minReach, positionOffset );
+          sprintf( offsetMessage, "0 %d 0 %.3f 0.000 %.3f", motorEnabled, maxStiffness, positionOffset );
+          AsyncIPConnection_WriteMessage( infoClientID, offsetMessage );
+        }
+        
+        maxReach = minReach = 0.0;
       }
 		
 			CNVDisposeData( data );
@@ -345,7 +363,7 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   
   size_t setpointOffset = 0;//(size_t) ( responseTime / CONTROL_SAMPLING_INTERVAL );
   
-  //fprintf( stderr, "offset: 2 * %f / %.3f = %u\r", responseTime, CONTROL_SAMPLING_INTERVAL, setpointOffset );
+  //fprintf( stderr, "positionOffset: 2 * %f / %.3f = %u\r", responseTime, CONTROL_SAMPLING_INTERVAL, setpointOffset );
   
   //size_t setpointStart = ( setpointIndex > NUM_POINTS + setpointOffset ) ? ( setpointIndex - setpointOffset - NUM_POINTS + 1 ) : 0;
   
@@ -363,6 +381,13 @@ void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
   for( size_t pointIndex = 0; pointIndex < NUM_POINTS; pointIndex++ )
   {
     positionValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ];
+    
+    if( calibrationRunning == 1 )
+    {
+      if( -positionValues[ pointIndex ] > maxReach ) maxReach = -positionValues[ pointIndex ];
+      if( -positionValues[ pointIndex ] < minReach ) minReach = -positionValues[ pointIndex ];
+    }
+    
     velocityValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ];
     setpointValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ];
     errorValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ];
