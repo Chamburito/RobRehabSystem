@@ -1,7 +1,14 @@
 #ifndef AES_CONTROL_H
 #define AES_CONTROL_H
 
+#ifdef SHM_ROBOT
+#include "shm_robot/axis.h"
+#elif NI_CAN_ROBOT
+#include "can_robot/axis.h"
+#else
 #include "axis.h"
+#endif
+
 #include "impedance_control.h"
 #include "spline3_interpolation.h"
 
@@ -198,7 +205,8 @@ void AESControl_Init()
 {
   DEBUG_EVENT( 0, "Initializing AES Control on thread %x", THREAD_ID );
   
-  EposNetwork_Start( CAN_DATABASE, CAN_CLUSTER );
+  Axis_InitCommunication();
+  //EposNetwork_Start( CAN_DATABASE, CAN_CLUSTER );
   
   LoadControllersConfig();
   
@@ -234,8 +242,9 @@ void AESControl_End()
     free( controllersList );
   }
   
+  Axis_EndCommunication();
   // End CAN network transmission
-  EposNetwork_Stop();
+  //EposNetwork_Stop();
   
   DEBUG_EVENT( 0, "AES Control ended on thread %x", THREAD_ID );
 }

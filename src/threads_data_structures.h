@@ -1,11 +1,13 @@
-#ifndef THREADS_DATA_QUEUE_H
-#define THREADS_DATA_QUEUE_H
+#ifndef THREADS_DATA_STRUCT_H
+#define THREADS_DATA_STRUCT_H
 
 #ifdef WIN32
   #include "threads_windows.h"
 #else
   #include "threads_unix.h"
 #endif
+
+#include "klib/
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD SAFE QUEUE                                       /////
@@ -125,7 +127,7 @@ DataList* DataList_Init( size_t itemSize )
   
   list->data = (Item*) malloc( LIST_LENGTH_INCREMENT * sizeof(Item) );
   for( size_t position; position < LIST_LENGTH_INCREMENT; position++ )
-    list->data[ position ].data = (void*) malloc( itemSize );
+    list->data[ position ].data = malloc( itemSize );
   
   list->length = LIST_LENGTH_INCREMENT;
   list->itemsCount = list->insertCount = 0;
@@ -149,7 +151,10 @@ void DataList_End( DataList* list )
   }
 }
 
-int ListCompare( void* ref_item_1, void* ref_item_2 );
+int ListCompare( void* ref_item_1, void* ref_item_2 )
+{
+  return ( ((Item*) ref_item_1)->index - ((Item*) ref_item_2)->index );
+}
 
 size_t DataList_Insert( DataList* list, void* dataIn )
 {
@@ -176,10 +181,48 @@ size_t DataList_Insert( DataList* list, void* dataIn )
   return list->insertCount;
 }
 
-void DataList_GetValue( DataList* list, size_t index )
+void DataList_Remove( DataList* list, size_t index )
 {
+  ThreadLock_Aquire( list->accessLock );
   
+  if( list->insertCount > 0 )
+  {  
+    Item comparisonItem = { index, NULL };
+    
+    Item* foundItem = (Item*) bsearch( (void*) &comparisonItem, (void*) list->data, list->length, list->itemSize, ListCompare );
+    
+    if( foundItem != NULL )
+    {
+      free( foundItem->data );
+      foundItem->index = INFINITE;
+      
+      qsort( (void*) list->data, list->length, list->itemSize, ListCompare );
+      
+      list->itemsCount--;
+      
+      if( list->itemsCount < list->length - LIST_LENGTH_INCREMENT )
+      {
+        list->length -= LIST_LENGTH_INCREMENT;
+        list->data = (Item*) realloc( list->data, list->length * sizeof(Item) );
+      }
+    }
+  }
+  
+  ThreadLock_Release( list->accessLock );
+}
+
+void* DataList_GetValue( DataList* list, size_t index )
+{
+  //ThreadLock_Aquire( list->accessLock );
+  
+  Item comparisonItem = { index, NULL };
+  
+  void* foundItem = bsearch( (void*) &comparisonItem, (void*) list->data, list->length, list->itemSize, ListCompare );
+  
+  //ThreadLock_Release( list->accessLock );
+  
+  return foundItem;
 }
 
 
-#endif /* THREADS_DATA_QUEUE_H */
+#endif /* THREADS_DATA_STRUCT_H */
