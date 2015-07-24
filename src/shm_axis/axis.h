@@ -6,9 +6,9 @@
 #define	AXIS_H
 
 #ifdef WIN32
-  #include "timing_windows.h"
+  #include "../timing_windows.h"
 #else
-  #include "timing_unix.h"
+  #include "../timing_unix.h"
 #endif
 
 #include <stdio.h>
@@ -18,7 +18,7 @@
 
 #include <stdbool.h>
 
-#include "async_debug.h"
+#include "../async_debug.h"
 
 #include "ruser.h"
 #include "robdecls.h"
@@ -407,6 +407,25 @@ extern inline void MotorDrive_SetDigitalOutput( MotorDrive* drive, uint16_t outp
 {
   drive->digitalOutput = output;
 }
+
+// const struct
+// {
+//   void (*Reconnect)( int );
+//   void (*Disconnect)( int );
+//   void (*Enable)( int );
+//   void (*Disable)( int );
+//   void (*Reset)( int );
+//   bool (*IsEnabled)( int );
+//   bool (*HasError)( int );
+//   void (*SetOption)( int, int );
+//   double (*GetMeasure)( int, int );
+//   void (*SetParameter)( int, int, double );
+//   double (*GetParameter)( int, int );
+//   void (*ReadValues)( int );
+//   void (*WriteConfig)( int );
+// }
+// Motor = { Motor_Reconnect, Motor_Disconnect, Motor_Enable, Motor_Disable, Motor_Reset, Motor_IsActive, 
+//           Motor_HasError, Motor_SetOperationMode, Motor_GetMeasure, Motor_SetParameter, Motor_GetParameter };
 
 
 #endif	/* AXIS_H */
