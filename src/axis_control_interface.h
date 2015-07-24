@@ -7,7 +7,9 @@ typedef struct _AxisControlInterface
   void (*Disconnect)( int );
   void (*Enable)( int );
   void (*Disable)( int );
-  double* (*ReadMeasures)( int );
+  bool (*IsEnabled)( int );
+  bool (*HasError)( int );
+  bool (*ReadMeasures)( int, double[ AxisMeasures.NUMBER ] );
   void (*WriteControl)( int, double );
   void (*SetOperationMode)( int, int );
 }
