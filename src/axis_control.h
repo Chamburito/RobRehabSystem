@@ -1,13 +1,5 @@
-#ifndef AES_CONTROL_H
-#define AES_CONTROL_H
-
-#ifdef SHM_ROBOT
-#include "shm_robot/axis.h"
-#elif NI_CAN_ROBOT
-#include "can_robot/axis.h"
-#else
-#include "axis.h"
-#endif
+#ifndef AXIS_CONTROL_H
+#define AXIS_CONTROL_H
 
 #include "impedance_control.h"
 #include "spline3_interpolation.h"
@@ -24,28 +16,22 @@
 
 const size_t DEVICE_NAME_MAX_LENGTH = 16;
 
-typedef struct _AESController
+typedef struct _AxisController
 {
   char name[ DEVICE_NAME_MAX_LENGTH ];
-  Motor* actuator;                                                  // Active axis
-  unsigned int operationMode;                                       // Actuator operation mode (Position or velocity)
-  MotorDrive* sensor;                                               // Passive (extra measurement) axis
+  ActuatorInterface* actuatorInterface;
   ImpedanceControlFunction ref_RunControl;                        // Control method definition structure
   Thread_Handle controlThread;                                       // Processing thread handle
-  double measuresList[ CONTROL_DIMS_NUMBER ];
-  SimpleKalmanFilter* positionFilter;
   double parametersList[ CONTROL_PARAMS_NUMBER ];
   Splined3Curve* parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
   double setpoint;
   double maxReach, minReach;
-  double positionOffset, deformationOffset;
-  Splined3Curve* interactionForceCurve;
   double maxStiffness, maxDamping;
   bool isRunning;                                                   // Is control thread running ?
 }
-AESController;
+AxisController;
 
-static AESController* controllersList = NULL;
+static AxisController* controllersList = NULL;
 static size_t devicesNumber = 0;
 
 static void* AsyncControl( void* );
@@ -55,7 +41,7 @@ static void LoadControllersConfig()
 {
   char readBuffer[ 64 ];
   
-  AESController* newController = NULL;
+  AxisController* newController = NULL;
   
   FILE* configFile = fopen( "../config/aes_controls_config.txt", "r" );
   if( configFile != NULL ) 
@@ -64,13 +50,13 @@ static void LoadControllersConfig()
     {
       if( strcmp( readBuffer, "BEGIN_AES_CONTROL" ) == 0 )
       {
-        controllersList = (AESController*) realloc( controllersList, sizeof(AESController) * ( devicesNumber + 1 ) );
+        controllersList = (AxisController*) realloc( controllersList, sizeof(AxisController) * ( devicesNumber + 1 ) );
   
         newController = &(controllersList[ devicesNumber ]);
         
         fscanf( configFile, "%s", newController->name );
   
-        /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "found %s AES control config", newController->name );
+        /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "found %s axis control config", newController->name );
         
         newController->actuator = NULL;
         newController->sensor = NULL;
@@ -199,19 +185,19 @@ static void LoadControllersConfig()
 }
 
 // EPOS devices and CAN network initialization
-void AESControl_Init()
+void AxisControl_Init()
 {
-  DEBUG_EVENT( 0, "Initializing AES Control on thread %x", THREAD_ID );
+  DEBUG_EVENT( 0, "Initializing axis control on thread %x", THREAD_ID );
   
   LoadControllersConfig();
   
-  DEBUG_EVENT( 0, "AES Control initialized on thread %x", THREAD_ID );
+  DEBUG_EVENT( 0, "axis control initialized on thread %x", THREAD_ID );
 }
 
 // EPOS devices and CAN network shutdown
-void AESControl_End()
+void AxisControl_End()
 {
-  DEBUG_EVENT( 0, "Ending AES Control on thread %x", THREAD_ID );
+  DEBUG_EVENT( 0, "Ending axis control on thread %x", THREAD_ID );
 
   Timing_Delay( 2000 );
   
@@ -237,10 +223,10 @@ void AESControl_End()
     free( controllersList );
   }
   
-  DEBUG_EVENT( 0, "AES Control ended on thread %x", THREAD_ID );
+  DEBUG_EVENT( 0, "axis control ended on thread %x", THREAD_ID );
 }
 
-int AESControl_GetAxisID( const char* axisName )
+int AxisControl_GetAxisID( const char* axisName )
 {
   for( size_t deviceID = 0; deviceID < devicesNumber; deviceID++ )
   {
@@ -251,7 +237,7 @@ int AESControl_GetAxisID( const char* axisName )
   return -1;
 }
 
-extern inline size_t AESControl_GetDevicesNumber()
+extern inline size_t AxisControl_GetDevicesNumber()
 {
   return devicesNumber;
 }
@@ -265,7 +251,7 @@ static inline bool CheckController( size_t deviceID )
   return true;
 }
 
-extern inline void AESControl_EnableMotor( size_t deviceID )
+extern inline void AxisControl_EnableMotor( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return;
   
@@ -275,7 +261,7 @@ extern inline void AESControl_EnableMotor( size_t deviceID )
   controllersList[ deviceID ].measuresList[ CONTROL_ERROR ] = 0.0;
 }
 
-extern inline void AESControl_DisableMotor( size_t deviceID )
+extern inline void AxisControl_DisableMotor( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return;
   
@@ -284,7 +270,7 @@ extern inline void AESControl_DisableMotor( size_t deviceID )
   controllersList[ deviceID ].measuresList[ CONTROL_ERROR ] = 0.0;
 }
 
-extern inline void AESControl_Reset( size_t deviceID )
+extern inline void AxisControl_Reset( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return;
   
@@ -297,7 +283,7 @@ extern inline void AESControl_Reset( size_t deviceID )
   controllersList[ deviceID ].measuresList[ CONTROL_ERROR ] = 0.0;
 }
 
-extern inline bool* AESControl_GetMotorStatus( size_t deviceID )
+extern inline bool* AxisControl_GetMotorStatus( size_t deviceID )
 {
   static bool statesList[ AXIS_STATES_NUMBER ];
   
@@ -309,42 +295,42 @@ extern inline bool* AESControl_GetMotorStatus( size_t deviceID )
   return (bool*) statesList;
 }
 
-extern inline double* AESControl_GetMeasuresList( size_t deviceID )
+extern inline double* AxisControl_GetMeasuresList( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return NULL;
 
   return (double*) controllersList[ deviceID ].measuresList;
 }
 
-extern inline double* AESControl_GetParametersList( size_t deviceID )
+extern inline double* AxisControl_GetParametersList( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return NULL;
 
   return (double*) controllersList[ deviceID ].parametersList;
 }
 
-extern inline void AESControl_SetSetpoint( size_t deviceID, double setpoint )
+extern inline void AxisControl_SetSetpoint( size_t deviceID, double setpoint )
 {
   if( !CheckController( deviceID ) ) return;
   
   controllersList[ deviceID ].setpoint = setpoint;
 }
 
-extern inline void AESControl_SetImpedance( size_t deviceID, double referenceStiffness, double referenceDamping )
+extern inline void AxisControl_SetImpedance( size_t deviceID, double referenceStiffness, double referenceDamping )
 {
   if( !CheckController( deviceID ) ) return;
   
-  AESController* controller = &(controllersList[ deviceID ]);
+  AxisController* controller = &(controllersList[ deviceID ]);
 
   controller->maxStiffness = ( referenceStiffness > 0.0 ) ? referenceStiffness : 0.0;
   controller->maxDamping = ( referenceDamping > 0.0 ) ? referenceDamping : 0.0;
 }
 
-extern inline void AESControl_SetOffset( size_t deviceID, double positionOffset )
+extern inline void AxisControl_SetOffset( size_t deviceID, double positionOffset )
 {
   if( !CheckController( deviceID ) ) return;
   
-  AESController* controller = &(controllersList[ deviceID ]);
+  AxisController* controller = &(controllersList[ deviceID ]);
 
   controller->positionOffset = positionOffset;
   controller->deformationOffset = MotorDrive_GetMeasure( controller->sensor, AXIS_POSITION ) - MotorDrive_GetMeasure( controller->actuator->drive, AXIS_POSITION );
@@ -352,7 +338,7 @@ extern inline void AESControl_SetOffset( size_t deviceID, double positionOffset 
   DEBUG_PRINT( "offset: %g - %g", controller->positionOffset, controller->deformationOffset );
 }
 
-extern inline const char* AESControl_GetDeviceName( size_t deviceID )
+extern inline const char* AxisControl_GetDeviceName( size_t deviceID )
 {
   if( !CheckController( deviceID ) ) return NULL;
   
@@ -365,7 +351,7 @@ extern inline const char* AESControl_GetDeviceName( size_t deviceID )
 
 const double CONTROL_SAMPLING_INTERVAL = 0.005;           // Sampling interval
 
-static inline void UpdateControlMeasures( AESController* controller )
+static inline void UpdateControlMeasures( AxisController* controller )
 {
   MotorDrive_ReadValues( controller->sensor );
   if( controller->actuator->drive != controller->sensor ) MotorDrive_ReadValues( controller->actuator->drive );
@@ -385,7 +371,7 @@ static inline void UpdateControlMeasures( AESController* controller )
   //DEBUG_PRINT( "delta: %.3f - torque: %.3f", sensorPosition - actuatorPosition, controller->measuresList[ CONTROL_FORCE ] );   
 }
 
-static inline void UpdateControlParameters( AESController* controller )
+static inline void UpdateControlParameters( AxisController* controller )
 {
   double* parametersList = (double*) controller->parametersList;
   Splined3Curve** parameterCurvesList = (Splined3Curve**) controller->parameterCurvesList;
@@ -403,7 +389,7 @@ static inline void UpdateControlParameters( AESController* controller )
   else if( parametersList[ CONTROL_DAMPING ] < 0.0 ) parametersList[ CONTROL_DAMPING ] = 0.0;
 }
 
-static inline void RunControl( AESController* controller )
+static inline void RunControl( AxisController* controller )
 {
   static double controlOutput;
   
@@ -421,7 +407,7 @@ static inline void RunControl( AESController* controller )
 // Method that runs the control functions asyncronously
 static void* AsyncControl( void* args )
 {
-  AESController* controller = (AESController*) args;
+  AxisController* controller = (AxisController*) args;
   
   // Try to correct errors
   if( controller->actuator != NULL ) 
@@ -451,9 +437,7 @@ static void* AsyncControl( void* args )
       
       elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
       DEBUG_UPDATE( "control pass for %s AES (before delay): elapsed time: %u ms", controller->name, elapsedTime );
-      
       if( elapsedTime < (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_SAMPLING_INTERVAL - elapsedTime );
-
       DEBUG_UPDATE( "control pass for %s AES (after delay): elapsed time: %u ms", controller->name, Timing_GetExecTimeMilliseconds() - execTime );
     }
   }
@@ -462,4 +446,4 @@ static void* AsyncControl( void* args )
   return NULL;
 }
 
-#endif /* AES_CONTROL_H */ 
+#endif /* AXIS_CONTROL_H */

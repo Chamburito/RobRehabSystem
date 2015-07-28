@@ -10,7 +10,7 @@
 #ifndef AXIS_CAN_EPOS_INTERFACE_H
 #define AXIS_CAN_EPOS_INTERFACE_H
 
-#include "../axis_control_interface.h"
+#include "../axis_interface.h"
 #include "can_network.h"
 
 #ifdef WIN32
@@ -38,7 +38,7 @@
                      VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_MODES_NUMBER };
 static const uint8_t operationModes[ AXIS_MODES_NUMBER ] = { 0x06, 0x03, 0x01, 0xFF, 0xFE, 0xFD, 0xFB, 0xFA };*/
 
-static const uint8_t operationModes[ AXIS_OP_MODES_NUMBER ] = { 0xFF, 0xFE };
+static const uint8_t operationModes[ AXIS_DIMENSIONS_NUMBER ] = { 0xFF, 0xFE };
 
 enum States { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAULT = 8, VOLTAGE_ENABLED = 16, 
               QUICK_STOPPED = 32, SWITCH_ON_DISABLE = 64, REMOTE_NMT = 512, TARGET_REACHED = 1024, SETPOINT_ACK = 4096 };
@@ -48,6 +48,10 @@ enum Controls { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERAT
 
 enum FrameTypes { SDO, PDO01, PDO02, AXIS_FRAME_TYPES_NUMBER };
 static const char* CAN_FRAME_NAMES[ AXIS_FRAME_TYPES_NUMBER ] = { "SDO", "PDO01", "PDO02" };
+
+//CAN database addressing
+const char* CAN_DATABASE = "database";
+const char* CAN_CLUSTER = "NETCAN";
 
 typedef struct _CANInterface
 {
@@ -61,16 +65,16 @@ CANInterface;
 KHASH_MAP_INIT_INT( CAN, CANInterface );
 static khash_t( CAN )* interfacesList = NULL;
 
-static int Connect( unsigned int );
+static int Connect( int );
 static void Disconnect( int );
 static void Enable( int );
 static void Disable( int );
 static void Reset( int );
 static bool IsEnabled( int );
 static bool HasError( int );
-static bool ReadMeasures( int, double[ AXIS_MEASURES_NUMBER ] );
-static void WriteControl( int, double[ AXIS_OP_MODES_NUMBER ] );
-static void SetOperationMode( int, int );
+static bool ReadMeasures( int, double[ AXIS_DIMENSIONS_NUMBER ] );
+static void WriteControl( int, double[ AXIS_DIMENSIONS_NUMBER ] );
+static void SetOperationMode( int, enum AxisDimensions );
 
 static inline void SetControl( CANInterface*, enum Controls, bool );
 static inline bool CheckState( CANInterface* interface, enum States stateValue );
@@ -78,35 +82,28 @@ static inline double ReadSingleValue( CANInterface*, uint16_t, uint8_t );
 static inline void WriteSingleValue( CANInterface*, uint16_t, uint8_t, int );
 static inline void EnableDigitalOutput( CANInterface*, bool );
 
-AxisControlInterface AxisCANEPOSInterface()
-{
-  AxisControlInterface interface;
-  
-  interface.Connect = Connect;
-  interface.Disconnect = Disconnect;
-  interface.Enable = Enable;
-  interface.Disable = Disable;
-  interface.Reset = Reset;
-  interface.IsEnabled = IsEnabled;
-  interface.HasError = HasError;
-  interface.ReadMeasures = ReadMeasures;
-  interface.WriteControl = WriteControl;
-  interface.SetOperationMode = SetOperationMode;
-  
-  return interface;
-}
-
+const AxisInterface AxisCANEPOSInterface = { .Connect = Connect,
+                                             .Disconnect = Disconnect,
+                                             .Enable = Enable,
+                                             .Disable = Disable,
+                                             .Reset = Reset,
+                                             .IsEnabled = IsEnabled,
+                                             .HasError = HasError,
+                                             .ReadMeasures = ReadMeasures,
+                                             .WriteControl = WriteControl,
+                                             .SetOperationMode = SetOperationMode };
+                                                    
 const size_t ADDRESS_MAX_LENGTH = 16;
 
 // Create CAN controlled DC motor handle
 
-static int Connect( unsigned int networkNode )
+static int Connect( int networkNode )
 {
-  DEBUG_EVENT( 0, "connecting CAN interface to node %u", networkNode );
+  DEBUG_EVENT( 0, "connecting CAN interface to node %d", networkNode );
   
   if( interfacesList == NULL )
   {
-    CANNetwork_Start();
+    CANNetwork_Start( CAN_DATABASE, CAN_CLUSTER );
     interfacesList = kh_init( CAN );
   }
   
@@ -123,17 +120,14 @@ static int Connect( unsigned int networkNode )
       sprintf( networkAddress, "%s_RX_%02u", CAN_FRAME_NAMES[ frameID ], networkNode );
       interface->readFramesList[ frameID ] = CANNetwork_InitFrame( FRAME_IN, "CAN1", networkAddress );
 
-      if( interface->readFramesList[ frameID ] != NULL ) 
-      {
-        sprintf( networkAddress, "%s_TX_%02u", CAN_FRAME_NAMES[ frameID ], networkNode );
-        interface->writeFramesList[ frameID ] = CANNetwork_InitFrame( FRAME_OUT, "CAN2", networkAddress );
-      }
+      sprintf( networkAddress, "%s_TX_%02u", CAN_FRAME_NAMES[ frameID ], networkNode );
+      interface->writeFramesList[ frameID ] = CANNetwork_InitFrame( FRAME_OUT, "CAN2", networkAddress );
 
       if( interface->readFramesList[ frameID ] == NULL || interface->writeFramesList[ frameID ] == NULL ) 
       {
         Disconnect( interfaceID );
         
-        ERROR_EVENT( "failed creating frame %s for interface on network node %u", networkAddress, networkNode );
+        ERROR_EVENT( "failed creating frame %s for interface on network node %d", networkAddress, networkNode );
         return -1;
       }     
     }
@@ -145,15 +139,15 @@ static int Connect( unsigned int networkNode )
     
     Disable( interfaceID );
     
-    DEBUG_EVENT( 0, "created interface on network node %u", networkNode );
+    DEBUG_EVENT( 0, "created interface on network node %d", networkNode );
     
     return interfaceID;
   }
   
   if( insertionStatus == -1 )
-    ERROR_EVENT( "failed creating interface on network node %u", networkNode );
+    ERROR_EVENT( "failed creating interface on network node %d", networkNode );
   else if( insertionStatus == 0 )
-    ERROR_EVENT( "interface on network node %u already exists", networkNode );
+    ERROR_EVENT( "interface on network node %d already exists", networkNode );
     
   return -1;
 }
@@ -259,7 +253,7 @@ static bool HasError( int interfaceID )
   return false;
 }
 
-static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_MEASURES_NUMBER ] )
+static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_NUMBER ] )
 {
   // Create reading buffer
   static uint8_t payload[ 8 ];
@@ -273,22 +267,22 @@ static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_MEASURES_NU
     // Read values from PDO01 (Position, Current and Status Word) to buffer
     CANFrame_Read( interface->readFramesList[ PDO01 ], payload );  
     // Update values from PDO01
-    measuresList[ AXIS_MEASURES_POSITION ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
-    measuresList[ AXIS_MEASURES_TORQUE ] = payload[ 5 ] * 0x100 + payload[ 4 ];
+    measuresList[ AXIS_POSITION ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
+    measuresList[ AXIS_TORQUE ] = payload[ 5 ] * 0x100 + payload[ 4 ];
     
     interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
 
     // Read values from PDO02 (Velocity and Tension) to buffer
     CANFrame_Read( interface->readFramesList[ PDO02 ], payload );  
     // Update values from PDO02
-    measuresList[ AXIS_MEASURES_VELOCITY ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
-    measuresList[ AXIS_MEASURES_ACCELERATION ] = payload[ 5 ] * 0x100 + payload[ 4 ];
+    measuresList[ AXIS_VELOCITY ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
+    //measuresList[ AXIS_TENSION ] = payload[ 5 ] * 0x100 + payload[ 4 ];
   }
   
   return false;
 }
 
-void WriteControl( int interfaceID, double setpointsList[ AXIS_OP_MODES_NUMBER ] )
+void WriteControl( int interfaceID, double setpointsList[ AXIS_DIMENSIONS_NUMBER ] )
 {
   // Create writing buffer
   static uint8_t payload[ 8 ];
@@ -297,7 +291,7 @@ void WriteControl( int interfaceID, double setpointsList[ AXIS_OP_MODES_NUMBER ]
   {
     CANInterface* interface = &(kh_value( interfacesList, interfaceID ));
   
-    int rawPositionSetpoint = (int) setpointsList[ AXIS_OP_MODES_POSITION ];
+    int rawPositionSetpoint = (int) setpointsList[ AXIS_POSITION ];
     
     // Set values for PDO01 (Position Setpoint and Control Word)
     payload[ 0 ] = (uint8_t) ( rawPositionSetpoint & 0x000000ff );
@@ -312,7 +306,7 @@ void WriteControl( int interfaceID, double setpointsList[ AXIS_OP_MODES_NUMBER ]
     // Write values from buffer to PDO01 
     CANFrame_Write( interface->writeFramesList[ PDO01 ], payload );
 
-    int velocitySetpoint = (int) setpointsList[ AXIS_OP_MODES_VELOCITY ];
+    int velocitySetpoint = (int) setpointsList[ AXIS_VELOCITY ];
     
     // Set values for PDO02 (Velocity Setpoint and Digital Output)
     payload[ 0 ] = (uint8_t) ( velocitySetpoint & 0x000000ff );
