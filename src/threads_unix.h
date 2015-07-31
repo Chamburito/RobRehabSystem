@@ -14,11 +14,15 @@
 #include <errno.h>
 #include <malloc.h>
 
+#include "klib/khash.h"
+
+#include "debug.h"
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const CmtThreadFunctionID INVALID_THREAD_HANDLE = -1;
+const int INVALID_THREAD_HANDLE = -1;
 #define INFINITE 0xffffffff
   
 // Returns unique identifier of the calling thread
@@ -26,7 +30,7 @@ const CmtThreadFunctionID INVALID_THREAD_HANDLE = -1;
 
 // Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
 // when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
-enum { DETACHED, JOINABLE };
+enum { THREAD_DETACHED, THREAD_JOINABLE };
 
 typedef struct _Controller
 {
@@ -37,15 +41,16 @@ typedef struct _Controller
 } Controller;
 
 // Aliases for platform abstraction
-typedef pthread_t Thread_Handle;
+typedef int Thread_Handle;
 
 // Number of running threads
-static size_t threadsNumber = 0;
+KHASH_MAP_INIT_INT( Thread, pthread_t )
+static khash_t( Thread )* threadsList = NULL;
 
 // Setup new thread to run the given method asyncronously
 Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
 {
-  static pthread_t handle;
+  pthread_t handle;
   
   if( pthread_create( &handle, NULL, function, args ) != 0 )
   {
@@ -53,13 +58,19 @@ Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
     return INVALID_THREAD_HANDLE;
   }
 
-  DEBUG_PRINT( "created thread %x successfully\n", handle );
-
-  threadsNumber++;
+  if( threadsList == NULL ) threadsList = kh_init( Thread );
   
-  if( mode == DETACHED ) pthread_detach( handle );
+  int insertionStatus;
+  khint_t threadID = kh_put( Thread, threadsList, *((int*) &handle), &insertionStatus );
+  if( insertionStatus != 0 ) return INVALID_THREAD_HANDLE;
+  
+  DEBUG_PRINT( "created thread %d successfully\n", threadID );
+  
+  if( mode == THREAD_DETACHED ) pthread_detach( handle );
+  
+  kh_value( threadsList, threadID ) = handle;
 
-  return handle;
+  return (int) threadID;
 }
 
 // Exit the calling thread, returning the given value
@@ -67,9 +78,24 @@ void Thread_Exit( uint32_t exit_code )
 {
   static uint32_t exit_code_storage;
   exit_code_storage = exit_code;
-  threadsNumber--;
-
-  DEBUG_PRINT( "thread %x exiting with code: %u", pthread_self(), exit_code );
+  
+  for( khint_t threadID = kh_begin( threadsList ); threadID != kh_end( threadsList ); threadID++ )
+  {
+    if( pthread_equal( pthread_self(), kh_value( threadsList, threadID ) ) )
+    {
+      kh_del( Thread, threadsList, threadID );
+      
+      DEBUG_PRINT( "thread %d exiting with code: %u", (int) threadID, exit_code );
+      
+      if( kh_size( threadsList ) == 0 )
+      {
+        kh_destroy( Thread, threadsList );
+        threadsList = NULL;
+      }
+      
+      break;
+    }
+  }
 
   pthread_exit( &exit_code_storage );
 }
@@ -92,9 +118,9 @@ static void* Waiter( void *args )
 uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
 {
   static struct timespec timeout;
-  pthread_t control_handle;
-  Controller control_args = { handle };
-  int control_result;
+  pthread_t controlHandle;
+  Controller controlArgs = { handle };
+  int controlResult;
 
   if( handle != INVALID_THREAD_HANDLE )
   {
@@ -106,11 +132,11 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
       timeout.tv_nsec += (long) 1000000 * ( milisseconds % 1000 );
     }
   
-    pthread_mutex_init( &(control_args.lock), 0 );
-    pthread_cond_init( &(control_args.condition), 0 );
-    pthread_mutex_lock( &(control_args.lock) );
+    pthread_mutex_init( &(controlArgs.lock), 0 );
+    pthread_cond_init( &(controlArgs.condition), 0 );
+    pthread_mutex_lock( &(controlArgs.lock) );
 
-    if( pthread_create( &control_handle, NULL, Waiter, (void*) &control_args ) != 0 )
+    if( pthread_create( &controlHandle, NULL, Waiter, (void*) &controlArgs ) != 0 )
     {
       perror( "wait_thread_end: pthread_create: error creating waiter thread:" );
       return 0;
@@ -118,22 +144,22 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
   
     DEBUG_PRINT( "waiting thread %x exit", handle );
   
-    do control_result = pthread_cond_timedwait( &(control_args.condition), &(control_args.lock), &timeout );
-    while( control_args.result != NULL && control_result != ETIMEDOUT );
+    do controlResult = pthread_cond_timedwait( &(controlArgs.condition), &(controlArgs.lock), &timeout );
+    while( controlArgs.result != NULL && controlResult != ETIMEDOUT );
 
-    pthread_cancel( control_handle );
-    pthread_join( control_handle, NULL );
+    pthread_cancel( controlHandle );
+    pthread_join( controlHandle, NULL );
 
-    pthread_cond_destroy( &(control_args.condition) );
-    pthread_mutex_destroy( &(control_args.lock) );
+    pthread_cond_destroy( &(controlArgs.condition) );
+    pthread_mutex_destroy( &(controlArgs.lock) );
   
     DEBUG_PRINT( "waiter for thread %x exited", handle );
   
-    if( control_args.result != NULL )
+    if( controlArgs.result != NULL )
     {
-      DEBUG_PRINT( "thread %x exit code: %u", handle, *((uint32_t*) (control_args.result)) );
+      DEBUG_PRINT( "thread %x exit code: %u", handle, *((uint32_t*) (controlArgs.result)) );
     
-      return *((uint32_t*) (control_args.result));
+      return *((uint32_t*) (controlArgs.result));
     }
     else 
       DEBUG_PRINT( "waiting for thread %x timed out", handle );
@@ -145,7 +171,7 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
 // Returns number of running threads (method for encapsulation purposes)
 size_t Thread_GetActiveThreadsNumber()
 {
-  return threadsNumber;
+  return kh_size( threadsList );
 }
 
 

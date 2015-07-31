@@ -24,11 +24,18 @@
 
 #include "../axis_interface.h"
 
-#include "ruser.h"
-#include "robdecls.h"
-#include "rtl_inc.h"
+#include <sys/mman.h>
 
-static const uint8_t operationModes[ AXIS_OP_MODES_NUMBER ] = { 0xFF, 0xFE };
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+#include <fcntl.h>
+
+//#include "ruser.h"
+#include "robdecls.h"
+//#include "rtl_inc.h"
+
+static const uint8_t operationModes[ AXIS_DIMENSIONS_NUMBER ] = { 0xFF, 0xFE };
 
 static int Connect( int );
 static void Disconnect( int );
@@ -37,11 +44,11 @@ static void Disable( int );
 static void Reset( int );
 static bool IsEnabled( int );
 static bool HasError( int );
-static bool ReadMeasures( int, double[ AXIS_MEASURES_NUMBER ] );
-static void WriteControl( int, double[ AXIS_OP_MODES_NUMBER ] );
+static bool ReadMeasures( int, double[ AXIS_DIMENSIONS_NUMBER ] );
+static void WriteControl( int, double[ AXIS_DIMENSIONS_NUMBER ] );
 static void SetOperationMode( int, enum AxisOperationModes );
 
-KHASH_MAP_INIT_INT( Shm, Ob* );
+KHASH_MAP_INIT_INT( Shm, Ob* )
 static khash_t( Shm )* interfacesList = NULL;
 
 const AxisInterface AxisShmInterface = { .Connect = Connect,
@@ -145,28 +152,28 @@ static bool HasError( int interfaceID )
   return;
 }
 
-static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_MEASURES_NUMBER ] )
+static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_NUMBER ] )
 {
   if( kh_exist( interfacesList, interfaceID ) )
   {
     Ob* sharedMemoryObject = kh_value( interfacesList, interfaceID );
     
-    measuresList[ AXIS_MEASURES_POSITION ] = sharedMemoryObject->ankle.pos.dp;
-    measuresList[ AXIS_MEASURES_VELOCITY ] = sharedMemoryObject->ankle.vel.dp;
-    measuresList[ AXIS_MEASURES_ACCELERATION ] = sharedMemoryObject->ankle.accel.dp;
-    measuresList[ AXIS_MEASURES_TORQUE ] = sharedMemoryObject->ankle.torque.dp;
+    measuresList[ AXIS_POSITION ] = sharedMemoryObject->ankle.pos.dp;
+    measuresList[ AXIS_VELOCITY ] = sharedMemoryObject->ankle.vel.dp;
+    //measuresList[ AXIS_ACCELERATION ] = sharedMemoryObject->ankle.accel.dp;
+    measuresList[ AXIS_TORQUE ] = sharedMemoryObject->ankle.torque.dp;
   }
   
   return false;
 }
 
-static void WriteControl( int interfaceID, double setpointsList[ AXIS_OP_MODES_NUMBER ] )
+static void WriteControl( int interfaceID, double setpointsList[ AXIS_DIMENSIONS_NUMBER ] )
 {
   if( kh_exist( interfacesList, interfaceID ) )
   {
     Ob* sharedMemoryObject = kh_value( interfacesList, interfaceID );
     
-    sharedMemoryObject->ankle.ref_pos.dp = setpointsList[ AXIS_OP_MODES_POSITION ];
+    sharedMemoryObject->ankle.ref_pos.dp = setpointsList[ AXIS_POSITION ];
   }
 }
 

@@ -30,7 +30,7 @@
 
 const size_t DEBUG_MESSAGE_LENGTH = 256;
   
-#ifdef SIMPLE_DEBUG || DEEP_DEBUG
+#if defined SIMPLE_DEBUG || defined DEEP_DEBUG
 
   const size_t EVENT_NAME_LENGTH = 8;
   const size_t SOURCE_NAME_LENGTH = 64;
@@ -158,7 +158,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
   #define ERROR_EVENT( format, ... ) NO_CODE
 #endif
 
-#ifdef DEEP_DEBUG
+#if defined DEEP_DEBUG
   #define DEBUG_UPDATE( format, ... ) AsyncDebug_SetEvent( 0, __func__, "update", format, __VA_ARGS__ )
 #else
   #define DEBUG_UPDATE( format, ... ) NO_CODE

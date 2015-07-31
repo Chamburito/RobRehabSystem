@@ -47,15 +47,25 @@
 /////                    PREPROCESSOR DIRECTIVES                    /////
 /////////////////////////////////////////////////////////////////////////
 
-const size_t QUEUE_SIZE = 20;
-const size_t IP_CONNECTION_MSG_LEN = 256;
+// const size_t QUEUE_SIZE = 20;
+// const size_t IP_CONNECTION_MSG_LEN = 256;
+// 
+// const size_t IP_HOST_LENGTH = 40;
+// const size_t IP_PORT_LENGTH = 6;
+// const size_t IP_ADDRESS_LENGTH = IP_HOST_LENGTH + IP_PORT_LENGTH;
+// 
+// const size_t IP_HOST = 0;
+// const size_t IP_PORT = IP_HOST_LENGTH;
+  
+#define QUEUE_SIZE 20
+#define IP_CONNECTION_MSG_LEN 256
 
-const size_t IP_HOST_LENGTH = 40;
-const size_t IP_PORT_LENGTH = 6;
-const size_t IP_ADDRESS_LENGTH = IP_HOST_LENGTH + IP_PORT_LENGTH;
+#define IP_HOST_LENGTH 40
+#define IP_PORT_LENGTH 6
+#define IP_ADDRESS_LENGTH IP_HOST_LENGTH + IP_PORT_LENGTH
 
-const size_t IP_HOST = 0;
-const size_t IP_PORT = IP_HOST_LENGTH;
+#define IP_HOST 0
+#define IP_PORT IP_HOST_LENGTH
 
 enum Property { CLIENT = 0x01, SERVER = 0x02, NETWORK_ROLE_MASK = 0x0f, TCP = 0x10, UDP = 0x20, PROTOCOL_MASK = 0xf0 };
 

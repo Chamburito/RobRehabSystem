@@ -11,7 +11,7 @@
 #ifndef ROBDECLS_H
 #define ROBDECLS_H
 
-//#include "ruser.h"
+#include "ruser.h"
 #include <math.h>
 
 // close to zero, for double compares.
@@ -113,6 +113,38 @@ typedef struct pm_s {
 } PM;
 
 // wrist types
+typedef struct wrist_dof_s {
+        f64 fe;	// flexion/extension
+        f64 aa;	// abduction/adduction
+        f64 ps;	// pronation/supination
+} wrist_dof;
+
+typedef struct wrist_ob_s {    // world coordinate parameters
+    wrist_dof pos;	// position
+    wrist_dof vel;	// velocity
+    wrist_dof fvel;	// filtered velocity
+    wrist_dof torque;	// command torque
+    wrist_dof offset;   // offset from zero;
+    wrist_dof moment_csen;
+    wrist_dof moment_cmd;
+    wrist_dof back;	// back wall for adap
+    wrist_dof norm;	// normalized posn for adap
+    wrist_dof ref_pos;	// for ref control
+    f64 diff_stiff;	// stiffness
+    f64 ps_stiff;	// stiffness
+    f64 diff_side_stiff;	// stiffness
+    f64 diff_damp;	// damping
+    f64 ps_damp;	// damping
+    f64 diff_gcomp;	// gravity compensation
+    f64 ps_gcomp;	// gravity compensation
+    u32 ps_adap_going_up; // adaptive going up
+    u32 nocenter3d;	// don't center the uncontrolled dof
+    f64 velmag;		// velocity magnitude
+    f64 rl_pfomax;	// preserve force orientation
+    f64 rl_pfotest;	// preserve force orientation
+    u32 ft_motor_force;	// use motor force instead of ft
+} wrist_ob;
+
 
 // right/left dof
 typedef struct rl_s {
@@ -220,64 +252,56 @@ typedef struct ankle_prev_s {	// previous ankle world coordinate parameters
     rl disp;
 } ankle_prev;
 
-/*
-// This is the shared structure definition
-typedef struct sharedbuffer_s {
-	f64 netstatus;
-	f64 netstatus_op;
-	f64 pred;
-	f64 pred_op;
-	f64 posi;
-        f64 posi_op;
-	f64 motorforces_dp; 
-	f64 motorforces_dp_op; 
-	f64 singlepaddle; 
-	f64 singlepaddle_op; 
-	f64 ballcoords[2];
-	f64 dir[2];
-	f64 dir_op[2];
-	f64 pred_var_1;
-	f64 pred_var_2;
-	f64 pred_var_3;
-	f64 pred_var_4;
-	f64 pred_var_1_op;
-	f64 pred_var_2_op;
-        f64 pred_var_3_op;
-        f64 pred_var_4_op;
-	f64 running;
-	f64 game_running;
-	f64 xy[2];
-	f64 xy_op[2];
-	ankle_dof pos;
-    	ankle_dof vel;
-    	ankle_dof fvel;
-    	ankle_dof torque;
-	ankle_dof pos_op;
-    	ankle_dof vel_op;
-    	ankle_dof fvel_op;
-    	ankle_dof torque_op;
-	ankle_dof um;
-    ankle_dof us;
-    ankle_dof vm;
-    ankle_dof vs;	
-	ankle_dof ref_pos;
-    ankle_dof ref_vel;	
-	ankle_dof ref_pos_op;
-    ankle_dof ref_vel_op;
-    ankle_dof intum;
-	ankle_dof um1;
-    ankle_dof vm1;
-  	ankle_dof um2;
-    ankle_dof vm2;
-    ankle_dof pos_b1;
-    ankle_dof pos_b2;
-  	f64 cont;
-ankle_dof pos_soc;
-ankle_dof pos_soc_op;
-f64 ballcoords_op[2];
-} Sharedbuffer;
+// linear types
+typedef struct linear_ob_s {    // linear world coordinates
+    f64 pos;
+    f64 vel;
+    f64 fvel;
+    f64 force;
+    f64 back;	// back wall for adap
+    f64 norm;	// normalized posn for adap
+    f64 offset;
+    f64 ref_pos;
+    f64 stiff;
+    f64 damp;
+    f64 force_bias;
+    f64 pfomax;		// pfo
+    f64 pfotest;	// pfo
+    u32 adap_going_up;
+} linear_ob;
 
-*/
+// hand types
+typedef struct hand_ob_s {    // hand world coordinates
+    f64 pos;
+    f64 vel;
+    f64 fvel;
+    f64 force;
+    f64 grasp;
+    f64 offset;
+    f64 ref_pos;
+    f64 stiff;
+    f64 damp;
+    f64 force_bias;
+    f64 pfomax;		// pfo
+    f64 pfotest;	// pfo
+    u32 adap_going_up;
+    u32 active_power;
+    u32 npoints;
+} hand_ob;
+
+//Junction Box Buffer for EMG amplitude estimation
+typedef struct emg_buffer_s {
+	f64 *buff_array;   //Array for buffer- construct upon initialization
+	f64 *buff_target_chan;  //Points to target DAQ channel
+	f64 buff_new_val;  //Incoming value
+	f64 buff_old_val;  //Value to be discarded
+	u32 buff_length;   //Stores length of buff_array
+	u32 buff_last_el;  //Points to element to be discarded
+	u32 buff_first_el; //Points to element most recently added
+	f64 buff_amp_est;  //Amplitude estimate of this channel
+        f64 buff_bias;     //DC bias of this channel
+	u32 buff_active;   //Is buffer active?
+} EMG_buffer;
 
 // time vars
 
@@ -375,13 +399,20 @@ typedef struct safety_s {
 	f64 damp_ret_secs;
 } Safety;
 
+typedef struct sim_s {
+    u32 sensors;		// boolean, yes, simulate
+    xy pos;			// position, read from user space
+    xy vel;			// vel
+    wrist_dof wr_pos;           // wrist position
+    wrist_dof wr_vel;           // wrist velocity
+} Sim;
 
 // the main object struct
 
 typedef struct ob_s {
     s8 tag[8];			// unused
     /* TODO: delete pthread_t main_thread; */	// main thread (currently only thread)
-    RT_TASK main_thread;
+    //RT_TASK main_thread;
 
     u32 doinit;			// run init code if set.
     u32 didinit;		// so we only init once
@@ -486,12 +517,12 @@ typedef struct ob_s {
     u32 reffnid;		// which log function in array
     u32 ref_switchback_go;	// run the switchback fn
 
-    RT_PIPE dififo;	       	// data in (like stdin)
-    RT_PIPE dofifo;	       	// data out (stdout)
-    RT_PIPE eofifo;	       	// error out (stderr)
-    RT_PIPE cififo;	       	// command in
-    RT_PIPE ddfifo;	       	// display data out
-    RT_PIPE tcfifo;             // tick data out
+    //RT_PIPE dififo;	       	// data in (like stdin)
+    //RT_PIPE dofifo;	       	// data out (stdout)
+    //RT_PIPE eofifo;	       	// error out (stderr)
+    //RT_PIPE cififo;	       	// command in
+    //RT_PIPE ddfifo;	       	// display data out
+    //RT_PIPE tcfifo;             // tick data out
     // TODO: delete s32 nfifos;			// number of fifos
 
     u32 ntickfifo;		// do the tcfifo output
@@ -598,6 +629,7 @@ typedef struct ob_s {
     f64 ankle_games_wait_time_dp;  
 } Ob;
 
+
 // 0x494D5431 is 'IMT1'
 #define OB_KEY   0x494D5431
 /*#define ROB_KEY  0x494D5432
@@ -606,8 +638,6 @@ typedef struct ob_s {
 #define GAME_KEY 0x494D5435
 #define REFBUF_KEY 0x494D5436
 #define SHAREDBUFFER_KEY 0x494D5437*/
-
-extern Func func;
 
 void check_safety_fn(void);
 void planar_check_safety_fn(void);
@@ -812,7 +842,7 @@ void dpr(s32 level, const s8 *format, ...);
 void dpr_clear(void);
 void dpr_flush(void);
 
-void fprf(RT_PIPE *, const s8 *, ...);
+//void fprf(RT_PIPE *, const s8 *, ...);
 #define prf fprf
 #include <stdio.h>
 #include <unistd.h>

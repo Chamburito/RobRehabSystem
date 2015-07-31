@@ -7,7 +7,7 @@
   #include "threads_unix.h"
 #endif
 
-#include "klib/
+#include "klib/khash.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD SAFE QUEUE                                       /////
@@ -19,7 +19,7 @@ typedef struct _DataQueue
   size_t first, last, maxLength;
   size_t itemSize;
   ThreadLock accessLock;
-  Semaphore countLock;
+  Semaphore* countLock;
 }
 DataQueue;
 
@@ -58,41 +58,44 @@ void DataQueue_End( DataQueue* queue )
   }
 }
 
-extern inline size_t DataQueue_ItemCount( DataQueue* queue )
+extern inline size_t DataQueue_GetItemsCount( DataQueue* queue )
 {
   return ( queue->last - queue->first );
 }
 
-void* DataQueue_Read( DataQueue* queue, void* buffer )
+enum QueueReadMode { QUEUE_READ_WAIT, QUEUE_READ_NOWAIT };
+int DataQueue_Pop( DataQueue* queue, void* buffer, enum QueueReadMode mode )
 {
   static void* dataOut = NULL;
 
+  if( mode == QUEUE_READ_NOWAIT && DataQueue_GetItemsCount( queue ) == 0 )
+    return -1;
+  
   Semaphore_Decrement( queue->countLock );
   
   ThreadLock_Aquire( queue->accessLock );
   
-  dataOut = queue->cache[ queue->first % queue->maxLength ]; // Always keep access index between 0 and MAX_DATA
+  dataOut = queue->cache[ queue->first % queue->maxLength ];
   buffer = memcpy( buffer, dataOut, queue->itemSize );
   queue->first++;
   
   ThreadLock_Release( queue->accessLock );
   
-  return buffer;
+  return 0;
 }
 
-enum { WAIT = 0, REPLACE = 1 };
-
-void DataQueue_Write( DataQueue* queue, void* buffer, uint8_t replace )
+enum QueueWriteMode { QUEUE_APPEND_WAIT, QUEUE_APPEND_OVERWRITE, QUEUE_APPEND_FLUSH };
+int DataQueue_Push( DataQueue* queue, void* buffer, enum QueueWriteMode mode )
 {
   static void* dataIn = NULL;
   
-  if( replace == 0 ) Semaphore_Increment( queue->countLock ); // Replace old data behaviour
+  if( mode == QUEUE_APPEND_WAIT ) Semaphore_Increment( queue->countLock );
   
   ThreadLock_Aquire( queue->accessLock );
   
-  dataIn = queue->cache[ queue->last % queue->maxLength ]; // Always keep access index between 0 and MAX_DATA
+  dataIn = queue->cache[ queue->last % queue->maxLength ];
   memcpy( dataIn, buffer, queue->itemSize );
-  if( DataQueue_ItemCount( queue ) == queue->maxLength ) queue->first++;
+  if( DataQueue_GetItemsCount( queue ) == queue->maxLength ) queue->first++;
   queue->last++;
   
   ThreadLock_Release( queue->accessLock );
@@ -140,8 +143,8 @@ void DataList_End( DataList* list )
 {
   if( list != NULL )
   {
-    for( size_t position = 0; position < list->length; position++ )
-      free( list->data[ position ] );
+    //for( size_t position = 0; position < list->length; position++ )
+    //  free( list->data[ position ] );
     free( list->data );
     
     ThreadLock_Discard( list->accessLock );
@@ -151,7 +154,7 @@ void DataList_End( DataList* list )
   }
 }
 
-int ListCompare( void* ref_item_1, void* ref_item_2 )
+int ListCompare( const void* ref_item_1, const void* ref_item_2 )
 {
   return ( ((Item*) ref_item_1)->index - ((Item*) ref_item_2)->index );
 }

@@ -7,13 +7,16 @@
 #define TIMING_H
 
 #include <time.h>
-#include <unistd.h>
+//#include <unistd.h>
 
 // Make the calling thread wait for the given time ( in milliseconds )
 void Timing_Delay( unsigned long milliseconds )
 {
-    struct timespec delayTime = { milliseconds / 1000, ( milliseconds % 1000 ) * 1000000 };
+    static struct timespec delayTime;// = { milliseconds / 1000, ( milliseconds % 1000 ) * 1000000 };
     static struct timespec remainingTime;
+    
+    delayTime.tv_sec = milliseconds / 1000;
+    delayTime.tv_nsec = ( milliseconds % 1000 ) * 1000000;
     
     nanosleep( &delayTime, &remainingTime );
     
@@ -36,13 +39,13 @@ unsigned long Timing_GetExecTimeMilliseconds()
 }
 
 // Get system time in seconds
-unsigned int Timing_GetExecTimeSeconds()
+double Timing_GetExecTimeSeconds()
 {
     struct timespec systemTime;
   
     clock_gettime( CLOCK_MONOTONIC, &systemTime );
     
-    unsigned int execTime = (unsigned int) systemTime.tv_sec + (unsigned int) ( systemTime.tv_nsec / 1000000000 );
+    double execTime = (double) systemTime.tv_sec + ((double) systemTime.tv_nsec) / 1000000000.0;
     
     return execTime;
 }

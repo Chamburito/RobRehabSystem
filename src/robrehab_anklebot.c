@@ -3,34 +3,31 @@
 #include "network_axis.h"
 
 //#include "emg_axis_control.h"
-#include "aes_control.h"
-#include "emg_processing.h"
+#include "shm_axis_control.h"
+//#include "axis_control.h"
+//#include "emg_processing.h"
+
+#include "klib/kvec.h"
+#include "klib/khash.h"
+#include "klib/kson.h"
 
 #include "async_debug.h"
 
 static int infoServerConnectionID;
 static int dataServerConnectionID;
-
-static ListType infoClientsList;
-static ListType dataClientsList;
+ 
+static kvec_t( int ) infoClientsList;
+static kvec_t( int ) dataClientsList;
 
 typedef struct _NetworkAxis
 {
   int dataClientID;
   TrajectoryPlanner* trajectoryPlanner;
-} 
+}
 NetworkAxis;
 
-static NetworkAxis* networkAxesList;
-
-typedef struct _DataClient
-{
-  int clientID;
-  double lastReceivedTime, lastLocalTime;
-}
-DataClient;
-
-static double latency = 0.0; // hack
+KHASH_MAP_INIT_INT( ShmNetAxis, NetworkAxis )
+static khash_t( ShmNetAxis )* shmNetworkAxesMap = NULL;
 
 static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
 
@@ -40,7 +37,7 @@ static double maxStiffness;
 
 int RobRehabNetwork_Init()
 {
-  DEBUG_EVENT( 0, "Initializing RobRehab Network on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "Initializing RobRehab Network on thread %x", THREAD_ID );
   if( (infoServerConnectionID = AsyncIPConnection_Open( NULL, "50000", TCP )) == -1 )
     return -1;
   if( (dataServerConnectionID = AsyncIPConnection_Open( NULL, "50001", UDP )) == -1 )
@@ -49,31 +46,42 @@ int RobRehabNetwork_Init()
     return -1;
   }
   
-  DEBUG_EVENT( 1, "Received server connection IDs: %d (State), %d (Data)", infoServerConnectionID, dataServerConnectionID );
+  DEBUG_EVENT( 1, "Received server connection IDs: %d (Info), %d (Data)", infoServerConnectionID, dataServerConnectionID );
   
-  infoClientsList = ListCreate( sizeof(int) );
-  dataClientsList = ListCreate( sizeof(DataClient) );
+  kv_init( infoClientsList );
+  kv_init( dataClientsList );
+  
+  shmNetworkAxesMap = kh_init( ShmNetAxis );
   
   //EMGAESControl_Init();
-  AESControl_Init();
-  EMGProcessing_Init();
+  //AESControl_Init();
+  //EMGProcessing_Init();
   
-  networkAxesList = (NetworkAxis*) calloc( AESControl_GetDevicesNumber(), sizeof(NetworkAxis) );
+  const char* parserString = "{ \"Ankle\" : 0x494D5431 }";
+  kson_t* shmKeysBlock = kson_parse( parserString );
   
-  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
+  for( size_t shmKeyIndex = 0; shmKeyIndex < shmKeysBlock->n_nodes; shmKeyIndex++ )
   {
-    char* deviceName = AESControl_GetDeviceName( deviceID );
-    if( deviceName != NULL )
-    {
-      if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-      snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", deviceID, deviceName );
-    }
+    const kson_node_t* shmKeyNode = kson_by_index( shmKeysBlock->root, shmKeyIndex );
+    char* deviceName = shmKeyNode->key;
     
-    networkAxesList[ deviceID ].dataClientID = -1;
-    networkAxesList[ deviceID ].trajectoryPlanner = TrajectoryPlanner_Init();
+    int shmAxisControllerID = ShmAxisControl_Init( (int) strtol( shmKeyNode->v.str, NULL, 0 ) );    
+    if( shmAxisControllerID != -1 )
+    {
+      int insertionStatus;
+      khint_t shmNetworkAxisID = kh_put( ShmNetAxis, shmNetworkAxesMap, shmAxisControllerID, &insertionStatus );
+      if( insertionStatus > 0 )
+      {
+        kh_value( shmNetworkAxesMap, shmNetworkAxisID ).dataClientID = -1;
+        kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner = TrajectoryPlanner_Init();
+        
+        if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
+        snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", shmNetworkAxisID, deviceName );
+      }
+      else
+        ShmAxisControl_End( shmAxisControllerID );
+    }
   }
-
-  int status = 0;
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", THREAD_ID );
   
@@ -82,28 +90,30 @@ int RobRehabNetwork_Init()
 
 void RobRehabNetwork_End()
 {
-  DEBUG_EVENT( 0, "Ending RobRehab Network on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "Ending RobRehab Network on thread %x", THREAD_ID );
   
   AsyncIPConnection_Close( infoServerConnectionID );
   AsyncIPConnection_Close( dataServerConnectionID );
   
-  ListDispose( infoClientsList );
-  ListDispose( dataClientsList );
+  kv_destroy( infoClientsList );
+  kv_destroy( dataClientsList );
   
-  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
-    TrajectoryPlanner_End( networkAxesList[ deviceID ].trajectoryPlanner );
-  free( networkAxesList );
+  for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
+  {
+    ShmAxisControl_End( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
+    TrajectoryPlanner_End( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
+  }
+  kh_destroy( ShmNetAxis, shmNetworkAxesMap );
   
   //EMGAESControl_End();
-  EMGProcessing_End();
-  AESControl_End();
+  //EMGProcessing_End();
+  //AESControl_End();
   
-  DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", CmtGetCurrentThreadID() );
+  DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", THREAD_ID );
 }
 
-static int CVICALLBACK UpdateControlState( int, void*, void* );
-static int CVICALLBACK UpdateControlData( int, void*, void* );
-
+static int UpdateControlState( int );
+static int UpdateControlData( int );
 
 void RobRehabNetwork_Update()
 {
@@ -112,37 +122,29 @@ void RobRehabNetwork_Update()
   if( (newInfoClientID = AsyncIPConnection_GetClient( infoServerConnectionID )) != -1 )
   {
     AsyncIPConnection_WriteMessage( newInfoClientID, axesInfoString );
-    ListInsertItem( infoClientsList, &newInfoClientID, END_OF_LIST );
+    kv_push( int, infoClientsList, newInfoClientID );
   }
   
   if( (newDataClientID = AsyncIPConnection_GetClient( dataServerConnectionID )) != -1 )
-  {
-    DataClient newDataClient = { .clientID = newDataClientID };
-    newDataClient.lastReceivedTime = newDataClient.lastReceivedTime = Timing_GetExecTimeSeconds();
-    ListInsertItem( dataClientsList, &newDataClient, END_OF_LIST );
-  }
+    kv_push( int, dataClientsList, newDataClientID );
   
-  ListApplyToEach( infoClientsList, 1, UpdateControlState, NULL );
-  ListApplyToEach( dataClientsList, 1, UpdateControlData, NULL );
+  for( size_t infoClientIndex = 0; infoClientIndex < kv_size( infoClientsList ); infoClientIndex++ )
+    UpdateControlState( kv_A( infoClientsList, infoClientIndex ) );
   
-  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
+  for( size_t dataClientIndex = 0; dataClientIndex < kv_size( dataClientsList ); dataClientIndex++ )
+    UpdateControlData( kv_A( dataClientsList, dataClientIndex ) );
+  
+  for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
   {
-    double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
-    double* controlParametersList = AESControl_GetParametersList( deviceID );
-
-    double* targetList = TrajectoryPlanner_GetTargetList( networkAxesList[ deviceID ].trajectoryPlanner );
-    
-    //DEBUG_PRINT( "\tnext setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
-    
-    AESControl_SetSetpoint( deviceID, targetList[ TRAJECTORY_POSITION ] );
+    double* controlParametersList = ShmAxisControl_GetParametersList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
+    double* targetsList = TrajectoryPlanner_GetTargetList( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
+    controlParametersList[ CONTROL_SETPOINT ] = targetsList[ TRAJECTORY_POSITION ];
+    ShmAxisControl_SetMeasures( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
   }
 }
 
-
-static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* ref_callback )
+static int UpdateControlState( int clientID )
 {
-  int clientID = *((int*) ref_clientID);
-  
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
   char* messageIn = AsyncIPConnection_ReadMessage( clientID );
@@ -153,50 +155,39 @@ static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* 
   
     for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
-      unsigned int deviceID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
+      khint_t shmNetworkAxisID = (khint_t) strtoul( axisCommand, &axisCommand, 0 );
     
-      if( deviceID < 0 || deviceID >= AESControl_GetDevicesNumber() ) continue;
+      if( !kh_exist( shmNetworkAxesMap, shmNetworkAxisID ) ) continue;
     
-      DEBUG_UPDATE( "parsing axis %u command \"%s\"", deviceID, axisCommand );
-      
-      bool motorEnabled = (bool) strtoul( axisCommand, &axisCommand, 0 );
+      DEBUG_UPDATE( "parsing axis %u command \"%s\"", shmNetworkAxisID, axisCommand );
 
-      if( motorEnabled ) AESControl_EnableMotor( deviceID );
-      else AESControl_DisableMotor( deviceID );
+      bool* statesList = ShmAxisControl_GetStatesList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
+      
+      statesList[ CONTROL_ENABLED ] = (bool) strtoul( axisCommand, &axisCommand, 0 );
+      statesList[ CONTROL_RESET ] = (bool) strtoul( axisCommand, &axisCommand, 0 );
 
-      bool reset = (bool) strtoul( axisCommand, &axisCommand, 0 );
-
-      if( reset ) 
-      {
-        AESControl_Reset( deviceID );
-        networkAxesList[ deviceID ].dataClientID = -1;
-      }
+      if( statesList[ CONTROL_RESET ] ) kh_value( shmNetworkAxesMap, shmNetworkAxisID ).dataClientID = -1;
       
-      double impedanceStiffness = strtod( axisCommand, &axisCommand );
-      double impedanceDamping = strtod( axisCommand, &axisCommand );
+      ShmAxisControl_SetStates( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
       
-      AESControl_SetImpedance( deviceID, impedanceStiffness, impedanceDamping );
+      double* parametersList = ShmAxisControl_GetParametersList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
       
-      double positionOffset = strtod( axisCommand, NULL );
+      parametersList[ CONTROL_STIFFNESS ] = strtod( axisCommand, &axisCommand );
+      parametersList[ CONTROL_DAMPING ] = strtod( axisCommand, &axisCommand );
+      parametersList[ CONTROL_OFFSET ] = strtod( axisCommand, NULL );
       
-      AESControl_SetOffset( deviceID, positionOffset );
-      
-      maxStiffness = impedanceStiffness;
+      ShmAxisControl_SetParameters( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
     }
     
     strcpy( messageOut, "" );
-    for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
+    for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
     {
-      bool* motorStatesList = AESControl_GetMotorStatus( deviceID );
-      if( motorStatesList != NULL )
-      {
-        if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
+      bool* statesList = ShmAxisControl_GetStatesList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
       
-        sprintf( &messageOut[ strlen( messageOut ) ], "%u", deviceID );
-      
-        for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
-          strcat( messageOut, ( motorStatesList[ stateIndex ] == true ) ? " 1" : " 0" );
-      }
+      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
+      sprintf( &messageOut[ strlen( messageOut ) ], "%u", shmNetworkAxisID );
+      for( size_t stateIndex = 0; stateIndex < CONTROL_STATES_NUMBER; stateIndex++ )
+        strcat( messageOut, ( statesList[ stateIndex ] == true ) ? " 1" : " 0" );
     }
   
     if( strlen( messageOut ) > 0 ) 
@@ -209,59 +200,34 @@ static int CVICALLBACK UpdateControlState( int index, void* ref_clientID, void* 
   return 0;
 }
 
-static int CVICALLBACK UpdateControlData( int index, void* ref_dataClient, void* ref_callback )
+static int UpdateControlData( int clientID )
 {
-  DataClient* dataClient = (DataClient*) ref_dataClient;
-  
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
-  static double serverDispatchTime, clientReceiveTime, clientDispatchTime, serverReceiveTime;
   static double setpoint, setpointDerivative, setpointsInterval;
   
-  char* messageIn = AsyncIPConnection_ReadMessage( dataClient->clientID );
+  char* messageIn = AsyncIPConnection_ReadMessage( clientID );
   
   if( messageIn != NULL ) 
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
-    
-    char* timeData = strtok( messageIn, "|" );
-    
-    serverDispatchTime = strtod( timeData, &timeData );
-    clientReceiveTime = strtod( timeData, &timeData );
-    clientDispatchTime = strtod( timeData, &timeData );
-    serverReceiveTime = Timing_GetExecTimeSeconds();
-    
-    dataClient->lastReceivedTime = clientDispatchTime;
-    dataClient->lastLocalTime = serverReceiveTime;
-    
-    char* axesData = strtok( NULL, "|" );
   
-    for( char* axisCommand = strtok( axesData, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
+    for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
     {
-      unsigned int deviceID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
+      khint_t shmNetworkAxisID = (khint_t) strtoul( axisCommand, &axisCommand, 0 );
     
-      if( deviceID < 0 || deviceID >= AESControl_GetDevicesNumber() ) continue;
+      if( !kh_exist( shmNetworkAxesMap, shmNetworkAxisID ) ) continue;
       
-      NetworkAxis* networkAxis = &(networkAxesList[ deviceID ]);
+      NetworkAxis* networkAxis = &(kh_value( shmNetworkAxesMap, shmNetworkAxisID ));
       
       if( networkAxis->dataClientID == -1 )
       {
-        DEBUG_PRINT( "new client for axis %u: %d", deviceID, dataClient->clientID );
-        networkAxis->dataClientID = dataClient->clientID;
+        DEBUG_PRINT( "new client for axis %u: %d", shmNetworkAxisID, clientID );
+        networkAxis->dataClientID = clientID;
       }
-      else if( networkAxis->dataClientID != dataClient->clientID ) continue;
+      else if( networkAxis->dataClientID != clientID ) continue;
       
-      DEBUG_UPDATE( "parsing axis %u command \"%s\"", deviceID, axisCommand );
-      
-      if( serverDispatchTime > 0.0 && clientReceiveTime > 0.0 )
-      {
-        latency = ( ( serverReceiveTime - serverDispatchTime ) - ( clientDispatchTime - clientReceiveTime ) ) / 2;
-        if( latency < 0.0 ) latency = 0.0;
-      }
-      else
-        latency = 0.0;
-      
-      DEBUG_UPDATE( "lag: ( ( %.3f - %.3f ) - ( %.3f - %.3f ) ) / 2 = %g", serverReceiveTime, serverDispatchTime, clientDispatchTime, clientReceiveTime, latency );
+      DEBUG_UPDATE( "parsing axis %u command \"%s\"", shmNetworkAxisID, axisCommand );
       
       setpoint = strtod( axisCommand, &axisCommand );
       setpointDerivative = strtod( axisCommand, &axisCommand );
@@ -269,38 +235,43 @@ static int CVICALLBACK UpdateControlData( int index, void* ref_dataClient, void*
       
       //DEBUG_PRINT( "received setpoint: %f", setpoint );
       
-      if( setpointsInterval > latency )
-        TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval - latency );
+      TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval );
     }
   }
   
   strcpy( messageOut, "" );
-  for( size_t deviceID = 0; deviceID < AESControl_GetDevicesNumber(); deviceID++ )
+  for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
   {
-    double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
-    if( controlMeasuresList != NULL )
-    {
-      //double* jointMeasuresList = EMGAESControl_ApplyGains( deviceID, maxStiffness );
+    double* measuresList = ShmAxisControl_GetMeasuresList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
+    
+    if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
 
-      clientDispatchTime = dataClient->lastReceivedTime;
-      serverReceiveTime = dataClient->lastLocalTime;
-      serverDispatchTime = Timing_GetExecTimeSeconds();
-      
-      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
-      else sprintf( messageOut, "%f %f %f|", clientDispatchTime, serverReceiveTime, serverDispatchTime );
+    sprintf( &messageOut[ strlen( messageOut ) ], "%u", shmNetworkAxisID );
 
-      sprintf( &messageOut[ strlen( messageOut ) ], "%u", deviceID );
-
-      for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
-        sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
-    }
+    for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
+      sprintf( &messageOut[ strlen( messageOut ) ], " %f", measuresList[ dimensionIndex ] );
   }
   
   if( strlen( messageOut ) > 0 ) 
   {
-    DEBUG_UPDATE( "sending message %s to client %d", messageOut, dataClient->clientID );
-    AsyncIPConnection_WriteMessage( dataClient->clientID, messageOut );
+    DEBUG_UPDATE( "sending message %s to client %d", messageOut, clientID );
+    AsyncIPConnection_WriteMessage( clientID, messageOut );
   }
+  
+  return 0;
+}
+
+int main( int argc, char* argv[] )
+{
+  RobRehabNetwork_Init();
+  
+  while( 1 )
+  {
+    RobRehabNetwork_Update();
+    Timing_Delay( 1000 );
+  }
+  
+  RobRehabNetwork_End();
   
   return 0;
 }

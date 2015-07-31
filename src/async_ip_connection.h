@@ -353,7 +353,7 @@ int AsyncIPConnection_WriteMessage( int connectionIndex, const char* message )
   if( DataQueue_GetItemsCount( writeQueue ) >= QUEUE_MAX_ITEMS )
     DEBUG_UPDATE( "connection index %d write queue is full", connectionIndex );
   
-  DataQueue_Push( writeQueue, message, QUEUE_APPEND_OVERWRITE );
+  DataQueue_Push( writeQueue, (void*) message, QUEUE_APPEND_OVERWRITE );
   
   return 0;
 }
