@@ -37,7 +37,7 @@ static double maxStiffness;
 
 int RobRehabNetwork_Init()
 {
-  DEBUG_EVENT( 0, "Initializing RobRehab Network on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %x", THREAD_ID );
   if( (infoServerConnectionID = AsyncIPConnection_Open( NULL, "50000", TCP )) == -1 )
     return -1;
   if( (dataServerConnectionID = AsyncIPConnection_Open( NULL, "50001", UDP )) == -1 )
@@ -46,7 +46,7 @@ int RobRehabNetwork_Init()
     return -1;
   }
   
-  DEBUG_EVENT( 1, "Received server connection IDs: %d (Info), %d (Data)", infoServerConnectionID, dataServerConnectionID );
+  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "Received server connection IDs: %d (Info), %d (Data)", infoServerConnectionID, dataServerConnectionID );
   
   kv_init( infoClientsList );
   kv_init( dataClientsList );
@@ -60,10 +60,14 @@ int RobRehabNetwork_Init()
   const char* parserString = "{ \"Ankle\" : 0x494D5431 }";
   kson_t* shmKeysBlock = kson_parse( parserString );
   
-  for( size_t shmKeyIndex = 0; shmKeyIndex < shmKeysBlock->n_nodes; shmKeyIndex++ )
+  DEBUG_PRINT( "Found %u keys in JSON file", shmKeysBlock->root->n );
+  
+  for( size_t shmKeyIndex = 0; shmKeyIndex < shmKeysBlock->root->n; shmKeyIndex++ )
   {
     const kson_node_t* shmKeyNode = kson_by_index( shmKeysBlock->root, shmKeyIndex );
     char* deviceName = shmKeyNode->key;
+    
+    DEBUG_PRINT( "Found device %s with key %s", shmKeyNode->key, shmKeyNode->v.str );
     
     int shmAxisControllerID = ShmAxisControl_Init( (int) strtol( shmKeyNode->v.str, NULL, 0 ) );    
     if( shmAxisControllerID != -1 )
@@ -75,22 +79,28 @@ int RobRehabNetwork_Init()
         kh_value( shmNetworkAxesMap, shmNetworkAxisID ).dataClientID = -1;
         kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner = TrajectoryPlanner_Init();
         
+        DEBUG_PRINT( "Inserted value with key %u on position %u", kh_key( shmNetworkAxesMap, shmNetworkAxisID ), shmNetworkAxisID );
+        
         if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
         snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", shmNetworkAxisID, deviceName );
       }
       else
         ShmAxisControl_End( shmAxisControllerID );
     }
+    
+    DEBUG_PRINT( "Shm network axis list going from %u to %u", kh_begin( shmNetworkAxesMap ), kh_end( shmNetworkAxesMap ) );
   }
   
-  DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", THREAD_ID );
+  DEBUG_PRINT( "Created axes info string: %s", axesInfoString );
+  
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network initialized on thread %x", THREAD_ID );
   
   return 0;
 }
 
 void RobRehabNetwork_End()
 {
-  DEBUG_EVENT( 0, "Ending RobRehab Network on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Network on thread %x", THREAD_ID );
   
   AsyncIPConnection_Close( infoServerConnectionID );
   AsyncIPConnection_Close( dataServerConnectionID );
@@ -109,7 +119,7 @@ void RobRehabNetwork_End()
   //EMGProcessing_End();
   //AESControl_End();
   
-  DEBUG_EVENT( 0, "RobRehab Network ended on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network ended on thread %x", THREAD_ID );
 }
 
 static int UpdateControlState( int );
@@ -139,7 +149,7 @@ void RobRehabNetwork_Update()
     double* controlParametersList = ShmAxisControl_GetParametersList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
     double* targetsList = TrajectoryPlanner_GetTargetList( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
     controlParametersList[ CONTROL_SETPOINT ] = targetsList[ TRAJECTORY_POSITION ];
-    ShmAxisControl_SetMeasures( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
+    ShmAxisControl_SetParameters( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
   }
 }
 
@@ -263,6 +273,8 @@ static int UpdateControlData( int clientID )
 
 int main( int argc, char* argv[] )
 {
+  DEBUG_PRINT( "running %s", argv[ 0 ] );
+  
   RobRehabNetwork_Init();
   
   while( 1 )
