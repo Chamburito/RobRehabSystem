@@ -52,12 +52,13 @@ int ShmAxisControl_Init( int sharedMemoryKey )
   ShmAxisController* newShmController = &(kh_value( controllersList, newControllerID ));
   memset( newShmController, 0, sizeof(ShmAxisController) );
   
-  int sharedMemoryID = shmget( OB_KEY, sizeof(AxisController), IPC_CREAT );
+  int sharedMemoryID = shmget( OB_KEY, sizeof(AxisController), IPC_CREAT | 0666 );
   
   DEBUG_PRINT( "Got shared memory area ID %d", sharedMemoryID );
   
   if( sharedMemoryID == -1 )
   {
+    perror( "Failed to create shared memory segment" );
     kh_del( Shm, controllersList, newControllerID );
     return -1;
   }
@@ -65,6 +66,9 @@ int ShmAxisControl_Init( int sharedMemoryKey )
   newShmController->controller = shmat( sharedMemoryID, NULL, 0 );
   
   DEBUG_PRINT( "Binded object address %p to shared memory area", newShmController->controller );
+  
+  if( newShmController->controller == (void*) -1 )
+    perror( "Failed to bind object" );
   
   return (int) newControllerID;
 }
@@ -137,6 +141,8 @@ double* ShmAxisControl_GetParametersList( int controllerID )
     parametersList[ CONTROL_STIFFNESS ] = controller->ankle.stiff;
     parametersList[ CONTROL_DAMPING ] = controller->ankle.damp;
     parametersList[ CONTROL_OFFSET ] = controller->ankle.offset.dp;
+    
+    DEBUG_PRINT( "Got parameters from address %p", controller );
     
     return parametersList;
   }

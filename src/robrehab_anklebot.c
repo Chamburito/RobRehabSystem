@@ -1,5 +1,4 @@
 #include "async_ip_connection.h"
-
 #include "network_axis.h"
 
 //#include "emg_axis_control.h"
@@ -9,7 +8,8 @@
 
 #include "klib/kvec.h"
 #include "klib/khash.h"
-#include "klib/kson.h"
+
+#include "utils/json_parser.h"
 
 #include "async_debug.h"
 
@@ -57,38 +57,41 @@ int RobRehabNetwork_Init()
   //AESControl_Init();
   //EMGProcessing_Init();
   
-  const char* parserString = "{ \"Ankle\" : 0x494D5431 }";
-  kson_t* shmKeysBlock = kson_parse( parserString );
-  
-  DEBUG_PRINT( "Found %u keys in JSON file", shmKeysBlock->root->n );
-  
-  for( size_t shmKeyIndex = 0; shmKeyIndex < shmKeysBlock->root->n; shmKeyIndex++ )
+  int configFileID = JSONParserInterface.OpenFile( "shm_axis" );
+  if( configFileID != -1 )
   {
-    const kson_node_t* shmKeyNode = kson_by_index( shmKeysBlock->root, shmKeyIndex );
-    char* deviceName = shmKeyNode->key;
+    size_t shmNetworkAxesNumber = JSONParserInterface.GetListSize( configFileID, "" );
     
-    DEBUG_PRINT( "Found device %s with key %s", shmKeyNode->key, shmKeyNode->v.str );
+    DEBUG_PRINT( "List size: %u", shmNetworkAxesNumber );
     
-    int shmAxisControllerID = ShmAxisControl_Init( (int) strtol( shmKeyNode->v.str, NULL, 0 ) );    
-    if( shmAxisControllerID != -1 )
+    char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+    for( size_t shmNetworkAxisIndex = 0; shmNetworkAxisIndex < shmNetworkAxesNumber; shmNetworkAxisIndex++ )
     {
-      int insertionStatus;
-      khint_t shmNetworkAxisID = kh_put( ShmNetAxis, shmNetworkAxesMap, shmAxisControllerID, &insertionStatus );
-      if( insertionStatus > 0 )
+      sprintf( searchPath, "%u.name", shmNetworkAxisIndex );
+      char* deviceName = JSONParserInterface.GetStringValue( configFileID, searchPath );
+      
+      sprintf( searchPath, "%u.key", shmNetworkAxisIndex );
+      int shmKey = (int) JSONParserInterface.GetIntegerValue( configFileID, searchPath );
+      
+      int shmAxisControllerID = ShmAxisControl_Init( shmKey );    
+      if( shmAxisControllerID != -1 )
       {
-        kh_value( shmNetworkAxesMap, shmNetworkAxisID ).dataClientID = -1;
-        kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner = TrajectoryPlanner_Init();
-        
-        DEBUG_PRINT( "Inserted value with key %u on position %u", kh_key( shmNetworkAxesMap, shmNetworkAxisID ), shmNetworkAxisID );
-        
-        if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-        snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", shmNetworkAxisID, deviceName );
+        int insertionStatus;
+        khint_t shmNetworkAxisID = kh_put( ShmNetAxis, shmNetworkAxesMap, shmAxisControllerID, &insertionStatus );
+        if( insertionStatus > 0 )
+        {
+          kh_value( shmNetworkAxesMap, shmNetworkAxisID ).dataClientID = -1;
+          kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner = TrajectoryPlanner_Init();
+          
+          if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
+          snprintf( &axesInfoString[ strlen( axesInfoString ) ], IP_CONNECTION_MSG_LEN, "%u:%s", shmNetworkAxisID, deviceName );
+        }
+        else
+          ShmAxisControl_End( shmAxisControllerID );
       }
-      else
-        ShmAxisControl_End( shmAxisControllerID );
     }
     
-    DEBUG_PRINT( "Shm network axis list going from %u to %u", kh_begin( shmNetworkAxesMap ), kh_end( shmNetworkAxesMap ) );
+    JSONParserInterface.CloseFile( configFileID );
   }
   
   DEBUG_PRINT( "Created axes info string: %s", axesInfoString );
@@ -110,6 +113,8 @@ void RobRehabNetwork_End()
   
   for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
   {
+    if( !kh_exist( shmNetworkAxesMap, shmNetworkAxisID ) ) continue;
+      
     ShmAxisControl_End( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
     TrajectoryPlanner_End( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
   }
@@ -146,6 +151,10 @@ void RobRehabNetwork_Update()
   
   for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
   {
+    if( !kh_exist( shmNetworkAxesMap, shmNetworkAxisID ) ) continue;
+    
+    DEBUG_PRINT( "updating axis %u", shmNetworkAxisID );
+    
     double* controlParametersList = ShmAxisControl_GetParametersList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
     double* targetsList = TrajectoryPlanner_GetTargetList( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
     controlParametersList[ CONTROL_SETPOINT ] = targetsList[ TRAJECTORY_POSITION ];
@@ -192,6 +201,8 @@ static int UpdateControlState( int clientID )
     strcpy( messageOut, "" );
     for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
     {
+      if( !kh_exist( shmNetworkAxesMap, shmNetworkAxisID ) ) continue;
+      
       bool* statesList = ShmAxisControl_GetStatesList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
       
       if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
@@ -252,12 +263,12 @@ static int UpdateControlData( int clientID )
   strcpy( messageOut, "" );
   for( khint_t shmNetworkAxisID = (khint_t) 0; shmNetworkAxisID != kh_end( shmNetworkAxesMap ); shmNetworkAxisID++ )
   {
+    if( !kh_exist( shmNetworkAxesMap, shmNetworkAxisID ) ) continue;
+    
     double* measuresList = ShmAxisControl_GetMeasuresList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
     
     if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
-
     sprintf( &messageOut[ strlen( messageOut ) ], "%u", shmNetworkAxisID );
-
     for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
       sprintf( &messageOut[ strlen( messageOut ) ], " %f", measuresList[ dimensionIndex ] );
   }
