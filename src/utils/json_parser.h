@@ -87,22 +87,12 @@ static inline const kson_node_t* GetValueNode( int fileID, const char* path )
   
   for( char* key = strtok( (char*) path, "." ); key != NULL; key = strtok( NULL, "." ) )
   {
-    DEBUG_PRINT( "Current key: %s", key );
-    
     if( currentNode->type == KSON_TYPE_BRACE )
-    {
-      DEBUG_PRINT( "Brace found with key %s", currentNode->key );
       currentNode = kson_by_key( currentNode, key );
-    }
     else if( currentNode->type == KSON_TYPE_BRACKET )
-    {
-      DEBUG_PRINT( "Bracket found with key %s", currentNode->key );
       currentNode = kson_by_index( currentNode, strtoul( key, NULL, 10 ) );
-    }
   }
-  
-  DEBUG_PRINT( "Resulting node with key %s", currentNode->key );
-  
+    
   return currentNode;
 }
 
@@ -128,6 +118,8 @@ static long GetIntegerValue( int fileID, const char* path )
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return 0L;
   
+  DEBUG_PRINT( "Found value: %ld", strtol( valueNode->v.str, NULL, 0 ) );
+  
   return strtol( valueNode->v.str, NULL, 0 );
 }
 
@@ -138,6 +130,8 @@ static double GetRealValue( int fileID, const char* path )
   if( valueNode == NULL ) return strtod( "NaN", NULL );
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return strtod( "NaN", NULL );
+  
+  DEBUG_PRINT( "Found value: %g", strtod( valueNode->v.str, NULL ) );
   
   return strtod( valueNode->v.str, NULL );
 }

@@ -1,10 +1,7 @@
 #include "async_ip_connection.h"
 #include "network_axis.h"
 
-//#include "emg_axis_control.h"
 #include "shm_axis_control.h"
-//#include "axis_control.h"
-//#include "emg_processing.h"
 
 #include "klib/kvec.h"
 #include "klib/khash.h"
@@ -53,14 +50,11 @@ int RobRehabNetwork_Init()
   
   shmNetworkAxesMap = kh_init( ShmNetAxis );
   
-  //EMGAESControl_Init();
-  //AESControl_Init();
-  //EMGProcessing_Init();
-  
-  int configFileID = JSONParserInterface.OpenFile( "shm_axis" );
+  FileParserInterface parser = JSONParserInterface;
+  int configFileID = parser.OpenFile( "shm_axis" );
   if( configFileID != -1 )
   {
-    size_t shmNetworkAxesNumber = JSONParserInterface.GetListSize( configFileID, "" );
+    size_t shmNetworkAxesNumber = parser.GetListSize( configFileID, "axes" );
     
     DEBUG_PRINT( "List size: %u", shmNetworkAxesNumber );
     
@@ -68,10 +62,10 @@ int RobRehabNetwork_Init()
     for( size_t shmNetworkAxisIndex = 0; shmNetworkAxisIndex < shmNetworkAxesNumber; shmNetworkAxisIndex++ )
     {
       sprintf( searchPath, "%u.name", shmNetworkAxisIndex );
-      char* deviceName = JSONParserInterface.GetStringValue( configFileID, searchPath );
+      char* deviceName = parser.GetStringValue( configFileID, searchPath );
       
       sprintf( searchPath, "%u.key", shmNetworkAxisIndex );
-      int shmKey = (int) JSONParserInterface.GetIntegerValue( configFileID, searchPath );
+      int shmKey = (int) parser.GetIntegerValue( configFileID, searchPath );
       
       int shmAxisControllerID = ShmAxisControl_Init( shmKey );    
       if( shmAxisControllerID != -1 )
@@ -91,7 +85,7 @@ int RobRehabNetwork_Init()
       }
     }
     
-    JSONParserInterface.CloseFile( configFileID );
+    parser.CloseFile( configFileID );
   }
   
   DEBUG_PRINT( "Created axes info string: %s", axesInfoString );
@@ -119,10 +113,6 @@ void RobRehabNetwork_End()
     TrajectoryPlanner_End( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
   }
   kh_destroy( ShmNetAxis, shmNetworkAxesMap );
-  
-  //EMGAESControl_End();
-  //EMGProcessing_End();
-  //AESControl_End();
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network ended on thread %x", THREAD_ID );
 }
