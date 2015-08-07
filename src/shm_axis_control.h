@@ -3,16 +3,13 @@
 
 #include <stdbool.h>
 
-#include <sys/mman.h>
-
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
-#include <fcntl.h>
+#ifdef WIN32
+  #include "utils/shared_memory/shared_memory_windows.h"
+#else
+  #include "utils/shared_memory/shared_memory_unix.h"
+#endif
 
 #include "shm_axis/robdecls.h"
-//#include "shm_axis/rtl_inc.h"
-//#include "shm_axis/ruser.h"
 
 #include "klib/khash.h"
 
@@ -52,23 +49,7 @@ int ShmAxisControl_Init( int sharedMemoryKey )
   ShmAxisController* newShmController = &(kh_value( controllersList, newControllerID ));
   memset( newShmController, 0, sizeof(ShmAxisController) );
   
-  int sharedMemoryID = shmget( OB_KEY, sizeof(AxisController), IPC_CREAT | 0666 );
-  
-  DEBUG_PRINT( "Got shared memory area ID %d", sharedMemoryID );
-  
-  if( sharedMemoryID == -1 )
-  {
-    perror( "Failed to create shared memory segment" );
-    kh_del( Shm, controllersList, newControllerID );
-    return -1;
-  }
-  
-  newShmController->controller = shmat( sharedMemoryID, NULL, 0 );
-  
-  DEBUG_PRINT( "Binded object address %p to shared memory area", newShmController->controller );
-  
-  if( newShmController->controller == (void*) -1 )
-    perror( "Failed to bind object" );
+  newShmController->controller = SharedObject.CreateByKey( (int) OB_KEY, sizeof(AxisController), SHM_READ | SHM_WRITE );
   
   return (int) newControllerID;
 }
@@ -77,7 +58,7 @@ void ShmAxisControl_End( int controllerID )
 {
   if( kh_exist( controllersList, (khint_t) controllerID ) )
   {
-    shmdt( kh_value( controllersList, (khint_t) controllerID ).controller );
+    SharedObject.Destroy( kh_value( controllersList, (khint_t) controllerID ).controller );
     
     kh_del( Shm, controllersList, (khint_t) controllerID );
     

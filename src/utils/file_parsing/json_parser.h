@@ -1,7 +1,7 @@
 #ifndef JSON_PARSER_H
 #define JSON_PARSER_H
 
-#include "file_parser_interface.h"
+#include "../utils/file_parsing/file_parser_interface.h"
 
 #include "../klib/kson.h"
 #include "../klib/khash.h"
@@ -156,6 +156,8 @@ static size_t GetListSize( int fileID, const char* path )
   if( valueNode == NULL ) return 0;
   
   if( valueNode->type != KSON_TYPE_BRACKET ) return 0;
+  
+  DEBUG_PRINT( "List %s size: %u", path, valueNode->n );
   
   return valueNode->n;
 }

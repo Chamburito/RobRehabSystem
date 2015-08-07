@@ -6,7 +6,7 @@
 #include "klib/kvec.h"
 #include "klib/khash.h"
 
-#include "utils/json_parser.h"
+#include "utils/file_parsing/json_parser.h"
 
 #include "async_debug.h"
 
@@ -54,17 +54,17 @@ int RobRehabNetwork_Init()
   int configFileID = parser.OpenFile( "shm_axis" );
   if( configFileID != -1 )
   {
-    size_t shmNetworkAxesNumber = parser.GetListSize( configFileID, "axes" );
+    char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ] = "axes";
+    size_t shmNetworkAxesNumber = parser.GetListSize( configFileID, searchPath );
     
     DEBUG_PRINT( "List size: %u", shmNetworkAxesNumber );
     
-    char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
     for( size_t shmNetworkAxisIndex = 0; shmNetworkAxisIndex < shmNetworkAxesNumber; shmNetworkAxisIndex++ )
     {
-      sprintf( searchPath, "%u.name", shmNetworkAxisIndex );
+      sprintf( searchPath, "axes.%u.name", shmNetworkAxisIndex );
       char* deviceName = parser.GetStringValue( configFileID, searchPath );
       
-      sprintf( searchPath, "%u.key", shmNetworkAxisIndex );
+      sprintf( searchPath, "axes.%u.key", shmNetworkAxisIndex );
       int shmKey = (int) parser.GetIntegerValue( configFileID, searchPath );
       
       int shmAxisControllerID = ShmAxisControl_Init( shmKey );    
