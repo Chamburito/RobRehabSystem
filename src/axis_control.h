@@ -4,22 +4,24 @@
 #include "impedance_control.h"
 #include "spline3_interpolation.h"
 
+#include "aes_actuator/actuator.h"
+
 #include "async_debug.h"
 
 #include "filters.h"
 
 #include "data_logging.h"
 
+#include "utils/file_parsing/json_parser.h"
+
 /////////////////////////////////////////////////////////////////////////////////
 /////                            CONTROL DEVICES                            /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const size_t DEVICE_NAME_MAX_LENGTH = 16;
-
 typedef struct _AxisController
 {
-  char name[ DEVICE_NAME_MAX_LENGTH ];
-  ActuatorInterface* actuatorInterface;
+  ActuatorInterface* actuator;
+  int deviceID;
   ImpedanceControlFunction ref_RunControl;                        // Control method definition structure
   Thread_Handle controlThread;                                       // Processing thread handle
   double parametersList[ CONTROL_PARAMS_NUMBER ];
@@ -31,256 +33,171 @@ typedef struct _AxisController
 }
 AxisController;
 
-static AxisController* controllersList = NULL;
-static size_t devicesNumber = 0;
+KHASH_MAP_INIT_INT( Control, AxisController )
+static khash_t( Control )* controllersList = NULL;
 
 static void* AsyncControl( void* );
 
+static int InitController( const char* );
+static void EndController( int );
+static size_t GetControllersNumber();
+static void EnableActuator( int );
+static void DisableActuator( int );
+static void ResetActuator( int );
+static double* GetControllerMeasures( int );
+static double* GetControllerParameters( int );
+static void SetControllerSetpoint( int );
+static void SetControllerImpedance( int );
+static void SetControllerOffset( int );
+
+const struct 
+{
+  int (*InitController)( const char* );
+  void (*EndController)( int );
+  size_t (*GetControllersNumber)();
+  void (*EnableActuator)( int );
+  void (*DisableActuator)( int );
+  void (*ResetActuator)( int );
+  double* (*GetControllerMeasures)( int );
+  double* (*GetControllerParameters)( int );
+  void (*SetControllerSetpoint)( int );
+  void (*SetControllerImpedance)( int );
+  void (*SetControllerOffset)( int );
+}
+AxisControl = { 
+                InitController, 
+                EndController, 
+                GetControllersNumber, 
+                EnableActuator, 
+                DisableActuator, 
+                ResetActuator, 
+                GetControllerMeasures, 
+                GetControllerParameters, 
+                SetControllerSetpoint, 
+                SetControllerImpedance, 
+                SetControllerOffset 
+              };
+
 // Axes configuration loading auxiliary function
-static void LoadControllersConfig()
-{
-  char readBuffer[ 64 ];
-  
-  AxisController* newController = NULL;
-  
-  FILE* configFile = fopen( "../config/aes_controls_config.txt", "r" );
-  if( configFile != NULL ) 
+static int InitController( const char* deviceName )
+{ 
+  FileParserInterface parser = JSONParserInterface;
+  int configFileID = parser.OpenFile( "axis_controllers" );
+  if( configFileID != -1 )
   {
-    while( fscanf( configFile, "%s", readBuffer ) != EOF )
+    if( !HasKey( configFileID, deviceName ) ) return -1;
+    
+    if( controllersList == NULL ) controllersList = kh_init( Control );
+    
+    int insertionStatus;
+    khint_t newControllerID = kh_put( Control, controllersList, (int) deviceName, &insertionStatus );
+    
+    if( insertionStatus == -1 ) return -1;
+    
+    AxisController* newController = &(kh_value( controllersList, newControllerID ));
+    
+    memset( newController, 0, sizeof(AxisController) );
+    
+    newController->controlThread = -1;
+    
+    newController->actuator = &AESInterface;
+    
+    parser.SetBaseKey( configFileID, deviceName );
+    
+    newController->deviceID = newController->actuator->Init( parser.GetStringValue( configFileID, "actuator" ) );
+    
+    newController->ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( configFileID, "control_function" ) );
+    
+    newController->parameterCurvesList[ CONTROL_SETPOINT ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.setpoint" ) );
+    newController->parameterCurvesList[ CONTROL_STIFFNESS ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.stiffness" ) );
+    newController->parameterCurvesList[ CONTROL_DAMPING ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.damping" ) );
+    
+    newController->maxReach = parser.GetRealValue( configFileID, "reach.max" );
+    newController->minReach = parser.GetRealValue( configFileID, "reach.min" );
+    
+    parser.CloseFile( configFileID );
+    
+    newController->controlThread = Thread_Start( AsyncControl, (void*) newController, THREAD_JOINABLE );
+    
+    if( newController->deviceID == -1 || newController->controlThread == -1 )
     {
-      if( strcmp( readBuffer, "BEGIN_AES_CONTROL" ) == 0 )
-      {
-        controllersList = (AxisController*) realloc( controllersList, sizeof(AxisController) * ( devicesNumber + 1 ) );
-  
-        newController = &(controllersList[ devicesNumber ]);
-        
-        fscanf( configFile, "%s", newController->name );
-  
-        /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "found %s axis control config", newController->name );
-        
-        newController->actuator = NULL;
-        newController->sensor = NULL;
-        for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
-          newController->measuresList[ dimensionIndex ] = 0.0;
-        for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
-        {
-          newController->parametersList[ parameterIndex ] = 0.0;
-          newController->parameterCurvesList[ parameterIndex ] = NULL;
-        }
-        newController->interactionForceCurve = NULL;
-        newController->maxReach = newController->minReach = 0.0;
-        newController->maxStiffness = newController->maxDamping;
-        newController->ref_RunControl = NULL;
-        newController->controlThread = -1;
-      }
+      newController->isRunning = false;
+      Thread_WaitExit( newController->controlThread, 5000 );
       
-      if( newController == NULL ) continue;
+      newController->actuator->End( newController->deviceID );
       
-      if( strcmp( readBuffer, "motor:" ) == 0 )
-      {
-        unsigned int nodeID, encoderResolution;
-        double gearReduction;
-        fscanf( configFile, "%u %u %lf", &nodeID, &encoderResolution, &gearReduction );
-        
-        DEBUG_EVENT( 1, "found %s motor on node ID %u with encoder resolution %u and gear reduction %g", newController->name, nodeID, encoderResolution, gearReduction );
-        
-        newController->actuator = Motor_Connect( nodeID );
-        MotorDrive_SetEncoderResolution( newController->actuator->drive, encoderResolution );
-        MotorDrive_SetGearReduction( newController->actuator->drive, gearReduction );
-      }
-      else if( strcmp( readBuffer, "encoder:" ) == 0 )
-      {
-        unsigned int nodeID, encoderResolution;
-        double gearReduction;
-        fscanf( configFile, "%u %u %lf", &nodeID, &encoderResolution, &gearReduction );
-        
-        DEBUG_EVENT( 2, "found %s sensor on node ID %u with encoder resolution %u and gear reduction %g", newController->name, nodeID, encoderResolution, gearReduction );
-        
-        newController->sensor = MotorDrive_Connect( nodeID );
-        MotorDrive_SetEncoderResolution( newController->sensor, encoderResolution );
-        MotorDrive_SetGearReduction( newController->sensor, gearReduction );
-      }
-      else if( strcmp( readBuffer, "min_max_reach:" ) == 0 )
-      {
-        fscanf( configFile, "%lf %lf", &(newController->minReach), &(newController->maxReach) );
-        
-        /*DEBUG_EVENT( 8,*/DEBUG_PRINT( "found %s reach value limits: %g <-> %g", newController->name, newController->minReach, newController->maxReach );
-      }
-      else if( strcmp( readBuffer, "control_type:" ) == 0 )
-      {
-        fscanf( configFile, "%s", readBuffer );
-        
-        /*DEBUG_EVENT( 3,*/DEBUG_PRINT( "setting %s control function to %s", newController->name, readBuffer );
-        
-        newController->ref_RunControl = ImpedanceControl_GetFunction( readBuffer );
-      }
-      else if( strcmp( readBuffer, "operation_mode:" ) == 0 )
-      {
-        fscanf( configFile, "%s", readBuffer );
-        
-        /*DEBUG_EVENT( 7,*/DEBUG_PRINT( "setting %s operation mode to %s", newController->name, readBuffer );
-        
-        if( strcmp( readBuffer, "POSITION" ) == 0 )
-          newController->operationMode = AXIS_OP_MODE_POSITION;
-        else if( strcmp( readBuffer, "VELOCITY" ) == 0 )
-          newController->operationMode = AXIS_OP_MODE_VELOCITY;
-      }
-      else if( strcmp( readBuffer, "force_curve:" ) == 0 )
-      {
-        fscanf( configFile, "%s", readBuffer );
-        
-        /*DEBUG_EVENT( 4,*/DEBUG_PRINT( "setting %s interaction force curve %s", newController->name, readBuffer );
-        
-        newController->interactionForceCurve = Spline3Interp_LoadCurve( readBuffer );
-      }
-      else if( strcmp( readBuffer, "parameter_curves:" ) == 0 )
-      {
-        for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
-        {
-          fscanf( configFile, "%s", readBuffer );
-        
-          /*DEBUG_EVENT( 6,*/DEBUG_PRINT( "setting %s parameter curve %s", newController->name, readBuffer );
-        
-          newController->parameterCurvesList[ parameterIndex ] = Spline3Interp_LoadCurve( readBuffer );
-        }
-      }
-      else if( strcmp( readBuffer, "END_AES_CONTROL" ) == 0 )
-      {
-        newController->controlThread = Thread_Start( AsyncControl, (void*) newController, THREAD_JOINABLE );
-        
-        DEBUG_EVENT( 5, "running %s control on thread %x", newController->name, newController->controlThread );
-        
-        if( newController->actuator == NULL || newController->controlThread == -1 )
-        {
-          newController->isRunning = false;
-    
-          Thread_WaitExit( newController->controlThread, 5000 );
-    
-          Motor_Disconnect( newController->actuator );
-          MotorDrive_Disconnect( newController->sensor );
-        }
-        else
-        {
-          if( newController->sensor == NULL )
-            newController->sensor = newController->actuator->drive;
-          
-          newController->positionFilter = SimpleKalman_CreateFilter( 0.0 );
-          
-                    devicesNumber++;
-        }
-      }
-      else if( strcmp( readBuffer, "#" ) == 0 )
-      {
-        char dummyChar;
-        
-        do { 
-          if( fscanf( configFile, "%c", &dummyChar ) == EOF ) 
-            break; 
-        } while( dummyChar != '\n' ); 
-      }
+      return -1;
     }
     
-    fclose( configFile );
-  }
-}
-
-// EPOS devices and CAN network initialization
-void AxisControl_Init()
-{
-  DEBUG_EVENT( 0, "Initializing axis control on thread %x", THREAD_ID );
-  
-  LoadControllersConfig();
-  
-  DEBUG_EVENT( 0, "axis control initialized on thread %x", THREAD_ID );
-}
-
-// EPOS devices and CAN network shutdown
-void AxisControl_End()
-{
-  DEBUG_EVENT( 0, "Ending axis control on thread %x", THREAD_ID );
-
-  Timing_Delay( 2000 );
-  
-  if( controllersList != NULL )
-  {
-    // Destroy axes data structures
-    for( size_t deviceID = 0; deviceID < devicesNumber; deviceID++ )
-    {
-      controllersList[ deviceID ].isRunning = false;
-    
-      if( controllersList[ deviceID ].controlThread != -1 )
-        Thread_WaitExit( controllersList[ deviceID ].controlThread, 5000 );
-    
-      Motor_Disconnect( controllersList[ deviceID ].actuator );
-      MotorDrive_Disconnect( controllersList[ deviceID ].sensor );
-      
-      SimpleKalman_DiscardFilter( controllersList[ deviceID ].positionFilter );
-      
-      for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
-        Spline3Interp_UnloadCurve( controllersList[ deviceID ].parameterCurvesList[ parameterIndex ] );
-    }
-  
-    free( controllersList );
-  }
-  
-  DEBUG_EVENT( 0, "axis control ended on thread %x", THREAD_ID );
-}
-
-int AxisControl_GetAxisID( const char* axisName )
-{
-  for( size_t deviceID = 0; deviceID < devicesNumber; deviceID++ )
-  {
-    if( strcmp( controllersList[ deviceID ].name, axisName ) == 0 )
-      return (int) deviceID;
+    return (int) newControllerID;
   }
   
   return -1;
 }
 
-extern inline size_t AxisControl_GetDevicesNumber()
+// EPOS devices and CAN network shutdown
+static void EndController( int controllerID )
 {
-  return devicesNumber;
+  if( !kh_exist( controllersList, (khint_t) controllerID ) ) return;
+  
+  AxisController* controller = &(kh_value( controllersList, (khint_t) controllerID ));
+  
+  controller->isRunning = false;
+    
+  if( controller->controlThread != -1 ) Thread_WaitExit( controller->controlThread, 5000 );
+    
+  controller->actuator->End( controller->deviceID );
+      
+  for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+    Spline3Interp_UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
+  
+  kh_del( Control, controllersList, controllerID );
+  
+  if( kh_size( controllersList ) == 0 ) kh_destroy( Control, controllersList );
+  
+  DEBUG_EVENT( 0, "axis control ended on thread %x", THREAD_ID );
 }
 
-static inline bool CheckController( size_t deviceID )
+static inline size_t GetDevicesNumber()
 {
-  if( (int) deviceID < 0 || deviceID >= devicesNumber ) return false;
+  if( controllersList == NULL ) return 0;
   
-  if( controllersList[ deviceID ].actuator == NULL ) return false;
-  
-  return true;
+  return kh_size( controllersList );
 }
 
-extern inline void AxisControl_EnableMotor( size_t deviceID )
+static inline void EnableActuator( int controllerID )
 {
-  if( !CheckController( deviceID ) ) return;
+  if( !kh_exist( controllersList, (khint_t) controllerID ) ) return;
   
-  if( controllersList[ deviceID ].ref_RunControl != NULL )
-    Motor_Enable( controllersList[ deviceID ].actuator );
+  AxisController* controller = &(kh_value( controllersList, (khint_t) controllerID ));
   
-  controllersList[ deviceID ].measuresList[ CONTROL_ERROR ] = 0.0;
+  if( controller->ref_RunControl != NULL )
+    controller->actuator->Enable( controller->deviceID );
+  
+  //controller->measuresList[ CONTROL_ERROR ] = 0.0;
 }
 
-extern inline void AxisControl_DisableMotor( size_t deviceID )
+static inline void DisableActuator( int controllerID )
 {
-  if( !CheckController( deviceID ) ) return;
+  if( !kh_exist( controllersList, (khint_t) controllerID ) ) return;
   
-  Motor_Disable( controllersList[ deviceID ].actuator );
+  AxisController* controller = &(kh_value( controllersList, (khint_t) controllerID ));
   
-  controllersList[ deviceID ].measuresList[ CONTROL_ERROR ] = 0.0;
+  controller->actuator->Disable( controller->deviceID );
+  
+  //controller->measuresList[ CONTROL_ERROR ] = 0.0;
 }
 
-extern inline void AxisControl_Reset( size_t deviceID )
+static inline void ResetActuator( int controllerID )
 {
-  if( !CheckController( deviceID ) ) return;
+  if( !kh_exist( controllersList, (khint_t) controllerID ) ) return;
   
-  if( MotorDrive_CheckState( controllersList[ deviceID ].actuator->drive, FAULT ) )
-  {
-    MotorDrive_Reset( controllersList[ deviceID ].actuator->drive );
-    MotorDrive_Reset( controllersList[ deviceID ].sensor );
-  }
+  AxisController* controller = &(kh_value( controllersList, (khint_t) controllerID ));
   
-  controllersList[ deviceID ].measuresList[ CONTROL_ERROR ] = 0.0;
+  if( controller->actuator->HasError( controller->deviceID ) )
+    controller->actuator->Reset( controller->deviceID );
+  
+  //controller->measuresList[ CONTROL_ERROR ] = 0.0;
 }
 
 extern inline bool* AxisControl_GetMotorStatus( size_t deviceID )
@@ -436,9 +353,9 @@ static void* AsyncControl( void* args )
       RunControl( controller );
       
       elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
-      DEBUG_UPDATE( "control pass for %s AES (before delay): elapsed time: %u ms", controller->name, elapsedTime );
+      DEBUG_UPDATE( "control pass for device %d (before delay): elapsed time: %u ms", controller->deviceID, elapsedTime );
       if( elapsedTime < (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_SAMPLING_INTERVAL - elapsedTime );
-      DEBUG_UPDATE( "control pass for %s AES (after delay): elapsed time: %u ms", controller->name, Timing_GetExecTimeMilliseconds() - execTime );
+      DEBUG_UPDATE( "control pass for device %d (after delay): elapsed time: %u ms", controller->deviceID, Timing_GetExecTimeMilliseconds() - execTime );
     }
   }
   

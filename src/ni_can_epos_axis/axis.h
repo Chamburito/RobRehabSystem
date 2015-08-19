@@ -10,7 +10,7 @@
 #ifndef AXIS_CAN_EPOS_INTERFACE_H
 #define AXIS_CAN_EPOS_INTERFACE_H
 
-#include "../axis_interface.h"
+#include "axis_interface.h"
 #include "can_network.h"
 
 #ifdef WIN32
@@ -28,11 +28,11 @@
   #include <malloc.h>
 #endif
 
-#include "../klib/khash.h"
+#include "klib/khash.h"
 
 #include <stdbool.h>
 
-#include "../async_debug.h"
+#include "async_debug.h"
 
 /*enum OperationMode { HOMMING_MODE, PROFILE_VELOCITY_MODE, PROFILE_POSITION_MODE, POSITION_MODE, 
                      VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_MODES_NUMBER };

@@ -11,13 +11,13 @@
 #define	AXIS_H
 
 #include "axis_interface.h"
-#include "ni_can_epos_axis/axis_interface.h"
-#include "shm_axis/axis_interface.h"
+#include "ni_can_epos_axis/axis.h"
+#include "shm_axis/axis.h"
 
 #ifdef WIN32
-  #include "../timing_windows.h"
+  #include "timing_windows.h"
 #else
-  #include "../timing_unix.h"
+  #include "timing_unix.h"
 #endif
 
 #ifdef _CVI_
@@ -37,8 +37,8 @@ typedef struct _MotorDrive
 {
   AxisInterface* interface;
   int interfaceID;
-  double measuresList[ AXIS_MEASURES_NUMBER ];
-  double measureRatiosList[ AXIS_MEASURES_NUMBER ];
+  double measuresList[ AXIS_DIMENSIONS_NUMBER ];
+  double measureRatiosList[ AXIS_DIMENSIONS_NUMBER ];
 }
 MotorDrive;
 
@@ -73,7 +73,7 @@ Motor* Motor_Connect( int connectionData )
   Motor* motor = (Motor*) malloc( sizeof(Motor) );
   
   motor->setpoint = 0.0;
-  motor->operationMode = AXIS_OP_MODES_POSITION;
+  motor->operationMode = AXIS_POSITION;
   
   if( (motor->drive = MotorDrive_Connect( connectionData )) == NULL )
   {
@@ -94,7 +94,7 @@ MotorDrive* MotorDrive_Connect( int connectionData )
   
   MotorDrive* drive = (MotorDrive*) malloc( sizeof(MotorDrive) );
   
-  for( size_t dimensionIndex = 0; dimensionIndex < AXIS_MEASURES_NUMBER; dimensionIndex++ )
+  for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMENSIONS_NUMBER; dimensionIndex++ )
   {
     drive->measuresList[ dimensionIndex ] = 0.0;
     drive->measureRatiosList[ dimensionIndex ] = 1.0;
@@ -155,7 +155,7 @@ extern inline void Motor_Disable( Motor* motor )
 
 double MotorDrive_GetMeasure( MotorDrive* drive, enum AxisMeasures index )
 {
-  if( index >= AXIS_MEASURES_NUMBER )
+  if( index >= AXIS_DIMENSIONS_NUMBER )
   {
     ERROR_EVENT( "invalid dimension index: %d\n", index );
     return 0;
@@ -166,7 +166,7 @@ double MotorDrive_GetMeasure( MotorDrive* drive, enum AxisMeasures index )
 
 void MotorDrive_SetMeasureRatio( MotorDrive* drive, enum AxisMeasures index, double conversionRatio )
 {
-  if( index >= AXIS_MEASURES_NUMBER )
+  if( index >= AXIS_DIMENSIONS_NUMBER )
   {
     ERROR_EVENT( "invalid dimension index: %d\n", index );
     return 0;
@@ -189,14 +189,14 @@ void MotorDrive_Read( MotorDrive* drive )
 {
   if( drive->interface->ReadMeasures( drive->interfaceID, drive->measuresList ) )
   {
-    for( size_t dimensionIndex = 0; dimensionIndex < AXIS_MEASURES_NUMBER; dimensionIndex++ )
+    for( size_t dimensionIndex = 0; dimensionIndex < AXIS_DIMENSIONS_NUMBER; dimensionIndex++ )
       drive->measuresList[ dimensionIndex ] /= drive->measureRatiosList[ dimensionIndex ];
   }
 }
 
 void Motor_Write( Motor* motor )
 {
-  static double setpointsList[ AXIS_OP_MODES_NUMBER ];
+  static double setpointsList[ AXIS_DIMENSIONS_NUMBER ];
 
   setpointsList[ motor->operationMode ] = ( motor->setpoint * motor->drive->measureRatiosList[ motor->operationMode ] );
   

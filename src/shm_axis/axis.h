@@ -2,13 +2,13 @@
 /////                   AXIS CONTROL THROUGH SHARED MEMORY (Anklebot on Linux RT)                    /////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef AXIS_SHM_INTERFACE_H
-#define AXIS_SHM_INTERFACE_H
+#ifndef AXIS_SHM_H
+#define AXIS_SHM_H
 
 #ifdef WIN32
-  #include "../timing_windows.h"
+  #include "timing_windows.h"
 #else
-  #include "../timing_unix.h"
+  #include "timing_unix.h"
 #endif
 
 #include <stdio.h>
@@ -18,11 +18,11 @@
 
 #include <stdbool.h>
 
-#include "../async_debug.h"
+#include "async_debug.h"
 
-#include "../klib/khash.h"
+#include "klib/khash.h"
 
-#include "../axis_interface.h"
+#include "axis_interface.h"
 
 #include <sys/mman.h>
 
@@ -31,9 +31,7 @@
 
 #include <fcntl.h>
 
-//#include "ruser.h"
 #include "robdecls.h"
-//#include "rtl_inc.h"
 
 static const uint8_t operationModes[ AXIS_DIMENSIONS_NUMBER ] = { 0xFF, 0xFE };
 
@@ -182,5 +180,5 @@ static void SetOperationMode( int, enum AxisOperationModes )
   return;
 }
 
-#endif /* AXIS_SHM_INTERFACE_H */
+#endif /* AXIS_SHM_H */
 

@@ -1,14 +1,16 @@
-#ifndef AES_ACTUATOR_INTERFACE_H
-#define AES_ACTUATOR_INTERFACE_H 
+#ifndef AES_ACTUATOR_H
+#define AES_ACTUATOR_H 
 
-#include "../actuator_interface.h"
-#include "../spline3_interpolation.h"
-#include "../filters.h"
+#include "actuator_interface.h"
+#include "spline3_interpolation.h"
+#include "filters.h"
 
-#include "../klib/khash.h"
-#include "../klib/kson.h"
+#include "ni_can_epos_axis/axis.h"
 
-#include "../async_debug.h"
+#include "klib/khash.h"
+#include "utils/file_parsing/json_parser.h"
+
+#include "async_debug.h"
 
 typedef struct _Actuator
 {
@@ -78,4 +80,4 @@ int Init( const char* options )
 }
 
 
-#endif // AES_ACTUATOR_INTERFACE_H
+#endif // AES_ACTUATOR_H
