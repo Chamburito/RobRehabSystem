@@ -1,11 +1,11 @@
 #ifndef AXIS_INTERFACE_H
 #define AXIS_INTERFACE_H
 
-enum AxisDimensions { AXIS_POSITION, AXIS_VELOCITY, AXIS_TORQUE, AXIS_DIMENSIONS_NUMBER };
+enum AxisDimensions { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE, AXIS_DIMENSIONS_NUMBER };
 
-typedef struct _AxisInterface
+typedef struct _AxisMethods
 {  
-  int (*Connect)( int );
+  int (*Connect)( const char* );
   void (*Disconnect)( int );
   void (*Enable)( int );
   void (*Disable)( int );
@@ -13,9 +13,10 @@ typedef struct _AxisInterface
   bool (*IsEnabled)( int );
   bool (*HasError)( int );
   bool (*ReadMeasures)( int, double[ AXIS_DIMENSIONS_NUMBER ] );
-  void (*WriteControl)( int, double[ AXIS_DIMENSIONS_NUMBER ] );
-  void (*SetOperationMode)( int, enum AxisOperationModes );
+  void (*WriteControl)( int, double );
 }
-AxisInterface;
+AxisMethods;
+
+typedef AxisInterfaceMethods* AxisInterface;
 
 #endif // AXIS_INTERFACE_H

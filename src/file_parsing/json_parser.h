@@ -1,12 +1,12 @@
 #ifndef JSON_PARSER_H
 #define JSON_PARSER_H
 
-#include "utils/file_parsing/file_parser_interface.h"
+#include "file_parsing/file_parser_interface.h"
 
 #include "klib/kson.h"
 #include "klib/khash.h"
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 static int OpenFile( const char* );
 static void CloseFile( int );
@@ -18,17 +18,8 @@ static bool GetBooleanValue( int, const char* );
 static size_t GetListSize( int, const char* );
 static bool HasKey( int, const char* );
 
-const FileParserInterface JSONParserInterface = {
-                                                  .OpenFile = OpenFile,
-                                                  .CloseFile = CloseFile,
-                                                  .SetBaseKey = SetBaseKey,
-                                                  .GetIntegerValue = GetIntegerValue,
-                                                  .GetRealValue = GetRealValue,
-                                                  .GetStringValue = GetStringValue,
-                                                  .GetBooleanValue = GetBooleanValue,
-                                                  .GetListSize = GetListSize,
-                                                  .HasKey = HasKey
-                                                };
+const FileParserMethods JSONParser = { .OpenFile = OpenFile, .CloseFile = CloseFile, .SetBaseKey = SetBaseKey, .GetIntegerValue = GetIntegerValue,
+                                       .GetRealValue = GetRealValue, .GetStringValue = GetStringValue, .GetBooleanValue = GetBooleanValue, .GetListSize = GetListSize, .HasKey = HasKey };
 
 typedef struct _FileData
 {

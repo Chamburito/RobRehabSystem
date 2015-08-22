@@ -11,12 +11,12 @@
 #define AXIS_CAN_EPOS_INTERFACE_H
 
 #include "axis_interface.h"
-#include "can_network.h"
+#include "ni_can_epos_axis/can_network.h"
 
 #ifdef WIN32
-  #include "timing_windows.h"
+  #include "time/timing_windows.h"
 #else
-  #include "../timing_unix.h"
+  #include "time/timing_unix.h"
 #endif
 
 #ifdef _CVI_
@@ -32,7 +32,7 @@
 
 #include <stdbool.h>
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 /*enum OperationMode { HOMMING_MODE, PROFILE_VELOCITY_MODE, PROFILE_POSITION_MODE, POSITION_MODE, 
                      VELOCITY_MODE, CURRENT_MODE, MASTER_ENCODER_MODE, STEP_MODE, AXIS_MODES_NUMBER };
@@ -73,8 +73,7 @@ static void Reset( int );
 static bool IsEnabled( int );
 static bool HasError( int );
 static bool ReadMeasures( int, double[ AXIS_DIMENSIONS_NUMBER ] );
-static void WriteControl( int, double[ AXIS_DIMENSIONS_NUMBER ] );
-static void SetOperationMode( int, enum AxisDimensions );
+static void WriteControl( int, double );
 
 static inline void SetControl( CANInterface*, enum Controls, bool );
 static inline bool CheckState( CANInterface* interface, enum States stateValue );
@@ -82,16 +81,8 @@ static inline double ReadSingleValue( CANInterface*, uint16_t, uint8_t );
 static inline void WriteSingleValue( CANInterface*, uint16_t, uint8_t, int );
 static inline void EnableDigitalOutput( CANInterface*, bool );
 
-const AxisInterface AxisCANEPOSInterface = { .Connect = Connect,
-                                             .Disconnect = Disconnect,
-                                             .Enable = Enable,
-                                             .Disable = Disable,
-                                             .Reset = Reset,
-                                             .IsEnabled = IsEnabled,
-                                             .HasError = HasError,
-                                             .ReadMeasures = ReadMeasures,
-                                             .WriteControl = WriteControl,
-                                             .SetOperationMode = SetOperationMode };
+const AxisMethods AxisCANEPOSMethods = { .Connect = Connect, .Disconnect = Disconnect, .Enable = Enable, .Disable = Disable, .Reset = Reset,
+                                        .IsEnabled = IsEnabled, .HasError = HasError, .ReadMeasures = ReadMeasures, .WriteControl = WriteControl };
                                                     
 const size_t ADDRESS_MAX_LENGTH = 16;
 
@@ -268,7 +259,7 @@ static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_
     CANFrame_Read( interface->readFramesList[ PDO01 ], payload );  
     // Update values from PDO01
     measuresList[ AXIS_POSITION ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
-    measuresList[ AXIS_TORQUE ] = payload[ 5 ] * 0x100 + payload[ 4 ];
+    measuresList[ AXIS_FORCE ] = payload[ 5 ] * 0x100 + payload[ 4 ];
     
     interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
 

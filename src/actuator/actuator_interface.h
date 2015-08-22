@@ -1,8 +1,7 @@
 #ifndef ACTUATOR_INTERFACE_H
 #define ACTUATOR_INTERFACE_H
 
-#include "axis_interface.h"
-#include "ni_can_epos_axis/axis_interface.h"
+#include "axis/axis_types.h"
 
 typedef struct _Axis
 {
@@ -14,7 +13,7 @@ typedef struct _Axis
 }
 Axis;
 
-typedef struct _ActuatorInterface
+typedef struct _ActuatorMethods
 {
   int (*Init)( const char* );
   void (*End)( int );
@@ -30,6 +29,8 @@ typedef struct _ActuatorInterface
   void (*WriteControl)( int );
   void (*SetOperationMode)( int, enum AxisDimensions );
 }
-ActuatorInterface;
+ActuatorMethods;
+
+typedef ActuatorMethods* ActuatorInterface;
 
 #endif // ACTUATOR_INTERFACE_H

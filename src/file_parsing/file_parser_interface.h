@@ -5,7 +5,7 @@
 
 #define FILE_PARSER_MAX_PATH_LENGTH 256
 
-typedef struct _FileParserInterface
+typedef struct _FileParser
 {
   int (*OpenFile)( const char* );
   void (*CloseFile)( int );
@@ -17,6 +17,8 @@ typedef struct _FileParserInterface
   size_t (*GetListSize)( int, const char* );
   bool (*HasKey)( int, const char* );
 }
-FileParserInterface;
+FileParser;
+
+typedef FileParser* FileParserInterface;
 
 #endif // FILE_PARSER_H

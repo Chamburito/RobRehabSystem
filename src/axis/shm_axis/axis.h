@@ -6,9 +6,9 @@
 #define AXIS_SHM_H
 
 #ifdef WIN32
-  #include "timing_windows.h"
+  #include "time/timing_windows.h"
 #else
-  #include "timing_unix.h"
+  #include "time/timing_unix.h"
 #endif
 
 #include <stdio.h>
@@ -18,7 +18,7 @@
 
 #include <stdbool.h>
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 #include "klib/khash.h"
 
@@ -31,7 +31,7 @@
 
 #include <fcntl.h>
 
-#include "robdecls.h"
+#include "shm_axis/robdecls.h"
 
 static const uint8_t operationModes[ AXIS_DIMENSIONS_NUMBER ] = { 0xFF, 0xFE };
 
@@ -159,7 +159,7 @@ static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_
     measuresList[ AXIS_POSITION ] = sharedMemoryObject->ankle.pos.dp;
     measuresList[ AXIS_VELOCITY ] = sharedMemoryObject->ankle.vel.dp;
     //measuresList[ AXIS_ACCELERATION ] = sharedMemoryObject->ankle.accel.dp;
-    measuresList[ AXIS_TORQUE ] = sharedMemoryObject->ankle.torque.dp;
+    measuresList[ AXIS_FORCE ] = sharedMemoryObject->ankle.torque.dp;
   }
   
   return false;
