@@ -1,5 +1,5 @@
-#ifndef SEA_ACTUATOR_H
-#define SEA_ACTUATOR_H 
+#ifndef SERIES_ELASTIC_ACTUATOR_H
+#define SERIES_ELASTIC_ACTUATOR_H 
 
 #include "actuator_interface.h"
 #include "spline3_interpolation.h"
@@ -17,11 +17,10 @@ typedef struct _Actuator
   Axis motor, sensor;
   double measuresList[ AXIS_DIMENSIONS_NUMBER ];
   Splined3Curve* interactionForceCurve;
-  //SimpleKalmanFilter* positionFilter;
 }
 Actuator;
 
-KHASH_MAP_INIT_INT( SEA, Actuator );
+KHASH_MAP_INIT_INT( SEA, Actuator )
 static khash_t( SEA )* actuatorsList = NULL;
 
 static int Init( const char* );
@@ -39,77 +38,212 @@ static void WriteControl( int );
 static void SetOperationMode( int, enum AxisDimensions );
 
 static inline Actuator* LoadActuatorData( const char* );
+static inline void UnloadActuatorData( Actuator* );
 
-const ActuatorMethods SEActuatorMethods = { .Init = Init, .End = End, .Enable = Enable, .Disable = Disable, .Reset = Reset,
-                                            .IsEnabled = IsEnabled, .HasError = HasError, .ReadAxes = ReadAxes, .GetMeasure = GetMeasure, .SetSetpoint = SetSetpoint };
+const ActuatorOperations SEActuatorOperations = { .Init = Init, .End = End, .Enable = Enable, .Disable = Disable, .Reset = Reset,
+                                                  .IsEnabled = IsEnabled, .HasError = HasError, .ReadAxes = ReadAxes, .GetMeasure = GetMeasure, .SetSetpoint = SetSetpoint };
                                          
-int Init( const char* options )
+int Init( const char* configKey )
 {
-  kson_node_t* optionNode;
-  kson_node_t* subOptionNode;
+  DEBUG_PRINT( "trying to create series elastic actuator %s", configKey );
+  
+  Actuator* ref_newActuatorData = LoadActuatorData( configKey );
+  if( ref_newActuatorData == NULL ) return -1;
   
   if( actuatorsList == NULL ) actuatorsList = kh_init( SEA );
   
   int insertionStatus;
-  int actuatorID = kh_put( SEA, actuatorsList, kh_size( actuatorsList ), &insertionStatus );
-  
+  khint_t newActuatorID = kh_put( SEA, actuatorsList, kh_size( actuatorsList ), &insertionStatus );
   if( insertionStatus == -1 ) return -1;
-  //else if( insertionStatus == 0 ) return -1;
   
-  Actuator* newActuator = &(kh_value( actuatorsList, actuatorID ));
+  Actuator* newActuator = &(kh_value( actuatorsList, newActuatorID ));
   
-  kson_t* optionsBlock = kson_parse( options );
+  memcpy( newActuator, ref_newActuatorData, sizeof(Actuator) );
+  UnloadActuatorData( ref_newActuatorData );
   
-  if( (optionNode = kson_by_key( optionsBlock->root, "motor" )) )
-  {   
-    if( (subOptionNode = kson_by_key( optionNode, "interface" )) )
+  return (int) newActuatorID;
+}
+
+static void End( int actuatorID )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    UnloadActuatorData( &(kh_value( actuatorsList, actuatorID )); );
+    
+    kh_del( SEA, actuatorsList, actuatorID );
+    
+    if( kh_size( actuatorsList ) == 0 )
     {
-      newActuator->motor.interface = &AxisCANEPOSInterface;
-      newActuator->motor.interfaceID = newActuator->motor.interface->Connect( kson_by_index( subOptionNode, 1 ) );
-    }        
+      kh_destroy( SEA, actuatorsList );
+      actuatorsList = NULL;
+    }
+  }
+}
+
+static void Enable( int actuatorID )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    actuator->motor.interface->Enable( actuator->motor.ID );
+    actuator->sensor.interface->Enable( actuator->sensor.ID );
+  }
+}
+
+static void Disable( int actuatorID )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    actuator->motor.interface->Reset( actuator->motor.ID );
+    actuator->sensor.interface->Reset( actuator->sensor.ID );
+  }
+}
+
+static void Reset( int actuatorID )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    actuator->motor.interface->Reset( actuator->motor.ID );
+    actuator->sensor.interface->Reset( actuator->sensor.ID );
+  }
+}
+
+static bool IsEnabled( int actuatorID )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    return ( actuator->motor.interface->IsEnabled( actuator->motor.ID ) );
+  }
+  
+  return false;
+}
+
+static bool HasError( int actuatorID )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    if( actuator->motor.interface->HasError( actuator->motor.ID ) ) return true;
+    else if( actuator->sensor.interface->IsEnabled( actuator->sensor.ID ) ) return true;
+  }
+  
+  return false;
+}
+
+static double GetMeasure( int actuatorID , enum AxisDimensions dimensionIndex )
+{
+  if( dimensionIndex < 0 && dimensionIndex > AXIS_DIMENSIONS_NUMBER ) return 0.0;
+  
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    return actuator->measuresList[ dimensionIndex ];
+  }
+  
+  return 0.0;
+}
+
+static void SetSetpoint( int actuatorID, double setpointValue )
+{
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    actuator->motor.interface->WriteControl( actuator->motor.ID, setpointValue / actuator->motor.gearConversionFactor );
+  }
+}
+
+static void ReadAxes( int actuatorID )
+{
+  static double motorMeasuresList[ AXIS_DIMENSIONS_NUMBER ];
+  static double sensorMeasuresList[ AXIS_DIMENSIONS_NUMBER ];
+  
+  if( kh_exist( actuatorsList, actuatorID ) )
+  {
+    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
+    
+    actuator->motor.interface->ReadMeasures( actuator->motor.ID, motorMeasuresList );
+    actuator->sensor.interface->ReadMeasures( actuator->sensor.ID, sensorMeasuresList );
+    
+    actuator->measuresList[ AXIS_POSITION ] = sensorMeasuresList[ AXIS_POSITION ];
+    actuator->measuresList[ AXIS_VELOCITY ] = sensorMeasuresList[ AXIS_VELOCITY ];
+    
+    double deformation = sensorMeasuresList[ AXIS_POSITION ] - motorMeasuresList[ AXIS_POSITION ];
+    actuator->measuresList[ AXIS_FORCE ] = Spline3Interp_GetValue( actuator->interactionForceCurve, deformation );
   }
 }
 
 
-
-static inline Actuator* LoadActuatorData( const char* configKey )
+static inline Actuator* LoadActuatorData( const char* configFileName )
 {
   static Actuator actuatorData;
+  const Axis* AXES_LIST[] = { &(actuatorData.motor), &(actuatorData.sensor) };
+  const size_t AXES_NUMBER = sizeof(AXES_LIST) / sizeof(Axis*);
+  const char* AXIS_NAMES[ AXES_NUMBER ] = { "motor", "sensor" };
+  
   static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  
+  bool loadError = false;
   
   memset( &actuatorData, 0, sizeof(Actuator) );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( "series_elastic_actuators" );
+  int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
-    if( parser.HasKey( configKey ) )
+    for( size_t axisIndex = 0; axisIndex < AXES_NUMBER; axisIndex++ )
     {
-      parser.SetBaseKey( configKey );
+      sprintf( searchPath, "motor_axes.%s", AXIS_NAMES[ axisIndex ] );
+      parser.SetBaseKey( searchPath );
       
-      actuatorData.motor.interface = AxisTypes.GetInterface( parser.GetStringValue( "motor.interface_type" ) );  
-      actuatorData.motor.interfaceID = actuatorData.motor.interface->Connect( parser.GetStringValue( "motor.name" ) );
-        
-      actuatorData.sensor.interface = AxisTypes.GetInterface( parser.GetStringValue( "sensor.interface_type" ) );  
-      actuatorData.sensor.interfaceID = actuatorData.sensor.interface->Connect( parser.GetStringValue( "sensor.name" ) );
+      if( (AXES_LIST[ axisIndex ]->interface = AxisTypes.GetInterface( parser.GetStringValue( "interface_type" ) )) != NULL )
+      {
+        if( (AXES_LIST[ axisIndex ]->ID = AXES_LIST[ axisIndex ]->interface->Connect( parser.GetStringValue( "name" ) )) == -1 ) loadError = true;
+      }
+      else loadError = true;
       
-      /*double deviationAngle = parser.GetRealValue( "deviation_angle" );
-      double measureWeight = parser.GetRealValue( "measure_weight" );
-      actuatorData.motorsList[ motorIndex ].measureConversionFactor = cos( deviationAngle ) * measureWeight;
-      
-      
-      actuatorData.momentArm = parser.GetRealValue( "moment_arm" );*/
-      
-      return &actuatorData;
+      AXES_LIST[ axisIndex ]->gearConversionFactor = parser.GetRealValue( "gear_reduction" );
     }
-    else
-    {
-      DEBUG_PRINT( "configuration for series elastic actuator %s not found in configuration file", configKey );
-      return NULL;
-    }
+    
+    parser.SetBaseKey( "" );
+    if( (actuatorData.interactionForceCurve = Spline3Interp_LoadCurve( parser.GetStringValue( "spring_force_curve" ) )) == NULL ) loadError = true;
+    
+    parser.CloseFile( configFileID );
+  }
+  else
+  {
+    loadError = true;
+    DEBUG_PRINT( "configuration file for series elastic actuator %s not found", configFileName );
   }
   
-  return NULL;
+  if( loadError )
+  {
+    UnloadActuatorData( &actuatorData );
+    return NULL;
+  }
+  
+  return &actuatorData;
 }
 
-#endif // SEA_ACTUATOR_H
+static inline void UnloadActuatorData( Actuator* actuator )
+{
+  if( actuator != NULL )
+  {
+    if( actuator->motor.interface != NULL ) actuator->motor.interface->Disconnect( actuator->motor.ID );
+    if( actuator->sensor.interface != NULL ) actuator->sensor.interface->Disconnect( actuator->sensor.ID );
+    
+    Spline3Interp_UnloadCurve( actuator->interactionForceCurve );
+  }
+}
+
+
+#endif // SERIES_ELASTIC_ACTUATOR_H

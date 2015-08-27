@@ -7,19 +7,19 @@
 typedef struct _ActuatorTypeData
 {
   const char* name;
-  AxisInterface interface;
+  ActuatorInterface interface;
 }
 ActuatorTypeData;
 
-static const ActuatorTypeData ACTUATOR_TYPES_LIST[] = { { "SEA", &SEActuatorMethods }, { "DLA", &DLActuatorMethods } };
+static const ActuatorTypeData ACTUATOR_TYPES_LIST[] = { { "SEA", &SEActuatorOperations }, { "DLA", &DLActuatorOperations } };
 static const size_t ACTUATOR_TYPES_NUMBER = sizeof(ACTUATOR_TYPES_LIST) / sizeof(ActuatorTypeData);
 
 static ActuatorInterface GetInterface( const char* typeName )
 {
-  for( size_t axisTypeIndex = 0; axisTypeIndex < AXIS_TYPES_NUMBER; axisTypeIndex++ )
+  for( size_t actuatorTypeIndex = 0; actuatorTypeIndex < AXIS_TYPES_NUMBER; actuatorTypeIndex++ )
   {
-    if( strcmp( typeName, AXIS_TYPES_LIST[ axisTypeIndex ].name ) == 0 )
-      return AXIS_TYPES_LIST[ axisTypeIndex ].interface;
+    if( strcmp( typeName, AXIS_TYPES_LIST[ actuatorTypeIndex ].name ) == 0 )
+      return AXIS_TYPES_LIST[ actuatorTypeIndex ].interface;
   }
   
   return NULL;
@@ -27,7 +27,7 @@ static ActuatorInterface GetInterface( const char* typeName )
 
 const struct 
 {
-  AxisInterface (*GetInterface)( const char* );
+  ActuatorInterface (*GetInterface)( const char* );
 }
 ActuatorTypes = { .GetInterface = GetInterface };
 

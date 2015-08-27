@@ -4,15 +4,15 @@
 #include <math.h>
 
 // Control used values enumerations
-enum { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_ACCELERATION, CONTROL_FORCE, CONTROL_ERROR, CONTROL_DIMS_NUMBER };
-enum { CONTROL_SETPOINT, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_OFFSET, CONTROL_PARAMS_NUMBER };
+enum { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_ACCELERATION, CONTROL_FORCE, CONTROL_ERROR, CONTROL_MEASURES_NUMBER };
+enum { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_SETPOINTS_NUMBER };
 
-typedef double (*ImpedanceControlFunction)( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
+typedef double (*ImpedanceControlFunction)( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
 
 // Control algorhitms
-static double RunDefaultControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
-static double RunForcePIControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
-static double RunVelocityControl( double[ CONTROL_DIMS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
+static double RunDefaultControl( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
+static double RunForcePIControl( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
+static double RunVelocityControl( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
 
 // Available precompiled control methods
 struct IndexedFunction
@@ -67,7 +67,7 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunVelocityControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
+static double RunVelocityControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
 {
   /*static double sensorTension_0, sensorPosition_0;
 
@@ -158,7 +158,7 @@ const double d3 = 0.0015;
 /////                          KNEE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
+static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
 {
   static double position, positionSetpoint, positionError, positionErrorSum, positionSetpointSum;
   static double velocity[3], velocityFiltered[3], velocitySetpoint[3];
@@ -183,7 +183,7 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
 
   velocityFiltered[0] = -c2 * velocityFiltered[1] - c3 * velocityFiltered[2] + d1 * velocity[0] + d2 * velocity[1] + d3 * velocity[2];
   
-  positionSetpoint = parametersList[ CONTROL_SETPOINT ];
+  positionSetpoint = parametersList[ CONTROL_REFERENCE ];
   positionError = position - positionSetpoint;
   positionErrorSum += deltaTime * positionError * positionError;
   positionSetpointSum += deltaTime * positionSetpoint * positionSetpoint;
@@ -217,9 +217,9 @@ static double RunForcePIControl( double measuresList[ CONTROL_DIMS_NUMBER ], dou
 /////                        DEFAULT CONTROL FUNCTION                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunDefaultControl( double measuresList[ CONTROL_DIMS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
+static double RunDefaultControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
 {
-  return parametersList[ CONTROL_SETPOINT ];
+  return parametersList[ CONTROL_MEASURES_NUMBER ];
 }
 
 #endif  /* IMPEDANCE_CONTROL_H */

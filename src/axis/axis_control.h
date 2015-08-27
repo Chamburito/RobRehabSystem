@@ -108,7 +108,7 @@ static int InitController( const char* deviceName )
     
     newController->ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( configFileID, "control_function" ) );
     
-    newController->parameterCurvesList[ CONTROL_SETPOINT ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.setpoint" ) );
+    newController->parameterCurvesList[ AXIS_FORCE ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.setpoint" ) );
     newController->parameterCurvesList[ CONTROL_STIFFNESS ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.stiffness" ) );
     newController->parameterCurvesList[ CONTROL_DAMPING ] = Spline3Interp_LoadCurve( parser.GetStringValue( configFileID, "parameter_curves.damping" ) );
     
@@ -293,9 +293,9 @@ static inline void UpdateControlParameters( AxisController* controller )
   double* parametersList = (double*) controller->parametersList;
   Splined3Curve** parameterCurvesList = (Splined3Curve**) controller->parameterCurvesList;
   
-  parametersList[ CONTROL_SETPOINT ] = Spline3Interp_GetValue( parameterCurvesList[ CONTROL_SETPOINT ], controller->setpoint );
-  if( parametersList[ CONTROL_SETPOINT ] > controller->maxReach ) parametersList[ CONTROL_SETPOINT ] = controller->maxReach;
-  else if( parametersList[ CONTROL_SETPOINT ] < controller->minReach ) parametersList[ CONTROL_SETPOINT ] = controller->minReach;
+  parametersList[ AXIS_FORCE ] = Spline3Interp_GetValue( parameterCurvesList[ AXIS_FORCE ], controller->setpoint );
+  if( parametersList[ AXIS_FORCE ] > controller->maxReach ) parametersList[ AXIS_FORCE ] = controller->maxReach;
+  else if( parametersList[ AXIS_FORCE ] < controller->minReach ) parametersList[ AXIS_FORCE ] = controller->minReach;
   
   parametersList[ CONTROL_STIFFNESS ] = controller->maxStiffness * Spline3Interp_GetValue( parameterCurvesList[ CONTROL_STIFFNESS ], controller->setpoint );
   if( parametersList[ CONTROL_STIFFNESS ] > controller->maxStiffness ) parametersList[ CONTROL_STIFFNESS ] = controller->maxStiffness;

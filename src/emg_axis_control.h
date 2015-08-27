@@ -227,7 +227,7 @@ double* EMGAxisControl_ApplyGains( unsigned int axisID, double maxGain )
   jointMeasuresList[ JOINT_TORQUE ] = EMGAxisControl_GetTorque( axisID );
   jointMeasuresList[ JOINT_STIFFNESS ] = EMGAxisControl_GetStiffness( axisID );
   
-  //controlParametersList[ CONTROL_SETPOINT ] = motorParametersList[ CONTROL_SETPOINT ];
+  //controlParametersList[ AXIS_FORCE ] = motorParametersList[ AXIS_FORCE ];
   //controlParametersList[ CONTROL_STIFFNESS ] = forgettingFactor * motorParametersList[ CONTROL_STIFFNESS ] 
   //                                             + ( 1 - forgettingFactor ) * ( ( jointMeasuresList[ JOINT_STIFFNESS ] < maxGain ) ? maxGain - jointMeasuresList[ JOINT_STIFFNESS ] : 0.0 );
       

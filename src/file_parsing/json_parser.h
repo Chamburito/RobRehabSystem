@@ -81,7 +81,7 @@ static void CloseFile( int fileID )
   }
 }
 
-static inline const kson_node_t* GetValueNode( int fileID, const kson_node_t* currentNode, const char* path )
+static inline const kson_node_t* GetPathNode( int fileID, const kson_node_t* currentNode, const char* path )
 {
   if( !kh_exist( jsonFilesList, (khint_t) fileID ) ) return NULL;
   
@@ -102,7 +102,7 @@ static inline const kson_node_t* GetValueNode( int fileID, const kson_node_t* cu
 
 void SetBaseKey( int fileID, const char* path )
 {
-  const kson_node_t* baseNode = GetValueNode( fileID, kh_value( jsonFilesList, fileID ).nodeTree->root, path );
+  const kson_node_t* baseNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).nodeTree->root, path );
   
   if( baseNode != NULL )
     kh_value( jsonFilesList, fileID ).currentNode = baseNode;
@@ -110,7 +110,7 @@ void SetBaseKey( int fileID, const char* path )
 
 static char* GetStringValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetValueNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
   
   if( valueNode == NULL ) return NULL;
   
@@ -124,7 +124,7 @@ static char* GetStringValue( int fileID, const char* path )
 
 static long GetIntegerValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetValueNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
   
   if( valueNode == NULL ) return 0L;
   
@@ -137,7 +137,7 @@ static long GetIntegerValue( int fileID, const char* path )
 
 static double GetRealValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetValueNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
   
   if( valueNode == NULL ) return strtod( "NaN", NULL );
   
@@ -150,7 +150,7 @@ static double GetRealValue( int fileID, const char* path )
 
 static bool GetBooleanValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetValueNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
   
   if( valueNode == NULL ) return false;
   
@@ -163,20 +163,20 @@ static bool GetBooleanValue( int fileID, const char* path )
 
 static size_t GetListSize( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetValueNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* listNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
   
-  if( valueNode == NULL ) return 0;
+  if( listNode == NULL ) return 0;
   
-  if( valueNode->type != KSON_TYPE_BRACKET ) return 0;
+  if( listNode->type != KSON_TYPE_BRACKET ) return 0;
   
-  DEBUG_PRINT( "List %s size: %u", path, valueNode->n );
+  DEBUG_PRINT( "List %s size: %u", path, listNode->n );
   
-  return valueNode->n;
+  return listNode->n;
 }
 
 static bool HasKey( int fileID, const char* path )
 {
-  if( GetValueNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path ) != NULL ) return true;
+  if( GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path ) != NULL ) return true;
   
   return false;
 }

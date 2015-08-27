@@ -176,7 +176,7 @@ void RobRehabNetwork_Update()
 
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ] = controlMeasuresList[ CONTROL_POSITION ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = controlMeasuresList[ CONTROL_VELOCITY ];
-    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = /*targetList[ TRAJECTORY_POSITION ];*/controlParametersList[ CONTROL_SETPOINT ];
+    dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ] = /*targetList[ TRAJECTORY_POSITION ];*/controlParametersList[ AXIS_FORCE ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ] = controlMeasuresList[ CONTROL_ERROR ]; //Timing_GetExecTimeSeconds();
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ] = controlParametersList[ CONTROL_STIFFNESS ];
     dataArray[ valuesCount * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ] = controlMeasuresList[ CONTROL_FORCE ];
@@ -353,7 +353,7 @@ static int CVICALLBACK UpdateControlData( int index, void* ref_dataClient, void*
 
       sprintf( &messageOut[ strlen( messageOut ) ], "%u", deviceID );
 
-      for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
+      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_FORCE; dimensionIndex++ )
         sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
     }
   }
@@ -421,7 +421,7 @@ static char* ReadAxisControlData( unsigned int deviceID )
 {
   const size_t VALUE_MAX_LEN = 10;
   
-  static char readout[ VALUE_MAX_LEN * CONTROL_DIMS_NUMBER + 1 ];
+  static char readout[ VALUE_MAX_LEN * AXIS_FORCE + 1 ];
   
   double* controlMeasuresList = AESControl_GetMeasuresList( deviceID );
   if( controlMeasuresList != NULL )
@@ -429,7 +429,7 @@ static char* ReadAxisControlData( unsigned int deviceID )
     //double* jointMeasuresList = EMGAESControl_ApplyGains( deviceID, maxStiffness );
       
     strcpy( readout, "" );
-    for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
+    for( size_t dimensionIndex = 0; dimensionIndex < AXIS_FORCE; dimensionIndex++ )
       sprintf( &readout[ strlen( readout ) ], "%.3f ", controlMeasuresList[ dimensionIndex ] );
     readout[ strlen( readout ) - 1 ] = '\0';
   }

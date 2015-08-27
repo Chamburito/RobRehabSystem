@@ -11,7 +11,7 @@ typedef struct _AxisTypeData
 }
 AxisTypeData;
 
-static const AxisTypeData AXIS_TYPES_LIST[] = { { "CAN", &AxisCANEPOSMethods }, { "PCIDAQ", &AxisPCIDAQMethods } };
+static const AxisTypeData AXIS_TYPES_LIST[] = { { "CAN_EPOS", &AxisCANEPOSOperations }, { "PCI_DAQ", &AxisPCIDAQOperations } };
 static const size_t AXIS_TYPES_NUMBER = sizeof(AXIS_TYPES_LIST) / sizeof(AxisTypeData);
 
 static AxisInterface GetInterface( const char* typeName )

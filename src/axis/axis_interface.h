@@ -3,7 +3,7 @@
 
 enum AxisDimensions { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE, AXIS_DIMENSIONS_NUMBER };
 
-typedef struct _AxisMethods
+typedef struct _AxisOperations
 {  
   int (*Connect)( const char* );
   void (*Disconnect)( int );
@@ -15,8 +15,8 @@ typedef struct _AxisMethods
   bool (*ReadMeasures)( int, double[ AXIS_DIMENSIONS_NUMBER ] );
   void (*WriteControl)( int, double );
 }
-AxisMethods;
+AxisOperations;
 
-typedef AxisInterfaceMethods* AxisInterface;
+typedef AxisOperations* AxisInterface;
 
 #endif // AXIS_INTERFACE_H

@@ -50,7 +50,7 @@ int RobRehabNetwork_Init()
   
   shmNetworkAxesMap = kh_init( ShmNetAxis );
   
-  FileParserInterface parser = JSONParserInterface;
+  FileParser parser = JSONParser;
   int configFileID = parser.OpenFile( "shm_axis" );
   if( configFileID != -1 )
   {
@@ -147,7 +147,7 @@ void RobRehabNetwork_Update()
     
     double* controlParametersList = ShmAxisControl_GetParametersList( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
     double* targetsList = TrajectoryPlanner_GetTargetList( kh_value( shmNetworkAxesMap, shmNetworkAxisID ).trajectoryPlanner );
-    controlParametersList[ CONTROL_SETPOINT ] = targetsList[ TRAJECTORY_POSITION ];
+    controlParametersList[ AXIS_FORCE ] = targetsList[ TRAJECTORY_POSITION ];
     ShmAxisControl_SetParameters( kh_key( shmNetworkAxesMap, shmNetworkAxisID ) );
   }
 }
@@ -259,7 +259,7 @@ static int UpdateControlData( int clientID )
     
     if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
     sprintf( &messageOut[ strlen( messageOut ) ], "%u", shmNetworkAxisID );
-    for( size_t dimensionIndex = 0; dimensionIndex < CONTROL_DIMS_NUMBER; dimensionIndex++ )
+    for( size_t dimensionIndex = 0; dimensionIndex < AXIS_FORCE; dimensionIndex++ )
       sprintf( &messageOut[ strlen( messageOut ) ], " %f", measuresList[ dimensionIndex ] );
   }
   

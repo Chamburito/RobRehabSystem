@@ -26,7 +26,7 @@ SharedObject = { CreateByName, CreateByKey, Destroy };
 
 void* CreateByName( const char* mappingName , size_t objectSize, int flags )
 {
-  FILE* mappedFile = fopen( mappingName, "r+" );
+  struct FILE* mappedFile = fopen( mappingName, "r+" );
   fclose( mappedFile );
   
   key_t sharedKey = ftok( mappingName, 1 );

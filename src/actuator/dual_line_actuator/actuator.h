@@ -1,5 +1,5 @@
-#ifndef DLA_ACTUATOR_H
-#define DLA_ACTUATOR_H
+#ifndef DUAL_LINEAR_ACTUATOR_H
+#define DUAL_LINEAR_ACTUATOR_H
 
 #include "actuator_interface.h"
 #include "spline3_interpolation.h"
@@ -14,24 +14,15 @@
 
 enum { MOTOR_LEFT, MOTOR_RIGHT, MOTORS_NUMBER };
 
-typedef struct _MotorAxis
-{
-  AxisInterface interface;
-  int axisID;
-  double measureConversionFactor;
-}
-MotorAxis;
-
 typedef struct _Actuator
 {
-  MotorAxis motorsList[ MOTORS_NUMBER ];
+  Axis motorsList[ MOTORS_NUMBER ];
   double momentArm;
   double measuresList[ AXIS_DIMENSIONS_NUMBER ];
-  //SimpleKalmanFilter* positionFilter;
 }
 Actuator;
 
-KHASH_MAP_INIT_INT( DLA, Actuator );
+KHASH_MAP_INIT_INT( DLA, Actuator )
 static khash_t( DLA )* actuatorsList = NULL;
 
 static int Init( const char* );
@@ -46,43 +37,37 @@ static double GetMeasure( int, enum AxisDimensions );
 static void SetSetpoint( int, double );
 
 static inline Actuator* LoadActuatorData( const char* );
+static inline void UnloadActuatorData( Actuator* );
 
-const ActuatorMethods DLActuatorMethods = { .Init = Init, .End = End, .Enable = Enable, .Disable = Disable, .Reset = Reset, 
-                                            .IsEnabled = IsEnabled, .HasError = HasError, .ReadAxes = ReadAxes, .GetMeasure = GetMeasure, .SetSetpoint = SetSetpoint };
+const ActuatorOperations DLActuatorOperations = { .Init = Init, .End = End, .Enable = Enable, .Disable = Disable, .Reset = Reset, 
+                                                  .IsEnabled = IsEnabled, .HasError = HasError, .ReadAxes = ReadAxes, .GetMeasure = GetMeasure, .SetSetpoint = SetSetpoint };
                                          
 static int Init( const char* configKey )
 {
   DEBUG_PRINT( "trying to create dual linear actuator %s", configKey );
   
-  Actuator* ref_actuatorData = LoadActuatorData( configKey );
-  
-  if( ref_actuatorData == NULL ) return -1;
-  
-  if( ref_actuatorData->motorsList[ MOTOR_LEFT ].axisID == -1 || ref_actuatorData->motorsList[ MOTOR_RIGHT ].axisID == -1 )
-    return -1;
+  Actuator* ref_newActuatorData = LoadActuatorData( configKey ); 
+  if( ref_newActuatorData == NULL ) return -1;
   
   if( actuatorsList == NULL ) actuatorsList = kh_init( DLA );
   
   int insertionStatus;
-  khint_t actuatorID = kh_put( DLA, actuatorsList, kh_size( actuatorsList ), &insertionStatus );
-  
+  khint_t newActuatorID = kh_put( DLA, actuatorsList, kh_size( actuatorsList ), &insertionStatus );
   if( insertionStatus == -1 ) return -1;
   
-  Actuator* newActuator = &(kh_value( actuatorsList, actuatorID ));
+  Actuator* newActuator = &(kh_value( actuatorsList, newActuatorID ));
   
-  memcpy( newActuator, ref_actuatorData, sizeof(Actuator) );
+  memcpy( newActuator, ref_newActuatorData, sizeof(Actuator) );
+  UnloadActuatorData( ref_newActuatorData );
   
-  return (int) actuatorID;
+  return (int) newActuatorID;
 }
 
 static void End( int actuatorID )
 {
   if( kh_exist( actuatorsList, actuatorID ) )
   {
-    Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
-    
-    for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
-      actuator->motorsList[ motorIndex ].interface->Disconnect( actuator->motorsList[ motorIndex ].axisID );
+    UnloadActuatorData( &(kh_value( actuatorsList, actuatorID )); );
     
     kh_del( DLA, actuatorsList, actuatorID );
     
@@ -101,7 +86,7 @@ static void Enable( int actuatorID )
     Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
-      actuator->motorsList[ motorIndex ].interface->Enable( actuator->motorsList[ motorIndex ].axisID );
+      actuator->motorsList[ motorIndex ].interface->Enable( actuator->motorsList[ motorIndex ].ID );
   }
 }
 
@@ -112,7 +97,7 @@ static void Disable( int actuatorID )
     Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
-      actuator->motorsList[ motorIndex ].interface->Disable( actuator->motorsList[ motorIndex ].axisID );
+      actuator->motorsList[ motorIndex ].interface->Disable( actuator->motorsList[ motorIndex ].ID );
   }
 }
 
@@ -123,7 +108,7 @@ static void Reset( int actuatorID )
     Actuator* actuator = &(kh_value( actuatorsList, actuatorID ));
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
-      actuator->motorsList[ motorIndex ].interface->Reset( actuator->motorsList[ motorIndex ].axisID );
+      actuator->motorsList[ motorIndex ].interface->Reset( actuator->motorsList[ motorIndex ].ID );
   }
 }
 
@@ -135,7 +120,7 @@ static bool IsEnabled( int actuatorID )
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
     {
-      if( !( actuator->motorsList[ motorIndex ].interface->IsEnabled( actuator->motorsList[ motorIndex ].axisID ) ) )
+      if( !( actuator->motorsList[ motorIndex ].interface->IsEnabled( actuator->motorsList[ motorIndex ].ID ) ) )
         return false;
     }
     
@@ -153,7 +138,7 @@ static bool HasError( int actuatorID )
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
     {
-      if( actuator->motorsList[ motorIndex ].interface->HasError( actuator->motorsList[ motorIndex ].axisID ) )
+      if( actuator->motorsList[ motorIndex ].interface->HasError( actuator->motorsList[ motorIndex ].ID ) )
         return true;
     }
   }
@@ -183,9 +168,9 @@ static void SetSetpoint( int actuatorID, double setpointValue )
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
     {
-      double motorAxisSetpoint = ( setpointValue / ( 2.0 * actuator->momentArm ) ) / actuator->motorsList[ motorIndex ].measureConversionFactor;
+      double motorAxisSetpoint = ( setpointValue / ( 2.0 * actuator->momentArm ) ) / actuator->motorsList[ motorIndex ].gearConversionFactor;
       
-      actuator->motorsList[ motorIndex ].interface( actuator->motorsList[ motorIndex ].axisID, motorAxisSetpoint );
+      actuator->motorsList[ motorIndex ].interface->WriteControl( actuator->motorsList[ motorIndex ].ID, motorAxisSetpoint );
     }
   }
 }
@@ -202,9 +187,9 @@ static void ReadAxes( int actuatorID )
     
     for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
     {
-      actuator->motorsList[ motorIndex ].interface->ReadMeasures( actuator->motorsList[ motorIndex ].axisID, &(measuresTable[ motorIndex ]) );
-      resultingDisplacement+= measuresTable[ motorIndex ][ AXIS_POSITION ] * actuator->motorsList[ motorIndex ].measureConversionFactor;
-      resultingForce += measuresTable[ motorIndex ][ AXIS_FORCE ] * actuator->motorsList[ motorIndex ].measureConversionFactor;
+      actuator->motorsList[ motorIndex ].interface->ReadMeasures( actuator->motorsList[ motorIndex ].ID, &(measuresTable[ motorIndex ]) );
+      resultingDisplacement+= measuresTable[ motorIndex ][ AXIS_POSITION ] * actuator->motorsList[ motorIndex ].gearConversionFactor;
+      resultingForce += measuresTable[ motorIndex ][ AXIS_FORCE ] * actuator->motorsList[ motorIndex ].gearConversionFactor;
     }
     
     actuator->measuresList[ AXIS_POSITION ] = atan2( resultingDisplacement / 2.0, actuator->momentArm );
@@ -213,47 +198,64 @@ static void ReadAxes( int actuatorID )
 }
 
 
-const char* motorNames[ MOTORS_NUMBER ] = { "left", "right" };
-static inline Actuator* LoadActuatorData( const char* configKey )
+const char* MOTOR_NAMES[ MOTORS_NUMBER ] = { "left", "right" };
+static inline Actuator* LoadActuatorData( const char* configFileName )
 {
   static Actuator actuatorData;
   static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
   
+  bool loadError = false;
+  
   memset( &actuatorData, 0, sizeof(Actuator) );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( "dual_linear_actuators" );
+  int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
-    if( parser.HasKey( configKey ) )
+    for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
     {
-      for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
+      sprintf( searchPath, "motor_axes.%s", MOTOR_NAMES[ motorIndex ] );
+      parser.SetBaseKey( searchPath );
+      
+      if( (actuatorData.motorsList[ motorIndex ].interface = AxisTypes.GetInterface( parser.GetStringValue( "interface_type" ) )) != NULL )
       {
-        sprintf( searchPath, "%s.motor_axes.%s", configKey, motorNames[ motorIndex ] );
-        parser.SetBaseKey( searchPath );
-        
-        actuatorData.motorsList[ motorIndex ].interface = AxisTypes.GetInterface( parser.GetStringValue( "interface_type" ) );
-        
-        actuatorData.motorsList[ motorIndex ].axisID = actuatorData.motorsList[ motorIndex ].interface->Connect( parser.GetStringValue( "name" ) );
-        
-        double deviationAngle = parser.GetRealValue( "deviation_angle" );
-        double measureWeight = parser.GetRealValue( "measure_weight" );
-        actuatorData.motorsList[ motorIndex ].measureConversionFactor = cos( deviationAngle ) * measureWeight;
+        actuatorData.motorsList[ motorIndex ].ID = actuatorData.motorsList[ motorIndex ].interface->Connect( parser.GetStringValue( "name" ) );
+        if( actuatorData.motorsList[ motorIndex ].ID == -1 ) loadError = true;
       }
+      else loadError = true;
       
-      parser.SetBaseKey( configKey );
-      actuatorData.momentArm = parser.GetRealValue( "moment_arm" );
-      
-      return &actuatorData;
+      double deviationAngle = parser.GetRealValue( "deviation_angle" );
+      double measureWeight = parser.GetRealValue( "measure_weight" );
+      if( (actuatorData.motorsList[ motorIndex ].gearConversionFactor = cos( deviationAngle ) * measureWeight) == 0.0 ) loadError = true;
     }
-    else
-    {
-      DEBUG_PRINT( "configuration for dual linear actuator %s not found in configuration file", configKey );
-      return NULL;
-    }
+    
+    parser.SetBaseKey( "" );
+    if( (actuatorData.momentArm = parser.GetRealValue( "moment_arm" )) == 0.0 ) loadError = true;
+    
+    parser.CloseFile( configFileID );
   }
   
-  return NULL;
+  DEBUG_PRINT( "configuration file for dual linear actuator %s not found", configFileName );
+  
+  if( loadError )
+  {
+    UnloadActuatorData( &actuatorData );
+    return NULL;
+  }
+      
+  return &actuatorData;
 }
 
-#endif // DLA_ACTUATOR_H
+static inline void UnloadActuatorData( Actuator* actuator )
+{
+  if( actuator != NULL )
+  {
+    for( size_t motorIndex = 0; motorIndex < MOTORS_NUMBER; motorIndex++ )
+    {
+      if( actuator->motorsList[ motorIndex ].interface != NULL ) 
+        actuator->motorsList[ motorIndex ].interface->Disconnect( actuator->motorsList[ motorIndex ].ID );
+    }
+  }
+}
+
+#endif // DUAL_LINEAR_ACTUATOR_H
