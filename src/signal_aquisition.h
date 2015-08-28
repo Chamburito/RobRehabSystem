@@ -3,7 +3,7 @@
 
 #include <NIDAQmx.h>
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 TaskHandle signalReadTask;
 

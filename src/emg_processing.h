@@ -4,17 +4,16 @@
 #include <math.h>
 #include <stdbool.h>
 
-#ifdef _CVI_
-  #include "signal_aquisition_cvi.h"
-#elif
-  #include "signal_aquisition_ttl.h"
-#endif
+#include "signal_aquisition.h"
 
-#include "async_debug.h"
+#include "klib/khash.h"
+#include "file_parsing/json_parser.h"
+
+#include "debug/async_debug.h"
 
 Thread_Handle emgThreadID;
 
-enum { EMG_ACTIVATION_PHASE, EMG_RELAXATION_PHASE, EMG_CONTRACTION_PHASE, EMG_PROCESSING_PHASES_NUMBER };
+enum EMGProccessPhase { EMG_ACTIVATION_PHASE, EMG_RELAXATION_PHASE, EMG_CONTRACTION_PHASE, EMG_PROCESSING_PHASES_NUMBER };
 
 const size_t AQUISITION_BUFFER_LEN = 10;
 const size_t OLD_SAMPLES_BUFFER_LEN = 100;
@@ -59,16 +58,54 @@ typedef struct _MuscleProperties
 }
 MuscleProperties;
 
-static MuscleProperties* musclePropertiesList = NULL;
-static size_t musclesNumber = 0;
+KHASH_MAP_INIT_INT( Muscle, MuscleProperties )
+static khash_t(MuscleProperties)* musclePropertiesList = NULL;
 
-static void LoadMusclesProperties()
+static int Init( const char* );
+static void End( int );
+static double GetActivation( int );
+static double GetMuscleForce( int );
+static void ChangePhase( int, enum EMGProccessPhase );
+
+const struct
 {
-  char readBuffer[ 64 ];
+  int (*Init)( const char* );
+  int (*End)( const char* );
+  double (*GetActivation)( int );
+  double (*GetMuscleForce)( int );
+  void (*ChangePhase)( int, enum EMGProccessPhase );
+}
+EMGSensor = { .Init = Init, .End = End, .GetActivation = GetActivation, .GetMuscleForce = GetMuscleForce, .ChangePhase = ChangePhase };
+
+static MuscleProperties* LoadMuscleData( const char* );
+static void UnloadMuscleData( MuscleProperties* );
+
+static void* AsyncUpdate( void* );
+static double* GetFilteredSignal( EMGData* );
+
+static MuscleProperties* LoadMuscleData( const char* configFileName )
+{
+  DEBUG_PRINT( "Trying to load muscle %s EMG sensor data", configFileName );
   
-  MuscleProperties* newMuscleProperties = NULL;
+  static MuscleProperties musclePropertiesData;
   
-  FILE* configFile = fopen( "../config/muscles_properties.txt", "r" );
+  bool loadError = false;
+  
+  memset( &musclePropertiesData, 0, sizeof(musclePropertiesData) );
+  
+  FileParser parser = JSONParser;
+  int configFileID = parser.OpenFile( configFileName );
+  if( configFileID != -1 )
+  {
+    
+    parser.CloseFile( configFileID );
+  }
+  {
+    DEBUG_PRINT( "configuration for muscle %s EMG sensor not found", configFileName );
+    loadError = true;
+  }
+  
+  struct FILE* configFile = fopen( "../config/muscles_properties.txt", "r" );
   if( configFile != NULL ) 
   {
     while( fscanf( configFile, "%s", readBuffer ) != EOF )

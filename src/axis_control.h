@@ -9,11 +9,10 @@
 #include "file_parsing/json_parser.h"
 #include "klib/khash.h"
 
-#include "async_debug.h"
-
 #include "filters.h"
 
-#include "data_logging.h"
+#include "debug/async_debug.h"
+#include "debug/data_logging.h"
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                            CONTROL DEVICES                            /////

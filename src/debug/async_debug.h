@@ -9,19 +9,19 @@
 #include <stdarg.h>
 
 #ifdef _LINK_CVI_LVRT_
-  #include "timing_realtime.h"
+  #include "time/timing_realtime.h"
 #elif WIN32
-  #include "timing_windows.h"
+  #include "time/timing_windows.h"
 #else
-  #include "timing_unix.h"
+  #include "time/timing_unix.h"
 #endif
 
 #ifdef _CVI_
-  #include "threads_realtime.h"
+  #include "threads/threads_realtime.h"
 #elif WIN32
-  #include "threads_windows.h"
+  #include "threads/threads_windows.h"
 #else
-  #include "threads_unix.h"
+  #include "threads/threads_unix.h"
 #endif
 
 #include "debug.h" 

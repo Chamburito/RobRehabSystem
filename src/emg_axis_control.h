@@ -1,7 +1,7 @@
 #ifndef EMG_JOINT_CONTROL_H
 #define EMG_JOINT_CONTROL_H
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 #include "axis_control.h"
 #include "emg_processing.h"
