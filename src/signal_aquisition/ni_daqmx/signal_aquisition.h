@@ -1,7 +1,9 @@
-#ifndef SIGNAL_AQUISITION_H
-#define SIGNAL_AQUISITION_H
+#ifndef SIGNAL_AQUISITION_NI_DAQMX_H
+#define SIGNAL_AQUISITION_NI_DAQMX_H
 
 #include <NIDAQmx.h>
+
+#include "signal_aquisition/signal_aquisition_interface.h"
 
 #include "debug/async_debug.h"
 
@@ -26,14 +28,7 @@ static void EndTask( int );
 static double* Read( int, unsigned int );
 static size_t GetChannelsNumber( int );
 
-const struct
-{
-  int (*InitTask)( const char*, size_t );
-  void (*EndTask)( int );
-  double* (*Read)( int, unsigned int );
-  size_t (*GetChannelsNumber)( int );
-}
-SignalAquisition = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, .GetChannelsNumber = GetChannelsNumber };
+const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, .GetChannelsNumber = GetChannelsNumber };
 
 static void* AsyncReadBuffer( void* );
 
@@ -159,4 +154,4 @@ static void* AsyncReadBuffer( void* callbackData )
   return NULL;
 }
 
-#endif // SIGNAL_AQUISITION_H
+#endif // SIGNAL_AQUISITION_NI_DAQMX_H
