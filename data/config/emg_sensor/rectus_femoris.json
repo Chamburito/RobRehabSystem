@@ -1,0 +1,38 @@
+{
+  "task": "EMGReadTask",
+  "channel": 0,
+  "muscle_properties": {
+    "curves": {
+      "active_force": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "passive_force": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "moment_arm": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "normalized_length": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "penation_angle": 0,
+  "scale_factor": 0
+}
