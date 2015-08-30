@@ -10,7 +10,7 @@ typedef struct _SignalAquisitionType
 }
 SignalAquisitionType;
 
-const SignalAquisitionType SIGNAL_AQUISITION_TYPES_LIST = { { "NIDAQmx", &NIDAQmxOperations } };
+const SignalAquisitionType SIGNAL_AQUISITION_TYPES_LIST[] = { { "NIDAQmx", &NIDAQmxOperations } };
 
 const size_t SIGNAL_AQUISITION_TYPES_NUMBER = sizeof(SIGNAL_AQUISITION_TYPES_LIST) / sizeof(SignalAquisitionType);
 

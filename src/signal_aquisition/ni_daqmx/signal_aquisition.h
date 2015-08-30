@@ -5,7 +5,11 @@
 
 #include "signal_aquisition/signal_aquisition_interface.h"
 
+#include "klib/khash.h"
+
 #include "debug/async_debug.h"
+
+static const size_t AQUISITION_BUFFER_LENGTH = 10;
 
 typedef struct _SignalAquisitionTask
 {
@@ -13,26 +17,28 @@ typedef struct _SignalAquisitionTask
   Thread_Handle threadID;
   ThreadLock threadLock;
   bool isReading;
-  static uInt32 channelsNumber;
-  static size_t aquisitionSamplesNumber;
-  static float64* samplesList;
-  static float64** samplesTable;
+  uInt32 channelsNumber;
+  float64* samplesList;
+  float64** samplesTable;
+  int32* aquiredSamplesCountList;
 }
 SignalAquisitionTask;
 
 KHASH_MAP_INIT_INT( Task, SignalAquisitionTask )
-static khash_t( Task ) tasksList = NULL;
+static khash_t( Task )* tasksList = NULL;
 
 static int InitTask( const char*, size_t );
 static void EndTask( int );
 static double* Read( int, unsigned int );
 static size_t GetChannelsNumber( int );
+static size_t GetMaxSamplesNumber( int );
 
-const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, .GetChannelsNumber = GetChannelsNumber };
+const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, 
+                                                       .GetChannelsNumber = GetChannelsNumber, .GetMaxSamplesNumber = GetMaxSamplesNumber };
 
 static void* AsyncReadBuffer( void* );
 
-static int InitTask( const char* configFileName, size_t aquisitionSamplesNumber )
+static int InitTask( const char* configFileName )
 {
   static SignalAquisitionTask newTaskData;
   
@@ -44,10 +50,9 @@ static int InitTask( const char* configFileName, size_t aquisitionSamplesNumber 
   
   DEBUG_PRINT( "%u signal channels found", newTaskData.channelsNumber );
   
-  newTaskData.aquisitionSamplesNumber = aquisitionSamplesNumber;
-  
-  newTaskData.samplesList = (float64*) calloc( newTaskData.channelsNumber * newTaskData.aquisitionSamplesNumber, sizeof(float64) );
+  newTaskData.samplesList = (float64*) calloc( newTaskData.channelsNumber * AQUISITION_BUFFER_LENGTH, sizeof(float64) );
   newTaskData.samplesTable = (float64**) calloc( newTaskData.channelsNumber, sizeof(float64*) );
+  newTaskData.aquiredSamplesCountList = (int32*) calloc( newTaskData.channelsNumber, sizeof(int32) );
   
   newTaskData.threadLock = ThreadLock_Create();
   
@@ -85,6 +90,7 @@ static void EndTask( int taskID )
   
   free( task->samplesList );
   free( task->samplesTable );
+  free( task->aquiredSamplesCountList );
   
   kh_del( Task, tasksList, (khint_t) taskID );
   
@@ -95,7 +101,7 @@ static void EndTask( int taskID )
   }
 }
 
-static double* Read( int taskID, unsigned int channel )
+static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return NULL;
   
@@ -109,6 +115,9 @@ static double* Read( int taskID, unsigned int channel )
     
   double* aquiredSamplesList = (double*) task->samplesTable[ channel ];
   task->samplesTable[ channel ] = NULL;
+  
+  *ref_aquiredSamplesCount = (size_t) task->aquiredSamplesCountList[ channel ];
+  task->aquiredSamplesCountList[ channel ] = 0;
     
   ThreadLock_Release( task->threadLock );
   
@@ -122,22 +131,30 @@ static size_t GetChannelsNumber( int taskID )
   return (size_t) kh_value( tasksList, (khint_t) taskID ).channelsNumber;
 }
 
+static size_t GetMaxSamplesNumber( int taskID )
+{
+  if( !kh_exist( tasksList, (khint_t) taskID ) ) return 0;
+  
+  return AQUISITION_BUFFER_LENGTH;
+}
+
+
 static void* AsyncReadBuffer( void* callbackData )
 {
   SignalAquisitionTask* task = (SignalAquisitionTask*) callbackData;
   
-  int32 aquiredSamplesNumber;
+  int32 aquiredSamplesCount;
   
   while( task->isReading )
   {
-    int errorCode = DAQmxReadAnalogF64( task->handle, task->aquisitionSamplesNumber, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
-                                        task->samplesList, task->channelsNumber * task->aquisitionSamplesNumber, &aquiredSamplesNumber, NULL );
+    int errorCode = DAQmxReadAnalogF64( task->handle, AQUISITION_BUFFER_LENGTH, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
+                                        task->samplesList, task->channelsNumber * AQUISITION_BUFFER_LENGTH, &aquiredSamplesCount, NULL );
 
     if( errorCode < 0 )
     {
       static char errorMessage[ DEBUG_MESSAGE_LENGTH ];
       DAQmxGetErrorString( errorCode, errorMessage, DEBUG_MESSAGE_LENGTH );
-      ERROR_EVENT( "error aquiring EMG data: %s", errorMessage );
+      ERROR_EVENT( "error aquiring analog signal: %s", errorMessage );
     
       break;
     }
@@ -145,7 +162,10 @@ static void* AsyncReadBuffer( void* callbackData )
     ThreadLock_Aquire( task->threadLock );
     
     for( size_t channel = 0; channel < task->channelsNumber; channel++ )
-      task->samplesTable[ channel ] = task->samplesList + channel * aquiredSamplesNumber;
+    {
+      task->samplesTable[ channel ] = task->samplesList + channel * aquiredSamplesCount;
+      task->aquiredSamplesCountList[ channel ] = aquiredSamplesCount;
+    }
     
     ThreadLock_Release( task->threadLock );
   }

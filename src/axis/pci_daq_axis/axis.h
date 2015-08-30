@@ -40,8 +40,6 @@
 
 #define PCI_ENCODER_COUNT_LIMIT ( 1 << 24 )
 
-static const uint8_t operationModes[ AXIS_DIMENSIONS_NUMBER ] = { 0xFF, 0xFE };
-
 typedef struct _PCIDAQInterface
 {
   int daqBoardID;
@@ -60,7 +58,7 @@ static struct
 {
   int analogInputHandle, analogOutputHandle;
   static uint16_t* analogReadBuffer;
-  static size_t usedChannelsCount = 0;
+  static size_t usedChannelsCount;
   static size_t analogInputChannelsNumber;
   static DWORD analogWriteBuffer;
 }

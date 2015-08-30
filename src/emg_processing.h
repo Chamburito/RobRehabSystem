@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-#include "signal_aquisition.h"
+#include "signal_aquisition/signal_aquisition_types.h"
 
 #include "klib/khash.h"
 #include "file_parsing/json_parser.h"
@@ -13,23 +13,20 @@
 
 enum EMGProcessPhase { EMG_ACTIVATION_PHASE, EMG_RELAXATION_PHASE, EMG_CONTRACTION_PHASE, EMG_PROCESSING_PHASES_NUMBER };
 
-const size_t AQUISITION_BUFFER_LEN = 10;
 const size_t OLD_SAMPLES_BUFFER_LEN = 100;
-const size_t HISTORY_BUFFER_LEN = OLD_SAMPLES_BUFFER_LEN + AQUISITION_BUFFER_LEN;
 
 const size_t FILTER_ORDER = 3;
 const double filter_A[ FILTER_ORDER ] = { 1.0, -1.9964, 0.9965 };
 const double filter_B[ FILTER_ORDER ] = { 1.576e-6, 3.153e-6, 1.576e-6 };
-
 const int FILTER_EXTRA_SAMPLES_NUMBER = FILTER_ORDER - 1;
-const int FILTER_BUFFER_LEN = FILTER_EXTRA_SAMPLES_NUMBER + AQUISITION_BUFFER_LEN;
 
 typedef struct _EMGData
 {
-  double samplesBuffer[ HISTORY_BUFFER_LEN ];
-  size_t samplesBufferStartIndex;
-  double rectifiedBuffer[ FILTER_BUFFER_LEN ];
-  double filteredBuffer[ FILTER_BUFFER_LEN ];
+  double* samplesBuffer;
+  size_t samplesBufferLength, samplesBufferStartIndex;
+  double* filteredSamplesBuffer;
+  double* rectifiedSamplesBuffer;
+  size_t filteredSamplesBufferLength;
   unsigned int processingPhase;
   double processingResultsList[ EMG_PROCESSING_PHASES_NUMBER ];
   unsigned int preparationPassesCount;
@@ -50,6 +47,7 @@ MuscleProperties;
 
 typedef struct _EMGSensor
 {
+  SignalAquisitionInterface interface;
   int taskID;
   unsigned int channel;
   EMGData emgData;
@@ -57,7 +55,7 @@ typedef struct _EMGSensor
 }
 EMGSensor;
 
-KHASH_MAP_INIT_INT( EMG, EMGSensor )
+KHASH_MAP_INIT_STR( EMG, EMGSensor )
 static khash_t( EMG )* emgSensorsList = NULL;
 
 Thread_Handle emgThreadID;
@@ -81,7 +79,7 @@ const struct
 EMGProcessing = { .InitSensor = InitSensor, .EndSensor = EndSensor, .GetActivation = GetActivation, .GetMuscleTorque = GetMuscleTorque, .ChangePhase = ChangePhase };
 
 static void* AsyncUpdate( void* );
-static double* GetFilteredSignal( EMGSensor* );
+static double* GetFilteredSignal( EMGSensor*, size_t* );
 
 static EMGSensor* LoadEMGSensorData( const char* );
 static void UnloadEMGSensorData( EMGSensor* );
@@ -102,8 +100,12 @@ int InitSensor( const char* configFileName )
   }
   
   int insertionStatus;
-  khint_t newSensorID = kh_put( EMG, emgSensorsList, (int) configFileName, &insertionStatus );
-  if( insertionStatus == -1 ) return -1;
+  khint_t newSensorID = kh_put( EMG, emgSensorsList, configFileName, &insertionStatus );
+  if( insertionStatus == -1 )
+  {
+    UnloadEMGSensorData( ref_newSensorData );
+    return -1;
+  }
   
   EMGSensor* newSensor = &(kh_value( emgSensorsList, newSensorID ));
   
@@ -125,8 +127,11 @@ void EndSensor( int sensorID )
     
     ThreadLock_Discard( phasePassCountLock );
     
-    kh_destroy( EMG, emgSensorsList );
-    emgSensorsList = NULL;
+    if( emgSensorsList != NULL )
+    {
+      kh_destroy( EMG, emgSensorsList );
+      emgSensorsList = NULL;
+    }
   }
 }
 
@@ -156,10 +161,6 @@ double GetMuscleTorque( int sensorID, double jointAngle )
   }
   
   penationAngle = asin( sin( sensor->muscleProperties.initialPenationAngle ) / measuresList[ NORM_LENGTH ] );
-  
-  //if( muscleProperties->processingPhase == EMG_ACTIVATION_PHASE )
-  //  DEBUG_PRINT( "theta: %lf - active force: %lf - passive force: %lf - moment arm: %lf - normalized length: %lf - penation angle: %lf",
-  //               jointAngle, measuresList[ ACTIVE_FORCE ], measuresList[ PASSIVE_FORCE ], measuresList[ MOMENT_ARM ], measuresList[ NORM_LENGTH ], penationAngle );
   
   double resultingForce = sensor->muscleProperties.scaleFactor * cos( penationAngle )
                           * ( measuresList[ ACTIVE_FORCE ] * sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ] + measuresList[ PASSIVE_FORCE ] );
@@ -201,56 +202,56 @@ void ChangePhase( int sensorID, int newProcessingPhase )
 
 
 
-static double* GetFilteredSignal( EMGSensor* sensor )
+static double* GetFilteredSignal( EMGSensor* sensor, size_t* ref_aquiredSamplesCount )
 {
   const double DATA_AQUISITION_SCALE_FACTOR = 909.0;
   
-  static double newFilteredSamplesList[ AQUISITION_BUFFER_LEN ];
-  
-  double* newSamplesList = SignalAquisition.Read( sensor->taskID, sensor->channel );
+  size_t aquiredSamplesCount;
+  double* newSamplesList = sensor->interface->Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
   
   EMGData* data = &(sensor->emgData);
+  size_t samplesBufferLength = sensor->emgData.samplesBufferLength;
+  size_t filteredSamplesBufferLength = sensor->emgData.filteredSamplesBufferLength;
   
   if( newSamplesList != NULL ) 
   {
     size_t oldSamplesBufferStart = data->samplesBufferStartIndex;
     size_t newSamplesBufferStart = oldSamplesBufferStart + OLD_SAMPLES_BUFFER_LEN;
-    for( int newSampleIndex = 0; newSampleIndex < AQUISITION_BUFFER_LEN; newSampleIndex++ )
-      data->samplesBuffer[ ( newSamplesBufferStart + newSampleIndex ) % HISTORY_BUFFER_LEN ] = newSamplesList[ newSampleIndex ] / DATA_AQUISITION_SCALE_FACTOR;
+    for( int newSampleIndex = 0; newSampleIndex < aquiredSamplesCount; newSampleIndex++ )
+      data->samplesBuffer[ ( newSamplesBufferStart + newSampleIndex ) % samplesBufferLength ] = newSamplesList[ newSampleIndex ] / DATA_AQUISITION_SCALE_FACTOR;
     
     static double previousSamplesMean;
-    for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
+    for( int sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
     {
       previousSamplesMean = 0.0;
       for( int previousSampleIndex = oldSamplesBufferStart + sampleIndex; previousSampleIndex < newSamplesBufferStart + sampleIndex; previousSampleIndex++ )
-        previousSamplesMean += data->samplesBuffer[ previousSampleIndex % HISTORY_BUFFER_LEN ] / OLD_SAMPLES_BUFFER_LEN;
+        previousSamplesMean += data->samplesBuffer[ previousSampleIndex % samplesBufferLength ] / OLD_SAMPLES_BUFFER_LEN;
 
-      data->rectifiedBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] = fabs( data->samplesBuffer[ ( newSamplesBufferStart + sampleIndex ) % HISTORY_BUFFER_LEN ] - previousSamplesMean );
+      data->rectifiedSamplesBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] = fabs( data->samplesBuffer[ ( newSamplesBufferStart + sampleIndex ) % samplesBufferLength ] - previousSamplesMean );
     }
     
-    for( int sampleIndex = FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < FILTER_BUFFER_LEN; sampleIndex++ )
+    for( int sampleIndex = FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < filteredSamplesBufferLength; sampleIndex++ )
     {
-      data->filteredBuffer[ sampleIndex ] = 0.0;
+      data->filteredSamplesBuffer[ sampleIndex ] = 0.0;
       for( int factorIndex = 0; factorIndex < FILTER_ORDER; factorIndex++ )
       {
-        data->filteredBuffer[ sampleIndex ] -= filter_A[ factorIndex ] * data->filteredBuffer[ sampleIndex - factorIndex ];
-        data->filteredBuffer[ sampleIndex ] += filter_B[ factorIndex ] * data->rectifiedBuffer[ sampleIndex - factorIndex ];
+        data->filteredSamplesBuffer[ sampleIndex ] -= filter_A[ factorIndex ] * data->filteredSamplesBuffer[ sampleIndex - factorIndex ];
+        data->filteredSamplesBuffer[ sampleIndex ] += filter_B[ factorIndex ] * data->rectifiedSamplesBuffer[ sampleIndex - factorIndex ];
       }
-      if( data->filteredBuffer[ sampleIndex ] < 0.0 ) data->filteredBuffer[ sampleIndex ] = 0.0;
+      if( data->filteredSamplesBuffer[ sampleIndex ] < 0.0 ) data->filteredSamplesBuffer[ sampleIndex ] = 0.0;
     }
     
     for( int sampleIndex = 0; sampleIndex < FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex++ )
     {
-      data->filteredBuffer[ sampleIndex ] = data->filteredBuffer[ AQUISITION_BUFFER_LEN + sampleIndex ];
-      data->rectifiedBuffer[ sampleIndex ] = data->rectifiedBuffer[ AQUISITION_BUFFER_LEN + sampleIndex ];
+      data->filteredSamplesBuffer[ sampleIndex ] = data->filteredSamplesBuffer[ aquiredSamplesCount + sampleIndex ];
+      data->rectifiedSamplesBuffer[ sampleIndex ] = data->rectifiedSamplesBuffer[ aquiredSamplesCount + sampleIndex ];
     }
 
-    for( int sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
-      newFilteredSamplesList[ sampleIndex ] = data->filteredBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ];
+    data->samplesBufferStartIndex += aquiredSamplesCount;
+    
+    *ref_aquiredSamplesCount = aquiredSamplesCount;
 
-    data->samplesBufferStartIndex += AQUISITION_BUFFER_LEN;
-
-    return (double*) newFilteredSamplesList;
+    return ( data->filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
   }
   
   return NULL;
@@ -266,7 +267,8 @@ static void* AsyncUpdate( void* data )
       
       EMGSensor* sensor = &(kh_value( emgSensorsList, sensorID ));
 
-      double* filteredSamplesList = GetFilteredSignal( sensor );
+      size_t aquiredSamplesCount;
+      double* filteredSamplesList = GetFilteredSignal( sensor, &aquiredSamplesCount );
       
       EMGData* data = &(sensor->emgData);
       
@@ -274,10 +276,10 @@ static void* AsyncUpdate( void* data )
       {
         if( data->processingPhase == EMG_RELAXATION_PHASE || data->processingPhase == EMG_CONTRACTION_PHASE )
         {
-          //DEBUG_PRINT( "adding emg filtered: %g", filteredSamplesList[ 0 ] / AQUISITION_BUFFER_LEN );
-;
-          for( size_t sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
-            data->processingResultsList[ data->processingPhase ] += ( filteredSamplesList[ sampleIndex ] / AQUISITION_BUFFER_LEN );
+          //DEBUG_PRINT( "adding emg filtered: %g", filteredSamplesList[ 0 ] / aquiredSamplesCount );
+
+          for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
+            data->processingResultsList[ data->processingPhase ] += ( filteredSamplesList[ sampleIndex ] / aquiredSamplesCount );
           
           //DEBUG_PRINT( "emg sum: %g", emgData->processingResultsList[ emgData->processingPhase ] );
 
@@ -289,7 +291,7 @@ static void* AsyncUpdate( void* data )
         {
           static double normalizedSample;
           
-          for( size_t sampleIndex = 0; sampleIndex < AQUISITION_BUFFER_LEN; sampleIndex++ )
+          for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
           {
             normalizedSample = 0.0;
 
@@ -301,13 +303,7 @@ static void* AsyncUpdate( void* data )
             else if( normalizedSample < 0.0 ) normalizedSample = 0.0;
 
             data->processingResultsList[ EMG_ACTIVATION_PHASE ] = ( exp( -2 * normalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
-
-            //if( channel == 0 && sampleIndex == 0 && channelNormalizedSamplesList[ sampleIndex ] > 0.0 )
-            //  DEBUG_PRINT( "emg norm: %g - activ: %g", channelNormalizedSamplesList[ sampleIndex ], channelActivationsList[ sampleIndex ] );
           }
-          
-          //DEBUG_PRINT( "emg: (%g - %g)/(%g - %g) = %g", filteredSamplesList[ 0 ], emgData->processingResultsList[ EMG_RELAXATION_PHASE ],
-          //                                              emgData->processingResultsList[ EMG_CONTRACTION_PHASE ], emgData->processingResultsList[ EMG_RELAXATION_PHASE ], normalizedSample );
         }
       }
     }
@@ -334,9 +330,28 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
   int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
-    emgSensorData.taskID = SignalAquisition.InitTask( parser.GetStringValue( "interface" ), AQUISITION_BUFFER_LEN );
-    if( emgSensorData.taskID == -1 ) loadError = true;
-    emgSensorData.channel = parser.GetIntegerValue( "channel" );
+    if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( "interface.type" ) )) != NULL )
+    {
+      emgSensorData.taskID = emgSensorData.interface->InitTask( parser.GetStringValue( "interface.task" ) );
+      if( emgSensorData.taskID != -1 ) 
+      {
+        size_t newSamplesBufferMaxLength = emgSensorData.interface->GetMaxSamplesNumber( emgSensorData.taskID );
+        if( newSamplesBufferMaxLength > 0 )
+        {
+          emgSensorData.emgData.samplesBufferLength = newSamplesBufferMaxLength + OLD_SAMPLES_BUFFER_LEN;
+          emgSensorData.emgData.samplesBuffer = (double*) calloc( emgSensorData.emgData.samplesBufferLength, sizeof(double) );
+          emgSensorData.emgData.filteredSamplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
+          emgSensorData.emgData.filteredSamplesBuffer = (double*) calloc( emgSensorData.emgData.filteredSamplesBufferLength, sizeof(double) );
+          emgSensorData.emgData.rectifiedSamplesBuffer = (double*) calloc( emgSensorData.emgData.filteredSamplesBufferLength, sizeof(double) );
+        }
+        else loadError = true;
+      }
+      else loadError = true;
+    }
+    else loadError = true;
+    
+    emgSensorData.channel = parser.GetIntegerValue( "interface.channel" );
+    if( emgSensorData.channel >= emgSensorData.interface->GetChannelsNumber( emgSensorData.taskID ) ) loadError = true;
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
     {
@@ -371,7 +386,11 @@ void UnloadEMGSensorData( EMGSensor* sensor )
 {
   if( sensor == NULL ) return;
   
-  SignalAquisition.EndTask( sensor->taskID );
+  free( sensor->emgData.samplesBuffer );
+  free( sensor->emgData.filteredSamplesBuffer );
+  free( sensor->emgData.rectifiedSamplesBuffer );
+  
+  sensor->interface->EndTask( sensor->taskID );
 }
 
 
