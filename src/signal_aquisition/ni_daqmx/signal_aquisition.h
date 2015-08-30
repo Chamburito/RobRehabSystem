@@ -1,7 +1,9 @@
 #ifndef SIGNAL_AQUISITION_NI_DAQMX_H
 #define SIGNAL_AQUISITION_NI_DAQMX_H
 
-#include <NIDAQmx.h>
+#ifdef __CVI__
+  #include <NIDAQmx.h>
+#endif
 
 #include "signal_aquisition/signal_aquisition_interface.h"
 
@@ -29,14 +31,17 @@ static khash_t( Task )* tasksList = NULL;
 
 static int InitTask( const char*, size_t );
 static void EndTask( int );
-static double* Read( int, unsigned int );
+static double* Read( int, unsigned int, size_t* );
 static size_t GetChannelsNumber( int );
 static size_t GetMaxSamplesNumber( int );
 
 const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, 
                                                        .GetChannelsNumber = GetChannelsNumber, .GetMaxSamplesNumber = GetMaxSamplesNumber };
-
+#ifdef __CVI__
 static void* AsyncReadBuffer( void* );
+
+static SignalAquisitionTask* LoadTaskData( const char* );
+static void UnloadTaskData( SignalAquisitionTask* );
 
 static int InitTask( const char* configFileName )
 {
@@ -173,5 +178,7 @@ static void* AsyncReadBuffer( void* callbackData )
   Thread_Exit( 0 );
   return NULL;
 }
+#endif
+
 
 #endif // SIGNAL_AQUISITION_NI_DAQMX_H

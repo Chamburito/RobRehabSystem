@@ -1,7 +1,9 @@
 {
-  "interface": "NIDAQmx",
-  "task": "EMGReadTask",
-  "channel": 0,
+  "aquisition_system": {
+    "type": "NIDAQmx",
+    "task": "EMGReadTask",
+    "channel": 0
+  },
   "muscle_properties": {
     "curves": {
       "active_force": [

@@ -12,12 +12,19 @@
 
 #include "debug/async_debug.h"
 
+static const int DAQ_ACQUIRE = 1;
+static const int DAQ_RELEASE = 0;
+static const int PDAQ_ENABLE = 1;
+static const int PDAQ_DISABLE = 0;
+
 typedef struct _SignalAquisitionTask
 {
+  int handle;
   Thread_Handle threadID;
   ThreadLock threadLock;
   bool isReading;
   size_t channelsNumber;
+  bool* channelAvailableList;
   size_t aquisitionSamplesNumber;
   double* samplesList;
   double** samplesTable;
@@ -30,7 +37,7 @@ static khash_t( Task )* tasksList = NULL;
 
 static int InitTask( const char*, size_t );
 static void EndTask( int );
-static double* Read( int, unsigned int );
+static double* Read( int, unsigned int, size_t* );
 static size_t GetChannelsNumber( int );
 static size_t GetMaxSamplesNumber( int );
 
@@ -39,27 +46,28 @@ const SignalAquisitionOperations PowerDAQOperations = { .InitTask = InitTask, .E
 
 static void* AsyncReadBuffer( void* );
 
-static SignalAquisitionTask* LoadTaskData( const char*, size_t );
+static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
-static int InitTask( const char* configFileName, size_t aquisitionSamplesNumber )
+static int InitTask( const char* configFileName )
 {
-  SignalAquisitionTask* ref_newTaskData = LoadTaskData( configFileName, aquisitionSamplesNumber );
+  SignalAquisitionTask* ref_newTaskData = LoadTaskData( configFileName );
   if( ref_newTaskData == NULL ) return -1;
   
   if( tasksList == NULL ) tasksList = kh_init( Task );
   
   int insertionStatus;
   khint_t newTaskID = kh_put( Task, tasksList, configFileName, &insertionStatus );
-  if( insertionStatus == -1 ) 
+  if( insertionStatus > 0 )
+  {
+    SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
+    memcpy( newTask, ref_newTaskData, sizeof(SignalAquisitionTask) );
+  }
+  else
   {
     UnloadTaskData( ref_newTaskData );
-    return -1;
+    if( insertionStatus == -1 ) return -1;
   }
-  
-  SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
-  
-  memcpy( newTask, ref_newTaskData, sizeof(SignalAquisitionTask) );
   
   return (int) newTaskID;
 }
@@ -79,7 +87,7 @@ static void EndTask( int taskID )
   }
 }
 
-static double* Read( int taskID, unsigned int channel )
+static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return NULL;
   
@@ -90,9 +98,11 @@ static double* Read( int taskID, unsigned int channel )
   if( !task->isReading ) return NULL;
  
   ThreadLock_Aquire( task->threadLock );
-    
-  double* aquiredSamplesList = (double*) task->samplesTable[ channel ];
-  task->samplesTable[ channel ] = NULL;
+  
+  double* aquiredSamplesList = ( task->aquiredSamplesCountList[ channel ] > 0 ) ? task->samplesTable[ channel ] : NULL;
+  
+  *ref_aquiredSamplesCount = (size_t) task->aquiredSamplesCountList[ channel ];
+  task->aquiredSamplesCountList[ channel ] = 0;
     
   ThreadLock_Release( task->threadLock );
   
@@ -119,26 +129,25 @@ static void* AsyncReadBuffer( void* callbackData )
 {
   SignalAquisitionTask* task = (SignalAquisitionTask*) callbackData;
   
-  int32 aquiredSamplesNumber;
+  size_t aquiredSamplesCount;
   
   while( task->isReading )
   {
-    int errorCode = DAQmxReadAnalogF64( task->handle, task->aquisitionSamplesNumber, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
-                                        task->samplesList, task->channelsNumber * task->aquisitionSamplesNumber, &aquiredSamplesNumber, NULL );
-
-    if( errorCode < 0 )
+    int readStatus = _PdAInGetSamples( task->handle, task->channelsNumber * task->aquisitionSamplesNumber, task->samplesList, &aquiredSamplesCount );
+  
+    if( readStatus <= 0 )
     {
-      static char errorMessage[ DEBUG_MESSAGE_LENGTH ];
-      DAQmxGetErrorString( errorCode, errorMessage, DEBUG_MESSAGE_LENGTH );
-      ERROR_EVENT( "error aquiring EMG data: %s", errorMessage );
-    
+      /*ERROR_EVENT*/DEBUG_PRINT( "error reading from board %d analog input %d: error code %d", 0, task->handle, readStatus );
       break;
     }
     
     ThreadLock_Aquire( task->threadLock );
     
-    for( size_t channel = 0; channel < task->channelsNumber; channel++ )
-      task->samplesTable[ channel ] = task->samplesList + channel * aquiredSamplesNumber;
+    for( size_t channelIndex = 0; channelIndex < task->channelsNumber; channelIndex++ )
+    {
+      for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
+        task->samplesTable[ channelIndex ][ sampleIndex ] = task->samplesList[ channelIndex * aquiredSamplesCount + sampleIndex ];
+    }
     
     ThreadLock_Release( task->threadLock );
   }
@@ -147,7 +156,7 @@ static void* AsyncReadBuffer( void* callbackData )
   return NULL;
 }
 
-SignalAquisitionTask* LoadTaskData( const char* configFileName, size_t aquisitionSamplesNumber )
+SignalAquisitionTask* LoadTaskData( const char* configFileName )
 {
   static SignalAquisitionTask newTaskData;
   
@@ -159,15 +168,48 @@ SignalAquisitionTask* LoadTaskData( const char* configFileName, size_t aquisitio
   int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
+    int daqBoardID = parser.GetIntegerValue( "board_id" );
+    if( (newTaskData.aquisitionSamplesNumber = (size_t) parser.GetIntegerValue( "samples_number" )) > 0 )
+    {
+      if( PdGetNumberAdapters() > 0 && daqBoardID < PdGetNumberAdapters() )
+      {
+        newTaskData.handle = PdAcquireSubsystem( daqBoardID, AnalogIn, DAQ_ACQUIRE );
+        
+        Adapter_Info adapterInfo;
+        _PdGetAdapterInfo( daqBoardID, &adapterInfo );
+        newTaskData.channelsNumber = adapterInfo.SSI[ AnalogIn ].dwChannels;
+        
+        _PdAInReset( newTaskData.handle );
+        DWORD analogInputConfig = (AIN_BIPOLAR | AIN_CL_CLOCK_SW | AIN_CV_CLOCK_CONTINUOUS | AIN_SINGLE_ENDED | AIN_RANGE_10V);
+        _PdAInSetCfg( newTaskData.handle, analogInputConfig, 0, 0 );
+        DWORD channelsList[ newTaskData.channelsNumber ];
+        for( size_t channelIndex = 0; channelIndex < newTaskData.channelsNumber; channelIndex++ )
+          channelsList[ channelIndex ] = CHLIST_ENT( channelIndex, 1, 1 );//channelIndex | SLOW;
+        _PdAInSetChList( newTaskData.handle, newTaskData.channelsNumber, channelsList );
+        _PdAInEnableConv( newTaskData.handle, PDAQ_ENABLE );
+        _PdAInSwStartTrig( newTaskData.handle );
+        _PdAInSwClStart( newTaskData.handle );
+        
+        newTaskData.samplesList = (double*) calloc( newTaskData.channelsNumber * newTaskData.aquisitionSamplesNumber, sizeof(double) );
+        newTaskData.samplesTable = (double**) calloc( newTaskData.channelsNumber, sizeof(double*) );
+        for( size_t channelIndex = 0; channelIndex < newTaskData.channelsNumber; channelIndex++ )
+          newTaskData.samplesTable[ channelIndex ] = (double*) calloc( newTaskData.aquisitionSamplesNumber, sizeof(double) );
+        newTaskData.aquiredSamplesCountList = (size_t*) calloc( newTaskData.channelsNumber, sizeof(size_t) );
+        
+        newTaskData.isReading = true;
+        if( (newTaskData.threadID = Thread_Start( AsyncReadBuffer, NULL, THREAD_JOINABLE )) == -1 ) loadError = true;
+      }
+      else loadError = true;
+    }
+    else loadError = true;
     
+    parser.CloseFile( configFileID );
   }
   else
   {
-    
+    DEBUG_PRINT( "configuration for signal aquisition task %s not found", configFileName );
+    return NULL;
   }
-  
-  newTaskData.isReading = true;
-  if( (newTaskData.threadID = Thread_Start( AsyncReadBuffer, NULL, THREAD_JOINABLE )) == -1 ) loadError = true;
   
   if( loadError )
   {
@@ -185,11 +227,16 @@ void UnloadTaskData( SignalAquisitionTask* task )
   
   ThreadLock_Discard( task->threadLock );
   
-  DAQmxStopTask( task->handle );
-  DAQmxClearTask( task->handle );
+  _PdAInReset( task->handle );
+  
+  _PdAInEnableConv( task->handle, PDAQ_DISABLE );
+  _PdAInSwStopTrig( task->handle );
+    
+  PdAcquireSubsystem( task->handle, AnalogIn, DAQ_RELEASE );
   
   free( task->samplesList );
   free( task->samplesTable );
+  free( task->aquiredSamplesCountList );
 }
 
 

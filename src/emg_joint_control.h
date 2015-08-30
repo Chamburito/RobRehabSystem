@@ -19,7 +19,7 @@ typedef struct _EMGJoint
 }
 EMGJoint;
 
-KHASH_MAP_INIT_INT( EMGJoint )
+KHASH_MAP_INIT_STR( EMGJoint )
 static khash_t( EMGJoint ) emgJointsList = NULL;
 
 static int InitJoint( const char* );
@@ -49,12 +49,17 @@ static int InitJoint( const char* configFileName )
   if( emgJointsList == NULL ) emgJointsList = kh_init( EMGJoint );
   
   int insertionStatus;
-  khint_t newJointID = kh_put( EMG, emgJointsList, (int) configFileName, &insertionStatus );
-  if( insertionStatus == -1 ) return -1;
-  
-  EMGJoint* newJoint = &(kh_value( emgJointsList, newJointID ));
-  
-  memcpy( newJoint, ref_newJointData, sizeof(EMGJoint) );
+  khint_t newJointID = kh_put( EMG, emgJointsList, configFileName, &insertionStatus );
+  if( insertionStatus > 0 )
+  {
+    EMGJoint* newJoint = &(kh_value( emgJointsList, newJointID ));
+    memcpy( newJoint, ref_newJointData, sizeof(EMGJoint) );
+  }
+  else
+  {
+    UnloadEMGJointData( ref_newJointData );
+    if( insertionStatus == -1 ) return -1;
+  }
   
   return (int) newJointID;
 }

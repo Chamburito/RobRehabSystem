@@ -101,15 +101,16 @@ int InitSensor( const char* configFileName )
   
   int insertionStatus;
   khint_t newSensorID = kh_put( EMG, emgSensorsList, configFileName, &insertionStatus );
-  if( insertionStatus == -1 )
+  if( insertionStatus > 0 )
+  {
+    EMGSensor* newSensor = &(kh_value( emgSensorsList, newSensorID ));
+    memcpy( newSensor, ref_newSensorData, sizeof(EMGSensor) );
+  }
+  else
   {
     UnloadEMGSensorData( ref_newSensorData );
-    return -1;
+    if( insertionStatus == -1 ) return -1;
   }
-  
-  EMGSensor* newSensor = &(kh_value( emgSensorsList, newSensorID ));
-  
-  memcpy( newSensor, ref_newSensorData, sizeof(EMGSensor) );
   
   return (int) newSensorID;
 }
@@ -330,9 +331,9 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
   int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
-    if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( "interface.type" ) )) != NULL )
+    if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( "aquisition_system.type" ) )) != NULL )
     {
-      emgSensorData.taskID = emgSensorData.interface->InitTask( parser.GetStringValue( "interface.task" ) );
+      emgSensorData.taskID = emgSensorData.interface->InitTask( parser.GetStringValue( "aquisition_system.task" ) );
       if( emgSensorData.taskID != -1 ) 
       {
         size_t newSamplesBufferMaxLength = emgSensorData.interface->GetMaxSamplesNumber( emgSensorData.taskID );
@@ -350,7 +351,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
     }
     else loadError = true;
     
-    emgSensorData.channel = parser.GetIntegerValue( "interface.channel" );
+    emgSensorData.channel = parser.GetIntegerValue( "aquisition_system.channel" );
     if( emgSensorData.channel >= emgSensorData.interface->GetChannelsNumber( emgSensorData.taskID ) ) loadError = true;
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )

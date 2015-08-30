@@ -2,6 +2,7 @@
 #define SIGNAL_AQUISITION_TYPES_H
 
 #include "signal_aquisition/ni_daqmx/signal_aquisition.h"
+#include "signal_aquisition/power_daq/signal_aquisition.h"
 
 typedef struct _SignalAquisitionType
 {
@@ -10,7 +11,7 @@ typedef struct _SignalAquisitionType
 }
 SignalAquisitionType;
 
-const SignalAquisitionType SIGNAL_AQUISITION_TYPES_LIST[] = { { "NIDAQmx", &NIDAQmxOperations } };
+const SignalAquisitionType SIGNAL_AQUISITION_TYPES_LIST[] = { { "NIDAQmx", &NIDAQmxOperations }, { "PowerDAQ", &PowerDAQOperations } };
 
 const size_t SIGNAL_AQUISITION_TYPES_NUMBER = sizeof(SIGNAL_AQUISITION_TYPES_LIST) / sizeof(SignalAquisitionType);
 
