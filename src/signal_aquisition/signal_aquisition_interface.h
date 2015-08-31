@@ -3,7 +3,7 @@
 
 typedef struct _SignalAquisitionOperations
 {
-  int (*InitTask)( const char*, size_t );
+  int (*InitTask)( const char* );
   void (*EndTask)( int );
   double* (*Read)( int, unsigned int, size_t* );
   size_t (*GetChannelsNumber)( int );

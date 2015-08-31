@@ -26,7 +26,7 @@ int RobRehabControl_Init()
   shmAxisControlsList = kh_init( SHMAxisControl );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( "shm_axis" );
+  int configFileID = parser.OpenFile( "../config/shared_axes" );
   if( configFileID != -1 )
   {
     if( parser.HasKey( configFileID, "axes" ) )

@@ -65,7 +65,7 @@ static bool isProcessRunning;
 static int InitSensor( const char* );
 static void EndSensor( int );
 static double GetActivation( int );
-static double GetMuscleTorque( int );
+static double GetMuscleTorque( int, double );
 static void ChangePhase( int, enum EMGProcessPhase );
 
 const struct
@@ -73,7 +73,7 @@ const struct
   int (*InitSensor)( const char* );
   void (*EndSensor)( int );
   double (*GetActivation)( int );
-  double (*GetMuscleTorque)( int );
+  double (*GetMuscleTorque)( int, double );
   void (*ChangePhase)( int, enum EMGProcessPhase );
 }
 EMGProcessing = { .InitSensor = InitSensor, .EndSensor = EndSensor, .GetActivation = GetActivation, .GetMuscleTorque = GetMuscleTorque, .ChangePhase = ChangePhase };
@@ -331,9 +331,9 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
   int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
-    if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( "aquisition_system.type" ) )) != NULL )
+    if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
     {
-      emgSensorData.taskID = emgSensorData.interface->InitTask( parser.GetStringValue( "aquisition_system.task" ) );
+      emgSensorData.taskID = emgSensorData.interface->InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
       if( emgSensorData.taskID != -1 ) 
       {
         size_t newSamplesBufferMaxLength = emgSensorData.interface->GetMaxSamplesNumber( emgSensorData.taskID );
@@ -351,7 +351,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
     }
     else loadError = true;
     
-    emgSensorData.channel = parser.GetIntegerValue( "aquisition_system.channel" );
+    emgSensorData.channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
     if( emgSensorData.channel >= emgSensorData.interface->GetChannelsNumber( emgSensorData.taskID ) ) loadError = true;
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
@@ -359,12 +359,12 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
       for( size_t coeffIndex = 0; coeffIndex < MUSCLE_CURVE_ORDER; coeffIndex++ )
       {
         sprintf( searchPath, "muscle_properties.curves.%s.%u", CURVE_NAMES[ curveIndex ], coeffIndex );
-        emgSensorData.muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = parser.GetRealValue( searchPath );
+        emgSensorData.muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = parser.GetRealValue( configFileID, searchPath );
       }
     }
     
-    emgSensorData.muscleProperties.initialPenationAngle = parser.GetRealValue( "muscle_properties.penation_angle" );
-    emgSensorData.muscleProperties.scaleFactor = parser.GetRealValue( "muscle_properties.scale_factor" );
+    emgSensorData.muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
+    emgSensorData.muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
     
     parser.CloseFile( configFileID );
   }

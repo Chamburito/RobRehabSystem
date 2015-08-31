@@ -19,8 +19,8 @@ typedef struct _EMGJoint
 }
 EMGJoint;
 
-KHASH_MAP_INIT_STR( EMGJoint )
-static khash_t( EMGJoint ) emgJointsList = NULL;
+KHASH_MAP_INIT_STR( EMGJoint, EMGJoint )
+static khash_t( EMGJoint )* emgJointsList = NULL;
 
 static int InitJoint( const char* );
 static void EndJoint( int );
@@ -49,7 +49,7 @@ static int InitJoint( const char* configFileName )
   if( emgJointsList == NULL ) emgJointsList = kh_init( EMGJoint );
   
   int insertionStatus;
-  khint_t newJointID = kh_put( EMG, emgJointsList, configFileName, &insertionStatus );
+  khint_t newJointID = kh_put( EMGJoint, emgJointsList, configFileName, &insertionStatus );
   if( insertionStatus > 0 )
   {
     EMGJoint* newJoint = &(kh_value( emgJointsList, newJointID ));
@@ -123,7 +123,7 @@ double GetStiffness( int jointID, double jointAngle )
 
 void ChangeState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessPhase emgProcessingPhase )
 {
-  if( !kh_exist( emgJointsList, (khint_t) jointID ) ) return 0.0;
+  if( !kh_exist( emgJointsList, (khint_t) jointID ) ) return;
   
   EMGJoint* joint = &(kh_value( emgJointsList, (khint_t) jointID ));
   
@@ -150,17 +150,17 @@ static EMGJoint* LoadEMGJointData( const char* configFileName )
   int configFileID = parser.OpenFile( configFileName );
   if( configFileID != -1 )
   {
-    parser.SetBaseKey( "muscle_groups" );
+    parser.SetBaseKey( configFileID, "muscle_groups" );
     for( size_t muscleGroupIndex = 0; muscleGroupIndex < MUSCLE_GROUPS_NUMBER; muscleGroupIndex++ )
     {
-      if( (emgJointData.muscleGroupsSizesList[ muscleGroupIndex ] = (size_t) parser.GetListSize( MUSCLE_GROUP_NAMES[ muscleGroupIndex ] )) > 0 )
+      if( (emgJointData.muscleGroupsSizesList[ muscleGroupIndex ] = (size_t) parser.GetListSize( configFileID, MUSCLE_GROUP_NAMES[ muscleGroupIndex ] )) > 0 )
       {
         emgJointData.muscleIDsTable[ muscleGroupIndex ] = (int*) calloc( emgJointData.muscleGroupsSizesList[ muscleGroupIndex ], sizeof(int) );
       
         for( size_t muscleIndex = 0; muscleIndex < emgJointData.muscleGroupsSizesList[ muscleGroupIndex ]; muscleIndex++ )
         {
           sprintf( searchPath, "%s.%u", MUSCLE_GROUP_NAMES[ muscleGroupIndex ], muscleIndex );
-          emgJointData.muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( parser.GetStringValue( searchPath ) );
+          emgJointData.muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( parser.GetStringValue( configFileID, searchPath ) );
         }
       }
     }

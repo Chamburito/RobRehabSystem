@@ -18,8 +18,8 @@ static bool GetBooleanValue( int, const char* );
 static size_t GetListSize( int, const char* );
 static bool HasKey( int, const char* );
 
-const FileParserMethods JSONParser = { .OpenFile = OpenFile, .CloseFile = CloseFile, .SetBaseKey = SetBaseKey, .GetIntegerValue = GetIntegerValue,
-                                       .GetRealValue = GetRealValue, .GetStringValue = GetStringValue, .GetBooleanValue = GetBooleanValue, .GetListSize = GetListSize, .HasKey = HasKey };
+const FileParser JSONParser = { .OpenFile = OpenFile, .CloseFile = CloseFile, .SetBaseKey = SetBaseKey, .GetIntegerValue = GetIntegerValue,
+                                .GetRealValue = GetRealValue, .GetStringValue = GetStringValue, .GetBooleanValue = GetBooleanValue, .GetListSize = GetListSize, .HasKey = HasKey };
 
 typedef struct _FileData
 {
@@ -34,10 +34,12 @@ static khash_t( JSON )* jsonFilesList = NULL;
 
 static int OpenFile( const char* fileName )
 {
-  char fileNameExt[ strlen( fileName ) + 5 ];
+  char fileNameExt[ strlen( fileName ) + strlen(".json") + 1 ];
   sprintf( fileNameExt, "%s.json", fileName );
   
-  struct FILE* configFile = fopen( fileNameExt, "r" );
+  DEBUG_PRINT( "looking for file: %s", fileNameExt );
+  
+  FILE* configFile = fopen( fileNameExt, "r" );
   if( configFile != NULL )
   {
     fseek( configFile, 0, SEEK_END );
@@ -105,7 +107,10 @@ void SetBaseKey( int fileID, const char* path )
   const kson_node_t* baseNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).nodeTree->root, path );
   
   if( baseNode != NULL )
+  {
     kh_value( jsonFilesList, fileID ).currentNode = baseNode;
+    DEBUG_PRINT( "setting base key to \"%s\"", path );
+  }
 }
 
 static char* GetStringValue( int fileID, const char* path )
@@ -171,7 +176,7 @@ static size_t GetListSize( int fileID, const char* path )
   
   DEBUG_PRINT( "List %s size: %u", path, listNode->n );
   
-  return listNode->n;
+  return (size_t) listNode->n;
 }
 
 static bool HasKey( int fileID, const char* path )

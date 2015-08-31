@@ -1,7 +1,7 @@
 #ifndef SIGNAL_AQUISITION_NI_DAQMX_H
 #define SIGNAL_AQUISITION_NI_DAQMX_H
 
-#ifdef __CVI__
+#ifdef _CVI_
   #include <NIDAQmx.h>
 #endif
 
@@ -26,10 +26,10 @@ typedef struct _SignalAquisitionTask
 }
 SignalAquisitionTask;
 
-KHASH_MAP_INIT_INT( Task, SignalAquisitionTask )
+KHASH_MAP_INIT_STR( Task, SignalAquisitionTask )
 static khash_t( Task )* tasksList = NULL;
 
-static int InitTask( const char*, size_t );
+static int InitTask( const char* );
 static void EndTask( int );
 static double* Read( int, unsigned int, size_t* );
 static size_t GetChannelsNumber( int );
@@ -37,7 +37,7 @@ static size_t GetMaxSamplesNumber( int );
 
 const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, 
                                                        .GetChannelsNumber = GetChannelsNumber, .GetMaxSamplesNumber = GetMaxSamplesNumber };
-#ifdef __CVI__
+#ifdef _CVI_
 static void* AsyncReadBuffer( void* );
 
 static SignalAquisitionTask* LoadTaskData( const char* );
@@ -69,7 +69,7 @@ static int InitTask( const char* configFileName )
   if( tasksList == NULL ) tasksList = kh_init( Task );
   
   int insertionStatus;
-  khint_t newTaskID = kh_put( Task, tasksList, (int) configFileName, &insertionStatus );
+  khint_t newTaskID = kh_put( Task, tasksList, configFileName, &insertionStatus );
   if( insertionStatus == -1 ) return -1;
   
   SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
