@@ -20,7 +20,10 @@ static SignalAquisitionInterface GetInterface( const char* interfaceName )
   for( size_t signalAquisitionTypeIndex = 0; signalAquisitionTypeIndex < SIGNAL_AQUISITION_TYPES_NUMBER; signalAquisitionTypeIndex++ )
   {
     if( strcmp( interfaceName, SIGNAL_AQUISITION_TYPES_LIST[ signalAquisitionTypeIndex ].name ) == 0 )
+    {
+      DEBUG_PRINT( "Found signal aquisition interface %s", interfaceName );
       return SIGNAL_AQUISITION_TYPES_LIST[ signalAquisitionTypeIndex ].interface;
+    }
   }
   
   return NULL;

@@ -29,22 +29,25 @@ typedef struct _FileData
 }
 FileData;
                                                 
-KHASH_MAP_INIT_INT( JSON, FileData )
+KHASH_MAP_INIT_STR( JSON, FileData )
 static khash_t( JSON )* jsonFilesList = NULL;
 
 static int OpenFile( const char* fileName )
 {
-  char fileNameExt[ strlen( fileName ) + strlen(".json") + 1 ];
+  char* fileNameExt = (char*) calloc( strlen( fileName ) + strlen( ".json" ) + 1, sizeof(char) );
   sprintf( fileNameExt, "%s.json", fileName );
   
   DEBUG_PRINT( "looking for file: %s", fileNameExt );
   
   FILE* configFile = fopen( fileNameExt, "r" );
+  
+  free( fileNameExt );
+  
   if( configFile != NULL )
   {
     fseek( configFile, 0, SEEK_END );
-    size_t fileSize = ftell( configFile );
-    char configString[ fileSize ];
+    long int fileSize = ftell( configFile );
+    char* configString = (char*) calloc( fileSize + 1, sizeof(char) );
     fseek( configFile, 0, SEEK_SET );
     fread( configString, sizeof(char), fileSize, configFile );
     fclose( configFile );
@@ -54,13 +57,17 @@ static int OpenFile( const char* fileName )
     if( jsonFilesList == NULL ) jsonFilesList = kh_init( JSON );
     
     int insertionStatus;
-    khint_t fileID = kh_put( JSON, jsonFilesList, (long) configFile, &insertionStatus );
+    khint_t fileID = kh_put( JSON, jsonFilesList, fileName, &insertionStatus );
+    if( insertionStatus > 0 ) 
+    {
+      kh_value( jsonFilesList, fileID ).nodeTree = kson_parse( (const char*) configString );
+      kh_value( jsonFilesList, fileID ).currentNode = kh_value( jsonFilesList, fileID ).nodeTree->root;
+      
+      DEBUG_PRINT( "Found %u keys in new JSON file", (size_t) kh_value( jsonFilesList, fileID ).nodeTree->root->n );
+    }
+
+    free( configString );
     if( insertionStatus == -1 ) return -1;
-    
-    kh_value( jsonFilesList, fileID ).nodeTree = kson_parse( (const char*) configString );
-    kh_value( jsonFilesList, fileID ).currentNode = kh_value( jsonFilesList, fileID ).nodeTree->root;
-    
-    DEBUG_PRINT( "Found %u keys in JSON file", kh_value( jsonFilesList, fileID )->root->n );
     
     return (int) fileID;
   }
@@ -174,7 +181,7 @@ static size_t GetListSize( int fileID, const char* path )
   
   if( listNode->type != KSON_TYPE_BRACKET ) return 0;
   
-  DEBUG_PRINT( "List %s size: %u", path, listNode->n );
+  DEBUG_PRINT( "List %s size: %u", path, (size_t) listNode->n );
   
   return (size_t) listNode->n;
 }

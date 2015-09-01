@@ -6,7 +6,8 @@ typedef struct _SignalAquisitionOperations
   int (*InitTask)( const char* );
   void (*EndTask)( int );
   double* (*Read)( int, unsigned int, size_t* );
-  size_t (*GetChannelsNumber)( int );
+  bool (*AquireChannel)( int, unsigned int );
+  void (*ReleaseChannel)( int, unsigned int );
   size_t (*GetMaxSamplesNumber)( int );
 }
 SignalAquisitionOperations;

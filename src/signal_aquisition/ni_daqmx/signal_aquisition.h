@@ -19,6 +19,7 @@ typedef struct _SignalAquisitionTask
   Thread_Handle threadID;
   ThreadLock threadLock;
   bool isReading;
+  bool* channelUsedList;
   uInt32 channelsNumber;
   float64* samplesList;
   float64** samplesTable;
@@ -32,49 +33,61 @@ static khash_t( Task )* tasksList = NULL;
 static int InitTask( const char* );
 static void EndTask( int );
 static double* Read( int, unsigned int, size_t* );
-static size_t GetChannelsNumber( int );
+static bool AquireChannel( int, unsigned int );
+static void ReleaseChannel( int, unsigned int );
 static size_t GetMaxSamplesNumber( int );
 
-const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, 
-                                                       .GetChannelsNumber = GetChannelsNumber, .GetMaxSamplesNumber = GetMaxSamplesNumber };
+const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, .AquireChannel = AquireChannel,
+                                                       .ReleaseChannel = ReleaseChannel, .GetMaxSamplesNumber = GetMaxSamplesNumber };
 #ifdef _CVI_
 static void* AsyncReadBuffer( void* );
 
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
-static int InitTask( const char* configFileName )
+static int InitTask( const char* taskName )
 {
-  static SignalAquisitionTask newTaskData;
+  DEBUG_PRINT( "list pointer: %p", tasksList );
+  if( tasksList != NULL )
+  {
+    khint_t taskID = kh_get( Task, tasksList, taskName );
+    DEBUG_PRINT( "task iterator %u returned", taskID );
+    if( taskID != kh_end( tasksList ) ) 
+    {
+      DEBUG_PRINT( "task key %s already exists", taskName );
+      return (int) taskID;
+    }
+  }
+  else
+  {
+    DEBUG_PRINT( "creating hash table for first key %s", taskName );
+    tasksList = kh_init( Task );
+  }
   
-  memset( &newTaskData, 0, sizeof(SignalAquisitionTask) );
-  
-  DAQmxLoadTask( configFileName, &(newTaskData.handle) );
-  
-  DAQmxGetTaskAttribute( newTaskData.handle, DAQmx_Task_NumChans, &(newTaskData.channelsNumber) );
-  
-  DEBUG_PRINT( "%u signal channels found", newTaskData.channelsNumber );
-  
-  newTaskData.samplesList = (float64*) calloc( newTaskData.channelsNumber * AQUISITION_BUFFER_LENGTH, sizeof(float64) );
-  newTaskData.samplesTable = (float64**) calloc( newTaskData.channelsNumber, sizeof(float64*) );
-  newTaskData.aquiredSamplesCountList = (int32*) calloc( newTaskData.channelsNumber, sizeof(int32) );
-  
-  newTaskData.threadLock = ThreadLock_Create();
-  
-  DAQmxStartTask( newTaskData.handle );
-  
-  newTaskData.isReading = true;
-  newTaskData.threadID = Thread_Start( AsyncReadBuffer, NULL, THREAD_JOINABLE );
-  
-  if( tasksList == NULL ) tasksList = kh_init( Task );
+  SignalAquisitionTask* ref_newTaskData = LoadTaskData( taskName );
+  if( ref_newTaskData == NULL ) return -1;
   
   int insertionStatus;
-  khint_t newTaskID = kh_put( Task, tasksList, configFileName, &insertionStatus );
-  if( insertionStatus == -1 ) return -1;
+  khint_t newTaskID = kh_put( Task, tasksList, taskName, &insertionStatus );
+  if( insertionStatus > 0 ) 
+  {
+    SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
+    memcpy( newTask, ref_newTaskData, sizeof(SignalAquisitionTask) );
+    
+    DEBUG_PRINT( "new key %s inserted (total: %u)", taskName, kh_size( tasksList ) );
+  }
+  else if( insertionStatus == -1 ) 
+  {
+    UnloadTaskData( &(kh_value( tasksList, newTaskID )) );
+    if( kh_size( tasksList ) == 0 )
+    {
+      kh_destroy( Task, tasksList );
+      tasksList = NULL;
+    }
+    return -1;
+  }
   
-  SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
-  
-  memcpy( newTask, &newTaskData, sizeof(SignalAquisitionTask) );
+  DEBUG_PRINT( "list pointer: %p", tasksList );
   
   return (int) newTaskID;
 }
@@ -85,17 +98,7 @@ static void EndTask( int taskID )
   
   SignalAquisitionTask* task = &(kh_value( tasksList, (khint_t) taskID ));
   
-  task->isReading = false;
-  Thread_WaitExit( task->threadID, 5000 );
-  
-  ThreadLock_Discard( task->threadLock );
-  
-  DAQmxStopTask( task->handle );
-  DAQmxClearTask( task->handle );
-  
-  free( task->samplesList );
-  free( task->samplesTable );
-  free( task->aquiredSamplesCountList );
+  UnloadTaskData( task );
   
   kh_del( Task, tasksList, (khint_t) taskID );
   
@@ -116,7 +119,7 @@ static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSample
   
   if( !task->isReading ) return NULL;
  
-  ThreadLock_Aquire( task->threadLock );
+  //ThreadLock_Aquire( task->threadLock );
     
   double* aquiredSamplesList = (double*) task->samplesTable[ channel ];
   task->samplesTable[ channel ] = NULL;
@@ -124,16 +127,35 @@ static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSample
   *ref_aquiredSamplesCount = (size_t) task->aquiredSamplesCountList[ channel ];
   task->aquiredSamplesCountList[ channel ] = 0;
     
-  ThreadLock_Release( task->threadLock );
+  //ThreadLock_Release( task->threadLock );
   
   return aquiredSamplesList;
 }
 
-static size_t GetChannelsNumber( int taskID )
+static bool AquireChannel( int taskID, unsigned int channel )
 {
-  if( !kh_exist( tasksList, (khint_t) taskID ) ) return 0;
+  if( !kh_exist( tasksList, (khint_t) taskID ) ) return false;
   
-  return (size_t) kh_value( tasksList, (khint_t) taskID ).channelsNumber;
+  SignalAquisitionTask* task = &(kh_value( tasksList, (khint_t) taskID ));
+  
+  if( channel > task->channelsNumber ) return false;
+  
+  if( task->channelUsedList[ channel ] ) return false;
+  
+  task->channelUsedList[ channel ] = true;
+  
+  return true;
+}
+
+static void ReleaseChannel( int taskID, unsigned int channel )
+{
+  if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
+  
+  SignalAquisitionTask* task = &(kh_value( tasksList, (khint_t) taskID ));
+  
+  if( channel > task->channelsNumber ) return;
+  
+  task->channelUsedList[ channel ] = false;
 }
 
 static size_t GetMaxSamplesNumber( int taskID )
@@ -164,7 +186,7 @@ static void* AsyncReadBuffer( void* callbackData )
       break;
     }
     
-    ThreadLock_Aquire( task->threadLock );
+    //ThreadLock_Aquire( task->threadLock );
     
     for( size_t channel = 0; channel < task->channelsNumber; channel++ )
     {
@@ -172,12 +194,90 @@ static void* AsyncReadBuffer( void* callbackData )
       task->aquiredSamplesCountList[ channel ] = aquiredSamplesCount;
     }
     
-    ThreadLock_Release( task->threadLock );
+    //ThreadLock_Release( task->threadLock );
   }
   
   Thread_Exit( 0 );
   return NULL;
 }
+
+SignalAquisitionTask* LoadTaskData( const char* taskName )
+{
+  static SignalAquisitionTask newTaskData;
+  
+  bool loadError = false;
+  
+  memset( &newTaskData, 0, sizeof(SignalAquisitionTask) );
+  
+  if( DAQmxLoadTask( taskName, &(newTaskData.handle) ) >= 0 )
+  {
+    if( DAQmxGetTaskAttribute( newTaskData.handle, DAQmx_Task_NumChans, &(newTaskData.channelsNumber) ) >= 0 )
+    {
+      DEBUG_PRINT( "%u signal channels found", newTaskData.channelsNumber );
+  
+      newTaskData.channelUsedList = (bool*) calloc( newTaskData.channelsNumber, sizeof(bool) );
+      
+      newTaskData.samplesList = (float64*) calloc( newTaskData.channelsNumber * AQUISITION_BUFFER_LENGTH, sizeof(float64) );
+      newTaskData.samplesTable = (float64**) calloc( newTaskData.channelsNumber, sizeof(float64*) );
+      newTaskData.aquiredSamplesCountList = (int32*) calloc( newTaskData.channelsNumber, sizeof(int32) );
+  
+      if( DAQmxStartTask( newTaskData.handle ) >= 0 )
+      {
+        if( (newTaskData.threadLock = ThreadLock_Create()) != -1 )
+        {
+          newTaskData.isReading = true;
+          //if( (newTaskData.threadID = Thread_Start( AsyncReadBuffer, &newTaskData, THREAD_JOINABLE )) == -1 ) loadError = true;
+        }
+        else loadError = true;
+      }
+      else loadError = true;
+    }
+    else loadError = true;
+  }
+  else loadError = true;          
+  
+  if( loadError )
+  {
+    DEBUG_PRINT( "loading task %s failed", taskName );
+    UnloadTaskData( &newTaskData );
+    return NULL;
+  }
+  
+  return &newTaskData;
+}
+
+void UnloadTaskData( SignalAquisitionTask* task )
+{
+  if( task == NULL ) return;
+  
+  bool stillUsed = false;
+  for( size_t channel = 0; channel < task->channelsNumber; channel++ )
+  {
+    if( task->channelUsedList[ channel ] )
+    {
+      stillUsed = true;
+      break;
+    }
+  }
+  
+  if( stillUsed )
+  {
+    task->isReading = false;
+    //if( task->threadID != -1 ) Thread_WaitExit( task->threadID, 5000 );
+  
+    if( task->threadLock != -1 ) ThreadLock_Discard( task->threadLock );
+  
+    DAQmxStopTask( task->handle );
+    DAQmxClearTask( task->handle );
+  
+    if( task->channelUsedList != NULL ) free( task->channelUsedList );
+    
+    if( task->samplesList != NULL ) free( task->samplesList );
+    if( task->samplesTable != NULL ) free( task->samplesTable );
+    if( task->aquiredSamplesCountList != NULL ) free( task->aquiredSamplesCountList );
+  }
+}
+
 #endif
 
 

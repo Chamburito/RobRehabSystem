@@ -35,6 +35,8 @@ void CVIFUNC_C RTmain( void )
 
     DEBUG_PRINT( "Joint torque: %g", jointTorque );
     DEBUG_PRINT( "Joint stiffness: %g", jointStiffness );
+    
+    Timing_Delay( 10000 );
 
     EMGJointControl.EndJoint( jointID );
   }

@@ -346,19 +346,20 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
           emgSensorData.emgData.rectifiedSamplesBuffer = (double*) calloc( emgSensorData.emgData.filteredSamplesBufferLength, sizeof(double) );
         }
         else loadError = true;
+        
+        emgSensorData.channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
+        if( !(emgSensorData.interface->AquireChannel( emgSensorData.taskID, emgSensorData.channel )) ) loadError = true;
       }
       else loadError = true;
     }
     else loadError = true;
-    
-    emgSensorData.channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
-    if( emgSensorData.channel >= emgSensorData.interface->GetChannelsNumber( emgSensorData.taskID ) ) loadError = true;
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
     {
       for( size_t coeffIndex = 0; coeffIndex < MUSCLE_CURVE_ORDER; coeffIndex++ )
       {
         sprintf( searchPath, "muscle_properties.curves.%s.%u", CURVE_NAMES[ curveIndex ], coeffIndex );
+        DEBUG_PRINT( "searching for value %s", searchPath );
         emgSensorData.muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = parser.GetRealValue( configFileID, searchPath );
       }
     }
@@ -376,6 +377,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
   
   if( loadError )
   {
+    DEBUG_PRINT( "EMG sensor %s configuration failed", configFileName );
     UnloadEMGSensorData( &emgSensorData );
     return NULL;
   }
@@ -391,6 +393,7 @@ void UnloadEMGSensorData( EMGSensor* sensor )
   free( sensor->emgData.filteredSamplesBuffer );
   free( sensor->emgData.rectifiedSamplesBuffer );
   
+  sensor->interface->ReleaseChannel( sensor->taskID, sensor->channel );
   sensor->interface->EndTask( sensor->taskID );
 }
 
