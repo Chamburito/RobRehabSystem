@@ -100,10 +100,10 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
     {
       DEBUG_PRINT( "thread %x returned !", handle );
 
-      if( (exitStatus = CmtGetThreadPoolFunctionAttribute( threadPool, handle, ATTR_TP_FUNCTION_RETURN_VALUE , (void*) &exitCode )) < 0 )
+      if( (exitStatus = CmtGetThreadPoolFunctionAttribute( threadPool, handle, ATTR_TP_FUNCTION_RETURN_VALUE, (void*) &exitCode )) < 0 )
       {
         CmtGetErrorMessage( exitStatus, errorBuffer );
-        ERROR_PRINT( "error getting function return value: %s:", errorBuffer );
+        ERROR_PRINT( "error getting function return value: %s", errorBuffer );
       }
       
       CmtReleaseThreadPoolFunctionID( threadPool, handle );

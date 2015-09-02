@@ -43,6 +43,16 @@ static void UnloadEMGJointData( EMGJoint* );
 
 static int InitJoint( const char* configFileName )
 {
+  if( emgJointsList != NULL )
+  {
+    khint_t jointID = kh_get( EMGJoint, emgJointsList, configFileName );
+    if( jointID != kh_end( emgJointsList ) )
+    {
+      DEBUG_PRINT( "joint key %s already exists", configFileName );
+      return (int) jointID;
+    }
+  }
+  
   EMGJoint* ref_newJointData = LoadEMGJointData( configFileName );
   if( ref_newJointData == NULL ) return -1;
   
@@ -50,16 +60,9 @@ static int InitJoint( const char* configFileName )
   
   int insertionStatus;
   khint_t newJointID = kh_put( EMGJoint, emgJointsList, configFileName, &insertionStatus );
-  if( insertionStatus > 0 )
-  {
-    EMGJoint* newJoint = &(kh_value( emgJointsList, newJointID ));
-    memcpy( newJoint, ref_newJointData, sizeof(EMGJoint) );
-  }
-  else
-  {
-    UnloadEMGJointData( ref_newJointData );
-    if( insertionStatus == -1 ) return -1;
-  }
+
+  EMGJoint* newJoint = &(kh_value( emgJointsList, newJointID ));
+  memcpy( newJoint, ref_newJointData, sizeof(EMGJoint) );
   
   return (int) newJointID;
 }
@@ -187,7 +190,11 @@ static void UnloadEMGJointData( EMGJoint* joint )
   if( joint == NULL ) return;
   
   for( size_t muscleGroupIndex = 0; muscleGroupIndex < MUSCLE_GROUPS_NUMBER; muscleGroupIndex++ )
+  {
+    for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ muscleGroupIndex ]; muscleIndex++ )
+      EMGProcessing.EndSensor( joint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] );
     free( joint->muscleIDsTable[ muscleGroupIndex ] );
+  }
 }
 
 #endif /* EMG_JOINT_CONTROL_H */

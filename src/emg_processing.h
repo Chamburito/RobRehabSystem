@@ -86,6 +86,16 @@ static void UnloadEMGSensorData( EMGSensor* );
 
 int InitSensor( const char* configFileName )
 {
+  if( emgSensorsList != NULL )
+  {
+    khint_t sensorID = kh_get( EMG, emgSensorsList, configFileName );
+    if( sensorID != kh_end( emgSensorsList ) )
+    {
+      DEBUG_PRINT( "sensor key %s already exists", configFileName );
+      return (int) sensorID;
+    }
+  }
+  
   EMGSensor* ref_newSensorData = LoadEMGSensorData( configFileName );
   if( ref_newSensorData == NULL ) return -1;
   
@@ -101,16 +111,9 @@ int InitSensor( const char* configFileName )
   
   int insertionStatus;
   khint_t newSensorID = kh_put( EMG, emgSensorsList, configFileName, &insertionStatus );
-  if( insertionStatus > 0 )
-  {
-    EMGSensor* newSensor = &(kh_value( emgSensorsList, newSensorID ));
-    memcpy( newSensor, ref_newSensorData, sizeof(EMGSensor) );
-  }
-  else
-  {
-    UnloadEMGSensorData( ref_newSensorData );
-    if( insertionStatus == -1 ) return -1;
-  }
+
+  EMGSensor* newSensor = &(kh_value( emgSensorsList, newSensorID ));
+  memcpy( newSensor, ref_newSensorData, sizeof(EMGSensor) );
   
   return (int) newSensorID;
 }
@@ -308,7 +311,6 @@ static void* AsyncUpdate( void* data )
         }
       }
     }
-    
   }
   
   Thread_Exit( 0 );

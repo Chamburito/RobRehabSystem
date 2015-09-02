@@ -10,7 +10,7 @@ IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
-Number of Files = 10
+Number of Files = 13
 Target Type = "Dynamic Link Library"
 Flags = 2064
 Copied From Locked InstrDrv Directory = False
@@ -94,9 +94,9 @@ File Type = "Include"
 Res Id = 6
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/signal_aquisition/ni_daqmx/signal_aquisition.h"
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/ni"
-Path Line0002 = "_daqmx/signal_aquisition.h"
+Path Rel Path = "src/shared_memory/shared_memory_unix.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
+Path Line0002 = "_memory_unix.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -107,9 +107,9 @@ File Type = "Include"
 Res Id = 7
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/signal_aquisition/signal_aquisition_interface.h"
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/si"
-Path Line0002 = "gnal_aquisition_interface.h"
+Path Rel Path = "src/shared_memory/shared_memory_windows.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
+Path Line0002 = "_memory_windows.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -120,6 +120,44 @@ File Type = "Include"
 Res Id = 8
 Path Is Rel = True
 Path Rel To = "Project"
+Path Rel Path = "src/shm_axis_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_axis_control.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0009]
+File Type = "Include"
+Res Id = 9
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/signal_aquisition/ni_daqmx/signal_aquisition.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/ni"
+Path Line0002 = "_daqmx/signal_aquisition.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0010]
+File Type = "Include"
+Res Id = 10
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/signal_aquisition/signal_aquisition_interface.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/si"
+Path Line0002 = "gnal_aquisition_interface.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0011]
+File Type = "Include"
+Res Id = 11
+Path Is Rel = True
+Path Rel To = "Project"
 Path Rel Path = "src/signal_aquisition/signal_aquisition_types.h"
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/si"
 Path Line0002 = "gnal_aquisition_types.h"
@@ -128,9 +166,9 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 0
 
-[File 0009]
+[File 0012]
 File Type = "CSource"
-Res Id = 9
+Res Id = 12
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/klib/kson.c"
@@ -141,9 +179,9 @@ Project Flags = 0
 Folder = "Source Files"
 Folder Id = 1
 
-[File 0010]
+[File 0013]
 File Type = "CSource"
-Res Id = 10
+Res Id = 13
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/robrehab_emg.c"

@@ -47,47 +47,28 @@ static void UnloadTaskData( SignalAquisitionTask* );
 
 static int InitTask( const char* taskName )
 {
-  DEBUG_PRINT( "list pointer: %p", tasksList );
   if( tasksList != NULL )
   {
     khint_t taskID = kh_get( Task, tasksList, taskName );
-    DEBUG_PRINT( "task iterator %u returned", taskID );
     if( taskID != kh_end( tasksList ) ) 
     {
       DEBUG_PRINT( "task key %s already exists", taskName );
       return (int) taskID;
     }
   }
-  else
-  {
-    DEBUG_PRINT( "creating hash table for first key %s", taskName );
-    tasksList = kh_init( Task );
-  }
   
   SignalAquisitionTask* ref_newTaskData = LoadTaskData( taskName );
   if( ref_newTaskData == NULL ) return -1;
   
+  if( tasksList == NULL ) tasksList = kh_init( Task );
+  
   int insertionStatus;
   khint_t newTaskID = kh_put( Task, tasksList, taskName, &insertionStatus );
-  if( insertionStatus > 0 ) 
-  {
-    SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
-    memcpy( newTask, ref_newTaskData, sizeof(SignalAquisitionTask) );
+
+  SignalAquisitionTask* newTask = &(kh_value( tasksList, newTaskID ));
+  memcpy( newTask, ref_newTaskData, sizeof(SignalAquisitionTask) );
     
-    DEBUG_PRINT( "new key %s inserted (total: %u)", taskName, kh_size( tasksList ) );
-  }
-  else if( insertionStatus == -1 ) 
-  {
-    UnloadTaskData( &(kh_value( tasksList, newTaskID )) );
-    if( kh_size( tasksList ) == 0 )
-    {
-      kh_destroy( Task, tasksList );
-      tasksList = NULL;
-    }
-    return -1;
-  }
-  
-  DEBUG_PRINT( "list pointer: %p", tasksList );
+  DEBUG_PRINT( "new key %s inserted (total: %u)", taskName, kh_size( tasksList ) );
   
   return (int) newTaskID;
 }
@@ -226,7 +207,7 @@ SignalAquisitionTask* LoadTaskData( const char* taskName )
         if( (newTaskData.threadLock = ThreadLock_Create()) != -1 )
         {
           newTaskData.isReading = true;
-          //if( (newTaskData.threadID = Thread_Start( AsyncReadBuffer, &newTaskData, THREAD_JOINABLE )) == -1 ) loadError = true;
+          if( (newTaskData.threadID = Thread_Start( AsyncReadBuffer, &newTaskData, THREAD_JOINABLE )) == -1 ) loadError = true;
         }
         else loadError = true;
       }
@@ -263,7 +244,7 @@ void UnloadTaskData( SignalAquisitionTask* task )
   if( stillUsed )
   {
     task->isReading = false;
-    //if( task->threadID != -1 ) Thread_WaitExit( task->threadID, 5000 );
+    if( task->threadID != -1 ) Thread_WaitExit( task->threadID, 5000 );
   
     if( task->threadLock != -1 ) ThreadLock_Discard( task->threadLock );
   

@@ -4,16 +4,16 @@
 #include <stdbool.h>
 
 #ifdef WIN32
-  #include "utils/shared_memory/shared_memory_windows.h"
+  #include "shared_memory/shared_memory_windows.h"
 #else
-  #include "utils/shared_memory/shared_memory_unix.h"
+  #include "shared_memory/shared_memory_unix.h"
 #endif
-
-#include "shm_axis/robdecls.h"
 
 #include "klib/khash.h"
 
 #include "impedance_control.h"
+
+#include "debug/async_debug.h"
 
 enum ControlStates { CONTROL_ENABLED, CONTROL_HAS_ERROR, CONTROL_STATES_NUMBER };
 enum ControlCommands { CONTROL_ENABLE, CONTROL_RESET, CONTROL_COMMANDS_NUMBER };
