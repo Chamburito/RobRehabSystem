@@ -35,6 +35,7 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib
 	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
 	;
 include Jamfile_instr ;
+LOCATE on "async_debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "emg_joint_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "emg_processing.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
@@ -42,10 +43,15 @@ LOCATE on "file_parser_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo J
 LOCATE on "json_parser.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing" ;
 LOCATE on "kson.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib" ;
 LOCATE on "robrehab_emg.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "shared_memory_cvi.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
+LOCATE on "shared_memory_unix.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
+LOCATE on "shared_memory_windows.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
 LOCATE on "shm_axis_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "signal_aquisition.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition\\ni_daqmx" ;
 LOCATE on "signal_aquisition_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition" ;
 LOCATE on "signal_aquisition_types.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition" ;
+LOCATE on "threads_realtime.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
+LOCATE on "timing_realtime.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\time" ;
 Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib\\kson.c" ;
 FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj" = 1 ;
 DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj.cvidefprots" ;

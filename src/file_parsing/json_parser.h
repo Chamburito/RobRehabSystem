@@ -8,8 +8,8 @@
 
 #include "debug/async_debug.h"
 
-static int OpenFile( const char* );
-static void CloseFile( int );
+static int LoadFile( const char* );
+static void UnloadFile( int );
 static void SetBaseKey( int, const char* );
 static long GetIntegerValue( int, const char* );
 static double GetRealValue( int, const char* );
@@ -18,7 +18,7 @@ static bool GetBooleanValue( int, const char* );
 static size_t GetListSize( int, const char* );
 static bool HasKey( int, const char* );
 
-const FileParser JSONParser = { .OpenFile = OpenFile, .CloseFile = CloseFile, .SetBaseKey = SetBaseKey, .GetIntegerValue = GetIntegerValue,
+const FileParser JSONParser = { .LoadFile = LoadFile, .UnloadFile = UnloadFile, .SetBaseKey = SetBaseKey, .GetIntegerValue = GetIntegerValue,
                                 .GetRealValue = GetRealValue, .GetStringValue = GetStringValue, .GetBooleanValue = GetBooleanValue, .GetListSize = GetListSize, .HasKey = HasKey };
 
 typedef struct _FileData
@@ -32,7 +32,7 @@ FileData;
 KHASH_MAP_INIT_STR( JSON, FileData )
 static khash_t( JSON )* jsonFilesList = NULL;
 
-static int OpenFile( const char* fileName )
+static int LoadFile( const char* fileName )
 {
   char* fileNameExt = (char*) calloc( strlen( fileName ) + strlen( ".json" ) + 1, sizeof(char) );
   sprintf( fileNameExt, "%s.json", fileName );
@@ -75,7 +75,7 @@ static int OpenFile( const char* fileName )
   return -1;
 }
 
-static void CloseFile( int fileID )
+static void UnloadFile( int fileID )
 {
   if( !kh_exist( jsonFilesList, (khint_t) fileID ) ) return;
     

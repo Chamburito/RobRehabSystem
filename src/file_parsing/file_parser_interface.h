@@ -7,8 +7,8 @@
 
 typedef struct _FileParser
 {
-  int (*OpenFile)( const char* );
-  void (*CloseFile)( int );
+  int (*LoadFile)( const char* );
+  void (*UnloadFile)( int );
   void (*SetBaseKey)( int, const char* );
   long (*GetIntegerValue)( int, const char* );
   double (*GetRealValue)( int, const char* );

@@ -96,7 +96,13 @@ int InitSensor( const char* configFileName )
     }
   }
   
-  EMGSensor* ref_newSensorData = LoadEMGSensorData( configFileName );
+  char* configFilePath = (char*) calloc( strlen("../config/emg_sensor/") + strlen( configFileName ) + 1, sizeof(char) );
+  sprintf( configFilePath, "../config/emg_sensor/%s", configFileName );
+  
+  EMGSensor* ref_newSensorData = LoadEMGSensorData( configFilePath );
+  
+  free( configFilePath );
+  
   if( ref_newSensorData == NULL ) return -1;
   
   if( emgSensorsList == NULL ) 
@@ -330,7 +336,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
   memset( &emgSensorData, 0, sizeof(EMGSensor) );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( configFileName );
+  int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
     if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
@@ -369,7 +375,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
     emgSensorData.muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
     emgSensorData.muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
     
-    parser.CloseFile( configFileID );
+    parser.UnloadFile( configFileID );
   }
   else
   {

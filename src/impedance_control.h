@@ -24,7 +24,7 @@ struct IndexedFunction
 }
 CONTROL_FUNCTIONS_LIST[] = { { "Default", RunDefaultControl }, { "Impedance_Force_PI", RunForcePIControl }, { "Impedance_Velocity", RunVelocityControl } };
 
-static size_t FUNCTIONS_NUMBER = sizeof(controlFunctionsList) / sizeof(struct IndexedFunction);
+static size_t FUNCTIONS_NUMBER = sizeof(CONTROL_FUNCTIONS_LIST) / sizeof(struct IndexedFunction);
 
 ImpedanceControlFunction ImpedanceControl_GetFunction( const char* functionName )
 {

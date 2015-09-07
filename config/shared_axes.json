@@ -1,8 +1,5 @@
 {
   "axes": [
-    {
-      "name": "../config/emg_joint/knee",
-      "shm_key": 1229804593
-    }
+    "knee"
   ]
 }

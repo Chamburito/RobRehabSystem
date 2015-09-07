@@ -53,7 +53,13 @@ static int InitJoint( const char* configFileName )
     }
   }
   
-  EMGJoint* ref_newJointData = LoadEMGJointData( configFileName );
+  char* configFilePath = (char*) calloc( strlen("../config/emg_joint/") + strlen( configFileName ) + 1, sizeof(char) );
+  sprintf( configFilePath, "../config/emg_joint/%s", configFileName );
+  
+  EMGJoint* ref_newJointData = LoadEMGJointData( configFilePath );
+  
+  free( configFilePath );
+  
   if( ref_newJointData == NULL ) return -1;
   
   if( emgJointsList == NULL ) emgJointsList = kh_init( EMGJoint );
@@ -150,11 +156,11 @@ static EMGJoint* LoadEMGJointData( const char* configFileName )
   memset( &emgJointData, 0, sizeof(EMGJoint) );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( configFileName );
+  int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
     parser.SetBaseKey( configFileID, "muscle_groups" );
-    for( size_t muscleGroupIndex = 0; muscleGroupIndex < MUSCLE_GROUPS_NUMBER; muscleGroupIndex++ )
+    for( size_t muscleGroupIndex = 0; muscleGroupIndex < 1/*MUSCLE_GROUPS_NUMBER*/; muscleGroupIndex++ )
     {
       if( (emgJointData.muscleGroupsSizesList[ muscleGroupIndex ] = (size_t) parser.GetListSize( configFileID, MUSCLE_GROUP_NAMES[ muscleGroupIndex ] )) > 0 )
       {
@@ -168,7 +174,7 @@ static EMGJoint* LoadEMGJointData( const char* configFileName )
       }
     }
     
-    parser.CloseFile( configFileID );
+    parser.UnloadFile( configFileID );
   }
   else
   {

@@ -3,7 +3,9 @@
 
 #include <stdbool.h>
 
-#ifdef WIN32
+#ifdef _CVI_
+  #include "shared_memory/shared_memory_cvi.h"
+#elif WIN32
   #include "shared_memory/shared_memory_windows.h"
 #else
   #include "shared_memory/shared_memory_unix.h"
@@ -42,7 +44,7 @@ typedef struct _AxisControlData
 }
 AxisControlData;
 
-KHASH_MAP_INIT_INT( AxisControl, AxisControlData* )
+KHASH_MAP_INIT_STR( AxisControl, AxisControlData* )
 static khash_t( AxisControl )* controlsDataList = NULL;
 
 int InitControllerData( const char* );
@@ -82,15 +84,19 @@ int InitControllerData( const char* sharedMemoryKey )
   
   memset( newShmControlData, 0, sizeof(AxisControlData) );
   
-  newShmControlData->numericValuesTable[ CONTROL_MEASURES ] = &(newShmControlData->measuresList);
+  newShmControlData->numericValuesTable[ CONTROL_MEASURES ] = (double*) &(newShmControlData->measuresList);
   newShmControlData->numericValuesNumberList[ CONTROL_MEASURES ] = CONTROL_MEASURES_NUMBER;
-  newShmControlData->numericValuesTable[ CONTROL_PARAMETERS ] = &(newShmControlData->parametersList);
+  newShmControlData->numericValuesTable[ CONTROL_PARAMETERS ] = (double*) &(newShmControlData->parametersList);
   newShmControlData->numericValuesNumberList[ CONTROL_PARAMETERS ] = CONTROL_SETPOINTS_NUMBER;
   
-  newShmControlData->booleanValuesTable[ CONTROL_STATES ] = &(newShmControlData->statesList);
+  DEBUG_PRINT( "number of measures: %u - parameters: %u", newShmControlData->numericValuesNumberList[ CONTROL_MEASURES ], newShmControlData->numericValuesNumberList[ CONTROL_PARAMETERS ] );
+  
+  newShmControlData->booleanValuesTable[ CONTROL_STATES ] = (bool*) &(newShmControlData->statesList);
   newShmControlData->booleanValuesNumberList[ CONTROL_STATES ] = CONTROL_STATES_NUMBER;
-  newShmControlData->booleanValuesTable[ CONTROL_COMMANDS ] = &(newShmControlData->commandsList);
+  newShmControlData->booleanValuesTable[ CONTROL_COMMANDS ] = (bool*) &(newShmControlData->commandsList);
   newShmControlData->booleanValuesNumberList[ CONTROL_COMMANDS ] = CONTROL_COMMANDS_NUMBER;
+  
+  DEBUG_PRINT( "number of states: %u - commands: %u", newShmControlData->booleanValuesNumberList[ CONTROL_STATES ], newShmControlData->booleanValuesNumberList[ CONTROL_COMMANDS ] );
   
   kh_value( controlsDataList, newShmControllerID ) = newShmControlData;
   
@@ -100,10 +106,14 @@ int InitControllerData( const char* sharedMemoryKey )
 void EndControllerData( int shmControlDataID )
 {
   if( !kh_exist( controlsDataList, (khint_t) shmControlDataID ) ) return;
+  
+  DEBUG_PRINT( "Destroying control %d data", shmControlDataID );
 
   SharedObjects.DestroyObject( kh_value( controlsDataList, (khint_t) shmControlDataID ) );
     
   kh_del( AxisControl, controlsDataList, (khint_t) shmControlDataID );
+  
+  //DEBUG_PRINT( "controls list size: %u", kh_size( controlsDataList ) );
     
   if( kh_size( controlsDataList ) == 0 )
   {

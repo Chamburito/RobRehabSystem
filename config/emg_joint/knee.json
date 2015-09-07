@@ -1,10 +1,10 @@
 {
   "muscle_groups": {
     "agonist": [
-      "../config/emg_sensor/rectus_femoris"
+      "rectus_femoris"
     ],
     "antagonist": [
-      "../config/emg_sensor/bisceps_femoris"
+      "bisceps_femoris"
     ]
   }
 }

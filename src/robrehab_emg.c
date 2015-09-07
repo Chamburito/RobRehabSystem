@@ -1,5 +1,4 @@
 #include "shm_axis_control.h"
-#include "emg_processing.h"
 #include "emg_joint_control.h"
 
 #include <analysis.h>
@@ -20,7 +19,7 @@ typedef struct _SHMJointControl
 }
 SHMJointControl;
 
-KHASH_MAP_INIT_INT( SHMJointControl, SHMJointControl )
+KHASH_MAP_INIT_STR( SHMJointControl, SHMJointControl )
 static khash_t( SHMJointControl )* shmJointControlsList = NULL;
 
 int Init( void );
@@ -39,10 +38,18 @@ void CVIFUNC_C RTmain( void )
       {
         SHMJointControl* jointControl = &(kh_value( shmJointControlsList, shmJointControlID ));
 
-        double jointTorque = EMGJointControl.GetTorque( jointControl->emgJointControlID, 0.0 );
-        double jointStiffness = EMGJointControl.GetStiffness( jointControl->emgJointControlID, 0.0 );
+        double* measuresList = SHMAxisControl.GetNumericValuesList( jointControl->shmAxisControlDataID, CONTROL_MEASURES, PEEK, NULL );
+        if( measuresList != NULL )
+        {
+          measuresList[ CONTROL_POSITION ] += 0.1;
+        
+          double jointTorque = EMGJointControl.GetTorque( jointControl->emgJointControlID, measuresList[ CONTROL_POSITION ] );
+          double jointStiffness = EMGJointControl.GetStiffness( jointControl->emgJointControlID, measuresList[ CONTROL_POSITION ] );
 
-        DEBUG_PRINT( "Joint torque: %g - stiffness: %g", jointTorque, jointStiffness );
+          DEBUG_PRINT( "Joint torque: %g - stiffness: %g", jointTorque, jointStiffness );
+        }
+        
+        SHMAxisControl.SetNumericValues( jointControl->shmAxisControlDataID, CONTROL_MEASURES, NULL );
       }
     }
 
@@ -61,7 +68,7 @@ int Init()
   shmJointControlsList = kh_init( SHMJointControl );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( "../config/shared_axes" );
+  int configFileID = parser.LoadFile( "../config/shared_axes" );
   if( configFileID != -1 )
   {
     if( parser.HasKey( configFileID, "axes" ) )
@@ -73,25 +80,27 @@ int Init()
       char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
       for( size_t shmAxisDataIndex = 0; shmAxisDataIndex < shmAxesNumber; shmAxisDataIndex++ )
       {
-        sprintf( searchPath, "axes.%u.name", shmAxisDataIndex );
+        sprintf( searchPath, "axes.%u", shmAxisDataIndex );
         char* deviceName = parser.GetStringValue( configFileID, searchPath );
         
-        sprintf( searchPath, "axes.%u.shm_key", shmAxisDataIndex );
-        int shmKey = (int) parser.GetIntegerValue( configFileID, searchPath );
+        DEBUG_PRINT( "found axis %s", deviceName );
         
-        DEBUG_PRINT( "found axis with name %s and shm key %x", deviceName, shmKey );
-        
-        if( kh_get( SHMJointControl, shmJointControlsList, shmKey ) == kh_end( shmJointControlsList ) )
+        if( kh_get( SHMJointControl, shmJointControlsList, deviceName ) == kh_end( shmJointControlsList ) )
         {
           if( (emgJointControlID = EMGJointControl.InitJoint( deviceName )) != -1 )
           {
-            if( (shmAxisControlDataID = SHMAxisControl.InitControllerData( shmKey )) != -1 )
+            if( (shmAxisControlDataID = SHMAxisControl.InitControllerData( deviceName )) != -1 )
             {
               int insertionStatus;
-              khint_t shmJointControlID = kh_put( SHMJointControl, shmJointControlsList, shmKey, &insertionStatus );
+              khint_t shmJointControlID = kh_put( SHMJointControl, shmJointControlsList, deviceName, &insertionStatus );
+              
+              DEBUG_PRINT( "Got hash table iterator %u (insertion status: %d)", shmJointControlID, insertionStatus );
 
               kh_value( shmJointControlsList, shmJointControlID ).shmAxisControlDataID = shmAxisControlDataID;
               kh_value( shmJointControlsList, shmJointControlID ).emgJointControlID = emgJointControlID;
+              
+              DEBUG_PRINT( "Got joint %d and axis %d", kh_value( shmJointControlsList, shmJointControlID ).emgJointControlID,
+                                                       kh_value( shmJointControlsList, shmJointControlID ).shmAxisControlDataID );
             }
             else loadError = true;
           }
@@ -99,7 +108,7 @@ int Init()
         
           if( loadError )
           {
-            //SHMAxisControl_End( shmAxisControlDataID );
+            SHMAxisControl.EndControllerData( shmAxisControlDataID );
             EMGJointControl.EndJoint( emgJointControlID );
             return -1;
           }
@@ -107,7 +116,7 @@ int Init()
       }
     }
     
-    parser.CloseFile( configFileID );
+    parser.UnloadFile( configFileID );
   }
   
   return 0;
@@ -115,10 +124,15 @@ int Init()
 
 void End()
 {
+  DEBUG_PRINT( "cleaning hash table %p from %u to %u", shmJointControlsList, kh_begin( shmJointControlsList ), kh_end( shmJointControlsList ) );
+  
   for( khint_t shmJointControlID = 0; shmJointControlID != kh_end( shmJointControlsList ); shmJointControlsList++ )
   {
+    DEBUG_PRINT( "searching joint control %u", shmJointControlID );
     if( kh_exist( shmJointControlsList, shmJointControlID ) )
     {
+      DEBUG_PRINT( "ending joint control %u", shmJointControlID ); 
+      
       SHMJointControl* jointControl = &(kh_value( shmJointControlsList, shmJointControlID ));
       
       SHMAxisControl.EndControllerData( jointControl->shmAxisControlDataID );
