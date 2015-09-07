@@ -3,6 +3,8 @@
 
 #include <math.h>
 
+#include "debug/async_debug.h"
+
 // Control used values enumerations
 enum { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_ACCELERATION, CONTROL_FORCE, CONTROL_ERROR, CONTROL_MEASURES_NUMBER };
 enum { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_SETPOINTS_NUMBER };
@@ -20,16 +22,16 @@ struct IndexedFunction
   char* name;                                   // Identifier string
   ImpedanceControlFunction ref_RunControl;      // Control pass algorithm (function pointer)
 }
-controlFunctionsList[] = { { "Default", RunDefaultControl }, { "Impedance_Force_PI", RunForcePIControl }, { "Impedance_Velocity", RunVelocityControl } };
+CONTROL_FUNCTIONS_LIST[] = { { "Default", RunDefaultControl }, { "Impedance_Force_PI", RunForcePIControl }, { "Impedance_Velocity", RunVelocityControl } };
 
-static size_t functionsNumber = sizeof(controlFunctionsList) / sizeof(struct IndexedFunction);
+static size_t FUNCTIONS_NUMBER = sizeof(controlFunctionsList) / sizeof(struct IndexedFunction);
 
 ImpedanceControlFunction ImpedanceControl_GetFunction( const char* functionName )
 {
-  for( size_t functionID = 0; functionID < functionsNumber; functionID++ )
+  for( size_t functionID = 0; functionID < FUNCTIONS_NUMBER; functionID++ )
   {
-    if( strcmp( functionName, controlFunctionsList[ functionID ].name ) == 0 )
-      return controlFunctionsList[ functionID ].ref_RunControl;
+    if( strcmp( functionName, CONTROL_FUNCTIONS_LIST[ functionID ].name ) == 0 )
+      return CONTROL_FUNCTIONS_LIST[ functionID ].ref_RunControl;
   }
   
   return NULL;

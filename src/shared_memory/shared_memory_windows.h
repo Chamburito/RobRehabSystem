@@ -1,49 +1,80 @@
 #ifndef SHARED_MEMORY_H
 #define SHARED_MEMORY_H
 
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/stat.h>
+#include <windows.h>
+
+#include "klib/khash.h"
 
 #include "debug/async_debug.h"
 
-#define SHM_READ GENERIC_READ
-#define SHM_WRITE GENERIC_WRITE
+#define SHM_READ FILE_MAP_READ
+#define SHM_WRITE FILE_MAP_WRITE
+#define SHM_READ_WRITE FILE_MAP_ALL_ACCESS
 
-void* CreateByName( const char*, size_t, int );
-void* CreateByKey( int, size_t, int );
-void Destroy( void* );
+typedef struct _SharedObject
+{
+  HANDLE handle;
+  void* data;
+}
+SharedObject;
+
+KHASH_MAP_INIT_STR( SO, SharedObject )
+khash_t( SO )* sharedObjectsList = NULL;
+
+void* CreateObject( const char*, size_t, int );
+void DestroyObject( void* );
 
 const struct 
 { 
-  void* (*CreateByName)( const char*, size_t, int );
-  void* (*CreateByKey)( int, size_t, int );
-  void (*Destroy)( void* );
+  void* (*CreateObject)( const char*, size_t, int );
+  void (*DestroyObject)( void* );
 } 
-SharedObject = { CreateByName, CreateByKey, Destroy };
+SharedObjects = { CreateObject, DestroyObject };
 
-void* CreateByName( const char* mappingName, size_t objectSize, int flags )
+void* CreateObject( const char* mappingName, size_t objectSize, int flags )
 {
-  struct FILE* mappedFile = fopen( mappingName, "r+" );
-  fclose( mappedFile );
+  HANDLE mappedFile = OpenFileMapping( flags, FALSE, mappingName );
+  if( mappedFile == NULL )
+  {
+    mappedFile = CreateFileMapping( INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, objectSize, mappingName );
+    if( mappedFile == NULL )
+    {
+      return (void*) -1;
+    }
+  }
   
+  if( sharedObjectsList == NULL ) sharedObjectsList = kh_init( SO );
   
+  int insertionStatus;
+  khint_t newSharedMemoryID = kh_put( SO, sharedObjectsList, mappingName, &insertionStatus );
   
-  return CreateByKey( sharedKey, objectSize, flags );
+  kh_value( sharedObjectsList, newSharedMemoryID ).handle = mappedFile;
+  kh_value( sharedObjectsList, newSharedMemoryID ).data = MapViewOfFile( mappedFile, flags, 0, 0, 0 );
+  
+  return kh_value( sharedObjectsList, newSharedMemoryID ).data;
 }
 
-void* CreateByKey( int key, size_t objectSize, int flags )
+void DestroyObject( void* sharedObjectData )
 {
-  
-  
-  return newSharedObject;
-}
-
-void Destroy( void* sharedObject )
-{
-  
+  for( khint_t sharedObjectID = 0; sharedObjectID != kh_end( sharedObjectsList ); sharedObjectID++ )
+  {
+    if( !kh_exist( sharedObjectsList, sharedObjectID ) ) continue;
+    
+    if( kh_value( sharedObjectsList, sharedObjectID ).data == sharedObjectData )
+    {
+      UnmapViewOfFile( sharedObjectData );
+      CloseHandle( kh_value( sharedObjectsList, sharedObjectID ).handle );
+      kh_del( SO, sharedObjectsList, sharedObjectID );
+      
+      if( kh_size( sharedObjectsList ) == 0 )
+      {
+        kh_destroy( SO, sharedObjectsList );
+        sharedObjectsList = NULL;
+      }
+      
+      break;
+    }
+  }
 }
 
 

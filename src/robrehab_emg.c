@@ -11,7 +11,7 @@
 
 #include "file_parsing/json_parser.h"
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 typedef struct _SHMJointControl
 {
@@ -85,15 +85,15 @@ int Init()
         {
           if( (emgJointControlID = EMGJointControl.InitJoint( deviceName )) != -1 )
           {
-            //if( (shmAxisControlDataID = ShmAxisControl_Init( shmKey )) != -1 )
-            //{
+            if( (shmAxisControlDataID = SHMAxisControl.InitControllerData( shmKey )) != -1 )
+            {
               int insertionStatus;
               khint_t shmJointControlID = kh_put( SHMJointControl, shmJointControlsList, shmKey, &insertionStatus );
 
-              //kh_value( shmJointControlsList, shmJointControlID ).shmAxisControlDataID = shmAxisControlDataID;
+              kh_value( shmJointControlsList, shmJointControlID ).shmAxisControlDataID = shmAxisControlDataID;
               kh_value( shmJointControlsList, shmJointControlID ).emgJointControlID = emgJointControlID;
-            //}
-            //else loadError = true;
+            }
+            else loadError = true;
           }
           else loadError = true;
         
@@ -121,7 +121,7 @@ void End()
     {
       SHMJointControl* jointControl = &(kh_value( shmJointControlsList, shmJointControlID ));
       
-      //SHMAxisControl_End( jointControl->shmAxisControlDataID );
+      SHMAxisControl.EndControllerData( jointControl->shmAxisControlDataID );
       EMGJointControl.EndJoint( jointControl->emgJointControlID );
       
       kh_del( SHMJointControl, shmJointControlsList, shmJointControlID );
