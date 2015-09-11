@@ -24,7 +24,7 @@
   #include "threads/threads_unix.h"
 #endif
 
-#include "debug.h" 
+#include "debug/debug.h" 
 
 #define NO_CODE do { } while( 0 )
 

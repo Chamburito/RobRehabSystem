@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#include "debug.h"
+#include "debug/debug.h"
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +36,7 @@ CmtThreadPoolHandle threadPool = NULL;
 // Setup new thread to run the given method asyncronously
 Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
 {
-  CmtThreadFunctionID threadID = -1;
+  CmtThreadFunctionID threadID = INVALID_THREAD_HANDLE;
   static int status;
   
   static char errorBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
@@ -71,11 +71,18 @@ static int CVICALLBACK ClearThreadPool( void* data )
 // Exit the calling thread, returning the given value
 void Thread_Exit( uint32_t exitCode )
 {
+  static char errorBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
+  
   DEBUG_PRINT( "thread exiting with code: %u", exitCode );
 
-  CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, ClearThreadPool, NULL, NULL );
+  //CmtScheduleThreadPoolFunction( DEFAULT_THREAD_POOL_HANDLE, ClearThreadPool, NULL, NULL );
   
-  CmtExitThreadPoolThread( (int) exitCode );
+  int exitStatus = CmtExitThreadPoolThread( (int) exitCode );
+  if( exitStatus < 0 ) 
+  {
+    CmtGetErrorMessage( exitStatus, errorBuffer );
+    DEBUG_PRINT( "%s", errorBuffer );
+  }
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value

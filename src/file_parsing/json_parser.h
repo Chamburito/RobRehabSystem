@@ -29,50 +29,58 @@ typedef struct _FileData
 }
 FileData;
                                                 
-KHASH_MAP_INIT_STR( JSON, FileData )
+KHASH_MAP_INIT_INT( JSON, FileData )
 static khash_t( JSON )* jsonFilesList = NULL;
 
-static int LoadFile( const char* fileName )
+static int LoadFile( const char* filePath )
 {
-  char* fileNameExt = (char*) calloc( strlen( fileName ) + strlen( ".json" ) + 1, sizeof(char) );
-  sprintf( fileNameExt, "%s.json", fileName );
+  char* filePathExt = (char*) calloc( strlen( filePath ) + strlen( ".json" ) + 1, sizeof(char) );
+  sprintf( filePathExt, "%s.json", filePath );
   
-  DEBUG_PRINT( "looking for file: %s", fileNameExt );
+  DEBUG_PRINT( "looking for file: %s", filePathExt );
   
-  FILE* configFile = fopen( fileNameExt, "r" );
+  FILE* configFile = fopen( filePathExt, "r" );
   
-  free( fileNameExt );
+  free( filePathExt );
   
-  if( configFile != NULL )
+  if( configFile == NULL ) return -1;
+  
+  if( jsonFilesList == NULL ) jsonFilesList = kh_init( JSON );
+  
+  int fileKey = (int) kh_str_hash_func( filePath );
+  
+  int insertionStatus;
+  khint_t fileID = kh_put( JSON, jsonFilesList, fileKey, &insertionStatus );
+  DEBUG_PRINT( "Trying to insert key: %d (status: %d)", fileKey, insertionStatus );
+  if( insertionStatus > 0 )
   {
     fseek( configFile, 0, SEEK_END );
     long int fileSize = ftell( configFile );
     char* configString = (char*) calloc( fileSize + 1, sizeof(char) );
     fseek( configFile, 0, SEEK_SET );
     fread( configString, sizeof(char), fileSize, configFile );
-    fclose( configFile );
-    
+  
     DEBUG_PRINT( "Config file content: %s", configString );
     
-    if( jsonFilesList == NULL ) jsonFilesList = kh_init( JSON );
-    
-    int insertionStatus;
-    khint_t fileID = kh_put( JSON, jsonFilesList, fileName, &insertionStatus );
-    if( insertionStatus > 0 ) 
-    {
-      kh_value( jsonFilesList, fileID ).nodeTree = kson_parse( (const char*) configString );
-      kh_value( jsonFilesList, fileID ).currentNode = kh_value( jsonFilesList, fileID ).nodeTree->root;
-      
-      DEBUG_PRINT( "Found %u keys in new JSON file", (size_t) kh_value( jsonFilesList, fileID ).nodeTree->root->n );
-    }
+    kh_value( jsonFilesList, fileID ).nodeTree = kson_parse( (const char*) configString );
 
     free( configString );
-    if( insertionStatus == -1 ) return -1;
-    
-    return (int) fileID;
   }
   
-  return -1;
+  fclose( configFile );
+  
+  if( kh_value( jsonFilesList, fileID ).nodeTree == NULL )
+  {
+    UnloadFile( (int) fileID );
+    return -1;
+  }
+  
+  kh_value( jsonFilesList, fileID ).currentNode = kh_value( jsonFilesList, fileID ).nodeTree->root;
+
+  DEBUG_PRINT( "New file inserted: %s (iterator: %u)", filePath, fileID );
+  DEBUG_PRINT( "Found %u keys in new JSON file", (size_t) kh_value( jsonFilesList, fileID ).nodeTree->root->n );
+
+  return (int) fileID;
 }
 
 static void UnloadFile( int fileID )

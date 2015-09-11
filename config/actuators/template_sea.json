@@ -1,0 +1,15 @@
+{
+  "axes": {
+    "motor": {
+      "interface_type": "CAN_EPOS",
+      "name": "knee_motor",
+      "gear_reduction": 150
+    },
+    "sensor": {
+      "interface_type": "PCI_DAQ",
+      "name": "knee_sensor",
+      "gear_reduction": -1
+    }
+  },
+  "spring_force_curve": "knee"
+}

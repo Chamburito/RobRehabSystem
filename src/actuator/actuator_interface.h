@@ -18,6 +18,7 @@ typedef struct _ActuatorOperations
   void (*Enable)( int );
   void (*Disable)( int );
   void (*Reset)( int );
+  void (*Calibrate)( int );
   bool (*IsEnabled)( int );
   bool (*HasError)( int );
   void (*ReadAxes)( int );

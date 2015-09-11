@@ -8,7 +8,7 @@
 #ifndef CAN_NETWORK_H
 #define CAN_NETWORK_H
 
-#include "can_frame.h"
+#include "ni_can_epos_axis/can_frame.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +21,7 @@ static char networkClusterName[ 256 ];
 static CANFrame* NMT = NULL;
 static CANFrame* SYNC = NULL;
 
-void CANNetwork_ResetCommunication();
+void CANNetwork_Reset();
 
 void CANNetwork_Start( const char* databaseName, const char* clusterName )
 {

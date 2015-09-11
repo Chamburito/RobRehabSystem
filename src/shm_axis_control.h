@@ -80,8 +80,6 @@ int InitControllerData( const char* sharedMemoryKey )
   khint_t newShmControllerID = kh_put( AxisControl, controlsDataList, sharedMemoryKey, &insertionStatus );
   if( insertionStatus == -1 ) return -1;
   
-  DEBUG_PRINT( "Got hash table iterator %u (insertion status: %d)", newShmControllerID, insertionStatus );
-  
   memset( newShmControlData, 0, sizeof(AxisControlData) );
   
   newShmControlData->numericValuesTable[ CONTROL_MEASURES ] = (double*) &(newShmControlData->measuresList);
@@ -89,14 +87,10 @@ int InitControllerData( const char* sharedMemoryKey )
   newShmControlData->numericValuesTable[ CONTROL_PARAMETERS ] = (double*) &(newShmControlData->parametersList);
   newShmControlData->numericValuesNumberList[ CONTROL_PARAMETERS ] = CONTROL_SETPOINTS_NUMBER;
   
-  DEBUG_PRINT( "number of measures: %u - parameters: %u", newShmControlData->numericValuesNumberList[ CONTROL_MEASURES ], newShmControlData->numericValuesNumberList[ CONTROL_PARAMETERS ] );
-  
   newShmControlData->booleanValuesTable[ CONTROL_STATES ] = (bool*) &(newShmControlData->statesList);
   newShmControlData->booleanValuesNumberList[ CONTROL_STATES ] = CONTROL_STATES_NUMBER;
   newShmControlData->booleanValuesTable[ CONTROL_COMMANDS ] = (bool*) &(newShmControlData->commandsList);
   newShmControlData->booleanValuesNumberList[ CONTROL_COMMANDS ] = CONTROL_COMMANDS_NUMBER;
-  
-  DEBUG_PRINT( "number of states: %u - commands: %u", newShmControlData->booleanValuesNumberList[ CONTROL_STATES ], newShmControlData->booleanValuesNumberList[ CONTROL_COMMANDS ] );
   
   kh_value( controlsDataList, newShmControllerID ) = newShmControlData;
   
@@ -112,8 +106,6 @@ void EndControllerData( int shmControlDataID )
   SharedObjects.DestroyObject( kh_value( controlsDataList, (khint_t) shmControlDataID ) );
     
   kh_del( AxisControl, controlsDataList, (khint_t) shmControlDataID );
-  
-  //DEBUG_PRINT( "controls list size: %u", kh_size( controlsDataList ) );
     
   if( kh_size( controlsDataList ) == 0 )
   {

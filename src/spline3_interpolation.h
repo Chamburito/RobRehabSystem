@@ -18,7 +18,19 @@ typedef struct _Splined3Curve
 }
 Splined3Curve;
 
-Splined3Curve* Spline3Interp_LoadCurve( const char* curveName )
+static Splined3Curve* LoadCurve( const char* );
+static void UnloadCurve( Splined3Curve* );
+static double GetValue( Splined3Curve*, double );
+
+const struct 
+{
+  Splined3Curve* (*LoadCurve)( const char* );
+  void (*UnloadCurve)( Splined3Curve* );
+  double (*GetValue)( Splined3Curve*, double );
+}
+Spline3Interp = { .LoadCurve = LoadCurve, .UnloadCurve = UnloadCurve, .GetValue = GetValue };
+
+static Splined3Curve* LoadCurve( const char* curveName )
 {
   char readBuffer[ CURVE_NAME_MAX_LENGTH ];
   
@@ -114,7 +126,7 @@ Splined3Curve* Spline3Interp_LoadCurve( const char* curveName )
   return newCurveData;
 }
 
-void Spline3Interp_UnloadCurve( Splined3Curve* curveData )
+static void UnloadCurve( Splined3Curve* curveData )
 {
   if( curveData != NULL )
   {
@@ -125,7 +137,7 @@ void Spline3Interp_UnloadCurve( Splined3Curve* curveData )
   }
 }
 
-double Spline3Interp_GetValue( Splined3Curve* curveData, double valuePosition )
+static double GetValue( Splined3Curve* curveData, double valuePosition )
 {
   if( curveData == NULL ) return 1.0;
   

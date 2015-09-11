@@ -3,6 +3,12 @@
 
 #include <stdbool.h>
 
+#ifdef _CVI_
+  #define SET_PATH( dirPath ) SetDir( dirPath );
+#else
+  #define SET_PATH( dirPath ) system( "cd " dirPath );
+#endif
+
 #define FILE_PARSER_MAX_PATH_LENGTH 256
 
 typedef struct _FileParser

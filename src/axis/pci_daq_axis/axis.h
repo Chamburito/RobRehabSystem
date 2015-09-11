@@ -1,7 +1,9 @@
-#ifndef AXIS_CAN_EPOS_INTERFACE_H
-#define AXIS_CAN_EPOS_INTERFACE_H
+#ifndef AXIS_PCI_DAQ_INTERFACE_H
+#define AXIS_PCI_DAQ_INTERFACE_H
 
 #include "axis_interface.h"
+
+#ifdef _UNIX_
 
 #include "pci_daq_axis/pci4e/pci4e.h"
 #include "pci_daq_axis/pci4e/pci4eHelper.h"
@@ -40,6 +42,8 @@
 
 #define PCI_ENCODER_COUNT_LIMIT ( 1 << 24 )
 
+#endif // _UNIX_
+
 typedef struct _PCIDAQInterface
 {
   int daqBoardID;
@@ -50,6 +54,8 @@ typedef struct _PCIDAQInterface
   unsigned int encoderResolution;
 }
 PCIDAQInterface;
+
+#ifdef _UNIX_
 
 KHASH_MAP_INIT_INT( PCIDAQ, PCIDAQInterface )
 static khash_t( PCIDAQ )* interfacesList = NULL;
@@ -64,27 +70,31 @@ static struct
 }
 daqBoard;
 
-static int Connect( const char* );
-static void Disconnect( int );
-static void Enable( int );
-static void Disable( int );
+#endif // _UNIX_
+
+static int PCIDAQ_Connect( const char* );
+static void PCIDAQ_Disconnect( int );
+static void PCIDAQ_Enable( int );
+static void PCIDAQ_Disable( int );
 static void Reset( int );
-static bool IsEnabled( int );
-static bool HasError( int );
-static bool ReadMeasures( int, double[ AXIS_DIMENSIONS_NUMBER ] );
-static void WriteControl( int, double );
+static bool PCIDAQ_IsEnabled( int );
+static bool PCIDAQ_HasError( int );
+static bool PCIDAQ_ReadMeasures( int, double[ AXIS_DIMENSIONS_NUMBER ] );
+static void PCIDAQ_WriteControl( int, double );
 
-static inline PCIDAQInterface* LoadInterfaceData( const char* );
-static inline double DAQAnalogRead( PCIDAQInterface* );
-static inline void DAQAnalogWrite( PCIDAQInterface*, double ); 
-static inline double PCIEncoderRead( PCIDAQInterface* );
+//static inline PCIDAQInterface* LoadInterfaceData( const char* );
+//static inline double DAQAnalogRead( PCIDAQInterface* );
+//static inline void DAQAnalogWrite( PCIDAQInterface*, double ); 
+//static inline double PCIEncoderRead( PCIDAQInterface* );
 
-const AxisOperations AxisPCIDAQOperations = { .Connect = Connect, .Disconnect = Disconnect, .Enable = Enable, .Disable = Disable, .Reset = Reset,
-                                              .IsEnabled = IsEnabled, .HasError = HasError, .ReadMeasures = ReadMeasures, .WriteControl = WriteControl };
+const AxisOperations AxisPCIDAQOperations = { .Connect = PCIDAQ_Connect, .Disconnect = PCIDAQ_Disconnect, .Enable = PCIDAQ_Enable, .Disable = PCIDAQ_Disable, .Reset = Reset,
+                                              .IsEnabled = PCIDAQ_IsEnabled, .HasError = PCIDAQ_HasError, .ReadMeasures = PCIDAQ_ReadMeasures, .WriteControl = PCIDAQ_WriteControl };
 
 // Create CAN controlled DC motor handle
 
-static int Connect( const char* configKey )
+#ifdef _UNIX_
+
+static int PCIDAQ_Connect( const char* configKey )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to connect PCI DAQ interface %s", configKey );
   
@@ -127,7 +137,7 @@ static int Connect( const char* configKey )
       daqBoard.analogReadBuffer = (uint16_t*) calloc( DAQ_SAMPLES_NUMBER * daqBoard.analogInputChannelsNumber, sizeof(uint16_t) );
     }
     
-    Disable( newInterfaceID );
+    PCIDAQ_Disable( newInterfaceID );
     
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "created interface for device %s", configKey );
     
@@ -141,7 +151,7 @@ static int Connect( const char* configKey )
   return -1;
 }
 
-static void Disconnect( int interfaceID )
+static void PCIDAQ_Disconnect( int interfaceID )
 {
   if( kh_exist( interfacesList, interfaceID ) )
   {
@@ -167,7 +177,7 @@ static void Disconnect( int interfaceID )
   }
 }
 
-static void Enable( int interfaceID )
+static void PCIDAQ_Enable( int interfaceID )
 {
   if( kh_exist( interfacesList, interfaceID ) )
   {
@@ -177,7 +187,7 @@ static void Enable( int interfaceID )
   }
 }
 
-static void Disable( int interfaceID )
+static void PCIDAQ_Disable( int interfaceID )
 {
   if( kh_exist( interfacesList, interfaceID ) )
   {
@@ -223,7 +233,7 @@ void Reset( int interfaceID )
   }
 }
 
-static bool IsEnabled( int interfaceID )
+static bool PCIDAQ_IsEnabled( int interfaceID )
 {
   static tEvents boardStatus;
   
@@ -239,7 +249,7 @@ static bool IsEnabled( int interfaceID )
   return false;
 }
 
-static bool HasError( int interfaceID )
+static bool PCIDAQ_HasError( int interfaceID )
 {
   static DWORD eventsList;
   
@@ -256,7 +266,7 @@ static bool HasError( int interfaceID )
   return false;
 }
 
-static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_NUMBER ] )
+static bool PCIDAQ_ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_NUMBER ] )
 {
   if( kh_exist( interfacesList, interfaceID ) )
   {
@@ -271,7 +281,7 @@ static bool ReadMeasures( int interfaceID, double measuresList[ AXIS_DIMENSIONS_
   return false;
 }
 
-void WriteControl( int interfaceID, double setpointValue )
+void PCIDAQ_WriteControl( int interfaceID, double setpointValue )
 {
   // Create writing buffer
   static uint8_t payload[ 8 ];
@@ -411,5 +421,6 @@ static inline double PCIEncoderRead( PCIDAQInterface* interface )
   return (double) encoderCount;
 }
 
+#endif // _UNIX_
 
-#endif  /* AXIS_CAN_EPOS_INTERFACE_H */
+#endif  /* AXIS_PCI_DAQ_INTERFACE_H */

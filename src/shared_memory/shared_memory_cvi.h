@@ -2,7 +2,9 @@
 #define SHARED_MEMORY_H
 
 #include "asynctmr.h"
-#include <cvinetv.h>     
+#include <cvinetv.h>
+#include <cvirte.h>		
+#include <userint.h>
 
 #include "klib/khash.h"
 
@@ -67,13 +69,8 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
   char* variablePathName = (char*) calloc( strlen( "\\\\localhost\\system\\" ) + strlen( mappingName ) + 1, sizeof(char) );
   sprintf( variablePathName, "\\\\localhost\\system\\%s", mappingName );
   
-  DEBUG_PRINT( "trying to create shared variable %s", variablePathName );
-  
-  //CNVNewVariable( "\\\\localhost\\system\\", mappingName );
-  
   if( ( flags & SHM_READ ) )
   {
-    DEBUG_PRINT( "trying to create subscriber %s", variablePathName ); 
     int status = CNVCreateSubscriber( variablePathName, UpdateDataIn, NULL, newSharedObject, 10000, 0, &(newSharedObject->reader) ); 
     if( status != 0 )
     {
@@ -85,7 +82,6 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
   
   if( ( flags & SHM_WRITE ) )
   {
-    DEBUG_PRINT( "trying to create writer %s", variablePathName ); 
     int status = CNVCreateBufferedWriter( variablePathName, NULL, NULL, NULL, objectSize, 10000, 0, &(newSharedObject->writer) );
     if( status != 0 )
     {
@@ -94,7 +90,7 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
       return NULL;
     }
     
-    if( (newSharedObject->timerID = NewAsyncTimer( 0.001, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
+    if( (newSharedObject->timerID = NewAsyncTimer( 0.005, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
     {
       DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
       free( variablePathName );
@@ -145,9 +141,11 @@ void CVICALLBACK UpdateDataIn( void* handle, CNVData data, void* callbackData )
 {
   SharedObject* sharedObject = (SharedObject*) callbackData;
   
-  if( sharedObject->reader == (CNVSubscriber*) handle )
+  if( sharedObject->reader == (CNVSubscriber) handle )
   {
-    CNVGetArrayDataValue( data, CNVBool, sharedObject->data, sharedObject->dataSize );
+    int status = CNVGetArrayDataValue( data, CNVBool, sharedObject->data, sharedObject->dataSize );
+    if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+    
     CNVDisposeData( data );
   }
 }
@@ -156,10 +154,20 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
 {
   SharedObject* sharedObject = (SharedObject*) callbackData;
   
-  if( sharedObject->timerID == timerId /*&& event == EVENT_TIMER_TICK*/ )
+  if( sharedObject->timerID == timerId && event == EVENT_TIMER_TICK )
   {
-    CNVCreateArrayDataValue( &(sharedObject->networkData), CNVBool, sharedObject->data, 1, &(sharedObject->dataSize) );
-    CNVPutDataInBuffer( sharedObject->writer, sharedObject->networkData, 1000 );
+    int status = CNVCreateArrayDataValue( &(sharedObject->networkData), CNVBool, sharedObject->data, 1, &(sharedObject->dataSize) );
+    if( status != 0 )
+    {
+      DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+      return 0;
+    }
+    status = CNVPutDataInBuffer( sharedObject->writer, sharedObject->networkData, 1000 );
+    if( status != 0 )
+    {
+      DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+      return 0;
+    }
   }
   
   return 0;

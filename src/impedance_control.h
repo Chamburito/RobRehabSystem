@@ -221,7 +221,9 @@ static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ],
 
 static double RunDefaultControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
 {
-  return parametersList[ CONTROL_MEASURES_NUMBER ];
+  DEBUG_PRINT( "returning %g", parametersList[ CONTROL_REFERENCE ] );
+  
+  return parametersList[ CONTROL_REFERENCE ];
 }
 
 #endif  /* IMPEDANCE_CONTROL_H */

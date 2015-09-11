@@ -3,7 +3,7 @@
 
 #include <math.h>
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 //const size_t TRAJECTORY_CURVE_ORDER = 3;
 #define TRAJECTORY_CURVE_ORDER 3

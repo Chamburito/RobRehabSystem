@@ -7,7 +7,7 @@
 #define ASYNC_IP_CONNECTION_H
 
 #include "cvidef.h"
-#include "async_debug.h"
+#include "debug/async_debug.h"
   
 #include <tcpsupp.h>
 #include <udpsupp.h>

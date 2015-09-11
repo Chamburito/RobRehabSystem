@@ -23,7 +23,7 @@
 
 //#include "nixnet_stub.h"
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 enum FrameMode { FRAME_IN = nxMode_FrameInSinglePoint, FRAME_OUT = nxMode_FrameOutSinglePoint };
 
@@ -57,8 +57,8 @@ CANFrame* CANFrame_Init( enum FrameMode mode, const char* interfaceName, const c
 
   frame->name = (char*) calloc( strlen(frameName) + 1, sizeof(char) );
   strcpy( frame->name, frameName );
-
-  //Create an xnet session for Signal Input
+  
+  //Create an xnet session
   nxStatus_t statusCode = nxCreateSession( databaseName, clusterName, frameName, interfaceName, (u32) mode, &(frame->ref_session) );
   if( statusCode != nxSuccess )
   {

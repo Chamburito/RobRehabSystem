@@ -38,15 +38,16 @@ void CVIFUNC_C RTmain( void )
       {
         SHMJointControl* jointControl = &(kh_value( shmJointControlsList, shmJointControlID ));
 
-        double* measuresList = SHMAxisControl.GetNumericValuesList( jointControl->shmAxisControlDataID, CONTROL_MEASURES, PEEK, NULL );
+        double* measuresList = SHMAxisControl.GetNumericValuesList( jointControl->shmAxisControlDataID, CONTROL_MEASURES, REMOVE, NULL );
         if( measuresList != NULL )
         {
           measuresList[ CONTROL_POSITION ] += 0.1;
+          //DEBUG_PRINT( "position: %g", measuresList[ CONTROL_POSITION ] );
         
           double jointTorque = EMGJointControl.GetTorque( jointControl->emgJointControlID, measuresList[ CONTROL_POSITION ] );
           double jointStiffness = EMGJointControl.GetStiffness( jointControl->emgJointControlID, measuresList[ CONTROL_POSITION ] );
 
-          DEBUG_PRINT( "Joint torque: %g - stiffness: %g", jointTorque, jointStiffness );
+          //DEBUG_PRINT( "Joint torque: %g - stiffness: %g", jointTorque, jointStiffness );
         }
         
         SHMAxisControl.SetNumericValues( jointControl->shmAxisControlDataID, CONTROL_MEASURES, NULL );
@@ -62,13 +63,15 @@ void CVIFUNC_C RTmain( void )
 
 int Init()
 {
-  int shmAxisControlDataID, emgJointControlID;
+  int shmAxisControlDataID = -1, emgJointControlID = -1;
   bool loadError = false;
   
   shmJointControlsList = kh_init( SHMJointControl );
   
+  SET_PATH( "../config/" );
+  
   FileParser parser = JSONParser;
-  int configFileID = parser.LoadFile( "../config/shared_axes" );
+  int configFileID = parser.LoadFile( "shared_axes" );
   if( configFileID != -1 )
   {
     if( parser.HasKey( configFileID, "axes" ) )

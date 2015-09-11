@@ -1,3 +1,4 @@
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\kson.obj" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.obj" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\advapi32_lvrt.lib" ;
 NoCare "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\advapi32_lvrt.lib" ;

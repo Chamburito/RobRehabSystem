@@ -1,0 +1,23 @@
+{
+  "actuator": {
+    "type": "SEA",
+    "name": "knee"
+  },
+  "control": {
+    "function": "Impedance_Force_PI",
+    "parameters": {
+      "reference": {
+        "normalized_curve": "knee_walk_reference",
+        "amplitude": 1
+      },
+      "stiffness": {
+        "normalized_curve": "knee_walk_stiffness",
+        "amplitude": 1
+      },
+      "damping": {
+        "normalized_curve": "knee_walk_damping",
+        "amplitude": 0
+      }
+    }
+  }
+}

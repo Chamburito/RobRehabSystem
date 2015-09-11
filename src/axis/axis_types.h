@@ -2,7 +2,7 @@
 #define AXIS_TYPES_H
 
 #include "ni_can_epos_axis/axis.h"
-#include "pci_daq_axis/axis.h"
+//#include "pci_daq_axis/axis.h"
 
 typedef struct _AxisTypeData
 {
@@ -11,10 +11,10 @@ typedef struct _AxisTypeData
 }
 AxisTypeData;
 
-static const AxisTypeData AXIS_TYPES_LIST[] = { { "CAN_EPOS", &AxisCANEPOSOperations }, { "PCI_DAQ", &AxisPCIDAQOperations } };
+static const AxisTypeData AXIS_TYPES_LIST[] = { { "CAN_EPOS", &AxisCANEPOSOperations }/*, { "PCI_DAQ", &AxisPCIDAQOperations }*/ };
 static const size_t AXIS_TYPES_NUMBER = sizeof(AXIS_TYPES_LIST) / sizeof(AxisTypeData);
 
-static AxisInterface GetInterface( const char* typeName )
+static AxisInterface GetAxisInterface( const char* typeName )
 {
   for( size_t axisTypeIndex = 0; axisTypeIndex < AXIS_TYPES_NUMBER; axisTypeIndex++ )
   {
@@ -24,11 +24,5 @@ static AxisInterface GetInterface( const char* typeName )
   
   return NULL;
 }
-
-const struct 
-{
-  AxisInterface (*GetInterface)( const char* );
-}
-AxisTypes = { .GetInterface = GetInterface };
 
 #endif // AXIS_TYPES_H

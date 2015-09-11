@@ -1,6 +1,8 @@
 #ifndef AXIS_INTERFACE_H
 #define AXIS_INTERFACE_H
 
+#include <stdbool.h>
+
 enum AxisDimensions { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE, AXIS_DIMENSIONS_NUMBER };
 
 typedef struct _AxisOperations

@@ -52,11 +52,12 @@ typedef struct _EMGSensor
   unsigned int channel;
   EMGData emgData;
   MuscleProperties muscleProperties;
+  ThreadLock lock;
 }
 EMGSensor;
 
-KHASH_MAP_INIT_STR( EMG, EMGSensor )
-static khash_t( EMG )* emgSensorsList = NULL;
+KHASH_MAP_INIT_INT( SensorInt, EMGSensor* )
+static khash_t( SensorInt )* sensorsList = NULL;
 
 Thread_Handle emgThreadID;
 ThreadLock phasePassCountLock;
@@ -86,70 +87,69 @@ static void UnloadEMGSensorData( EMGSensor* );
 
 int InitSensor( const char* configFileName )
 {
-  if( emgSensorsList != NULL )
+  EMGSensor* newSensor = LoadEMGSensorData( configFileName );
+  if( newSensor == NULL )
   {
-    khint_t sensorID = kh_get( EMG, emgSensorsList, configFileName );
-    if( sensorID != kh_end( emgSensorsList ) )
-    {
-      DEBUG_PRINT( "sensor key %s already exists", configFileName );
-      return (int) sensorID;
-    }
+    DEBUG_PRINT( "EMG sensor %s configuration failed", configFileName );
+    return -1;
   }
   
-  char* configFilePath = (char*) calloc( strlen("../config/emg_sensor/") + strlen( configFileName ) + 1, sizeof(char) );
-  sprintf( configFilePath, "../config/emg_sensor/%s", configFileName );
-  
-  EMGSensor* ref_newSensorData = LoadEMGSensorData( configFilePath );
-  
-  free( configFilePath );
-  
-  if( ref_newSensorData == NULL ) return -1;
-  
-  if( emgSensorsList == NULL ) 
+  if( sensorsList == NULL ) 
   {
+    sensorsList = kh_init( SensorInt );
+    
     phasePassCountLock = ThreadLock_Create();
     
     isProcessRunning = true;
     emgThreadID = Thread_Start( AsyncUpdate, NULL, THREAD_JOINABLE );
-    
-    emgSensorsList = kh_init( EMG );
   }
   
+  int configKey = (int) kh_str_hash_func( configFileName );
+  
+  //ThreadLock_Aquire( phasePassCountLock );
   int insertionStatus;
-  khint_t newSensorID = kh_put( EMG, emgSensorsList, configFileName, &insertionStatus );
-
-  EMGSensor* newSensor = &(kh_value( emgSensorsList, newSensorID ));
-  memcpy( newSensor, ref_newSensorData, sizeof(EMGSensor) );
+  khint_t newSensorID = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
+  if( insertionStatus > 0 )
+  {
+    kh_value( sensorsList, newSensorID ) = newSensor;
+    
+    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( sensorsList, newSensorID ), newSensorID, kh_size( sensorsList ) );
+  }
+  else if( insertionStatus == 0 ) { DEBUG_PRINT( "EMG sensor key %d already exists (iterator %u)", configKey, newSensorID ); }
+  
+  //ThreadLock_Release( phasePassCountLock );
   
   return (int) newSensorID;
 }
 
 void EndSensor( int sensorID )
 {
-  if( !kh_exist( emgSensorsList, (khint_t) sensorID ) ) return;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
   
-  kh_del( EMG, emgSensorsList, (khint_t) sensorID );
+  UnloadEMGSensorData( kh_value( sensorsList, (khint_t) sensorID ) );
   
-  if( kh_size( emgSensorsList ) == 0 )
+  kh_del( SensorInt, sensorsList, (khint_t) sensorID );
+  
+  if( kh_size( sensorsList ) == 0 )
   {
     isProcessRunning = false;
     (void) Thread_WaitExit( emgThreadID, 5000 );
     
     ThreadLock_Discard( phasePassCountLock );
     
-    if( emgSensorsList != NULL )
+    if( sensorsList != NULL )
     {
-      kh_destroy( EMG, emgSensorsList );
-      emgSensorsList = NULL;
+      kh_destroy( SensorInt, sensorsList );
+      sensorsList = NULL;
     }
   }
 }
 
 static double GetActivation( int sensorID )
 {
-  if( !kh_exist( emgSensorsList, (khint_t) sensorID ) ) return 0.0;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
 
-  EMGSensor* sensor = &(kh_value( emgSensorsList, (khint_t) sensorID ));
+  EMGSensor* sensor = kh_value( sensorsList, (khint_t) sensorID );
     
   return sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ];
 }
@@ -159,9 +159,9 @@ double GetMuscleTorque( int sensorID, double jointAngle )
   static double measuresList[ MUSCLE_CURVES_NUMBER ];
   static double penationAngle;
   
-  if( !kh_exist( emgSensorsList, (khint_t) sensorID ) ) return 0.0;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
 
-  EMGSensor* sensor = &(kh_value( emgSensorsList, (khint_t) sensorID ));
+  EMGSensor* sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
   {
@@ -170,7 +170,11 @@ double GetMuscleTorque( int sensorID, double jointAngle )
       measuresList[ curveIndex ] += sensor->muscleProperties.curvesList[ curveIndex ][ factorIndex ] * pow( jointAngle, factorIndex );
   }
   
-  penationAngle = asin( sin( sensor->muscleProperties.initialPenationAngle ) / measuresList[ NORM_LENGTH ] );
+  /*double normalizedSin = sin( sensor->muscleProperties.initialPenationAngle ) / measuresList[ NORM_LENGTH ];
+  if( normalizedSin > 1.0 ) normalizedSin == 1.0;
+  else if( normalizedSin < -1.0 ) normalizedSin == -1.0;
+  
+  penationAngle = asin( normalizedSin );*/
   
   double resultingForce = sensor->muscleProperties.scaleFactor * cos( penationAngle )
                           * ( measuresList[ ACTIVE_FORCE ] * sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ] + measuresList[ PASSIVE_FORCE ] );
@@ -180,13 +184,13 @@ double GetMuscleTorque( int sensorID, double jointAngle )
 
 void ChangePhase( int sensorID, int newProcessingPhase )
 {
-  if( !kh_exist( emgSensorsList, (khint_t) sensorID ) ) return;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
   
   if( newProcessingPhase < 0 || newProcessingPhase >= EMG_PROCESSING_PHASES_NUMBER ) return;
   
   ThreadLock_Aquire( phasePassCountLock );
   
-  EMGData* emgData = &(kh_value( emgSensorsList, sensorID ).emgData);
+  EMGData* emgData = &(kh_value( sensorsList, sensorID )->emgData);
 
   if( emgData->processingPhase == EMG_RELAXATION_PHASE || emgData->processingPhase == EMG_CONTRACTION_PHASE )
   {
@@ -217,11 +221,13 @@ static double* GetFilteredSignal( EMGSensor* sensor, size_t* ref_aquiredSamplesC
   const double DATA_AQUISITION_SCALE_FACTOR = 909.0;
   
   size_t aquiredSamplesCount;
+  //ThreadLock_Aquire( phasePassCountLock );
   double* newSamplesList = sensor->interface->Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
   
   EMGData* data = &(sensor->emgData);
   size_t samplesBufferLength = sensor->emgData.samplesBufferLength;
   size_t filteredSamplesBufferLength = sensor->emgData.filteredSamplesBufferLength;
+  //ThreadLock_Release( phasePassCountLock );
   
   if( newSamplesList != NULL ) 
   {
@@ -271,11 +277,11 @@ static void* AsyncUpdate( void* data )
 {
   while( isProcessRunning )
   {
-    for( khint_t sensorID = kh_begin( emgSensorsList ); sensorID != kh_end( emgSensorsList ); sensorID++ )
+    for( khint_t sensorID = kh_begin( sensorsList ); sensorID != kh_end( sensorsList ); sensorID++ )
     {
-      if( !kh_exist( emgSensorsList, sensorID ) ) continue;
+      if( !kh_exist( sensorsList, sensorID ) ) continue;
       
-      EMGSensor* sensor = &(kh_value( emgSensorsList, sensorID ));
+      EMGSensor* sensor = kh_value( sensorsList, sensorID );
 
       size_t aquiredSamplesCount;
       double* filteredSamplesList = GetFilteredSignal( sensor, &aquiredSamplesCount );
@@ -319,6 +325,8 @@ static void* AsyncUpdate( void* data )
     }
   }
   
+  DEBUG_PRINT( "ending processing thread %x", THREAD_ID );
+  
   Thread_Exit( 0 );
   return NULL;
 }
@@ -328,35 +336,36 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load muscle %s EMG sensor data", configFileName );
   
-  static EMGSensor emgSensorData;
   static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
   
   bool loadError = false;
   
-  memset( &emgSensorData, 0, sizeof(EMGSensor) );
+  EMGSensor* newSensor = (EMGSensor*) malloc( sizeof(EMGSensor) );
+  memset( newSensor, 0, sizeof(EMGSensor) );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.LoadFile( configFileName );
+  sprintf( searchPath, "emg_sensors/%s", configFileName );
+  int configFileID = parser.LoadFile( searchPath );
   if( configFileID != -1 )
   {
-    if( (emgSensorData.interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
+    if( (newSensor->interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
     {
-      emgSensorData.taskID = emgSensorData.interface->InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
-      if( emgSensorData.taskID != -1 ) 
+      newSensor->taskID = newSensor->interface->InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
+      if( newSensor->taskID != -1 ) 
       {
-        size_t newSamplesBufferMaxLength = emgSensorData.interface->GetMaxSamplesNumber( emgSensorData.taskID );
+        size_t newSamplesBufferMaxLength = newSensor->interface->GetMaxSamplesNumber( newSensor->taskID );
         if( newSamplesBufferMaxLength > 0 )
         {
-          emgSensorData.emgData.samplesBufferLength = newSamplesBufferMaxLength + OLD_SAMPLES_BUFFER_LEN;
-          emgSensorData.emgData.samplesBuffer = (double*) calloc( emgSensorData.emgData.samplesBufferLength, sizeof(double) );
-          emgSensorData.emgData.filteredSamplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
-          emgSensorData.emgData.filteredSamplesBuffer = (double*) calloc( emgSensorData.emgData.filteredSamplesBufferLength, sizeof(double) );
-          emgSensorData.emgData.rectifiedSamplesBuffer = (double*) calloc( emgSensorData.emgData.filteredSamplesBufferLength, sizeof(double) );
+          newSensor->emgData.samplesBufferLength = newSamplesBufferMaxLength + OLD_SAMPLES_BUFFER_LEN;
+          newSensor->emgData.samplesBuffer = (double*) calloc( newSensor->emgData.samplesBufferLength, sizeof(double) );
+          newSensor->emgData.filteredSamplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
+          newSensor->emgData.filteredSamplesBuffer = (double*) calloc( newSensor->emgData.filteredSamplesBufferLength, sizeof(double) );
+          newSensor->emgData.rectifiedSamplesBuffer = (double*) calloc( newSensor->emgData.filteredSamplesBufferLength, sizeof(double) );
         }
         else loadError = true;
         
-        emgSensorData.channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
-        if( !(emgSensorData.interface->AquireChannel( emgSensorData.taskID, emgSensorData.channel )) ) loadError = true;
+        newSensor->channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
+        if( !(newSensor->interface->AquireChannel( newSensor->taskID, newSensor->channel )) ) loadError = true;
       }
       else loadError = true;
     }
@@ -364,16 +373,20 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
     {
-      for( size_t coeffIndex = 0; coeffIndex < MUSCLE_CURVE_ORDER; coeffIndex++ )
+      sprintf( searchPath, "muscle_properties.curves.%s", CURVE_NAMES[ curveIndex ] );
+      size_t coeffsNumber = parser.GetListSize( configFileID, searchPath ); 
+      for( size_t coeffIndex = 0; coeffIndex < coeffsNumber; coeffIndex++ )
       {
         sprintf( searchPath, "muscle_properties.curves.%s.%u", CURVE_NAMES[ curveIndex ], coeffIndex );
         DEBUG_PRINT( "searching for value %s", searchPath );
-        emgSensorData.muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = parser.GetRealValue( configFileID, searchPath );
+        newSensor->muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = parser.GetRealValue( configFileID, searchPath );
       }
     }
     
-    emgSensorData.muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
-    emgSensorData.muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
+    newSensor->muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
+    newSensor->muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
+    
+    newSensor->lock = ThreadLock_Create();
     
     parser.UnloadFile( configFileID );
   }
@@ -382,20 +395,24 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
     DEBUG_PRINT( "configuration for muscle %s EMG sensor not found", configFileName );
     loadError = true;
   }
-  
+    
   if( loadError )
   {
-    DEBUG_PRINT( "EMG sensor %s configuration failed", configFileName );
-    UnloadEMGSensorData( &emgSensorData );
+    UnloadEMGSensorData( newSensor );
     return NULL;
   }
-    
-  return &emgSensorData;
+  
+  return newSensor;
 }
 
 void UnloadEMGSensorData( EMGSensor* sensor )
 {
   if( sensor == NULL ) return;
+  
+  ThreadLock_Aquire( sensor->lock );
+  ThreadLock_Release( sensor->lock );
+    
+  ThreadLock_Discard( sensor->lock );
   
   free( sensor->emgData.samplesBuffer );
   free( sensor->emgData.filteredSamplesBuffer );
@@ -403,6 +420,8 @@ void UnloadEMGSensorData( EMGSensor* sensor )
   
   sensor->interface->ReleaseChannel( sensor->taskID, sensor->channel );
   sensor->interface->EndTask( sensor->taskID );
+  
+  free( sensor );
 }
 
 

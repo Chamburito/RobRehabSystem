@@ -37,11 +37,11 @@ typedef struct _AxisController
 }
 AxisController;
 
-KHASH_MAP_INIT_INT( Control, AxisController )
-static khash_t( Control ) controllersList = NULL;
+KHASH_MAP_INIT_INT( ControlInt, AxisController* )
+static khash_t( ControlInt )* controllersList = NULL;
 
-static int Init( const char* );
-static void End( int );
+static int InitController( const char* );
+static void EndController( int );
 static void Enable( int );
 static void Disable( int );
 static void Reset( int );
@@ -55,8 +55,8 @@ static size_t GetDevicesNumber();
 
 const struct
 {
-  int (*Init)( const char* );
-  void (*End)( int );
+  int (*InitController)( const char* );
+  void (*EndController)( int );
   void (*Enable)( int );
   void (*Disable)( int );
   void (*Reset)( int );
@@ -68,7 +68,7 @@ const struct
   void (*SetSetpoint)( int, double );
   size_t (*GetDevicesNumber)( void );
 }
-AxisControl = { .Init = Init, .End = End, .Enable = Enable, .Disable = Disable, .Reset = Reset, .Calibrate = Calibrate, .IsEnabled = IsEnabled, 
+AxisControl = { .InitController = InitController, .EndController = EndController, .Enable = Enable, .Disable = Disable, .Reset = Reset, .Calibrate = Calibrate, .IsEnabled = IsEnabled, 
                 .GetMeasuresList = GetMeasuresList, .GetSetpointsList = GetSetpointsList, .SetImpedance = SetImpedance, .SetSetpoint = SetSetpoint, .GetDevicesNumber = GetDevicesNumber };
 
 static inline AxisController* LoadControllerData( const char* );
@@ -79,42 +79,54 @@ static inline void UpdateControlMeasures( AxisController* );
 static inline void UpdateControlSetpoints( AxisController* );
 static inline void RunControl( AxisController* );
 
-int Init( const char* configKey )
+int InitController( const char* configFileName )
 {
   DEBUG_EVENT( 0, "Initializing Axis Controller on thread %x", THREAD_ID );
   
-  AxisController* ref_newControllerData = LoadControllerData( configKey );
-  if( ref_newControllerData == NULL ) return -1;
+  if( controllersList == NULL ) controllersList = kh_init( ControlInt );
   
-  if( controllersList == NULL ) controllersList = kh_init( Control );
+  int configKey = (int) kh_str_hash_func( configFileName );
   
   int insertionStatus;
-  khint_t newControllerID = kh_put( Control, controllersList, kh_size( controllersList ), &insertionStatus );
-  if( insertionStatus == -1 ) return -1;
+  khint_t newControllerID = kh_put( ControlInt, controllersList, configKey, &insertionStatus );
+  if( insertionStatus > 0 )
+  {
+    kh_value( controllersList, newControllerID ) = LoadControllerData( configFileName );
+    if( kh_value( controllersList, newControllerID ) == NULL )
+    {
+      EndController( (int) newControllerID );
+      return -1;
+    }
+  }
   
-  AxisControl* newController = &(kh_value( controllersList, controllerID ));
+  Timing_Delay( 2000 );
   
-  memcpy( newController, ref_newControllerData, sizeof(AxisController) );
-  UnloadActuatorData( ref_newControllerData );
+  AxisController* newController = kh_value( controllersList, newControllerID );
   
-  DEBUG_EVENT( 0, "Axis Controller %d initialized", newControllerID );
+  DEBUG_PRINT( "axis controller %s created (iterator %u)", configFileName, newControllerID );
+  
+  //newController->actuator.interface->Calibrate( newController->actuator.ID );
+  newController->actuator.interface->Enable( newController->actuator.ID );
+  //newController->actuator.interface->SetSetpoint( newController->actuator.ID, 0 );
+  
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Axis Controller %d initialized", (int) newControllerID );
   
   return (int) newControllerID;
 }
 
-void End( int controllerID )
+void EndController( int controllerID )
 {
   DEBUG_EVENT( 0, "ending Axis Controller %d", controllerID );
 
   if( kh_exist( controllersList, controllerID ) )
   {
-    UnloadControllerData( &(kh_value( controllersList, controllerID )) );
+    UnloadControllerData( kh_value( controllersList, controllerID ) );
     
-    kh_del( Control, controllersList, controllerID );
+    kh_del( ControlInt, controllersList, controllerID );
     
     if( kh_size( controllersList ) == 0 )
     {
-      kh_destroy( Control, controllersList );
+      kh_destroy( ControlInt, controllersList );
       controllersList = NULL;
     }
   }
@@ -129,14 +141,18 @@ static void Enable( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
-    controller->actuator.interface->Reset( controller->actuator.ID );
+    //controller->actuator.interface->Reset( controller->actuator.ID );
+    
+    DEBUG_PRINT( "enabling controller %d", controllerID );
     
     if( controller->ref_RunControl != NULL )
      controller->actuator.interface->Enable( controller->actuator.ID );
   
     controller->measuresList[ CONTROL_ERROR ] = 0.0;
+    
+    DEBUG_PRINT( "controller %d enabled", controllerID );
   }
 }
 
@@ -144,7 +160,7 @@ static void Disable( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
     controller->actuator.interface->Disable( controller->actuator.ID );
   
@@ -156,7 +172,7 @@ static void Reset( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
     if( controller->actuator.interface->HasError( controller->actuator.ID ) )
       controller->actuator.interface->Reset( controller->actuator.ID );
@@ -169,7 +185,7 @@ static bool IsEnabled( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
     return controller->actuator.interface->IsEnabled( controller->actuator.ID );
   }
@@ -181,9 +197,9 @@ static void Calibrate( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
 
-    //controller->actuator.interface->Disable( controller->actuator.ID );
+    controller->actuator.interface->Calibrate( controller->actuator.ID );
   }
 }
 
@@ -191,7 +207,7 @@ static double* GetMeasuresList( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
     return (double*) controller->measuresList;
   }
@@ -203,7 +219,7 @@ static double* GetSetpointsList( int controllerID )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
     return (double*) controller->setpointsList;
   }
@@ -215,7 +231,7 @@ static void SetSetpoint( int controllerID, double setpoint )
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
     
     controller->setpoint = setpoint;
   }
@@ -225,7 +241,7 @@ static void SetImpedance( int controllerID, double referenceStiffness, double re
 {
   if( kh_exist( controllersList, controllerID ) )
   {
-    AxisController* controller = &(kh_value( controllersList, controllerID ));
+    AxisController* controller = kh_value( controllersList, controllerID );
 
     controller->parametersList[ CONTROL_STIFFNESS ].amplitude = ( referenceStiffness > 0.0 ) ? referenceStiffness : 0.0;
     controller->parametersList[ CONTROL_DAMPING ].amplitude = ( referenceDamping > 0.0 ) ? referenceDamping : 0.0;
@@ -236,48 +252,55 @@ static void SetImpedance( int controllerID, double referenceStiffness, double re
 const char* PARAMETER_NAMES[ CONTROL_SETPOINTS_NUMBER ] = { "reference", "stiffness", "damping" };
 static inline AxisController* LoadControllerData( const char* configFileName )
 {
-  static AxisController controllerData;
-  static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  //static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
   
-  bool loadError = false;
+  //bool loadError = false;
   
-  memset( &controllerData, 0, sizeof(AxisController) );
+  AxisController* newController = (AxisController*) malloc( sizeof(AxisController) );
+  memset( newController, 0, sizeof(AxisController) );
   
-  FileParser parser = JSONParser;
-  int configFileID = parser.OpenFile( "axes_control" );
+  /*FileParser parser = JSONParser;
+  int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
-    if( (controllerData.actuator.interface = ActuatorTypes.GetInterface( parser.GetStringValue( "type" ) )) != NULL )
+    if( (newController->actuator.interface = GetActuatorInterface( parser.GetStringValue( configFileID, "actuator.type" ) )) != NULL )
     {
-      if( (controllerData.actuator.ID = controllerData.actuator.interface->Init( parser.GetStringValue( "name" ) )) == -1 ) loadError = true;
+      if( (newController->actuator.ID = newController->actuator.interface->InitController( parser.GetStringValue( configFileID, "actuator.name" ) )) == -1 ) loadError = true;
     }
     else loadError = true;
     
-    if( (controllerData.ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( "control_function" ) )) == NULL ) loadError = true;
+    if( (newController->ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( configFileID, "control.function" ) )) == NULL ) loadError = true;
     
     for( size_t parameterIndex = 0; parameterIndex < CONTROL_SETPOINTS_NUMBER; parameterIndex++ )
     {
-      sprintf( searchPath, "parameters.%s.normalized_curve", PARAMETER_NAMES[ parameterIndex ] );
-      controllerData.parametersList[ parameterIndex ].normalizedCurve = Spline3Interp_LoadCurve( parser.GetStringValue( searchPath ) );
-      sprintf( searchPath, "parameters.%s.amplitude", PARAMETER_NAMES[ parameterIndex ] );
-      controllerData.parametersList[ parameterIndex ].amplitude = parser.GetRealValue( searchPath );
+      sprintf( searchPath, "control.parameters.%s.normalized_curve", PARAMETER_NAMES[ parameterIndex ] );
+      newController->parametersList[ parameterIndex ].normalizedCurve = Spline3Interp.LoadCurve( parser.GetStringValue( configFileID, searchPath ) );
+      sprintf( searchPath, "control.parameters.%s.amplitude", PARAMETER_NAMES[ parameterIndex ] );
+      newController->parametersList[ parameterIndex ].amplitude = parser.GetRealValue( configFileID, searchPath );
     }
     
-    parser.CloseFile( configFileID );
+    parser.UnloadFile( configFileID );
   }
   else
   {
     loadError = true;
-    DEBUG_PRINT( "configuration file for dual linear actuator %s not found", configFileName );
+    DEBUG_PRINT( "configuration file for controller %s not found", configFileName );
   }
   
   if( loadError )
   {
-    UnloadControllerData( &controllerData );
+    UnloadControllerData( newController );
     return NULL;
-  }
+  }*/
+  
+  newController->actuator.interface = &SEActuatorOperations;
+  newController->actuator.ID = newController->actuator.interface->Init( "SEA Teste" );
+  newController->positionFilter = SimpleKalman_CreateFilter( 0.0 );
+  
+  newController->isRunning = true;
+  newController->controlThread = Thread_Start( AsyncControl, newController, THREAD_JOINABLE );
       
-  return &controllerData;
+  return newController;
 }
 
 static inline void UnloadControllerData( AxisController* controller )
@@ -286,6 +309,8 @@ static inline void UnloadControllerData( AxisController* controller )
   {
     Timing_Delay( 2000 );
     
+    controller->ref_RunControl = RunDefaultControl;
+    
     // Destroy axis data structures
     controller->isRunning = false;
     
@@ -293,11 +318,11 @@ static inline void UnloadControllerData( AxisController* controller )
       Thread_WaitExit( controller->controlThread, 5000 );
     
     controller->actuator.interface->End( controller->actuator.ID );
-      
+    
     SimpleKalman_DiscardFilter( controller->positionFilter );
       
     for( size_t parameterIndex = 0; parameterIndex < CONTROL_SETPOINTS_NUMBER; parameterIndex++ )
-      Spline3Interp_UnloadCurve( controller->parametersList[ parameterIndex ].normalizedCurve );
+      Spline3Interp.UnloadCurve( controller->parametersList[ parameterIndex ].normalizedCurve );
   }
 }
 
@@ -320,7 +345,7 @@ static void* AsyncControl( void* args )
   
   controller->isRunning = true;
   
-  DEBUG_EVENT( 0, "starting to run control for actuator %d", controller->actuator.ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "starting to run control for actuator %d on thread %x", controller->actuator.ID, THREAD_ID );
   
   while( controller->isRunning )
   {
@@ -340,6 +365,8 @@ static void* AsyncControl( void* args )
     DEBUG_UPDATE( "control pass for actuator %d (after delay): elapsed time: %u ms", controller->actuator.ID, Timing_GetExecTimeMilliseconds() - execTime );
   }
   
+  DEBUG_PRINT( "ending control thread %x", THREAD_ID );
+   
   Thread_Exit( 0 );
   return NULL;
 }
@@ -365,7 +392,7 @@ static inline void UpdateControlSetpoints( AxisController* controller )
 {
   for( size_t setpointIndex = 0; setpointIndex < CONTROL_SETPOINTS_NUMBER; setpointIndex++ )
   {
-    double parameterNormalizedValue = Spline3Interp_GetValue( controller->parametersList[ setpointIndex ].normalizedCurve, controller->setpoint );
+    double parameterNormalizedValue = Spline3Interp.GetValue( controller->parametersList[ setpointIndex ].normalizedCurve, controller->setpoint );
     double parameterAmplitude = controller->parametersList[ setpointIndex ].amplitude;
     
     controller->setpointsList[ setpointIndex ] = parameterAmplitude * parameterNormalizedValue;
@@ -374,14 +401,12 @@ static inline void UpdateControlSetpoints( AxisController* controller )
 
 static inline void RunControl( AxisController* controller )
 {
-  static double controlOutput;
-  
   // If the motor is being actually controlled, call control pass algorhitm
   if( controller->actuator.interface->IsEnabled( controller->actuator.ID ) )
   {
-    controlOutput = controller->ref_RunControl( controller->measuresList, controller->setpointsList, CONTROL_SAMPLING_INTERVAL );
+    //double controlOutput = controller->ref_RunControl( controller->measuresList, controller->setpointsList, CONTROL_SAMPLING_INTERVAL );
     
-    controller->actuator.interface->SetSetpoint( controller->actuator.ID, controlOutput );
+    controller->actuator.interface->SetSetpoint( controller->actuator.ID, 0/*controlOutput*/ );
   }
 }
 

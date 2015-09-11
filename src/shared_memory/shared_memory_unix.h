@@ -15,8 +15,8 @@
 #define SHM_WRITE S_IWUSR
 #define SHM_READ_WRITE ( S_IRUSR | S_IWUSR )
 
-KHASH_MAP_INIT_STR( SO, void* )
-khash_t( SO )* sharedObjectsList = NULL;
+KHASH_MAP_INIT_STR( SOStr, void* )
+khash_t( SOStr )* sharedObjectsList = NULL;
 
 void* CreateObject( const char*, size_t, int );
 void DestroyObject( void* );
@@ -67,10 +67,10 @@ void* CreateObject( const char* mappingName , size_t objectSize, int flags )
   
   DEBUG_PRINT( "Binded object address %p to shared memory area", newSharedObject );
   
-  if( sharedObjectsList == NULL ) sharedObjectsList = kh_init( SO );
+  if( sharedObjectsList == NULL ) sharedObjectsList = kh_init( SOStr );
   
   int insertionStatus;
-  khint_t newSharedMemoryID = kh_put( SO, sharedObjectsList, mappingName, &insertionStatus );
+  khint_t newSharedMemoryID = kh_put( SOStr, sharedObjectsList, mappingName, &insertionStatus );
   
   kh_value( sharedObjectsList, newSharedMemoryID ) = newSharedObject;
   
@@ -87,11 +87,11 @@ void DestroyObject( void* sharedObject )
     {
       shmdt( sharedObject );
       (void) remove( kh_key( sharedObjectsList, sharedObjectID ) );
-      kh_del( SO, sharedObjectsList, sharedObjectID );
+      kh_del( SOStr, sharedObjectsList, sharedObjectID );
       
       if( kh_size( sharedObjectsList ) == 0 )
       {
-        kh_destroy( SO, sharedObjectsList );
+        kh_destroy( SOStr, sharedObjectsList );
         sharedObjectsList = NULL;
       }
       
