@@ -59,9 +59,9 @@ EMGSensor;
 KHASH_MAP_INIT_INT( SensorInt, EMGSensor* )
 static khash_t( SensorInt )* sensorsList = NULL;
 
-Thread_Handle emgThreadID;
-ThreadLock phasePassCountLock;
 static bool isProcessRunning;
+Thread_Handle processingThreadID;
+ThreadLock phasePassCountLock;
 
 static int InitSensor( const char* );
 static void EndSensor( int );
@@ -101,12 +101,11 @@ int InitSensor( const char* configFileName )
     phasePassCountLock = ThreadLock_Create();
     
     isProcessRunning = true;
-    emgThreadID = Thread_Start( AsyncUpdate, NULL, THREAD_JOINABLE );
+    processingThreadID = Thread_Start( AsyncUpdate, NULL, THREAD_JOINABLE );
   }
   
   int configKey = (int) kh_str_hash_func( configFileName );
   
-  //ThreadLock_Aquire( phasePassCountLock );
   int insertionStatus;
   khint_t newSensorID = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
   if( insertionStatus > 0 )
@@ -116,8 +115,6 @@ int InitSensor( const char* configFileName )
     DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( sensorsList, newSensorID ), newSensorID, kh_size( sensorsList ) );
   }
   else if( insertionStatus == 0 ) { DEBUG_PRINT( "EMG sensor key %d already exists (iterator %u)", configKey, newSensorID ); }
-  
-  //ThreadLock_Release( phasePassCountLock );
   
   return (int) newSensorID;
 }
@@ -133,7 +130,7 @@ void EndSensor( int sensorID )
   if( kh_size( sensorsList ) == 0 )
   {
     isProcessRunning = false;
-    (void) Thread_WaitExit( emgThreadID, 5000 );
+    (void) Thread_WaitExit( processingThreadID, 5000 );
     
     ThreadLock_Discard( phasePassCountLock );
     
@@ -188,30 +185,32 @@ void ChangePhase( int sensorID, int newProcessingPhase )
   
   if( newProcessingPhase < 0 || newProcessingPhase >= EMG_PROCESSING_PHASES_NUMBER ) return;
   
-  ThreadLock_Aquire( phasePassCountLock );
+  EMGSensor* sensor = kh_value( sensorsList, sensorID );
   
-  EMGData* emgData = &(kh_value( sensorsList, sensorID )->emgData);
+  ThreadLock_Aquire( sensor->lock/*phasePassCountLock*/ );
+  
+  EMGData* data = &(sensor->emgData);
 
-  if( emgData->processingPhase == EMG_RELAXATION_PHASE || emgData->processingPhase == EMG_CONTRACTION_PHASE )
+  if( data->processingPhase == EMG_RELAXATION_PHASE || data->processingPhase == EMG_CONTRACTION_PHASE )
   {
-    if( emgData->preparationPassesCount > 0 )
+    if( data->preparationPassesCount > 0 )
     {
-      //DEBUG_PRINT( "new %s value: %g / %u = %g", ( emgData->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
-      //                                              emgData->processingResultsList[ emgData->processingPhase ],
-      //                                              emgData->preparationPassesCount, 
-      //                                              emgData->processingResultsList[ emgData->processingPhase ] / emgData->preparationPassesCount );
+      //DEBUG_PRINT( "new %s value: %g / %u = %g", ( data->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
+      //                                             data->processingResultsList[ data->processingPhase ],
+      //                                             data->preparationPassesCount, 
+      //                                             data->processingResultsList[ data->processingPhase ] / data->preparationPassesCount );
 
-      emgData->processingResultsList[ emgData->processingPhase ] /= emgData->preparationPassesCount;
+      data->processingResultsList[ data->processingPhase ] /= data->preparationPassesCount;
     }
 
-    emgData->preparationPassesCount = 0;
+    data->preparationPassesCount = 0;
   }
 
-  emgData->processingResultsList[ newProcessingPhase ] = 0.0;
+  data->processingResultsList[ newProcessingPhase ] = 0.0;
   
-  emgData->processingPhase = newProcessingPhase;
+  data->processingPhase = newProcessingPhase;
   
-  ThreadLock_Release( phasePassCountLock );
+  ThreadLock_Release( sensor->lock/*phasePassCountLock*/ );
 }
 
 
@@ -221,13 +220,12 @@ static double* GetFilteredSignal( EMGSensor* sensor, size_t* ref_aquiredSamplesC
   const double DATA_AQUISITION_SCALE_FACTOR = 909.0;
   
   size_t aquiredSamplesCount;
-  //ThreadLock_Aquire( phasePassCountLock );
+  
   double* newSamplesList = sensor->interface->Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
   
   EMGData* data = &(sensor->emgData);
   size_t samplesBufferLength = sensor->emgData.samplesBufferLength;
   size_t filteredSamplesBufferLength = sensor->emgData.filteredSamplesBufferLength;
-  //ThreadLock_Release( phasePassCountLock );
   
   if( newSamplesList != NULL ) 
   {
@@ -299,9 +297,9 @@ static void* AsyncUpdate( void* data )
           
           //DEBUG_PRINT( "emg sum: %g", emgData->processingResultsList[ emgData->processingPhase ] );
 
-          ThreadLock_Aquire( phasePassCountLock );
+          ThreadLock_Aquire( sensor->lock/*phasePassCountLock*/ );
           data->preparationPassesCount++;
-          ThreadLock_Release( phasePassCountLock );
+          ThreadLock_Release( sensor->lock/*phasePassCountLock*/ );
         }
         else if( data->processingPhase == EMG_ACTIVATION_PHASE )
         {
@@ -348,7 +346,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
   int configFileID = parser.LoadFile( searchPath );
   if( configFileID != -1 )
   {
-    if( (newSensor->interface = SignalAquisitionTypes.GetInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
+    if( (newSensor->interface = GetSignalAquisitionInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
     {
       newSensor->taskID = newSensor->interface->InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
       if( newSensor->taskID != -1 ) 

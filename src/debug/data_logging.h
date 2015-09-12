@@ -4,11 +4,13 @@
 #ifdef _CVI_
   #include <ansi_c.h>
 #else
-  #include <fcntl.h>
-  #include <malloc.h>
+  #include <stdio.h>
+  #include <stdlib.h>
   #include <stdarg.h>
   #include <time.h>
 #endif
+
+#include "klib/khash.h"
 
 #include "async_debug.h"
 
@@ -23,84 +25,111 @@ typedef struct _DataLog
 }
 DataLog;
 
-static DataLog* dataLogsList = NULL;
-static size_t dataLogsNumber = 0;
+KHASH_MAP_INIT_INT( LogInt, DataLog );
+static khash_t( LogInt )* dataLogsList = NULL;
 
-const size_t LOG_FILE_NAME_MAX_LEN = 128;
+static int DataLogging_InitLog( const char*, size_t );
+static void DataLogging_EndLog( int ); 
+static void DataLogging_SaveData( int , double*, size_t );
+static void DataLogging_RegisterValues( int, ... );
 
-int DataLogging_CreateLog( const char* dirName, const char* logName, size_t logValuesNumber )
+const struct
 {
-  dataLogsList = (DataLog*) realloc( dataLogsList, sizeof(DataLog) * ( dataLogsNumber + 1 ) );
-  
-  static char logFileName[ LOG_FILE_NAME_MAX_LEN ];
-  
-  sprintf( logFileName, "%s/%s_data-%u.log", ( dirName != NULL ) ? dirName : ".", logName, time( NULL ) );
-  
-  if( (dataLogsList[ dataLogsNumber ].file = fopen( logFileName, "w+" )) == NULL )
-    return -1;
-  
-  dataLogsList[ dataLogsNumber ].valuesNumber = logValuesNumber;
-  dataLogsList[ dataLogsNumber ].memoryValuesCount = 0;
-  
-  return dataLogsNumber++;
-} 
+  int (*InitLog)( const char*, size_t );
+  void (*EndLog)( int ); 
+  void (*SaveData)( int , double*, size_t );
+  void (*RegisterValues)( int, ... );
+}
+DataLogging = { .InitLog = DataLogging_InitLog, .EndLog = DataLogging_EndLog, .SaveData = DataLogging_SaveData, .RegisterValues = DataLogging_RegisterValues };
 
-void DataLogging_SaveData( int logFileID, double* dataList, size_t dataListSize )
+const size_t LOG_FILE_PATH_MAX_LEN = 256;
+static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber )
 {
-  if( logFileID > -1 && logFileID < (int) dataLogsNumber )
+  static char logFilePathExt[ LOG_FILE_PATH_MAX_LEN ];
+  
+  if( dataLogsList == NULL ) dataLogsList = kh_init( LogInt );
+  
+  int logKey = (int) kh_str_hash_func( logFilePath );
+  
+  sprintf( logFilePathExt, "%s-%u.log", logFilePath, time( NULL ) );
+  
+  int insertionStatus;
+  khint_t newLogID = kh_put( LogInt, dataLogsList, logKey, &insertionStatus );
+  if( insertionStatus > 0 )
   {
-    FILE* logFile = dataLogsList[ logFileID ].file;
-  
-    size_t lineValuesNumber = dataLogsList[ logFileID ].valuesNumber;
-    size_t linesNumber = dataListSize / lineValuesNumber;
-  
-    for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
+    DEBUG_PRINT( "trying to open file %s", logFilePathExt );
+    kh_value( dataLogsList, newLogID ).file = fopen( logFilePathExt, "w+" );
+    if( kh_value( dataLogsList, newLogID ).file == NULL )
     {
-      for( size_t valueLineIndex = 0; valueLineIndex < lineValuesNumber; valueLineIndex++ )
-        fprintf( logFile, "%.3lf\t", dataList[ lineIndex * lineValuesNumber + valueLineIndex ] );
-      fprintf( logFile, "\n" );
+      perror( "error opening file" );
+      DataLogging_EndLog( (int) newLogID );
+      return -1;
     }
+  
+    kh_value( dataLogsList, newLogID ).valuesNumber = logValuesNumber;
+    kh_value( dataLogsList, newLogID ).memoryValuesCount = 0;
+  }
+  
+  return (int) newLogID;
+}
+
+static void DataLogging_EndLog( int logID )
+{
+  if( !kh_exist( dataLogsList, (khint_t) logID ) ) return;
+  
+  DataLog* log = &(kh_value( dataLogsList, (khint_t) logID ));
+  
+  DataLogging_SaveData( logID, (double*) log->memoryValues, log->memoryValuesCount );
+  
+  if( log->file != NULL ) fclose( log->file );
+  
+  kh_del( LogInt, dataLogsList, (khint_t) logID );
+  
+  if( kh_size( dataLogsList ) == 0 )
+  {
+    kh_destroy( LogInt, dataLogsList );
+    
+    dataLogsList = NULL;
   }
 }
 
-void DataLogging_RegisterValues( int logFileID, ... )
+static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )
 {
+  if( !kh_exist( dataLogsList, (khint_t) logID ) ) return;
+  
+  DataLog* log = &(kh_value( dataLogsList, (khint_t) logID ));
+  
+  size_t linesNumber = dataListSize / log->valuesNumber;
+  for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
+  {
+    for( size_t lineValueIndex = 0; lineValueIndex < log->valuesNumber; lineValueIndex++ )
+      fprintf( log->file, "%.3lf\t", dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
+    fprintf( log->file, "\n" );
+  }
+}
+
+static void DataLogging_RegisterValues( int logID, ... )
+{
+  if( !kh_exist( dataLogsList, (khint_t) logID ) ) return;
+  
+  DataLog* log = &(kh_value( dataLogsList, (khint_t) logID ));
+  
   va_list logValues;
   
-  if( logFileID > -1 && logFileID < (int) dataLogsNumber )
-  {
-    va_start( logValues, logFileID );
-    
-    double* memoryValues = (double*) dataLogsList[ logFileID ].memoryValues;
-    
-    size_t lastTotalValuesCount = dataLogsList[ logFileID ].memoryValuesCount;
-    size_t logLineValuesNumber = dataLogsList[ logFileID ].valuesNumber;
-    
-    if( lastTotalValuesCount + logLineValuesNumber >= MEMORY_BUFFER_SIZE )
-    {
-      DataLogging_SaveData( logFileID, memoryValues, lastTotalValuesCount );
-      lastTotalValuesCount = 0;
-    }
-    
-    for( size_t valueLineIndex = 0; valueLineIndex < logLineValuesNumber; valueLineIndex++ )
-      memoryValues[ lastTotalValuesCount + valueLineIndex ] = va_arg( logValues, double );
-    
-    dataLogsList[ logFileID ].memoryValuesCount = lastTotalValuesCount + logLineValuesNumber;
-    
-    va_end( logValues );
-  }
-}
+  va_start( logValues, logID );
 
-void DataLogging_CloseLog( int logFileID )
-{
-  if( logFileID > -1 && logFileID < (int) dataLogsNumber )
+  if( log->memoryValuesCount + log->valuesNumber >= MEMORY_BUFFER_SIZE )
   {
-    DataLogging_SaveData( logFileID, dataLogsList[ logFileID ].memoryValues, dataLogsList[ logFileID ].memoryValuesCount );
-    
-    FILE* logFile = dataLogsList[ logFileID ].file;
-    
-    fclose( logFile );
+    DataLogging_SaveData( logID, log->memoryValues, log->memoryValuesCount );
+    log->memoryValuesCount = 0;
   }
+
+  for( size_t valueLineIndex = 0; valueLineIndex < log->valuesNumber; valueLineIndex++ )
+    log->memoryValues[ log->memoryValuesCount + valueLineIndex ] = va_arg( logValues, double );
+
+  log->memoryValuesCount += log->valuesNumber;
+
+  va_end( logValues );
 }
 
 #endif /* DATA_LOGGING_H */

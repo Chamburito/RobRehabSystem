@@ -11,6 +11,7 @@
 #include "file_parsing/json_parser.h"
 
 #include "debug/async_debug.h"
+#include "debug/data_logging.h"
 
 typedef struct _SHMJointControl
 {
@@ -28,6 +29,8 @@ void End( void );
 /* Program entry-point */
 void CVIFUNC_C RTmain( void )
 {
+  int logID = DataLogging.InitLog( "../logs/joints/test", 3 );
+  
   Init();
   
   while( !RTIsShuttingDown() )
@@ -41,13 +44,12 @@ void CVIFUNC_C RTmain( void )
         double* measuresList = SHMAxisControl.GetNumericValuesList( jointControl->shmAxisControlDataID, CONTROL_MEASURES, REMOVE, NULL );
         if( measuresList != NULL )
         {
-          measuresList[ CONTROL_POSITION ] += 0.1;
-          //DEBUG_PRINT( "position: %g", measuresList[ CONTROL_POSITION ] );
-        
           double jointTorque = EMGJointControl.GetTorque( jointControl->emgJointControlID, measuresList[ CONTROL_POSITION ] );
           double jointStiffness = EMGJointControl.GetStiffness( jointControl->emgJointControlID, measuresList[ CONTROL_POSITION ] );
 
-          //DEBUG_PRINT( "Joint torque: %g - stiffness: %g", jointTorque, jointStiffness );
+          DEBUG_PRINT( "Joint position: %.3f - torque: %.3f - stiffness: %.3f", measuresList[ CONTROL_POSITION ], jointTorque, jointStiffness );
+          
+          DataLogging.RegisterValues( logID, measuresList[ CONTROL_POSITION ], jointTorque, jointStiffness );
         }
         
         SHMAxisControl.SetNumericValues( jointControl->shmAxisControlDataID, CONTROL_MEASURES, NULL );
@@ -56,6 +58,8 @@ void CVIFUNC_C RTmain( void )
 
     SleepUntilNextMultipleUS( 5000 );
   }
+  
+  DataLogging.EndLog( logID );
 
   End();
 }

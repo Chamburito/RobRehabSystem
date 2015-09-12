@@ -30,22 +30,23 @@ SignalAquisitionTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalAquisitionTask* )
 static khash_t( TaskInt )* tasksList = NULL;
 
-static int InitTask( const char* );
-static void EndTask( int );
-static double* Read( int, unsigned int, size_t* );
-static bool AquireChannel( int, unsigned int );
-static void ReleaseChannel( int, unsigned int );
-static size_t GetMaxSamplesNumber( int );
+static int NIDAQmx_InitTask( const char* );
+static void NIDAQmx_EndTask( int );
+static double* NIDAQmx_Read( int, unsigned int, size_t* );
+static bool NIDAQmx_AquireChannel( int, unsigned int );
+static void NIDAQmx_ReleaseChannel( int, unsigned int );
+static size_t NIDAQmx_GetMaxSamplesNumber( int );
 
-const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, .Read = Read, .AquireChannel = AquireChannel,
-                                                       .ReleaseChannel = ReleaseChannel, .GetMaxSamplesNumber = GetMaxSamplesNumber };
+const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = NIDAQmx_InitTask, .EndTask = NIDAQmx_EndTask, 
+                                                       .Read = NIDAQmx_Read, .AquireChannel = NIDAQmx_AquireChannel,
+                                                       .ReleaseChannel = NIDAQmx_ReleaseChannel, .GetMaxSamplesNumber = NIDAQmx_GetMaxSamplesNumber };
 #ifdef _CVI_
 static void* AsyncReadBuffer( void* );
 
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
-static int InitTask( const char* taskName )
+static int NIDAQmx_InitTask( const char* taskName )
 {
   if( tasksList == NULL ) tasksList = kh_init( TaskInt );
   
@@ -60,7 +61,7 @@ static int InitTask( const char* taskName )
     if( kh_value( tasksList, newTaskID ) == NULL )
     {
       DEBUG_PRINT( "loading task %s failed", taskName );
-      EndTask( (int) newTaskID ); 
+      NIDAQmx_EndTask( (int) newTaskID ); 
       return -1;
     }
         
@@ -71,7 +72,7 @@ static int InitTask( const char* taskName )
   return (int) newTaskID;
 }
 
-static void EndTask( int taskID )
+static void NIDAQmx_EndTask( int taskID )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
   
@@ -88,7 +89,7 @@ static void EndTask( int taskID )
   }
 }
 
-static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
+static double* NIDAQmx_Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return NULL;
   
@@ -111,7 +112,7 @@ static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSample
   return aquiredSamplesList;
 }
 
-static bool AquireChannel( int taskID, unsigned int channel )
+static bool NIDAQmx_AquireChannel( int taskID, unsigned int channel )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return false;
   
@@ -128,7 +129,7 @@ static bool AquireChannel( int taskID, unsigned int channel )
   return true;
 }
 
-static void ReleaseChannel( int taskID, unsigned int channel )
+static void NIDAQmx_ReleaseChannel( int taskID, unsigned int channel )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
   
@@ -139,7 +140,7 @@ static void ReleaseChannel( int taskID, unsigned int channel )
   task->channelUsedList[ channel ] = false;
 }
 
-static size_t GetMaxSamplesNumber( int taskID )
+static size_t NIDAQmx_GetMaxSamplesNumber( int taskID )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return 0;
   
@@ -155,6 +156,8 @@ static void* AsyncReadBuffer( void* callbackData )
   
   while( task->isReading )
   {
+    ThreadLock_Aquire( task->threadLock ); // Trying to make Read call blocking
+    
     int errorCode = DAQmxReadAnalogF64( task->handle, AQUISITION_BUFFER_LENGTH, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
                                         task->samplesList, task->channelsNumber * AQUISITION_BUFFER_LENGTH, &aquiredSamplesCount, NULL );
 
@@ -167,7 +170,7 @@ static void* AsyncReadBuffer( void* callbackData )
       //break;
     }
     
-    ThreadLock_Aquire( task->threadLock );
+    //ThreadLock_Aquire( task->threadLock );
     
     for( size_t channel = 0; channel < task->channelsNumber; channel++ )
     {
