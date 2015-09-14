@@ -90,7 +90,7 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
       return NULL;
     }
     
-    if( (newSharedObject->timerID = NewAsyncTimer( 0.005, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
+    if( (newSharedObject->timerID = NewAsyncTimer( 0.001, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
     {
       DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
       free( variablePathName );
