@@ -20,7 +20,7 @@
 /////                         DATA STRUCTURES                        /////
 //////////////////////////////////////////////////////////////////////////
 
-const size_t IP_CONNECTION_MSG_LEN = CMT_MAX_MESSAGE_BUF_SIZE; // 256
+const size_t IP_MAX_MESSAGE_LENGTH = CMT_MAX_MESSAGE_BUF_SIZE;  // 256
 
 const int QUEUE_MAX_ITEMS = 10;
 
@@ -37,6 +37,7 @@ struct _AsyncConnection
 {
   unsigned int handle;
   uint8_t protocol, networkRole;
+  uint16_t messageLength;
   Thread_Handle callbackThreadID;
   int (*ref_SendMessage)( AsyncConnection*, const char* );
   struct
@@ -147,6 +148,25 @@ size_t AsyncIPConnection_GetClientsNumber( int connectionID )
   return 1;
 }
 
+extern inline size_t AsyncIPConnection_SetMessageLength( int connectionID, size_t messageLength )
+{
+  static AsyncConnection* connection;
+  
+  connection = FindConnection( globalConnectionsList, (unsigned int) connectionID, PEEK );
+  
+  if( connectionID < 0 || connection == NULL )
+  {
+    ERROR_EVENT( "invalid connection ID: %d", connectionID );
+    return -1;
+  }
+  
+  if( connection->networkRole == SERVER ) return 0;
+  
+  connection->messageLength = ( messageLength <= CMT_MAX_MESSAGE_BUF_SIZE ) ? (uint16_t) messageLength : CMT_MAX_MESSAGE_BUF_SIZE;
+  
+  return (size_t) connection->messageLength;
+}
+
 //////////////////////////////////////////////////////////////////////////////////
 /////                             INITIALIZATION                             /////
 //////////////////////////////////////////////////////////////////////////////////
@@ -231,6 +251,8 @@ static AsyncConnection* AddConnection( unsigned int connectionHandle, unsigned i
   connection->protocol = (connectionType & PROTOCOL_MASK);  
   connection->networkRole = (connectionType & NETWORK_ROLE_MASK);
   
+  connection->messageLength = CMT_MAX_MESSAGE_BUF_SIZE;
+  
   connection->callbackThreadID = -1;
   
   connection->address.port = addressPort;
@@ -251,12 +273,12 @@ static AsyncConnection* AddConnection( unsigned int connectionHandle, unsigned i
     if( connection->protocol == TCP )
     {
       connection->ref_SendMessage = SendTCPMessage;
-      CmtNewTSQ( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN, 0, &(connection->readQueue) );
+      CmtNewTSQ( QUEUE_MAX_ITEMS, CMT_MAX_MESSAGE_BUF_SIZE, 0, &(connection->readQueue) );
     }
     else
     {
       connection->ref_SendMessage = SendUDPMessage;
-      CmtNewTSQ( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN, OPT_TSQ_AUTO_FLUSH_EXACT, &(connection->readQueue) );
+      CmtNewTSQ( QUEUE_MAX_ITEMS, CMT_MAX_MESSAGE_BUF_SIZE, OPT_TSQ_AUTO_FLUSH_EXACT, &(connection->readQueue) );
     }
     
     connection->ref_server = NULL;
@@ -333,7 +355,7 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
 {
   AsyncConnection* connection = (AsyncConnection*) connectionData;
   
-  char messageBuffer[ IP_CONNECTION_MSG_LEN ];
+  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connectionHandle, CmtGetCurrentThreadID() );
   
@@ -350,7 +372,7 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
       
     case TCP_DATAREADY:
         
-      if( (errorCode = ClientTCPRead( connectionHandle, messageBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
+      if( (errorCode = ClientTCPRead( connectionHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
       {
         /*ERROR_EVENT*/DEBUG_PRINT( "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
         if( connectionHandle == connection->handle )
@@ -386,8 +408,8 @@ static int SendTCPMessage( AsyncConnection* connection, const char* message )
   {
     DEBUG_UPDATE( "TCP connection handle %u sending message: %s", connection->handle, message );
     
-    if( connection->ref_server == NULL ) errorCode = ClientTCPWrite( connection->handle, message, IP_CONNECTION_MSG_LEN, 0 );
-    else errorCode = ServerTCPWrite( connection->handle - connection->ref_server->handle, message, IP_CONNECTION_MSG_LEN, 0 );
+    if( connection->ref_server == NULL ) errorCode = ClientTCPWrite( connection->handle, message, connection->messageLength, 0 );
+    else errorCode = ServerTCPWrite( connection->handle - connection->ref_server->handle, message, connection->messageLength, 0 );
     
     if( errorCode < 0 )
     {
@@ -410,7 +432,7 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
 {
   AsyncConnection* connection = (AsyncConnection*) connectionData;
   
-  char messageBuffer[ IP_CONNECTION_MSG_LEN ];
+  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
   
   unsigned int sourcePort;
   char sourceHost[ IP_HOST_LENGTH ];
@@ -419,7 +441,7 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
   
   if( eventType == UDP_DATAREADY )
   {
-    if( (errorCode = UDPRead( channel, NULL, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, &sourcePort, sourceHost )) < 0 )
+    if( (errorCode = UDPRead( channel, NULL, connection->messageLength, UDP_DO_NOT_WAIT, &sourcePort, sourceHost )) < 0 )
     {
       ERROR_EVENT( "%s", GetUDPErrorString( errorCode ) );
       if( channel == connection->ref_server->handle ) CloseConnection( 0, &connection, NULL ); 
@@ -430,7 +452,7 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
     {
       if( strncmp( connection->address.host, sourceHost, IP_HOST_LENGTH ) == 0 )
       {
-        UDPRead( channel, messageBuffer, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, NULL, NULL );
+        UDPRead( channel, messageBuffer, connection->messageLength, UDP_DO_NOT_WAIT, NULL, NULL );
     
         if( (errorCode = CmtWriteTSQData( connection->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
         {
@@ -462,7 +484,7 @@ static int SendUDPMessage( AsyncConnection* connection, const char* message )
     
     DEBUG_UPDATE( "UDP connection handle %u (channel %u) sending message: %s", connection->handle, channel, message );
     
-    if( (errorCode = UDPWrite( channel, connection->address.port, connection->address.host, message, IP_CONNECTION_MSG_LEN )) )
+    if( (errorCode = UDPWrite( channel, connection->address.port, connection->address.host, message, connection->messageLength )) )
     {
       ERROR_EVENT( "%s", GetUDPErrorString( errorCode ) );
       CloseConnection( 0, &connection, NULL );
@@ -506,7 +528,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
   
   AsyncConnection* client;
   
-  char messageBuffer[ IP_CONNECTION_MSG_LEN ];
+  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
   
   DEBUG_UPDATE( "called for connection handle %u on server %u on thread %x", clientHandle, connection->handle, CmtGetCurrentThreadID() );
   
@@ -549,7 +571,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
       
     case TCP_DATAREADY:
       
-      if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, IP_CONNECTION_MSG_LEN, 0 )) < 0 )
+      if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
       {
         ERROR_EVENT( 0, "%s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
         (void) CloseConnection( 0, &client, NULL );
@@ -581,7 +603,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
   
   AsyncConnection* client = NULL;
   
-  char messageBuffer[ IP_CONNECTION_MSG_LEN ];
+  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
   
   static unsigned int clientPort;
   static char clientHost[ IP_HOST_LENGTH ];
@@ -590,7 +612,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
   
   if( eventType == UDP_DATAREADY )
   {
-    if( (errorCode = UDPRead( channel, messageBuffer, IP_CONNECTION_MSG_LEN, UDP_DO_NOT_WAIT, &(clientPort), clientHost )) < 0 )
+    if( (errorCode = UDPRead( channel, messageBuffer, connection->messageLength, UDP_DO_NOT_WAIT, &(clientPort), clientHost )) < 0 )
     {
       /*ERROR_EVENT*/DEBUG_PRINT( "%s", GetUDPErrorString( errorCode ) );
       (void) CloseConnection( 0, &client, NULL );
@@ -640,7 +662,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
 // Method to be called from the main thread
 char* AsyncIPConnection_ReadMessage( int clientID )
 {
-  static char messageBuffer[ IP_CONNECTION_MSG_LEN ];
+  static char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
   
   static AsyncConnection* connection;
   static size_t messagesCount;

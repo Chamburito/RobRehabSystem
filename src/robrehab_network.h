@@ -12,7 +12,7 @@
 #include <toolbox.h>
 #include "Common.h"
 
-//#include "network_axis.h"
+//#include "spline3_interpolation.h"
 #include "shm_axis_control.h"
 //#include "axis_control.h"
 
@@ -26,7 +26,16 @@ static int infoServerConnectionID;
 static int dataServerConnectionID;
 
 static kvec_t( int ) infoClientsList;
+static char* infoMessageOut;
+static size_t infoMessageLength;
+const size_t COMMAND_BLOCK_SIZE = 1 + SHM_CONTROL_COMMANDS_NUMBER * sizeof(bool);
+const size_t STATE_BLOCK_SIZE = 1 + SHM_CONTROL_STATES_NUMBER * sizeof(bool);
+
 static kvec_t( int ) dataClientsList;
+static char* dataMessageOut;
+static size_t dataMessageLength;
+const size_t PARAMETER_BLOCK_SIZE = 1 + SHM_CONTROL_PARAMETERS_NUMBER * sizeof(float);
+const size_t MEASURE_BLOCK_SIZE = 1 + SHM_CONTROL_MEASURES_NUMBER * sizeof(float);
 
 typedef struct _NetworkAxisController
 {
@@ -36,10 +45,10 @@ typedef struct _NetworkAxisController
 NetworkAxisController;
 
 /*KHASH_MAP_INIT_INT( AxisInt, NetworkAxisController )
-static khash_t( AxisInt )* networkControllersList;*/
-static kvec_t( NetworkAxisController ) networkControllersList;
+static khash_t( AxisInt )* controllersList;*/
+static kvec_t( NetworkAxisController ) controllersList;
 
-static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
+static char axesInfoString[ IP_MAX_MESSAGE_LENGTH ] = ""; // String containing used axes names
 
 //enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
 
@@ -67,11 +76,9 @@ int RobRehabNetwork_Init()
   kv_init( infoClientsList );
   kv_init( dataClientsList );
   
-  kv_init( networkControllersList );
+  kv_init( controllersList );
   
   SET_PATH( "../config/" );
-  
-  size_t shmAxesNumber = 0;
   
   FileParser parser = JSONParser;
   int configFileID = parser.LoadFile( "shared_axes" );
@@ -79,14 +86,22 @@ int RobRehabNetwork_Init()
   {
     if( parser.HasKey( configFileID, "axes" ) )
     {
-      size_t shmAxesNumber = parser.GetListSize( configFileID, "axes" );
+      size_t sharedAxesNumber = parser.GetListSize( configFileID, "axes" );
       
-      DEBUG_PRINT( "List size: %u", shmAxesNumber );
+      DEBUG_PRINT( "List size: %u", sharedAxesNumber );
+      
+      infoMessageLength = sharedAxesNumber * ( ( COMMAND_BLOCK_SIZE > STATE_BLOCK_SIZE ) ? COMMAND_BLOCK_SIZE : STATE_BLOCK_SIZE ); 
+      infoMessageOut = (char*) calloc( infoMessageLength, sizeof(char) );
+      AsyncIPConnection_SetMessageLength( infoServerConnectionID, infoMessageLength );
+      
+      dataMessageLength = sharedAxesNumber * ( ( PARAMETER_BLOCK_SIZE > MEASURE_BLOCK_SIZE ) ? PARAMETER_BLOCK_SIZE : MEASURE_BLOCK_SIZE );
+      dataMessageOut = (char*) calloc( dataMessageLength, sizeof(char) );
+      AsyncIPConnection_SetMessageLength( dataServerConnectionID, dataMessageLength );
       
       char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-      for( size_t shmAxisDataIndex = 0; shmAxisDataIndex < shmAxesNumber; shmAxisDataIndex++ )
+      for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
       {
-        sprintf( searchPath, "axes.%u", shmAxisDataIndex );
+        sprintf( searchPath, "axes.%u", sharedAxisDataIndex );
         char* deviceName = parser.GetStringValue( configFileID, searchPath );
         
         if( deviceName != NULL )
@@ -94,19 +109,16 @@ int RobRehabNetwork_Init()
           DEBUG_PRINT( "found shared axis %s", deviceName );
           
           if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-          snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_CONNECTION_MSG_LEN, "%u:%s", shmAxisDataIndex, deviceName );
+          snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", sharedAxisDataIndex, deviceName );
           
-          int shmAxisControlDataID = SHMAxisControl.InitControllerData( deviceName );
-          if( shmAxisControlDataID != -1 )
+          int sharedAxisControlDataID = SHMAxisControl.InitControllerData( deviceName );
+          if( sharedAxisControlDataID != -1 )
           {
-            NetworkAxisController* newController;
-            newController = kv_pushp( NetworkAxisController, networkControllersList );
+            NetworkAxisController newController = { .axisID = sharedAxisControlDataID, .clientID = -1 /*, .trajectoryPlanner = TrajectoryPlanner_Init();*/ };
             
-            newController->axisID = shmAxisControlDataID;
-            newController->clientID = -1;
-            //newController->trajectoryPlanner = TrajectoryPlanner_Init();
+            kv_push( NetworkAxisController, controllersList, newController );
             
-            DEBUG_PRINT( "got axis ID %d", newController->axisID );
+            DEBUG_PRINT( "got axis ID %d", kv_A( controllersList, kv_size( controllersList ) - 1 ).axisID );
           }
         }
       }
@@ -135,19 +147,25 @@ void RobRehabNetwork_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "ending RobRehab Network on thread %x", THREAD_ID );
   
+  for( size_t infoClientIndex = 0; infoClientIndex < kv_size( infoClientsList ); infoClientIndex++ )
+    AsyncIPConnection_Close( kv_A( infoClientsList, infoClientIndex ) );
+  
+  for( size_t dataClientIndex = 0; dataClientIndex < kv_size( dataClientsList ); dataClientIndex++ )
+    AsyncIPConnection_Close( kv_A( dataClientsList, dataClientIndex ) );
+  
   AsyncIPConnection_Close( infoServerConnectionID );
   AsyncIPConnection_Close( dataServerConnectionID );
   
   kv_destroy( infoClientsList );
   kv_destroy( dataClientsList );
   
-  for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
+  for( size_t controllerID = 0; controllerID < kv_size( controllersList ); controllerID++ )
   {
-    //TrajectoryPlanner_End( networkControllersList[ controllerID ].trajectoryPlanner );
-    //AxisControl.EndController( networkControllersList[ controllerID ].axisID );
-    SHMAxisControl.EndControllerData( networkControllersList[ controllerID ] );
+    //TrajectoryPlanner_End( controllersList[ controllerID ].trajectoryPlanner );
+    //AxisControl.EndController( controllersList[ controllerID ].axisID );
+    SHMAxisControl.EndControllerData( kv_A( controllersList, controllerID ).axisID );
   }
-  kv_destroy( networkControllersList );
+  kv_destroy( controllersList );
   
   /*if( data ) CNVDisposeData( data );
   if( gMaxToggleSubscriber ) CNVDispose( gMaxToggleSubscriber );
@@ -175,17 +193,17 @@ void RobRehabNetwork_Update()
     kv_push( int, dataClientsList, newDataClientID );
   
   for( size_t clientIndex = 0; clientIndex < kv_size( infoClientsList ); clientIndex++ )
-    UpdateClientInfo( infoClientsList[ clientIndex ] );
+    UpdateClientInfo( kv_A( infoClientsList, clientIndex ) );
   
   for( size_t clientIndex = 0; clientIndex < kv_size( dataClientsList ); clientIndex++ )
-    UpdateClientData( dataClientsList[ clientIndex ] );
+    UpdateClientData( kv_A( dataClientsList, clientIndex ) );
   
-  //for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
+  //for( size_t controllerID = 0; controllerID < kv_size( controllersList ); controllerID++ )
   //{
     //double* controlMeasuresList = AxisControl.GetMeasuresList( controllerID );
     //double* controlParametersList = AxisControl.GetSetpointsList( controllerID );
 
-    //double* targetList = TrajectoryPlanner_GetTargetList( networkControllersList[ controllerID ].trajectoryPlanner );
+    //double* targetList = TrajectoryPlanner_GetTargetList( controllersList[ controllerID ].trajectoryPlanner );
     
     //DEBUG_PRINT( "\tnext setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
     
@@ -223,55 +241,47 @@ void RobRehabNetwork_Update()
   //}
 }
 
-const size_t COMMAND_BLOCK_SIZE = 1 + CONTROL_COMMANDS_NUMBER;
 static void UpdateClientInfo( int clientID )
 {
-  static char messageOut[ IP_CONNECTION_MSG_LEN ];
-  
   char* messageIn = AsyncIPConnection_ReadMessage( clientID );
   
   if( messageIn != NULL ) 
   {
     /*DEBUG_UPDATE*/DEBUG_PRINT( "received input message: %s", messageIn );
     
-    memset( messageOut, 0, sizeof(messageOut) );
+    memset( infoMessageOut, 0, infoMessageLength * sizeof(char) );
     size_t stateBytesCount = 0;
     
     uint8_t commandBlocksNumber = (uint8_t) *(messageIn++);
     for( uint8_t commandBlockIndex = 0; commandBlockIndex < commandBlocksNumber; commandBlockIndex++ )
     {
       uint8_t controllerID = (uint8_t) messageIn[ commandBlockIndex * COMMAND_BLOCK_SIZE ];
-      if( controllerID < 0 || controllerID >= kv_size( networkControllersList ) ) continue;
+      if( controllerID < 0 || controllerID >= kv_size( controllersList ) ) continue;
       
       /*DEBUG_UPDATE*/DEBUG_PRINT( "received axis %u command data", controllerID );
       
       bool* commandsList = (bool*) ( messageIn + commandBlockIndex * COMMAND_BLOCK_SIZE + 1 );
-      SHMAxisControl.SetBooleanValues( controllerID, CONTROL_COMMANDS, commandsList );
+      SHMAxisControl.SetBooleanValues( controllerID, SHM_CONTROL_COMMANDS, commandsList );
       
-      bool* statesList = SHMAxisControl.GetBooleanValuesList( controllerID, CONTROL_STATES, SHM_PEEK, NULL );
+      bool* statesList = SHMAxisControl.GetBooleanValuesList( controllerID, SHM_CONTROL_STATES, SHM_PEEK, NULL );
       if( statesList != NULL )
       {
-        messageOut[ stateBytesCount++ ] = controllerID;
-        memcpy( messageOut + stateBytesCount, statesList, sizeof(bool) * CONTROL_STATES_NUMBER );
-        stateBytesCount += sizeof(bool) * CONTROL_STATES_NUMBER;
+        infoMessageOut[ stateBytesCount++ ] = controllerID;
+        memcpy( infoMessageOut + stateBytesCount, statesList, sizeof(bool) * SHM_CONTROL_STATES_NUMBER );
+        stateBytesCount += sizeof(bool) * SHM_CONTROL_STATES_NUMBER;
       }
     }
   
     if( stateBytesCount > 0 ) 
     {
-      /*DEBUG_UPDATE*/DEBUG_PRINT( "sending message %s to client %d (%u bytes)", messageOut, clientID, stateBytesCount );
-      AsyncIPConnection_WriteMessage( clientID, messageOut );
+      /*DEBUG_UPDATE*/DEBUG_PRINT( "sending message %s to client %d (%u bytes)", infoMessageOut, clientID, stateBytesCount );
+      AsyncIPConnection_WriteMessage( clientID, infoMessageOut );
     }
   }
-  
-  return 0;
 }
 
-const size_t PARAMETER_BLOCK_SIZE = 1 + CONTROL_SETPOINTS_NUMBER;
 static void UpdateClientData( int clientID )
 {
-  static char messageOut[ IP_CONNECTION_MSG_LEN ];
-  
   char* messageIn = AsyncIPConnection_ReadMessage( clientID );
   
   if( messageIn != NULL ) 
@@ -282,9 +292,9 @@ static void UpdateClientData( int clientID )
     for( uint8_t parameterBlockIndex = 0; parameterBlockIndex < parameterBlocksNumber; parameterBlockIndex++ )
     {
       uint8_t controllerID = (uint8_t) messageIn[ parameterBlockIndex * PARAMETER_BLOCK_SIZE ];
-      if( controllerID < 0 || controllerID >= kv_size( networkControllersList ) ) continue;
+      if( controllerID < 0 || controllerID >= kv_size( controllersList ) ) continue;
       
-      NetworkAxisController* networkAxis = networkControllersList + controllerID;
+      NetworkAxisController* networkAxis = &(kv_A( controllersList, controllerID ));
       
       if( networkAxis->clientID == -1 )
       {
@@ -296,7 +306,7 @@ static void UpdateClientData( int clientID )
       DEBUG_UPDATE( "receiving axis %u parameters", controllerID );
       
       float* parametersList = (float*) ( messageIn + parameterBlockIndex * PARAMETER_BLOCK_SIZE + 1 );
-      SHMAxisControl.SetNumericValues( controllerID, CONTROL_PARAMETERS, parametersList );
+      SHMAxisControl.SetNumericValues( controllerID, SHM_CONTROL_PARAMETERS, parametersList );
       
       //DEBUG_PRINT( "received setpoint: %f", setpoint );
       
@@ -304,26 +314,24 @@ static void UpdateClientData( int clientID )
     }
   }
   
-  memset( messageOut, 0, sizeof(messageOut) );
+  memset( dataMessageOut, 0, dataMessageLength * sizeof(char) );
   size_t measureBytesCount = 0;
-  for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
+  for( size_t controllerID = 0; controllerID < kv_size( controllersList ); controllerID++ )
   {
-    double* measuresList = SHMAxisControl.GetNumericValuesList( controllerID, CONTROL_MEASURES, SHM_PEEK );
+    float* measuresList = SHMAxisControl.GetNumericValuesList( controllerID, SHM_CONTROL_MEASURES, SHM_PEEK, NULL );
     if( measuresList != NULL )
     {
-      messageOut[ measureBytesCount++ ] = (uint8_t) controllerID;
-      memcpy( messageOut + measureBytesCount, measuresList, sizeof(float) * CONTROL_MEASURES_NUMBER );
-      measureBytesCount += sizeof(float) * CONTROL_MEASURES_NUMBER;
+      dataMessageOut[ measureBytesCount++ ] = (uint8_t) controllerID;
+      memcpy( dataMessageOut + measureBytesCount, measuresList, sizeof(float) * SHM_CONTROL_MEASURES_NUMBER );
+      measureBytesCount += sizeof(float) * SHM_CONTROL_MEASURES_NUMBER;
     }
   }
   
   if( measureBytesCount > 0 ) 
   {
-    DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", messageOut, clientID, measureBytesCount );
-    AsyncIPConnection_WriteMessage( clientID, messageOut );
+    DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", dataMessageOut, clientID, measureBytesCount );
+    AsyncIPConnection_WriteMessage( clientID, dataMessageOut );
   }
-  
-  return 0;
 }
 
 #endif //ROBREHAB_NETWORK_H
