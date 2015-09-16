@@ -21,21 +21,21 @@ enum ControlNumericLists { CONTROL_MEASURES, CONTROL_PARAMETERS, CONTROL_NUMERIC
 enum ControlBooleanLists { CONTROL_STATES, CONTROL_COMMANDS, CONTROL_BOOLEAN_LISTS_NUMBER };
 
 enum ControlStates { CONTROL_ENABLED, CONTROL_HAS_ERROR, CONTROL_STATES_NUMBER };
-enum ControlCommands { CONTROL_ENABLE, CONTROL_RESET, CONTROL_COMMANDS_NUMBER };
+enum ControlCommands { CONTROL_ENABLE, CONTROL_DISABLE, CONTROL_RESET, CONTROL_CALIBRATE, CONTROL_COMMANDS_NUMBER };
 
-const bool PEEK = false;
-const bool REMOVE = true;
+const bool SHM_PEEK = false;
+const bool SHM_REMOVE = true;
 
 typedef struct _AxisControlData
 {
   // control -> user
-  double measuresList[ CONTROL_MEASURES_NUMBER ];
+  float measuresList[ CONTROL_MEASURES_NUMBER ];
   bool statesList[ CONTROL_STATES_NUMBER ];
   // user -> control
-  double parametersList[ CONTROL_SETPOINTS_NUMBER ];
+  float parametersList[ CONTROL_SETPOINTS_NUMBER ];
   bool commandsList[ CONTROL_COMMANDS_NUMBER ];
   // indirect access
-  double* numericValuesTable[ CONTROL_NUMERIC_LISTS_NUMBER ];
+  float* numericValuesTable[ CONTROL_NUMERIC_LISTS_NUMBER ];
   bool numericValuesUpdatedList[ CONTROL_NUMERIC_LISTS_NUMBER ];
   size_t numericValuesNumberList [ CONTROL_NUMERIC_LISTS_NUMBER ];
   bool* booleanValuesTable[ CONTROL_BOOLEAN_LISTS_NUMBER ];
@@ -49,8 +49,8 @@ static khash_t( AxisControl )* controlsDataList = NULL;
 
 int InitControllerData( const char* );
 void EndControllerData( int );
-double* GetNumericValuesList( int, enum ControlNumericLists, bool, size_t* );
-void SetNumericValues( int, enum ControlNumericLists, double* );
+float* GetNumericValuesList( int, enum ControlNumericLists, bool, size_t* );
+void SetNumericValues( int, enum ControlNumericLists, float* );
 bool* GetBooleanValuesList( int, enum ControlBooleanLists, bool, size_t* );
 void SetBooleanValues( int, enum ControlBooleanLists, bool* );
 
@@ -58,8 +58,8 @@ const struct
 {
   int (*InitControllerData)( const char* );
   void (*EndControllerData)( int );
-  double* (*GetNumericValuesList)( int, enum ControlNumericLists, bool, size_t* );
-  void (*SetNumericValues)( int, enum ControlNumericLists, double* );
+  float* (*GetNumericValuesList)( int, enum ControlNumericLists, bool, size_t* );
+  void (*SetNumericValues)( int, enum ControlNumericLists, float* );
   bool* (*GetBooleanValuesList)( int, enum ControlBooleanLists, bool, size_t* );
   void (*SetBooleanValues)( int, enum ControlBooleanLists, bool* );
 }
@@ -82,9 +82,9 @@ int InitControllerData( const char* sharedMemoryKey )
   
   memset( newShmControlData, 0, sizeof(AxisControlData) );
   
-  newShmControlData->numericValuesTable[ CONTROL_MEASURES ] = (double*) &(newShmControlData->measuresList);
+  newShmControlData->numericValuesTable[ CONTROL_MEASURES ] = (float*) &(newShmControlData->measuresList);
   newShmControlData->numericValuesNumberList[ CONTROL_MEASURES ] = CONTROL_MEASURES_NUMBER;
-  newShmControlData->numericValuesTable[ CONTROL_PARAMETERS ] = (double*) &(newShmControlData->parametersList);
+  newShmControlData->numericValuesTable[ CONTROL_PARAMETERS ] = (float*) &(newShmControlData->parametersList);
   newShmControlData->numericValuesNumberList[ CONTROL_PARAMETERS ] = CONTROL_SETPOINTS_NUMBER;
   
   newShmControlData->booleanValuesTable[ CONTROL_STATES ] = (bool*) &(newShmControlData->statesList);
@@ -114,7 +114,7 @@ void EndControllerData( int shmControlDataID )
   }
 }
 
-double* GetNumericValuesList( int shmControlDataID, enum ControlNumericLists listIndex, bool remove, size_t* ref_valuesNumber )
+float* GetNumericValuesList( int shmControlDataID, enum ControlNumericLists listIndex, bool remove, size_t* ref_valuesNumber )
 {
   if( !kh_exist( controlsDataList, (khint_t) shmControlDataID ) ) return NULL;
     
@@ -131,7 +131,7 @@ double* GetNumericValuesList( int shmControlDataID, enum ControlNumericLists lis
   return controlData->numericValuesTable[ listIndex ];
 }
 
-void SetNumericValues( int shmControlDataID, enum ControlNumericLists listIndex, double* numericValuesList )
+void SetNumericValues( int shmControlDataID, enum ControlNumericLists listIndex, float* numericValuesList )
 {
   if( !kh_exist( controlsDataList, (khint_t) shmControlDataID ) ) return;
   
@@ -141,7 +141,7 @@ void SetNumericValues( int shmControlDataID, enum ControlNumericLists listIndex,
     
   if( numericValuesList != NULL ) 
   {
-    size_t dataSize = sizeof(double) * controlData->numericValuesNumberList[ listIndex ];
+    size_t dataSize = sizeof(float) * controlData->numericValuesNumberList[ listIndex ];
     memcpy( controlData->numericValuesTable[ listIndex ], numericValuesList, dataSize );
   }
     
@@ -179,7 +179,7 @@ void SetBooleanValues( int shmControlDataID, enum ControlBooleanLists listIndex,
     
   if( booleanValuesList != NULL ) 
   {
-    size_t dataSize = sizeof(double) * controlData->booleanValuesNumberList[ listIndex ];
+    size_t dataSize = sizeof(bool) * controlData->booleanValuesNumberList[ listIndex ];
     memcpy( controlData->booleanValuesTable[ listIndex ], booleanValuesList, dataSize );
   }
     

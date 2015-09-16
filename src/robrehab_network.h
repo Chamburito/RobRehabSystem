@@ -13,8 +13,10 @@
 #include "Common.h"
 
 //#include "network_axis.h"
+#include "shm_axis_control.h"
+//#include "axis_control.h"
 
-#include "axis_control.h"
+#include "file_parsing/json_parser.h"
 
 #include "klib/kvec.h"
 
@@ -39,7 +41,7 @@ static kvec_t( NetworkAxisController ) networkControllersList;
 
 static char axesInfoString[ IP_CONNECTION_MSG_LEN ] = ""; // String containing used axes names
 
-enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
+//enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
 
 /*static CNVData data = 0;
 
@@ -51,7 +53,7 @@ static CNVBufferedWriter gWavePublisher;*/
 
 int RobRehabNetwork_Init()
 {
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %x", CmtGetCurrentThreadID() );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %x", THREAD_ID );
   if( (infoServerConnectionID = AsyncIPConnection_Open( NULL, "50000", TCP )) == -1 )
     return -1;
   if( (dataServerConnectionID = AsyncIPConnection_Open( NULL, "50001", UDP )) == -1 )
@@ -97,7 +99,8 @@ int RobRehabNetwork_Init()
           int shmAxisControlDataID = SHMAxisControl.InitControllerData( deviceName );
           if( shmAxisControlDataID != -1 )
           {
-            NetworkAxisController* newController = kv_pushp( NetworkAxisController, networkControllersList );
+            NetworkAxisController* newController;
+            newController = kv_pushp( NetworkAxisController, networkControllersList );
             
             newController->axisID = shmAxisControlDataID;
             newController->clientID = -1;
@@ -140,8 +143,9 @@ void RobRehabNetwork_End()
   
   for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
   {
-    TrajectoryPlanner_End( networkControllersList[ controllerID ].trajectoryPlanner );
-    AxisControl.EndController( networkControllersList[ controllerID ].axisID );
+    //TrajectoryPlanner_End( networkControllersList[ controllerID ].trajectoryPlanner );
+    //AxisControl.EndController( networkControllersList[ controllerID ].axisID );
+    SHMAxisControl.EndControllerData( networkControllersList[ controllerID ] );
   }
   kv_destroy( networkControllersList );
   
@@ -176,17 +180,17 @@ void RobRehabNetwork_Update()
   for( size_t clientIndex = 0; clientIndex < kv_size( dataClientsList ); clientIndex++ )
     UpdateClientData( dataClientsList[ clientIndex ] );
   
-  for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
-  {
+  //for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
+  //{
     //double* controlMeasuresList = AxisControl.GetMeasuresList( controllerID );
-    double* controlParametersList = AxisControl.GetSetpointsList( controllerID );
+    //double* controlParametersList = AxisControl.GetSetpointsList( controllerID );
 
     //double* targetList = TrajectoryPlanner_GetTargetList( networkControllersList[ controllerID ].trajectoryPlanner );
     
     //DEBUG_PRINT( "\tnext setpoint: %lf (time: %lf)", targetList[ TRAJECTORY_POSITION ], targetList[ TRAJECTORY_TIME ] );
     
     //AESControl_SetSetpoint( controllerID, targetList[ TRAJECTORY_POSITION ] );
-    AxisControl.SetSetpoint( controllerID, /*targetList[ TRAJECTORY_POSITION ]*/controlParametersList[ CONTROL_REFERENCE ] );
+    //AxisControl.SetSetpoint( controllerID, /*targetList[ TRAJECTORY_POSITION ]*/controlParametersList[ CONTROL_REFERENCE ] );
 
     //Gamb
     /*static size_t valuesCount;
@@ -216,15 +220,55 @@ void RobRehabNetwork_Update()
       CNVPutDataInBuffer( gWavePublisher, data, 1000 );
       valuesCount = 0;
     }*/
-  }
+  //}
 }
 
-const size_t CONTROLLER_INFO_SIZE = 2
-const uint8_t ENABLE_MASK = ( 1 << 7 );         // b10000000                                    
-const uint8_t DISABLE_MASK = ( 1 << 6 );        // b01000000
-const uint8_t RESET_MASK = ( 1 << 5 );          // b00100000
-const uint8_t CALIBRATE_MASK = ( 1 << 4 );      // b00010000
+const size_t COMMAND_BLOCK_SIZE = 1 + CONTROL_COMMANDS_NUMBER;
 static void UpdateClientInfo( int clientID )
+{
+  static char messageOut[ IP_CONNECTION_MSG_LEN ];
+  
+  char* messageIn = AsyncIPConnection_ReadMessage( clientID );
+  
+  if( messageIn != NULL ) 
+  {
+    /*DEBUG_UPDATE*/DEBUG_PRINT( "received input message: %s", messageIn );
+    
+    memset( messageOut, 0, sizeof(messageOut) );
+    size_t stateBytesCount = 0;
+    
+    uint8_t commandBlocksNumber = (uint8_t) *(messageIn++);
+    for( uint8_t commandBlockIndex = 0; commandBlockIndex < commandBlocksNumber; commandBlockIndex++ )
+    {
+      uint8_t controllerID = (uint8_t) messageIn[ commandBlockIndex * COMMAND_BLOCK_SIZE ];
+      if( controllerID < 0 || controllerID >= kv_size( networkControllersList ) ) continue;
+      
+      /*DEBUG_UPDATE*/DEBUG_PRINT( "received axis %u command data", controllerID );
+      
+      bool* commandsList = (bool*) ( messageIn + commandBlockIndex * COMMAND_BLOCK_SIZE + 1 );
+      SHMAxisControl.SetBooleanValues( controllerID, CONTROL_COMMANDS, commandsList );
+      
+      bool* statesList = SHMAxisControl.GetBooleanValuesList( controllerID, CONTROL_STATES, SHM_PEEK, NULL );
+      if( statesList != NULL )
+      {
+        messageOut[ stateBytesCount++ ] = controllerID;
+        memcpy( messageOut + stateBytesCount, statesList, sizeof(bool) * CONTROL_STATES_NUMBER );
+        stateBytesCount += sizeof(bool) * CONTROL_STATES_NUMBER;
+      }
+    }
+  
+    if( stateBytesCount > 0 ) 
+    {
+      /*DEBUG_UPDATE*/DEBUG_PRINT( "sending message %s to client %d (%u bytes)", messageOut, clientID, stateBytesCount );
+      AsyncIPConnection_WriteMessage( clientID, messageOut );
+    }
+  }
+  
+  return 0;
+}
+
+const size_t PARAMETER_BLOCK_SIZE = 1 + CONTROL_SETPOINTS_NUMBER;
+static void UpdateClientData( int clientID )
 {
   static char messageOut[ IP_CONNECTION_MSG_LEN ];
   
@@ -234,222 +278,52 @@ static void UpdateClientInfo( int clientID )
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
     
-    memset( messageOut, 0, sizeof(messageOut) );
-    size_t stateBytesCount = 0;
-    
-    size_t infosNumber = strlen( messageIn ) / CONTROLLER_INFO_SIZE;
-    for( size_t infoIndex = 0; infoIndex < infosNumber; infoIndex++ )
+    uint8_t parameterBlocksNumber = (uint8_t) *(messageIn++);
+    for( uint8_t parameterBlockIndex = 0; parameterBlockIndex < parameterBlocksNumber; parameterBlockIndex++ )
     {
-      uint8_t controllerID = (uint8_t) messageIn[ infoIndex * CONTROLLER_INFO_SIZE ];
+      uint8_t controllerID = (uint8_t) messageIn[ parameterBlockIndex * PARAMETER_BLOCK_SIZE ];
       if( controllerID < 0 || controllerID >= kv_size( networkControllersList ) ) continue;
       
-      uint8_t commandData = (uint8_t) messageIn[ infoIndex * CONTROLLER_INFO_SIZE + 2 ];
+      NetworkAxisController* networkAxis = networkControllersList + controllerID;
       
-      DEBUG_UPDATE( "parsing axis %u commands: %x", controllerID, commandData );
-      
-      if( commandData & ENABLE_MASK ) 
-      {
-        DEBUG_PRINT( "enabling controller %u", controllerID );
-        AxisControl.Enable( controllerID );
-      }
-      if( commandData & DISABLE_MASK )
-      {
-        DEBUG_PRINT( "disabling controller %u", controllerID );
-        AxisControl.Disable( controllerID );
-      }
-      if( commandData & RESET_MASK )
-      {
-        DEBUG_PRINT( "reseting controller %u", controllerID );
-        AxisControl.Reset( controllerID );
-        networkControllersList[ controllerID ].dataClientID = -1;
-      }
-      if( commandData & CALIBRATE_MASK )
-      {
-        DEBUG_PRINT( "calibrating controller %u", controllerID );
-        AxisControl.Calibrate( controllerID );
-      }
-      
-      messageOut[ stateBytesCount++ ] = controllerID;
-      messageOut[ stateBytesCount ] |= ( ENABLE_MASK & (uint8_t) AxisControl.IsEnabled( controllerID ) );
-      stateBytesCount++;
-    }
-  
-    if( stateBytesCount > 0 ) 
-    {
-      DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", messageOut, clientID, stateBytesCount );
-      AsyncIPConnection_WriteMessage( clientID, messageOut );
-    }
-  }
-  
-  return 0;
-}
-
-static void UpdateClientData( int clientID )
-{
-  static char messageOut[ IP_CONNECTION_MSG_LEN ];
-  
-  static double setpoint, setpointDerivative, setpointsInterval;
-  
-  char* messageIn = AsyncIPConnection_ReadMessage( dataClient->clientID );
-  
-  if( messageIn != NULL ) 
-  {
-    DEBUG_UPDATE( "received input message: %s", messageIn );
-    
-    char mask = messageIn[ 0 ];
-    
-    float setpointPosition;
-    memcpy( &setpointPosition, messageIn[ 1 ], 4 );
-    
-    AxisControl.SetSetpoint( 0, setpointPosition );
-    AxisControl.SetImpedance( 0, setpointStiffness, setpointDamping );
-  
-    for( char* axisCommand = strtok( messageIn, ":" ); axisCommand != NULL; axisCommand = strtok( NULL, ":" ) )
-    {
-      unsigned int controllerID = (unsigned int) strtoul( axisCommand, &axisCommand, 0 );
-    
-      if( controllerID < 0 || controllerID >= 1/*AESControl_GetDevicesNumber()*/ ) continue;
-      
-      NetworkAxisController* networkAxis = &(networkControllersList[ controllerID ]);
-      
-      if( networkAxis->dataClientID == -1 )
+      if( networkAxis->clientID == -1 )
       {
         DEBUG_PRINT( "new client for axis %u: %d", controllerID, clientID );
-        networkAxis->dataClientID = clientID;
+        networkAxis->clientID = clientID;
       }
-      else if( networkAxis->dataClientID != clientID ) continue;
+      else if( networkAxis->clientID != clientID ) continue;
       
-      DEBUG_UPDATE( "parsing axis %u command \"%s\"", controllerID, axisCommand );
+      DEBUG_UPDATE( "receiving axis %u parameters", controllerID );
       
-      setpoint = strtod( axisCommand, &axisCommand );
-      setpointDerivative = strtod( axisCommand, &axisCommand );
-      setpointsInterval = strtod( axisCommand, &axisCommand );
+      float* parametersList = (float*) ( messageIn + parameterBlockIndex * PARAMETER_BLOCK_SIZE + 1 );
+      SHMAxisControl.SetNumericValues( controllerID, CONTROL_PARAMETERS, parametersList );
       
       //DEBUG_PRINT( "received setpoint: %f", setpoint );
       
-      TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval );
+      //TrajectoryPlanner_SetCurve( networkAxis->trajectoryPlanner, setpoint, setpointDerivative, setpointsInterval );
     }
   }
   
-  strcpy( messageOut, "" );
-  for( size_t controllerID = 0; controllerID < 1/*AESControl_GetDevicesNumber()*/; controllerID++ )
+  memset( messageOut, 0, sizeof(messageOut) );
+  size_t measureBytesCount = 0;
+  for( size_t controllerID = 0; controllerID < kv_size( networkControllersList ); controllerID++ )
   {
-    double* controlMeasuresList = /*AESControl_GetMeasuresList*/AxisControl.GetMeasuresList( controllerID );
-    if( controlMeasuresList != NULL )
+    double* measuresList = SHMAxisControl.GetNumericValuesList( controllerID, CONTROL_MEASURES, SHM_PEEK );
+    if( measuresList != NULL )
     {
-      if( strlen( messageOut ) > 0 ) strcat( messageOut, ":" );
-
-      sprintf( &messageOut[ strlen( messageOut ) ], "%u", controllerID );
-
-      for( size_t dimensionIndex = 0; dimensionIndex < AXIS_FORCE; dimensionIndex++ )
-        sprintf( &messageOut[ strlen( messageOut ) ], " %f", controlMeasuresList[ dimensionIndex ] );
+      messageOut[ measureBytesCount++ ] = (uint8_t) controllerID;
+      memcpy( messageOut + measureBytesCount, measuresList, sizeof(float) * CONTROL_MEASURES_NUMBER );
+      measureBytesCount += sizeof(float) * CONTROL_MEASURES_NUMBER;
     }
   }
   
-  if( strlen( messageOut ) > 0 ) 
+  if( measureBytesCount > 0 ) 
   {
-    DEBUG_UPDATE( "sending message %s to client %d", messageOut, dataClient->clientID );
-    AsyncIPConnection_WriteMessage( dataClient->clientID, messageOut );
+    DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", messageOut, clientID, measureBytesCount );
+    AsyncIPConnection_WriteMessage( clientID, messageOut );
   }
   
   return 0;
 }
-
-/*static void WriteAxisControlState( unsigned int controllerID, const char* command )
-{
-  bool motorEnabled = (bool) strtoul( command, &command, 0 );
-
-  if( motorEnabled ) AESControl_EnableMotor( controllerID );
-  else AESControl_DisableMotor( controllerID );
-
-  bool reset = (bool) strtoul( command, NULL, 0 );
-
-  if( reset ) AESControl_Reset( controllerID );
-}
-
-static char* ReadAxisControlState( unsigned int controllerID )
-{
-  const size_t STATE_MAX_LEN = 2;
-  static char readout[ STATE_MAX_LEN * AXIS_STATES_NUMBER + 1 ];
-  
-  bool* motorStatesList = AESControl_GetMotorStatus( controllerID );
-  if( motorStatesList != NULL )
-  {
-    strcpy( readout, "" );
-    for( size_t stateIndex = 0; stateIndex < AXIS_STATES_NUMBER; stateIndex++ )
-      strcat( readout, ( motorStatesList[ stateIndex ] == true ) ? "1 " : "0 " );
-    readout[ strlen( readout ) - 1 ] = '\0';
-  }
-  
-  DEBUG_UPDATE( "measure readout: %s", readout );
-  
-  return readout;
-}
-
-static void WriteAxisControlData( unsigned int controllerID, const char* command )
-{
-  static double setpointsList[ TRAJECTORY_VALUES_NUMBER ];
-  static size_t setpointsCount;
-  
-  if( clientID != -1 ) return;
-  
-  networkControllersList[ controllerID ].dataClient = clientID;
-
-  setpointsCount = 0;
-  while( *command != '\0' && setpointsCount < TRAJECTORY_VALUES_NUMBER )
-  {
-    setpointsList[ setpointsCount ] = strtod( command, &command );
-    setpointsCount++;
-  }
-
-  TrajectoryPlanner_SetCurve( networkControllersList[ controllerID ].trajectoryPlanner, setpointsList );
-}
-
-static char* ReadAxisControlData( unsigned int controllerID )
-{
-  const size_t VALUE_MAX_LEN = 10;
-  
-  static char readout[ VALUE_MAX_LEN * AXIS_FORCE + 1 ];
-  
-  double* controlMeasuresList = AESControl_GetMeasuresList( controllerID );
-  if( controlMeasuresList != NULL )
-  {
-    //double* jointMeasuresList = EMGAESControl_ApplyGains( controllerID, maxStiffness );
-      
-    strcpy( readout, "" );
-    for( size_t dimensionIndex = 0; dimensionIndex < AXIS_FORCE; dimensionIndex++ )
-      sprintf( &readout[ strlen( readout ) ], "%.3f ", controlMeasuresList[ dimensionIndex ] );
-    readout[ strlen( readout ) - 1 ] = '\0';
-  }
-  
-  DEBUG_UPDATE( "measure readout: %s", readout );
-  
-  return readout;
-}*/
-
-
-void CVICALLBACK ChangeStateDataCallback( void* handle, CNVData data, void* callbackData )
-{
-	/*int messageCode;
-  CNVGetScalarDataValue( data, CNVInt32, &messageCode );
-  
-  unsigned int controllerID = (unsigned int) ( messageCode & 0x000000ff );
-  bool enabled = (bool) ( ( messageCode & 0x0000ff00 ) / 0x100 );
-  unsigned int muscleGroup = (unsigned int) ( ( messageCode & 0x00ff0000 ) / 0x10000 ); 
-
-	if( handle == gMaxToggleSubscriber )
-	{
-    EMGAESControl_ChangeState( controllerID, muscleGroup, enabled ? EMG_CONTRACTION_PHASE : EMG_ACTIVATION_PHASE ); 
-    
-    //DEBUG_PRINT( "axis %u %s %s EMG contraction phase", controllerID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
-	}
-	else if( handle == gMinToggleSubscriber )
-	{
-    EMGAESControl_ChangeState( controllerID, muscleGroup, enabled ? EMG_RELAXATION_PHASE : EMG_ACTIVATION_PHASE );
-    
-    //DEBUG_PRINT( "axis %u %s %s EMG relaxation phase", controllerID, enabled ? "starting" : "ending", ( muscleGroup == MUSCLE_AGONIST ) ? "agonist" : "antagonist" );
-	}*/
-}
-
 
 #endif //ROBREHAB_NETWORK_H

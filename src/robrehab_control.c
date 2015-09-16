@@ -6,74 +6,65 @@
 
 #include "utils/file_parsing/json_parser.h"
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
-typedef struct _SHMAxisControl
+typedef struct _SHMAxisController
 {
-  int shmAxisControlDataID;
-  int axisControllerID;
+  int sharedDataID;
+  int axisID;
 }
-SHMAxisControl;
+SHMAxisController;
 
-KHASH_MAP_INIT_INT( SHMAxisControl, SHMAxisControl )
-static khash_t( SHMAxisControl )* shmAxisControlsList = NULL;
+/*KHASH_MAP_INIT_INT( SHMAxisController, SHMAxisController )
+static khash_t( SHMAxisController )* shmAxisControlsList = NULL;*/
+kvec_t( SHMAxisController ) controllersList;
 
 int RobRehabControl_Init()
 {
-  int shmAxisControlDataID, axisControllerID;
+  int sharedAxisControlDataID, axisControllerID;
   bool loadError = false;
   
-  shmAxisControlsList = kh_init( SHMAxisControl );
+  kv_init( controllersList );
+  
+  SET_PATH( "../config/" );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.LoadFile( "../config/shared_axes" );
+  int configFileID = parser.LoadFile( "shared_axes" );
   if( configFileID != -1 )
   {
     if( parser.HasKey( configFileID, "axes" ) )
     {
-      size_t shmAxesNumber = parser.GetListSize( configFileID, "axes" );
+      size_t sharedAxesNumber = parser.GetListSize( configFileID, "axes" );
       
-      DEBUG_PRINT( "List size: %u", shmAxesNumber );
+      DEBUG_PRINT( "List size: %u", sharedAxesNumber );
       
       char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-      for( size_t shmAxisDataIndex = 0; shmAxisDataIndex < shmAxesNumber; shmAxisDataIndex++ )
+      for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
       {
-        sprintf( searchPath, "axes.%u.name", shmAxisDataIndex );
+        sprintf( searchPath, "axes.%u", sharedAxisDataIndex );
         char* deviceName = parser.GetStringValue( configFileID, searchPath );
-        
-        if( (axisControllerID = AxisControl.Init( deviceName )) != -1 )
+        if( deviceName != NULL )
         {
-          sprintf( searchPath, "axes.%u.key", shmAxisDataIndex );
-          int shmKey = (int) parser.GetIntegerValue( configFileID, searchPath );
-          
-          if( (shmAxisControlDataID = ShmAxisControl_Init( shmKey )) != -1 )
-          {
-            int insertionStatus;
-            khint_t shmAxisDataID = kh_put( SHMAxisControlControl, shmAxisControlsList, shmAxisControlDataID, &insertionStatus );
-            if( insertionStatus != -1 )
+          if( (axisControllerID = AxisControl.InitController( deviceName )) != -1 )
+          {          
+            if( (sharedAxisControlDataID = SHMAxisControl.InitControllerData( deviceName )) != -1 )
             {
-              kh_value( shmAxisControlsList, shmAxisDataID ).shmAxisControlDataID = shmAxisControlDataID;
-              kh_value( shmAxisControlsList, shmAxisDataID ).axisControllerID = axisControllerID;
+              SHMAxisController* newController;
+              newController = kv_pushp( SHMAxisController, controllersList );
+              
+              newController->sharedDataID = sharedAxisControlDataID;
+              newController->axisID = axisControllerID;
             }
-            else loadError = true;
+            else
+            {
+              AxisControl.EndController( axisControllerID );
+            }
           }
-          else loadError = true;
         }
-        else loadError = true;
-        
       }
     }
-    else loadError = true;
     
     parser.UnloadFile( configFileID );
-  }
-  else loadError = true;
-  
-  if( loadError )
-  {
-    ShmAxisControl_End( shmAxisControlDataID );
-    AxisControl.End( axisControllerID );
-    return -1;
   }
   
   //DEBUG_PRINT( "Created axes info string: %s", axesInfoString );
@@ -93,14 +84,14 @@ void RobRehabNetwork_End()
   kv_destroy( infoClientsList );
   kv_destroy( dataClientsList );
   
-  for( khint_t shmSHMAxisControlControlDataID = (khint_t) 0; khint_t shmSHMAxisControlControlDataID != kh_end( shmAxisControlsList ); shmSHMAxisControlControlDataID++ )
+  for( khint_t shmSHMAxisControllerControlDataID = (khint_t) 0; khint_t shmSHMAxisControllerControlDataID != kh_end( shmAxisControlsList ); shmSHMAxisControllerControlDataID++ )
   {
-    if( !kh_exist( shmAxisControlsList, shmSHMAxisControlControlDataID ) ) continue;
+    if( !kh_exist( shmAxisControlsList, shmSHMAxisControllerControlDataID ) ) continue;
       
-    ShmAxisControl_End( kh_key( shmAxisControlsList, shmSHMAxisControlControlDataID ) );
-    TrajectoryPlanner_End( kh_value( shmAxisControlsList, shmSHMAxisControlControlDataID ).trajectoryPlanner );
+    ShmAxisControl_End( kh_key( shmAxisControlsList, shmSHMAxisControllerControlDataID ) );
+    TrajectoryPlanner_End( kh_value( shmAxisControlsList, shmSHMAxisControllerControlDataID ).trajectoryPlanner );
   }
-  kh_destroy( SHMAxisControlControl, shmAxisControlsList );
+  kh_destroy( SHMAxisControllerControl, shmAxisControlsList );
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network ended on thread %x", THREAD_ID );
 }
@@ -127,7 +118,7 @@ void RobRehabNetwork_Update()
   for( size_t dataClientIndex = 0; dataClientIndex < kv_size( dataClientsList ); dataClientIndex++ )
     UpdateControlData( kv_A( dataClientsList, dataClientIndex ) );
   
-  for( khint_t shmSHMAxisControlControlDataID = (khint_t) 0; shmSHMAxisControlControlDataID != kh_end( shmAxisControlsList ); shmSHMAxisControlControlDataID++ )
+  for( khint_t shmSHMAxisControllerControlDataID = (khint_t) 0; shmSHMAxisControlControlDataID != kh_end( shmAxisControlsList ); shmSHMAxisControlControlDataID++ )
   {
     if( !kh_exist( shmAxisControlsList, shmSHMAxisControlControlDataID ) ) continue;
     
