@@ -153,10 +153,10 @@ bool* GetBooleanValuesList( int shmControlDataID, enum SHMControlBooleanLists li
   
   AxisControlData* controlData = kh_value( controlsDataList, (khint_t) shmControlDataID );
     
-  DEBUG_PRINT( "Getting states for axis data ID %u (address: %p)", (khint_t) shmControlDataID, controlData );
-    
   if( !controlData->booleanValuesUpdatedList[ listIndex ] ) return NULL;
-    
+  
+  DEBUG_PRINT( "Getting states for axis data ID %u (address: %p)", (khint_t) shmControlDataID, controlData );
+  
   if( remove ) controlData->booleanValuesUpdatedList[ listIndex ] = false;
   
   if( ref_valuesNumber != NULL ) *ref_valuesNumber = BOOL_VALUES_NUMBER_LIST[ listIndex ];

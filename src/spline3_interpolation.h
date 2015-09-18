@@ -14,12 +14,14 @@ typedef struct _Splined3Curve
   SplineCoeffs* splinesList;
   SplineBounds* splineBoundsList;
   size_t splinesNumber;
+  double scaleFactor, maxScaleFactor;
   double totalLength;
 }
 Splined3Curve;
 
 static Splined3Curve* LoadCurve( const char* );
 static void UnloadCurve( Splined3Curve* );
+static void SetScale( double );
 static double GetValue( Splined3Curve*, double );
 
 const struct 
@@ -55,6 +57,7 @@ static Splined3Curve* LoadCurve( const char* curveName )
           newCurveData->splinesList = NULL;
           newCurveData->splineBoundsList = NULL;
           newCurveData->splinesNumber = 0;
+          newCurveData->scaleFactor = 1.0;
           newCurveData->totalLength = 1000.0;
         }
       }
@@ -128,6 +131,8 @@ static Splined3Curve* LoadCurve( const char* curveName )
 
 static void UnloadCurve( Splined3Curve* curveData )
 {
+  DEBUG_PRINT( "unloading curve %p data", curveData );
+  
   if( curveData != NULL )
   {
     free( curveData->splinesList );
@@ -137,41 +142,47 @@ static void UnloadCurve( Splined3Curve* curveData )
   }
 }
 
+static void SetScale( Splined3Curve* curveData, double scaleFactor )
+{
+  if( curveData == NULL ) return;
+  
+  curveData->scaleFactor = scaleFactor;
+}
+
 static double GetValue( Splined3Curve* curveData, double valuePosition )
 {
   if( curveData == NULL ) return 1.0;
   
+  if( curveData->splinesNumber == 0 ) return curveData->scaleFactor;
+  
   double curveValue = 0.0;
   
-  if( curveData->splinesNumber > 0 )
+  valuePosition = fmod( valuePosition, curveData->totalLength );
+  //if( valuePosition < curveData->splineBoundsList[ 0 ][ 0 ] ) valuePosition += curveData->totalLength;
+
+  double* splineCoeffs = curveData->splinesList[ 0 ];
+  double relativePosition = curveData->splineBoundsList[ 0 ][ 0 ];
+
+  for( size_t splineID = 0; splineID < curveData->splinesNumber; splineID++ )
   {
-    valuePosition = fmod( valuePosition, curveData->totalLength );
-    //if( valuePosition < curveData->splineBoundsList[ 0 ][ 0 ] ) valuePosition += curveData->totalLength;
-  
-    double* splineCoeffs = curveData->splinesList[ 0 ];
-    double relativePosition = curveData->splineBoundsList[ 0 ][ 0 ];
-  
-    for( size_t splineID = 0; splineID < curveData->splinesNumber; splineID++ )
+    if( valuePosition >= curveData->splineBoundsList[ splineID ][ 0 ] )
     {
-      if( valuePosition >= curveData->splineBoundsList[ splineID ][ 0 ] )
+      splineCoeffs = curveData->splinesList[ splineID ];
+
+      if( valuePosition < curveData->splineBoundsList[ splineID ][ 1 ] )
       {
-        splineCoeffs = curveData->splinesList[ splineID ];
-      
-        if( valuePosition < curveData->splineBoundsList[ splineID ][ 1 ] )
-        {
-          relativePosition = valuePosition - curveData->splineBoundsList[ splineID ][ 0 ]; 
-          break;
-        }
-        else
-          relativePosition = curveData->splineBoundsList[ splineID ][ 1 ] - curveData->splineBoundsList[ splineID ][ 0 ]; 
+        relativePosition = valuePosition - curveData->splineBoundsList[ splineID ][ 0 ];
+        break;
       }
+      else
+        relativePosition = curveData->splineBoundsList[ splineID ][ 1 ] - curveData->splineBoundsList[ splineID ][ 0 ];
     }
-  
-    for( size_t coeffIndex = 0; coeffIndex < SPLINE_COEFFS_NUMBER; coeffIndex++ ) 
-      curveValue += splineCoeffs[ coeffIndex ] * pow( relativePosition, coeffIndex );
   }
+
+  for( size_t coeffIndex = 0; coeffIndex < SPLINE_COEFFS_NUMBER; coeffIndex++ )
+    curveValue += splineCoeffs[ coeffIndex ] * pow( relativePosition, coeffIndex );
   
-  return curveValue;
+  return curveData->scaleFactor * curveValue;
 }
 
 #endif  /* SPLINE3_INTERP_H */

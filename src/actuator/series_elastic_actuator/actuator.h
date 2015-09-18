@@ -14,8 +14,10 @@
 
 typedef struct _Actuator
 {
-  Axis motor, sensor;
-  double measuresList[ AXIS_DIMENSIONS_NUMBER ];
+  AxisMotor motor;
+  AxisSensor sensor;
+  double gearConversionFactor;
+  double measuresList[ MOTOR_MEASURES_NUMBER ];
   Splined3Curve* interactionForceCurve;
   double initialForce;
 }
@@ -68,6 +70,8 @@ int SEA_Init( const char* configFileName )
 
 static void SEA_End( int actuatorID )
 {
+  DEBUG_PRINT( "ending SE actuator %d", actuatorID );
+  
   if( kh_exist( actuatorsList, actuatorID ) )
   {
     UnloadActuatorData( kh_value( actuatorsList, actuatorID ) );
@@ -97,12 +101,14 @@ static void SEA_Enable( int actuatorID )
 
 static void SEA_Disable( int actuatorID )
 {
+  DEBUG_EVENT( 0, "disabling SE actuator %d", actuatorID );
+  
   if( kh_exist( actuatorsList, (khint_t) actuatorID ) )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    actuator->motor.interface->Reset( actuator->motor.ID );
-    actuator->sensor.interface->Reset( actuator->sensor.ID );
+    actuator->motor.interface->Disable( actuator->motor.ID );
+    actuator->sensor.interface->Disable( actuator->sensor.ID );
   }
 }
 
@@ -178,57 +184,29 @@ static void SEA_SetSetpoint( int actuatorID, double setpointValue )
   }
 }
 
-const double p1 = -5.6853e-024;
-const double p2 = 9.5074e-020;
-const double p3 = -5.9028e-016;
-const double p4 = 1.6529e-012;
-const double p5 = -2.0475e-009;
-const double p6 = 9.3491e-007;
-const double p7 = 0.0021429;
-const double p8 = 2.0556;
 static void SEA_ReadAxes( int actuatorID )
 {
-  static double motorMeasuresList[ AXIS_DIMENSIONS_NUMBER ];
-  static double sensorMeasuresList[ AXIS_DIMENSIONS_NUMBER ];
-  
-  static double analogBuffer[ 6 ];
-  
   if( kh_exist( actuatorsList, (khint_t) actuatorID ) )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    actuator->motor.interface->ReadMeasures( actuator->motor.ID, motorMeasuresList );
-    actuator->sensor.interface->ReadMeasures( actuator->sensor.ID, sensorMeasuresList );
+    double* motorMeasuresList = AxisMotor_ReadMeasures( actuator->motor );
+    double sensorMeasure = AxisSensor_Read( actuator->sensor );
     
-    actuator->measuresList[ AXIS_POSITION ] = sensorMeasuresList[ AXIS_POSITION ];
-    actuator->measuresList[ AXIS_VELOCITY ] = sensorMeasuresList[ AXIS_VELOCITY ];
-    
-    analogBuffer[5] = analogBuffer[4];
-    analogBuffer[4] = analogBuffer[3];
-    analogBuffer[3] = analogBuffer[2];
-    analogBuffer[2] = analogBuffer[1];
-    analogBuffer[1] = analogBuffer[0];
-    analogBuffer[0] = sensorMeasuresList[ AXIS_FORCE ];
-    double analogFiltered = (analogBuffer[0] + analogBuffer[1] + analogBuffer[2] + analogBuffer[3]+ analogBuffer[4] + analogBuffer[5])/6;
-    
-    double deformation = p1 * pow(analogFiltered,7) + p2 * pow(analogFiltered,6) + p3 * pow(analogFiltered,5) 
-                         + p4 * pow(analogFiltered,4) + p5 * pow(analogFiltered,3) + p6 * pow(analogFiltered,2) + p7 * analogFiltered + p8;   //mm
+    actuator->measuresList[ MOTOR_POSITION ] = sensorMeasure / actuator->gearConversionFactor;
 
-	  actuator->measuresList[ AXIS_FORCE ] = ( 320000 * ( deformation / 1000 ) ) - actuator->initialForce;     //Newton
+	  actuator->measuresList[ MOTOR_FORCE ] = 320 * ( sensorMeasure - motorMeasuresList[ MOTOR_POSITION ] );     //Newton
     
-    //DEBUG_PRINT( "spring position: %.3f - force: %.3f (initial: %.3f)", deformation, actuator->measuresList[ AXIS_FORCE ], actuator->initialForce );
+    //DEBUG_PRINT( "current: %.3f - force: %.3f (initial: %.3f)", sensorMeasuresList[ AXIS_VELOCITY ], actuator->measuresList[ AXIS_FORCE ], actuator->initialForce );
     
     /*DEBUG_PRINT( "p: %.3f - v: %.3f - f: %.3f (%.3f)", actuator->measuresList[ AXIS_POSITION ], actuator->measuresList[ AXIS_VELOCITY ], 
                                                        actuator->measuresList[ AXIS_FORCE ], actuator->initialForce );*/
     
-    //double deformation = sensorMeasuresList[ AXIS_POSITION ] - motorMeasuresList[ AXIS_POSITION ];
     //actuator->measuresList[ AXIS_FORCE ] = Spline3Interp.GetValue( actuator->interactionForceCurve, deformation );
+    actuator->measuresList[ MOTOR_FORCE ] *= actuator->gearConversionFactor;
   }
 }
 
-#define AXES_NUMBER 2
-//const size_t AXES_NUMBER = sizeof(axesList) / sizeof(Axis*);
-const char* AXIS_NAMES[ AXES_NUMBER ] = { "motor", "sensor" };
 static inline Actuator* LoadActuatorData( const char* configFileName )
 {
   //static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
@@ -237,8 +215,6 @@ static inline Actuator* LoadActuatorData( const char* configFileName )
   
   Actuator* newActuator = (Actuator*) malloc( sizeof(Actuator) );
   memset( newActuator, 0, sizeof(Actuator) );
-  
-  Axis* axesList[ AXES_NUMBER ] = { &(newActuator->motor), &(newActuator->sensor) };
   
   /*FileParser parser = JSONParser;
   int configFileID = parser.LoadFile( configFileName );
@@ -275,12 +251,8 @@ static inline Actuator* LoadActuatorData( const char* configFileName )
     return NULL;
   }*/
   
-  axesList[ 0 ]->interface = &AxisCANEPOSOperations;
-  axesList[ 0 ]->ID = axesList[ 0 ]->interface->Connect( "Motor Teste" );
-  axesList[ 0 ]->gearConversionFactor = 1.0;
-  axesList[ 1 ]->interface = &AxisCANEPOSOperations;
-  axesList[ 1 ]->ID = axesList[ 0 ]->ID;//axesList[ 1 ]->interface->Connect( "Sensor Teste" );
-  axesList[ 1 ]->gearConversionFactor = 1.0;
+  newActuator->motor = AxisMotor_Init( "Motor Teste" );
+  newActuator->sensor = AxisSensor_Init( "Sensor Teste" );
   
   return newActuator;
 }

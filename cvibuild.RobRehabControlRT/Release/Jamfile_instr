@@ -1,15 +1,15 @@
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\kson.obj" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.obj" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\robrehab_system_rt.obj" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\advapi32_lvrt.lib" ;
 NoCare "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\advapi32_lvrt.lib" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\ProgramData\\National Instruments\\CVI2015\\bin\\msvc\\analysis.lib" ;
+NoCare "c:\\ProgramData\\National Instruments\\CVI2015\\bin\\msvc\\analysis.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\CVI2015\\toolslib\\toolbox\\msvc\\asynctmr.obj" ;
 NoCare "c:\\Program Files (x86)\\National Instruments\\CVI2015\\toolslib\\toolbox\\msvc\\asynctmr.obj" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin\\msvc\\cvi_db.lib" ;
 NoCare "c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin\\msvc\\cvi_db.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin\\msvc\\cviauto.lib" ;
 NoCare "c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin\\msvc\\cviauto.lib" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\ProgramData\\National Instruments\\CVI2015\\bin\\msvc\\cvidemoa.bli" ;
-NoCare "c:\\ProgramData\\National Instruments\\CVI2015\\bin\\msvc\\cvidemoa.bli" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin\\msvc\\cvidotnet.lib" ;
 NoCare "c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin\\msvc\\cvidotnet.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin\\msvc\\cvinetstreams.lib" ;
@@ -68,5 +68,3 @@ Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.
 NoCare "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\version_lvrt.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin\\msvc\\visa.lib" ;
 NoCare "c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin\\msvc\\visa.lib" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\NetworkVariableRT.dll" : "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\WSock32_lvrt.Lib" ;
-NoCare "c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\lib\\msvc\\WSock32_lvrt.Lib" ;

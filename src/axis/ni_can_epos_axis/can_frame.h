@@ -44,7 +44,7 @@ static void PrintFrameStatus( nxStatus_t statusCode, const char* frameName, cons
   static char statusString[ 1024 ];
     
   nxStatusToString( statusCode, sizeof(statusString), statusString );
-  ERROR_EVENT( "%s - NI-XNET Status: %s", source, statusString );
+  /*ERROR_EVENT*/DEBUG_PRINT( "%s - NI-XNET Status: %s", source, statusString );
 }
 
 // CAN Frame initializer
@@ -70,6 +70,17 @@ CANFrame* CANFrame_Init( enum FrameMode mode, const char* interfaceName, const c
   DEBUG_EVENT( 1,  "created frame %s session %u", frameName, frame->ref_session );
 
   return frame;
+}
+
+void CANFrame_End( CANFrame* frame )
+{
+  if( frame != NULL )
+  {
+    nxClear( frame->ref_session );
+    free( frame->name );
+    free( frame );
+    frame = NULL;
+  }
 }
 
 // Read data from CAN frame to array
@@ -104,17 +115,6 @@ void CANFrame_Write( CANFrame* frame, u8 payload[8] )
   nxStatus_t statusCode = nxWriteFrame( frame->ref_session, &(frame->buffer), sizeof(nxFrameVar_t), 0.0 );
   if( statusCode != nxSuccess )
     PrintFrameStatus( statusCode, frame->name, "(nxWriteFrame)" );
-}
-
-void CANFrame_End( CANFrame* frame )
-{
-  if( frame != NULL )
-  {
-    nxClear( frame->ref_session );
-    free( frame->name );
-    free( frame );
-    frame = NULL;
-  }
 }
 
 #endif	/* CAN_FRAME_H */

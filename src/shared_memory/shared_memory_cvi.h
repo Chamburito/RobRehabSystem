@@ -17,7 +17,7 @@
 typedef struct _SharedObject
 {
   CNVSubscriber reader;
-  CNVBufferedWriter writer;
+  CNVWriter writer;
   int timerID;
   CNVData networkData;
   void* data;
@@ -82,7 +82,7 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
   
   if( ( flags & SHM_WRITE ) )
   {
-    int status = CNVCreateBufferedWriter( variablePathName, NULL, NULL, NULL, objectSize, 10000, 0, &(newSharedObject->writer) );
+    int status = CNVCreateWriter( variablePathName, NULL, NULL, 10000, 0, &(newSharedObject->writer) );
     if( status != 0 )
     {
       DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
@@ -111,14 +111,18 @@ void DestroyObject( void* sharedObjectData )
     
     if( kh_value( sharedObjectsList, sharedObjectID ).data == sharedObjectData )
     {
+      DEBUG_PRINT( "destroying shared object %d", sharedObjectID );
+      
       SharedObject* sharedObject = &(kh_value( sharedObjectsList, sharedObjectID ));
       
+      DEBUG_PRINT( "discarding timer %d", sharedObject->timerID );
       DiscardAsyncTimer( sharedObject->timerID );
       
       if( sharedObject->reader ) CNVDispose( sharedObject->reader );
 	    if( sharedObject->writer ) CNVDispose( sharedObject->writer );
       
-      CNVDisposeData( sharedObject->data );
+      DEBUG_PRINT( "disposing data %p", sharedObject->data );
+      CNVDisposeData( sharedObject->networkData );
       free( sharedObject->data );
       
       kh_del( SO, sharedObjectsList, sharedObjectID );
@@ -162,7 +166,7 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
       DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
       return 0;
     }
-    status = CNVPutDataInBuffer( sharedObject->writer, sharedObject->networkData, 1000 );
+    status = CNVWrite( sharedObject->writer, sharedObject->networkData, 1000 );
     if( status != 0 )
     {
       DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );

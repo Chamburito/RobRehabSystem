@@ -34,7 +34,16 @@
 *******************************************************************************/
 
 /* Include files */
-#include "robrehab_network.h"
+#ifdef ROBREHAB_SERVER
+  #include "robrehab_network.h"
+  #define SUBSYSTEM RobRehabNetwork
+#elif ROBREHAB_CONTROL
+  #include "robrehab_control.h"
+  #define SUBSYSTEM RobRehabControl
+#elif ROBREHAB_EMG
+  #include "robrehab_control.h"
+  #define SUBSYSTEM RobRehabEMG
+#endif
 
 #include <analysis.h>
 #include <utility.h>
@@ -61,16 +70,16 @@ void CVIFUNC_C RTmain( void )
 		SleepUS( 10000 );
 	}
   
-  RobRehabNetwork_Init();
+  SUBSYSTEM.Init();
 		
 	while( !RTIsShuttingDown() ) // Check for program termination conditions
 	{
-    RobRehabNetwork_Update();
+    SUBSYSTEM.Update();
     
     SleepUntilNextMultipleUS( 5000 ); // Sleep to give the desired loop rate.
 	}
 
-  RobRehabNetwork_End();
+  SUBSYSTEM.End();
 
 	CloseCVIRTE();
 }

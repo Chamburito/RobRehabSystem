@@ -3,7 +3,8 @@
 
 #include <stdbool.h>
 
-enum AxisDimensions { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE, AXIS_DIMENSIONS_NUMBER };
+enum AxisMeasures { AXIS_MEASURE_ENCODER, AXIS_MEASURE_VELOCITY, AXIS_MEASURE_CURRENT, AXIS_MEASURE_TENSION, AXIS_MEASURES_NUMBER };
+enum AxisSetpoints { AXIS_SETPOINT_ENCODER, AXIS_SETPOINT_VELOCITY, AXIS_SETPOINT_CURRENT, AXIS_SETPOINTS_NUMBER };
 
 typedef struct _AxisOperations
 {  
@@ -14,8 +15,8 @@ typedef struct _AxisOperations
   void (*Reset)( int );
   bool (*IsEnabled)( int );
   bool (*HasError)( int );
-  bool (*ReadMeasures)( int, double[ AXIS_DIMENSIONS_NUMBER ] );
-  void (*WriteControl)( int, double );
+  bool (*ReadMeasures)( int, double[ AXIS_MEASURES_NUMBER ] );
+  void (*WriteSetpoints)( int, double[ AXIS_SETPOINTS_NUMBER ] );
 }
 AxisOperations;
 

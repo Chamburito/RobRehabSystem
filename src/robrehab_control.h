@@ -7,7 +7,7 @@
 #include "klib/kvec.h"
 #include "klib/khash.h"
 
-#include "utils/file_parsing/json_parser.h"
+#include "file_parsing/json_parser.h"
 
 #include "debug/async_debug.h"
 
@@ -36,7 +36,6 @@ RobRehabControl = { .Init = RobRehabControl_Init, .End = RobRehabControl_End, .U
 static int RobRehabControl_Init()
 {
   int sharedAxisControlDataID, axisControllerID;
-  bool loadError = false;
   
   kv_init( controllersList );
   
@@ -92,8 +91,8 @@ static void RobRehabControl_End()
   
   for( size_t controllerIndex = 0; controllerIndex < kv_size( controllersList ); controllerIndex++ )
   {
-    SHMAxisControl.EndControllerData( kv_A( controllersList, controllerIndex ).sharedDataID );
     AxisControl.EndController( kv_A( controllersList, controllerIndex ).axisID );
+    SHMAxisControl.EndControllerData( kv_A( controllersList, controllerIndex ).sharedDataID );
     //TrajectoryPlanner_End( kh_value( shmAxisControlsList, shmSHMAxisControllerControlDataID ).trajectoryPlanner );
   }
   
@@ -109,7 +108,7 @@ static void RobRehabControl_Update()
   
   for( size_t controllerIndex = 0; controllerIndex < kv_size( controllersList ); controllerIndex++ )
   {
-    DEBUG_PRINT( "updating axis controller %u", controllerIndex );
+    //DEBUG_PRINT( "updating axis controller %u", controllerIndex );
     
     int sharedAxisControlDataID = kv_A( controllersList, controllerIndex ).sharedDataID;
     int axisControllerID = kv_A( controllersList, controllerIndex ).axisID;
@@ -121,13 +120,13 @@ static void RobRehabControl_Update()
       if( commandsList[ SHM_CONTROL_DISABLE ] ) AxisControl.Disable( axisControllerID );
       if( commandsList[ SHM_CONTROL_RESET ] ) AxisControl.Reset( axisControllerID );
       if( commandsList[ SHM_CONTROL_CALIBRATE ] ) AxisControl.Calibrate( axisControllerID );
+      
+      statesList[ SHM_CONTROL_ENABLED ] = AxisControl.IsEnabled( axisControllerID );
+      statesList[ SHM_CONTROL_HAS_ERROR ] = false;//AxisControl.HasError( axisControllerID );
+      SHMAxisControl.SetBooleanValues( sharedAxisControlDataID, SHM_CONTROL_STATES, statesList );
     }
     
-    statesList[ SHM_CONTROL_ENABLED ] = AxisControl.IsEnabled( axisControllerID );
-    statesList[ SHM_CONTROL_HAS_ERROR ] = false;//AxisControl.HasError( axisControllerID );
-    SHMAxisControl.SetBooleanValues( sharedAxisControlDataID, SHM_CONTROL_STATES, statesList );
-    
-    float parametersList = SHMAxisControl.GetNumericValuesList( sharedAxisControlDataID, SHM_CONTROL_PARAMETERS, SHM_REMOVE, NULL );
+    float* parametersList = SHMAxisControl.GetNumericValuesList( sharedAxisControlDataID, SHM_CONTROL_PARAMETERS, SHM_REMOVE, NULL );
     if( parametersList != NULL )
     {
       AxisControl.SetSetpoint( axisControllerID, parametersList[ SHM_CONTROL_POSITION ] /*+ parametersList[ SHM_CONTROL_VELOCITY ] * 0.005*/ ); // hack
@@ -141,7 +140,7 @@ static void RobRehabControl_Update()
       measuresList[ SHM_CONTROL_VELOCITY ] = (float) controlMeasuresList[ CONTROL_VELOCITY ];
       measuresList[ SHM_CONTROL_ACCELERATION ] = (float) controlMeasuresList[ CONTROL_ACCELERATION ];
       measuresList[ SHM_CONTROL_FORCE ] = (float) controlMeasuresList[ CONTROL_FORCE ];
-      SHMAxisControl.SetNumericValues( sharedAxisControDataID, SHM_CONTROL_MEASURES, measuresList );
+      SHMAxisControl.SetNumericValues( sharedAxisControlDataID, SHM_CONTROL_MEASURES, measuresList );
     }
   }
 }
