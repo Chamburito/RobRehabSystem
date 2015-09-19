@@ -154,7 +154,7 @@ Disk Date = 3525446969
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 8
+Window Z-Order = 9
 Source Window State = "1,16,17,17,20,29,29,0,0,85,0,0,0,0,0,25,18,0,21,27,349,723,1,0,"
 
 [File 0010]
@@ -164,7 +164,7 @@ Disk Date = 3524761175
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 3
+Window Z-Order = 5
 Source Window State = "1,221,221,221,54,70,70,0,0,85,0,0,0,0,0,25,164,0,206,51,349,723,1,0,"
 
 [File 0011]
@@ -357,7 +357,7 @@ Disk Date = 3525445938
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 7
+Window Z-Order = 8
 Source Window State = "1,198,198,198,4,76,4,0,0,85,0,0,0,0,0,25,185,0,196,63,349,723,1,0,"
 
 [File 0029]
@@ -368,7 +368,7 @@ Disk Date = 3525449477
 In Projects = "2,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 4
+Window Z-Order = 6
 Source Window State = "1,6,6,6,26,34,26,0,0,85,0,0,0,0,0,25,0,0,5,65,349,723,1,0,"
 
 [File 0030]
@@ -397,12 +397,12 @@ Source Window State = "1,108,117,117,0,1,1,0,0,85,0,0,0,0,0,25,34,0,68,50,349,72
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/ni_can_epos_axi"
 Path Line0002 = "s/axis.h"
 File Type = "Include"
-Disk Date = 3525453491
+Disk Date = 3525518654
 In Projects = "2,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 1
-Source Window State = "1,326,326,326,7,46,46,0,0,201,0,0,0,0,0,49,80,0,101,66,349,723,1,0,"
+Window Z-Order = 4
+Source Window State = "1,326,326,326,7,46,46,0,0,85,0,0,0,0,0,25,80,0,101,66,349,723,1,0,"
 
 [File 0033]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/actuator/actuator_in"
@@ -412,18 +412,18 @@ Disk Date = 3524755002
 In Projects = "2,"
 Window Top = 250
 Window Left = 122
-Window Z-Order = 5
+Window Z-Order = 7
 Source Window State = "1,7,9,9,2,30,30,0,0,85,0,0,0,0,0,25,0,0,13,46,349,723,1,0,"
 
 [File 0034]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis_control.h"
 File Type = "Include"
-Disk Date = 3525418973
+Disk Date = 3525522738
 In Projects = "2,"
 Window Top = 281
 Window Left = 138
-Window Z-Order = 6
-Source Window State = "1,406,410,410,2,93,93,0,0,85,0,0,0,0,0,25,386,0,421,107,349,723,1,0,"
+Window Z-Order = 3
+Source Window State = "1,163,171,163,4,7,4,0,0,85,0,0,0,0,0,25,114,0,164,40,349,723,1,0,"
 
 [File 0035]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/axis_types.h"
@@ -522,7 +522,7 @@ Source Window State = "1,120,120,120,8,18,18,0,0,85,0,0,0,0,0,25,49,0,61,0,349,7
 [File 0044]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_control.h"
 File Type = "Include"
-Disk Date = 3525340027
+Disk Date = 3525518654
 In Projects = "2,"
 Window Top = 31
 Window Z-Order = 17
@@ -549,6 +549,26 @@ Window Z-Order = 19
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,280,0,292,0,349,723,1,0,"
 
 [File 0047]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/axis_motor.h"
+File Type = "Include"
+Disk Date = 3525535329
+In Projects = "2,"
+Window Top = 33
+Window Left = 10
+Window Z-Order = 2
+Source Window State = "1,110,118,110,2,3,2,0,3,85,0,0,0,0,0,25,58,0,118,3,349,723,1,0,"
+
+[File 0048]
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/axis_sensor.h"
+File Type = "Include"
+Disk Date = 3525535322
+In Projects = "2,"
+Window Top = 64
+Window Left = 26
+Window Z-Order = 1
+Source Window State = "1,165,166,166,0,35,35,0,0,201,0,182,0,182,0,69,142,0,16,36,349,723,1,0,"
+
+[File 0049]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads_windows.h"
 File Type = "Include"
 Disk Date = 0
@@ -557,7 +577,7 @@ Window Top = 64
 Window Left = 26
 Source Window State = "1,18,20,20,0,103,103,0,3,0,0,0,0,0,0,0,6,0,18,0,349,723,1,0,"
 
-[File 0048]
+[File 0050]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/timing_windows.h"
 File Type = "Include"
 Disk Date = 0
@@ -566,7 +586,7 @@ Window Top = 33
 Window Left = 10
 Source Window State = "1,45,45,45,22,33,33,0,0,0,0,0,0,0,0,0,1,0,36,97,349,723,1,0,"
 
-[File 0049]
+[File 0051]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_network/async_ip_"
 Path Line0002 = "connection.h"
 File Type = "Include"
@@ -574,33 +594,13 @@ Disk Date = 3523885805
 In Projects = "2,"
 Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
 
-[File 0050]
+[File 0052]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_data"
 Path Line0002 = "_structures.h"
 File Type = "Include"
 Disk Date = 3523885805
 In Projects = "2,"
 Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
-
-[File 0051]
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/axis_motor.h"
-File Type = "Include"
-Disk Date = 3525450051
-In Projects = "2,"
-Window Top = 33
-Window Left = 10
-Window Z-Order = 2
-Source Window State = "1,139,139,139,69,116,116,0,0,85,0,0,0,0,0,25,99,0,141,69,349,723,1,0,"
-
-[File 0052]
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/axis_sensor.h"
-File Type = "Include"
-Disk Date = 3525444001
-In Projects = "2,"
-Window Top = 64
-Window Left = 26
-Window Z-Order = 9
-Source Window State = "1,120,120,120,110,124,124,0,0,85,0,124,0,124,0,25,85,0,48,72,349,723,1,0,"
 
 [Tab Order]
 Tab 0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/Common.h"

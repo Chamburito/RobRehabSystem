@@ -1,5 +1,5 @@
-#ifndef AES_CONTROL_H
-#define AES_CONTROL_H
+#ifndef AXIS_CONTROL_H
+#define AXIS_CONTROL_H
 
 #include "actuator/actuator_types.h"
 
@@ -40,7 +40,42 @@ AxisController;
 KHASH_MAP_INIT_INT( AxisControlInt, AxisController* )
 static khash_t( AxisControlInt )* axisControllersList = NULL;
 
-static int AxisControl_InitController( const char* );
+#define NAMESPACE AxisControl
+
+/*#define FUNCTION_HEADER( rvalue, namespace, name, _VA_ARGS_ ) static rvalue namespace##_##name( _VA_ARGS_ );
+#define FUNCTION_POINTER( rvalue, namespace, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
+#define FUNCTION_INIT( rvalue, namespace, name, _VA_ARGS_ ) .name = namespace##_##name,*/
+
+#define NAMESPACE_FUNCTIONS \
+        NAMESPACE_FUNCTION( int, InitController, const char* ) \
+        NAMESPACE_FUNCTION( void, EndController, int ) \
+        NAMESPACE_FUNCTION( void, Enable, int ) \
+        NAMESPACE_FUNCTION( void, Disable, int ) \
+        NAMESPACE_FUNCTION( void, Reset, int ) \
+        NAMESPACE_FUNCTION( void, Calibrate, int ) \
+        NAMESPACE_FUNCTION( bool, IsEnabled, int ) \
+        NAMESPACE_FUNCTION( bool, HasError, int ) \
+        NAMESPACE_FUNCTION( double*, GetMeasuresList, int ) \
+        NAMESPACE_FUNCTION( double*, GetSetpointsList, int ) \
+        NAMESPACE_FUNCTION( void, SetImpedance, int, double, double ) \
+        NAMESPACE_FUNCTION( void, SetSetpoint, int, double ) \
+        NAMESPACE_FUNCTION( size_t, GetDevicesNumber, void )
+
+#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) static rvalue NAMESPACE##_##name( _VA_ARGS_ );
+NAMESPACE_FUNCTIONS
+#undef NAMESPACE_FUNCTION
+
+#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
+const struct { NAMESPACE_FUNCTIONS }
+#undef NAMESPACE_FUNCTION
+#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) .name = NAMESPACE##_##name,
+NAMESPACE = { NAMESPACE_FUNCTIONS };
+#undef NAMESPACE_FUNCTION
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
+
+/*static int AxisControl_InitController( const char* );
 static void AxisControl_EndController( int );
 static void AxisControl_Enable( int );
 static void AxisControl_Disable( int );
@@ -54,7 +89,7 @@ static void AxisControl_SetImpedance( int, double, double );
 static void AxisControl_SetSetpoint( int, double );
 static size_t AxisControl_GetDevicesNumber();
 
-/*const struct
+const struct
 {
   int (*InitController)( const char* );
   void (*EndController)( int );
@@ -443,4 +478,4 @@ static inline void RunControl( AxisController* controller )
   }
 }
 
-#endif /* AES_CONTROL_H */ 
+#endif /* AXIS_CONTROL_H */ 

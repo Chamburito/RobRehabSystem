@@ -12,7 +12,7 @@
 
 #include "debug/async_debug.h"
       
-typedef struct _AxisSensorData
+typedef struct _SensorData
 {
   int axisID;
   AxisInterface interface;
@@ -21,73 +21,129 @@ typedef struct _AxisSensorData
   double inputBuffer[ 6 ];
   double inputOffset;
 }
-AxisSensorData;
+SensorData;
 
-typedef AxisSensorData* AxisSensor;
+typedef SensorData* Sensor;
 
-static AxisSensor AxisSensor_Init( const char* );
+KHASH_MAP_INIT_INT( SensorInt, Sensor )
+static khash_t( SensorInt )* sensorsList = NULL;
+
+/*static AxisSensor AxisSensor_Init( const char* );
 static inline void AxisSensor_End( AxisSensor );
 static inline void AxisSensor_Reset( AxisSensor );
 static void AxisSensor_SetOffset( AxisSensor );
 static inline bool AxisSensor_IsEnabled( AxisSensor );
 static inline bool AxisSensor_HasError( AxisSensor );
-static double AxisSensor_Read( AxisSensor );
+static double AxisSensor_Read( AxisSensor );*/
 
-static inline AxisSensor LoadAxisSensorData( const char* );
-static inline void UnloadAxisSensorData( AxisSensor );
+#define NAMESPACE AxisSensor
+
+#define NAMESPACE_FUNCTIONS \
+        NAMESPACE_FUNCTION( int, Init, const char* ) \
+        NAMESPACE_FUNCTION( void, End, int ) \
+        NAMESPACE_FUNCTION( void, Reset, int ) \
+        NAMESPACE_FUNCTION( void, SetOffset, int ) \
+        NAMESPACE_FUNCTION( bool, IsEnabled, int ) \
+        NAMESPACE_FUNCTION( bool, HasError, int ) \
+        NAMESPACE_FUNCTION( double, Read, int )
+
+#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) static rvalue NAMESPACE##_##name( _VA_ARGS_ );
+NAMESPACE_FUNCTIONS
+#undef NAMESPACE_FUNCTION
+
+#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
+const struct { NAMESPACE_FUNCTIONS }
+#undef NAMESPACE_FUNCTION
+#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) .name = NAMESPACE##_##name,
+NAMESPACE = { NAMESPACE_FUNCTIONS };
+#undef NAMESPACE_FUNCTION
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
+
+static inline Sensor LoadSensorData( const char* );
+static inline void UnloadSensorData( AxisSensor );
 
 static inline void ReadRawMeasures( AxisSensor sensor );
 
 static int AxisSensor_Init( const char* configFileName )
 {
-  AxisSensor newAxisSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
+  DEBUG_EVENT( 0, "Initializing Axis Sensor %s", configFileName );
   
-  // File Parsing
+  if( sensorsList == NULL ) sensorsList = kh_init( SensorInt );
   
+  int configKey = (int) kh_str_hash_func( configFileName );
   
-  newAxisSensor->interface = &AxisCANEPOSOperations;
-  newAxisSensor->axisID = newAxisSensor->interface->Connect( "CAN Sensor Teste" );
+  int insertionStatus;
+  khint_t newSensorID = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
+  if( insertionStatus > 0 )
+  {
+    kh_value( sensorsList, newMotorID ) = LoadSensorData( configFileName );
+    if( kh_value( sensorsList, newSensorID ) == NULL )
+    {
+      AxisSensor_End( (int) newSensorID );
+      return -1;
+    }
+  }
   
-  return newAxisSensor;
+  DEBUG_EVENT( 0, "Axis Sensor %s initialized (iterator: %d)", configFileName, (int) newSensorID );
+  
+  return (int) newSensorID;
 }
 
-static inline void AxisSensor_End( AxisSensor sensor )
+static void AxisSensor_End( int sensorID )
 {
-  if( sensor == NULL ) return;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
   
-  sensor->interface->Disconnect( sensor->axisID );
+  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
-  free( sensor );
+  UnloadSensorData( sensor );
+    
+  kh_del( SensorInt, sensorsList, (khint_t) sensorID );
+    
+  if( kh_size( sensorsList ) == 0 )
+  {
+    kh_destroy( SensorInt, sensorsList );
+    sensorsList = NULL;
+  }
 }
 
-static inline void AxisSensor_Reset( AxisSensor sensor )
+static void AxisSensor_Reset( int sensorID )
 {
-  if( sensor == NULL ) return;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
+  
+  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   sensor->interface->Reset( sensor->axisID );
 }
 
-static void AxisSensor_SetOffset( AxisSensor sensor )
+static void AxisSensor_SetOffset( int sensorID )
 {
   static double rawMeasuresList[ AXIS_DIMENSIONS_NUMBER ];
   
-  if( sensor == NULL ) return;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
+  
+  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
   
   sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
 }
 
-static inline bool AxisSensor_IsEnabled( AxisSensor sensor )
+static bool AxisSensor_IsEnabled( int sensorID )
 {
-  if( sensor == NULL ) return false;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return false;
+  
+  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   return sensor->interface->IsEnabled( sensor->axisID );
 }
 
-static inline bool AxisSensor_HasError( AxisSensor sensor )
+static bool AxisSensor_HasError( int sensorID )
 {
-  if( sensor == NULL ) return false;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return false;
+  
+  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   return sensor->interface->HasError( sensor->axisID );
 }
@@ -100,11 +156,13 @@ const double p5 = -2.0475e-009;
 const double p6 = 9.3491e-007;
 const double p7 = 0.0021429;
 const double p8 = 2.0556;
-static double AxisSensor_Read( AxisSensor sensor )
+static double AxisSensor_Read( int sensorID )
 {
   static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
   
-  if( sensor == NULL ) return NULL;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
+  
+  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
   
@@ -123,8 +181,27 @@ static double AxisSensor_Read( AxisSensor sensor )
   return measure;
 }
 
-//static inline AxisSensor LoadAxisSensorData( const char* );
-//static inline void UnloadAxisSensorData( CANInterface* );
+static inline Sensor LoadSensorData( const char* )
+{
+  Sensor newSensor = (Sensor) malloc( sizeof(SensorData) );
+  
+  // File Parsing
+  
+  
+  newSensor->interface = &AxisCANEPOSOperations;
+  newSensor->axisID = newSensor->interface->Connect( "CAN Sensor Teste" );
+  
+  return newSensor;
+}
+
+static inline void UnloadSensorData( Sensor sensor )
+{
+  if( sensor == NULL ) return;
+  
+  sensor->interface->Disconnect( sensor->axisID );
+  
+  free( sensor );
+}
 
 #ifdef __cplusplus
     }
