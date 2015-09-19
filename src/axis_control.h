@@ -40,8 +40,8 @@ AxisController;
 KHASH_MAP_INIT_INT( AxisControlInt, AxisController* )
 static khash_t( AxisControlInt )* axisControllersList = NULL;
 
-static int AxisControl_Init( const char* );
-static void AxisControl_End( int );
+static int AxisControl_InitController( const char* );
+static void AxisControl_EndController( int );
 static void AxisControl_Enable( int );
 static void AxisControl_Disable( int );
 static void AxisControl_Reset( int );
@@ -54,7 +54,7 @@ static void AxisControl_SetImpedance( int, double, double );
 static void AxisControl_SetSetpoint( int, double );
 static size_t AxisControl_GetDevicesNumber();
 
-const struct
+/*const struct
 {
   int (*InitController)( const char* );
   void (*EndController)( int );
@@ -70,10 +70,10 @@ const struct
   void (*SetSetpoint)( int, double );
   size_t (*GetDevicesNumber)( void );
 }
-AxisControl = { .InitController = AxisControl_Init, .EndController = AxisControl_End, .Enable = AxisControl_Enable, .Disable = AxisControl_Disable, 
-                .Reset = AxisControl_Reset, .Calibrate = AxisControl_Calibrate, .IsEnabled = AxisControl_IsEnabled, 
+AxisControl = { .InitController = AxisControl_InitController, .EndController = AxisControl_EndController, .Enable = AxisControl_Enable, 
+                .Disable = AxisControl_Disable, .Reset = AxisControl_Reset, .Calibrate = AxisControl_Calibrate, .IsEnabled = AxisControl_IsEnabled, 
                 .GetMeasuresList = AxisControl_GetMeasuresList, .GetSetpointsList = AxisControl_GetSetpointsList, 
-                .SetImpedance = AxisControl_SetImpedance, .SetSetpoint = AxisControl_SetSetpoint, .GetDevicesNumber = AxisControl_GetDevicesNumber };
+                .SetImpedance = AxisControl_SetImpedance, .SetSetpoint = AxisControl_SetSetpoint, .GetDevicesNumber = AxisControl_GetDevicesNumber };*/
 
 static inline AxisController* LoadControllerData( const char* );
 static inline void UnloadControllerData( AxisController* );
@@ -83,7 +83,7 @@ static inline void UpdateControlMeasures( AxisController* );
 static inline void UpdateControlSetpoints( AxisController* );
 static inline void RunControl( AxisController* );
 
-int AxisControl_Init( const char* configFileName )
+int AxisControl_InitController( const char* configFileName )
 {
   DEBUG_EVENT( 0, "Initializing Axis Controller on thread %x", THREAD_ID );
   
@@ -98,7 +98,7 @@ int AxisControl_Init( const char* configFileName )
     kh_value( axisControllersList, newControllerID ) = LoadControllerData( configFileName );
     if( kh_value( axisControllersList, newControllerID ) == NULL )
     {
-      AxisControl_End( (int) newControllerID );
+      AxisControl_EndController( (int) newControllerID );
       return -1;
     }
   }
@@ -118,7 +118,7 @@ int AxisControl_Init( const char* configFileName )
   return (int) newControllerID;
 }
 
-void AxisControl_End( int controllerID )
+void AxisControl_EndController( int controllerID )
 {
   DEBUG_EVENT( 0, "ending Axis Controller %d", controllerID );
 

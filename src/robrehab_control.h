@@ -25,13 +25,13 @@ static int RobRehabControl_Init();
 static void RobRehabControl_End();
 static void RobRehabControl_Update();
 
-const struct
+/*const struct
 {
   int (*Init)( void );
   void (*End)( void );
   void (*Update)( void );
 }
-RobRehabControl = { .Init = RobRehabControl_Init, .End = RobRehabControl_End, .Update = RobRehabControl_Update };
+RobRehabControl = { .Init = RobRehabControl_Init, .End = RobRehabControl_End, .Update = RobRehabControl_Update };*/
 
 static int RobRehabControl_Init()
 {
@@ -74,6 +74,8 @@ static int RobRehabControl_Init()
         }
       }
     }
+    
+    SET_PATH( ".." );
     
     parser.UnloadFile( configFileID );
   }

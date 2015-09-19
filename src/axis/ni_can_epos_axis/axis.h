@@ -10,7 +10,7 @@
 #ifndef AXIS_CAN_EPOS_INTERFACE_H
 #define AXIS_CAN_EPOS_INTERFACE_H
 
-#include "axis_interface.h"
+#include "axis/axis_interface.h"
 #include "ni_can_epos_axis/can_network.h"
 
 #ifdef WIN32

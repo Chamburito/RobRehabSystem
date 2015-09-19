@@ -26,11 +26,11 @@ AxisSensorData;
 typedef AxisSensorData* AxisSensor;
 
 static AxisSensor AxisSensor_Init( const char* );
-static void AxisSensor_End( AxisSensor );
-static void AxisSensor_Reset( AxisSensor );
+static inline void AxisSensor_End( AxisSensor );
+static inline void AxisSensor_Reset( AxisSensor );
 static void AxisSensor_SetOffset( AxisSensor );
-static bool AxisSensor_IsEnabled( AxisSensor );
-static bool AxisSensor_HasError( AxisSensor );
+static inline bool AxisSensor_IsEnabled( AxisSensor );
+static inline bool AxisSensor_HasError( AxisSensor );
 static double AxisSensor_Read( AxisSensor );
 
 static inline AxisSensor LoadAxisSensorData( const char* );
@@ -51,7 +51,7 @@ static int AxisSensor_Init( const char* configFileName )
   return newAxisSensor;
 }
 
-static void AxisSensor_End( AxisSensor sensor )
+static inline void AxisSensor_End( AxisSensor sensor )
 {
   if( sensor == NULL ) return;
   
@@ -60,7 +60,7 @@ static void AxisSensor_End( AxisSensor sensor )
   free( sensor );
 }
 
-static void AxisSensor_Reset( AxisSensor sensor )
+static inline void AxisSensor_Reset( AxisSensor sensor )
 {
   if( sensor == NULL ) return;
   
@@ -78,14 +78,14 @@ static void AxisSensor_SetOffset( AxisSensor sensor )
   sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
 }
 
-static bool AxisSensor_IsEnabled( AxisSensor sensor )
+static inline bool AxisSensor_IsEnabled( AxisSensor sensor )
 {
   if( sensor == NULL ) return false;
   
   return sensor->interface->IsEnabled( sensor->axisID );
 }
 
-static bool AxisSensor_HasError( AxisSensor sensor )
+static inline bool AxisSensor_HasError( AxisSensor sensor )
 {
   if( sensor == NULL ) return false;
   
@@ -100,7 +100,7 @@ const double p5 = -2.0475e-009;
 const double p6 = 9.3491e-007;
 const double p7 = 0.0021429;
 const double p8 = 2.0556;
-static double AxisSensor_Read( AxisSensor sensor );
+static double AxisSensor_Read( AxisSensor sensor )
 {
   static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
   
