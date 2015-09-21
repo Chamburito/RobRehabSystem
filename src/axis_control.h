@@ -46,30 +46,30 @@ static khash_t( AxisControlInt )* axisControllersList = NULL;
 #define FUNCTION_POINTER( rvalue, namespace, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
 #define FUNCTION_INIT( rvalue, namespace, name, _VA_ARGS_ ) .name = namespace##_##name,*/
 
-#define NAMESPACE_FUNCTIONS \
-        NAMESPACE_FUNCTION( int, InitController, const char* ) \
-        NAMESPACE_FUNCTION( void, EndController, int ) \
-        NAMESPACE_FUNCTION( void, Enable, int ) \
-        NAMESPACE_FUNCTION( void, Disable, int ) \
-        NAMESPACE_FUNCTION( void, Reset, int ) \
-        NAMESPACE_FUNCTION( void, Calibrate, int ) \
-        NAMESPACE_FUNCTION( bool, IsEnabled, int ) \
-        NAMESPACE_FUNCTION( bool, HasError, int ) \
-        NAMESPACE_FUNCTION( double*, GetMeasuresList, int ) \
-        NAMESPACE_FUNCTION( double*, GetSetpointsList, int ) \
-        NAMESPACE_FUNCTION( void, SetImpedance, int, double, double ) \
-        NAMESPACE_FUNCTION( void, SetSetpoint, int, double ) \
-        NAMESPACE_FUNCTION( size_t, GetDevicesNumber, void )
+#define NAMESPACE_FUNCTIONS( namespace ) \
+        NAMESPACE_FUNCTION( int, namespace, InitController, const char* ) \
+        NAMESPACE_FUNCTION( void, namespace, EndController, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Enable, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Disable, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Reset, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Calibrate, int ) \
+        NAMESPACE_FUNCTION( bool, namespace, IsEnabled, int ) \
+        NAMESPACE_FUNCTION( bool, namespace, HasError, int ) \
+        NAMESPACE_FUNCTION( double*, namespace, GetMeasuresList, int ) \
+        NAMESPACE_FUNCTION( double*, namespace, GetSetpointsList, int ) \
+        NAMESPACE_FUNCTION( void, namespace, SetImpedance, int, double, double ) \
+        NAMESPACE_FUNCTION( void, namespace, SetSetpoint, int, double ) \
+        NAMESPACE_FUNCTION( size_t, namespace, GetDevicesNumber, void )
 
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) static rvalue NAMESPACE##_##name( _VA_ARGS_ );
-NAMESPACE_FUNCTIONS
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
+NAMESPACE_FUNCTIONS( NAMESPACE )
 #undef NAMESPACE_FUNCTION
 
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
-const struct { NAMESPACE_FUNCTIONS }
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
+const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
 #undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) .name = NAMESPACE##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS };
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
+NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
 #undef NAMESPACE_FUNCTION
 
 #undef NAMESPACE_FUNCTIONS
@@ -217,7 +217,7 @@ static void AxisControl_Reset( int controllerID )
   {
     AxisController* controller = kh_value( axisControllersList, (khint_t) controllerID );
     
-    if( controller->actuator.interface->HasError( controller->actuator.ID ) )
+    if( controller->actuator.interface->HasError( controller->actuator.ID ) ) 
       controller->actuator.interface->Reset( controller->actuator.ID );
   
     controller->measuresList[ CONTROL_ERROR ] = 0.0;

@@ -38,31 +38,30 @@ static double AxisSensor_Read( AxisSensor );*/
 
 #define NAMESPACE AxisSensor
 
-#define NAMESPACE_FUNCTIONS \
-        NAMESPACE_FUNCTION( int, Init, const char* ) \
-        NAMESPACE_FUNCTION( void, End, int ) \
-        NAMESPACE_FUNCTION( void, Reset, int ) \
-        NAMESPACE_FUNCTION( void, SetOffset, int ) \
-        NAMESPACE_FUNCTION( bool, IsEnabled, int ) \
-        NAMESPACE_FUNCTION( bool, HasError, int ) \
-        NAMESPACE_FUNCTION( double, Read, int )
+#define NAMESPACE_FUNCTIONS( namespace ) \
+        NAMESPACE_FUNCTION( int, namespace, Init, const char* ) \
+        NAMESPACE_FUNCTION( void, namespace, End, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Reset, int ) \
+        NAMESPACE_FUNCTION( void, namespace, SetOffset, int ) \
+        NAMESPACE_FUNCTION( bool, namespace, HasError, int ) \
+        NAMESPACE_FUNCTION( double, namespace, Read, int )
 
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) static rvalue NAMESPACE##_##name( _VA_ARGS_ );
-NAMESPACE_FUNCTIONS
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
+NAMESPACE_FUNCTIONS( NAMESPACE )
 #undef NAMESPACE_FUNCTION
 
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
-const struct { NAMESPACE_FUNCTIONS }
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
+const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
 #undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) .name = NAMESPACE##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS };
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
+NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
 #undef NAMESPACE_FUNCTION
 
 #undef NAMESPACE_FUNCTIONS
 #undef NAMESPACE
 
 static inline Sensor LoadSensorData( const char* );
-static inline void UnloadSensorData( AxisSensor );
+static inline void UnloadSensorData( Sensor );
 
 static inline void ReadRawMeasures( AxisSensor sensor );
 
@@ -119,7 +118,7 @@ static void AxisSensor_Reset( int sensorID )
 
 static void AxisSensor_SetOffset( int sensorID )
 {
-  static double rawMeasuresList[ AXIS_DIMENSIONS_NUMBER ];
+  static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
   
   if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
   
@@ -128,15 +127,6 @@ static void AxisSensor_SetOffset( int sensorID )
   sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
   
   sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
-}
-
-static bool AxisSensor_IsEnabled( int sensorID )
-{
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return false;
-  
-  Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
-  
-  return sensor->interface->IsEnabled( sensor->axisID );
 }
 
 static bool AxisSensor_HasError( int sensorID )

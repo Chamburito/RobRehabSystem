@@ -1,11 +1,9 @@
 #ifndef SERIES_ELASTIC_ACTUATOR_H
 #define SERIES_ELASTIC_ACTUATOR_H 
 
-#include "actuator_interface.h"
+#include "actuator/actuator_interface.h"
 #include "spline3_interpolation.h"
 #include "filters.h"
-
-#include "axis/axis_types.h"
 
 #include "klib/khash.h"
 #include "file_parsing/json_parser.h"
@@ -14,19 +12,18 @@
 
 typedef struct _Actuator
 {
-  AxisMotor motor;
-  AxisSensor sensor;
+  int motorID, sensorID;
+  double measuresList[ ACTUATOR_VARS_NUMBER ];
   double gearConversionFactor;
-  double measuresList[ MOTOR_MEASURES_NUMBER ];
   Splined3Curve* interactionForceCurve;
-  double initialForce;
+  enum ActuatorVariables operationMode;
 }
 Actuator;
 
 KHASH_MAP_INIT_INT( SEA, Actuator* )
 static khash_t( SEA )* actuatorsList = NULL;
 
-static int SEA_Init( const char* );
+/*static int SEA_Init( const char* );
 static void SEA_End( int );
 static void SEA_Enable( int );
 static void SEA_Disable( int );
@@ -36,13 +33,19 @@ static bool SEA_IsEnabled( int );
 static bool SEA_HasError( int );
 static void SEA_ReadAxes( int );
 static double SEA_GetMeasure( int, enum AxisDimensions );
-static void SEA_SetSetpoint( int, double );
+static void SEA_SetSetpoint( int, double );*/
+
+#define ACTUATOR_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
+ACTUATOR_INTERFACE( SEA )
+#undef ACTUATOR_FUNCTION
 
 static inline Actuator* LoadActuatorData( const char* );
 static inline void UnloadActuatorData( Actuator* );
 
-const ActuatorOperations SEActuatorOperations = { .Init = SEA_Init, .End = SEA_End, .Enable = SEA_Enable, .Disable = SEA_Disable, .Reset = SEA_Reset, .Calibrate = SEA_Calibrate,
-                                                  .IsEnabled = SEA_IsEnabled, .HasError = SEA_HasError, .ReadAxes = SEA_ReadAxes, .GetMeasure = SEA_GetMeasure, .SetSetpoint = SEA_SetSetpoint };
+#define ACTUATOR_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
+const ActuatorOperations SEActuatorOperations = { ACTUATOR_INTERFACE( SEA ) };/*{ .Init = SEA_Init, .End = SEA_End, .Enable = SEA_Enable, .Disable = SEA_Disable, .Reset = SEA_Reset, .Calibrate = SEA_Calibrate,
+                                                  .IsEnabled = SEA_IsEnabled, .HasError = SEA_HasError, .ReadAxes = SEA_ReadAxes, .GetMeasure = SEA_GetMeasure, .SetSetpoint = SEA_SetSetpoint };*/
+#undef ACTUATOR_FUNCTION
                                          
 int SEA_Init( const char* configFileName )
 {
@@ -94,8 +97,7 @@ static void SEA_Enable( int actuatorID )
     
     DEBUG_PRINT( "enabling actuator %u (key: %d)", (khint_t) actuatorID, kh_key( actuatorsList, (khint_t) actuatorID ) );
     
-    actuator->motor.interface->Enable( actuator->motor.ID );
-    actuator->sensor.interface->Enable( actuator->sensor.ID );
+    AxisMotor_Enable( actuator->motorID );
   }
 }
 
@@ -107,8 +109,7 @@ static void SEA_Disable( int actuatorID )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    actuator->motor.interface->Disable( actuator->motor.ID );
-    actuator->sensor.interface->Disable( actuator->sensor.ID );
+    AxisMotor_Disable( actuator->motorID );
   }
 }
 
@@ -118,8 +119,8 @@ static void SEA_Reset( int actuatorID )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    actuator->motor.interface->Reset( actuator->motor.ID );
-    actuator->sensor.interface->Reset( actuator->sensor.ID );
+    AxisMotor_Reset( actuator->motorID );
+    AxisSensor_Reset( actuator->sensorID );
   }
 }
 
@@ -129,9 +130,8 @@ static void SEA_Calibrate( int actuatorID )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    actuator->initialForce = actuator->measuresList[ AXIS_FORCE ];
-    
-    DEBUG_PRINT( "calibration intial force: %g", actuator->initialForce );
+    AxisMotor_SetOffset( actuator->motorID );
+    AxisSensor_SetOffset( actuator->sensorID );
   }
 }
 
@@ -141,7 +141,7 @@ static bool SEA_IsEnabled( int actuatorID )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    return ( actuator->motor.interface->IsEnabled( actuator->motor.ID ) );
+    return ( AxisMotor_IsEnabled( actuator->motorID ) );
   }
   
   return false;
@@ -153,59 +153,68 @@ static bool SEA_HasError( int actuatorID )
   {
     Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
     
-    if( actuator->motor.interface->HasError( actuator->motor.ID ) ) return true;
-    else if( actuator->sensor.interface->IsEnabled( actuator->sensor.ID ) ) return true;
+    if( AxisMotor_HasError( actuator->motorID ) ) return true;
+    else if( AxisSensor_HasError( actuator->sensorID ) ) return true;
   }
   
   return false;
 }
 
-static double SEA_GetMeasure( int actuatorID , enum AxisDimensions dimensionIndex )
+static double* SEA_ReadAxes( int actuatorID )
 {
-  if( dimensionIndex < 0 && dimensionIndex > AXIS_DIMENSIONS_NUMBER ) return 0.0;
+  if( !kh_exist( actuatorsList, (khint_t) actuatorID ) ) return NULL; 
+    
+  Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
   
-  if( kh_exist( actuatorsList, (khint_t) actuatorID ) )
+  double* motorMeasuresList = AxisMotor_ReadMeasures( actuator->motorID );
+  double sensorMeasure = AxisSensor_Read( actuator->sensorID );
+  if( motorMeasuresList != NULL && sensorMeasure != 0.0 )
   {
-    Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
+    actuator->measuresList[ ACTUATOR_POSITION ] = sensorMeasure / actuator->gearConversionFactor;
     
-    return actuator->measuresList[ dimensionIndex ];
-  }
-  
-  return 0.0;
-}
-
-static void SEA_SetSetpoint( int actuatorID, double setpointValue )
-{
-  if( kh_exist( actuatorsList, (khint_t) actuatorID ) )
-  {
-    Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
-    
-    actuator->motor.interface->WriteControl( actuator->motor.ID, setpointValue / actuator->motor.gearConversionFactor );
-  }
-}
-
-static void SEA_ReadAxes( int actuatorID )
-{
-  if( kh_exist( actuatorsList, (khint_t) actuatorID ) )
-  {
-    Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
-    
-    double* motorMeasuresList = AxisMotor_ReadMeasures( actuator->motor );
-    double sensorMeasure = AxisSensor_Read( actuator->sensor );
-    
-    actuator->measuresList[ MOTOR_POSITION ] = sensorMeasure / actuator->gearConversionFactor;
-
-	  actuator->measuresList[ MOTOR_FORCE ] = 320 * ( sensorMeasure - motorMeasuresList[ MOTOR_POSITION ] );     //Newton
+    actuator->measuresList[ ACTUATOR_FORCE ] = 320 * ( sensorMeasure - motorMeasuresList[ MOTOR_POSITION ] );     //Newton
     
     //DEBUG_PRINT( "current: %.3f - force: %.3f (initial: %.3f)", sensorMeasuresList[ AXIS_VELOCITY ], actuator->measuresList[ AXIS_FORCE ], actuator->initialForce );
     
     /*DEBUG_PRINT( "p: %.3f - v: %.3f - f: %.3f (%.3f)", actuator->measuresList[ AXIS_POSITION ], actuator->measuresList[ AXIS_VELOCITY ], 
-                                                       actuator->measuresList[ AXIS_FORCE ], actuator->initialForce );*/
+    actuator->measuresLis*t[ AXIS_FORCE ], actuator->initialForce );*/
     
     //actuator->measuresList[ AXIS_FORCE ] = Spline3Interp.GetValue( actuator->interactionForceCurve, deformation );
-    actuator->measuresList[ MOTOR_FORCE ] *= actuator->gearConversionFactor;
+    actuator->measuresList[ ACTUATOR_FORCE ] *= actuator->gearConversionFactor;
   }
+  
+  return (double*) actuator->measuresList;
 }
+
+static void SEA_SetSetpoint( int actuatorID, double setpoint )
+{
+  static double setpointsList[ ACTUATOR_VARS_NUMBER ];
+  
+  if( !kh_exist( actuatorsList, (khint_t) actuatorID ) ) return;
+
+  Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
+  
+  setpointsList[ ACTUATOR_POSITION ] = setpoint * actuator->gearConversionFactor;
+  setpointsList[ ACTUATOR_VELOCITY ] = setpoint * actuator->gearConversionFactor;
+  setpointsList[ ACTUATOR_FORCE ] = setpoint / actuator->gearConversionFactor;
+  
+  AxisMotor_WriteControl( actuator->motorID, setpointsList[ actuator->operationMode ] );
+}
+
+const enum AxisMotorVariables MOTOR_OPERATION_MODES[ ACTUATOR_VARS_NUMBER ] = { MOTOR_POSITION, MOTOR_VELOCITY, MOTOR_FORCE };
+static void SEA_SetOperationMode( int actuatorID, enum ActuatorVariables mode )
+{
+  if( !kh_exist( actuatorsList, (khint_t) actuatorID ) ) return NULL;
+  
+  if( mode < 0 || mode >= ACTUATOR_VARS_NUMBER ) return;
+    
+  Actuator* actuator = kh_value( actuatorsList, (khint_t) actuatorID );
+  
+  AxisMotor_SetOperationMode( actuator->motorID, MOTOR_OPERATION_MODES[ mode ] );
+  
+  actuator->operationMode = mode;
+}
+
 
 static inline Actuator* LoadActuatorData( const char* configFileName )
 {
@@ -251,8 +260,8 @@ static inline Actuator* LoadActuatorData( const char* configFileName )
     return NULL;
   }*/
   
-  newActuator->motor = AxisMotor_Init( "Motor Teste" );
-  newActuator->sensor = AxisSensor_Init( "Sensor Teste" );
+  newActuator->motorID = AxisMotor_Init( "Motor Teste" );
+  newActuator->sensorID = AxisSensor_Init( "Sensor Teste" );
   
   return newActuator;
 }
@@ -261,8 +270,8 @@ static inline void UnloadActuatorData( Actuator* actuator )
 {
   if( actuator != NULL )
   {
-    if( actuator->motor.interface != NULL ) actuator->motor.interface->Disconnect( actuator->motor.ID );
-    if( actuator->sensor.interface != NULL ) actuator->sensor.interface->Disconnect( actuator->sensor.ID );
+    AxisMotor_End( actuator->motorID );
+    AxisSensor_End( actuator->sensorID );
     
     Spline3Interp.UnloadCurve( actuator->interactionForceCurve );
   }

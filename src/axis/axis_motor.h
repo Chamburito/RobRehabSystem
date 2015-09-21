@@ -13,15 +13,16 @@
       
 #include "debug/async_debug.h"
 
-enum AxisMotorMeasures { MOTOR_POSITION, MOTOR_FORCE, MOTOR_MEASURES_NUMBER };
+enum AxisMotorVariables { MOTOR_POSITION, MOTOR_VELOCITY, MOTOR_FORCE, MOTOR_VARS_NUMBER };
       
 typedef struct _MotorData
 {
   int axisID;
   AxisInterface interface;
-  double measuresList[ MOTOR_MEASURES_NUMBER ];
-  double measureOffsetsList[ MOTOR_MEASURES_NUMBER ];
-  size_t operationMode;
+  double measuresList[ MOTOR_VARS_NUMBER ];
+  double measureGainsList[ MOTOR_VARS_NUMBER ];
+  double measureOffsetsList[ MOTOR_VARS_NUMBER ];
+  enum AxisMotorVariables operationMode;
   unsigned int encoderResolution;
   double currentToForceRatio;
   double gearReduction;
@@ -46,27 +47,28 @@ static void AxisMotor_WriteControl( AxisMotor, double );*/
 
 #define NAMESPACE AxisMotor
 
-#define NAMESPACE_FUNCTIONS \
-        NAMESPACE_FUNCTION( int, Init, const char* ) \
-        NAMESPACE_FUNCTION( void, End, int ) \
-        NAMESPACE_FUNCTION( void, Enable, int ) \
-        NAMESPACE_FUNCTION( void, Disable, int ) \
-        NAMESPACE_FUNCTION( void, Reset, int ) \
-        NAMESPACE_FUNCTION( void, SetOffset, int ) \
-        NAMESPACE_FUNCTION( bool, IsEnabled, int ) \
-        NAMESPACE_FUNCTION( bool, HasError, int ) \
-        NAMESPACE_FUNCTION( double*, ReadMeasures, int ) \
-        NAMESPACE_FUNCTION( void, WriteControl, int, double )
+#define NAMESPACE_FUNCTIONS( namespace ) \
+        NAMESPACE_FUNCTION( int, namespace, Init, const char* ) \
+        NAMESPACE_FUNCTION( void, namespace, End, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Enable, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Disable, int ) \
+        NAMESPACE_FUNCTION( void, namespace, Reset, int ) \
+        NAMESPACE_FUNCTION( void, namespace, SetOffset, int ) \
+        NAMESPACE_FUNCTION( bool, namespace, IsEnabled, int ) \
+        NAMESPACE_FUNCTION( bool, namespace, HasError, int ) \
+        NAMESPACE_FUNCTION( double*, namespace, ReadMeasures, int ) \
+        NAMESPACE_FUNCTION( void, namespace, WriteControl, int, double ) \
+        NAMESPACE_FUNCTION( void, namespace, SetOperationMode, int, enum AxisMotorVariables ) \
 
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) static rvalue NAMESPACE##_##name( _VA_ARGS_ );
-NAMESPACE_FUNCTIONS
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
+NAMESPACE_FUNCTIONS( NAMESPACE )
 #undef NAMESPACE_FUNCTION
 
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) rvalue (*name)( _VA_ARGS_ );
-const struct { NAMESPACE_FUNCTIONS }
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
+const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
 #undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, name, _VA_ARGS_ ) .name = NAMESPACE##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS };
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
+NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
 #undef NAMESPACE_FUNCTION
 
 #undef NAMESPACE_FUNCTIONS
@@ -123,7 +125,7 @@ static void AxisMotor_Enable( int motorID )
 {
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   motor->interface->Enable( motor->axisID );
 }
@@ -132,7 +134,7 @@ static void AxisMotor_Disable( int motorID )
 {
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   motor->interface->Disable( motor->axisID );
 }
@@ -141,30 +143,31 @@ static void AxisMotor_Reset( int motorID )
 {
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   motor->interface->Reset( motor->axisID );
 }
 
 static void AxisMotor_SetOffset( int motorID )
 {
-  static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
+  static double rawMeasuresList[ AXIS_VARS_NUMBER ];
   
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   motor->interface->ReadMeasures( motor->axisID, rawMeasuresList );
   
-  motor->measureOffsetsList[ MOTOR_POSITION ] = rawMeasuresList[ AXIS_MEASURE_ENCODER ] / ( motor->encoderResolution * motor->gearReduction );
-  motor->measureOffsetsList[ MOTOR_FORCE ] = rawMeasuresList[ AXIS_MEASURE_CURRENT ] * motor->currentToForceRatio * motor->gearReduction;
+  motor->measureOffsetsList[ MOTOR_POSITION ] = rawMeasuresList[ AXIS_ENCODER ] * motor->measureGainsList[ MOTOR_POSITION ];
+  motor->measureOffsetsList[ MOTOR_VELOCITY ] = rawMeasuresList[ AXIS_RPS ] * motor->measureGainsList[ MOTOR_VELOCITY ];
+  motor->measureOffsetsList[ MOTOR_FORCE ] = rawMeasuresList[ AXIS_CURRENT ] * motor->measureGainsList[ MOTOR_FORCE ];
 }
 
 static bool AxisMotor_IsEnabled( int motorID )
 {
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return false;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   return motor->interface->IsEnabled( motor->axisID );
 }
@@ -173,43 +176,53 @@ static bool AxisMotor_HasError( int motorID )
 {
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return false;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   return motor->interface->HasError( motor->axisID );
 }
 
 static double* AxisMotor_ReadMeasures( int motorID )
 {
-  static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
+  static double rawMeasuresList[ AXIS_VARS_NUMBER ];
   
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return NULL;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
   motor->interface->ReadMeasures( motor->axisID, rawMeasuresList );
   
-  motor->measuresList[ MOTOR_POSITION ] = rawMeasuresList[ AXIS_MEASURE_ENCODER ] / ( motor->encoderResolution * motor->gearReduction );
-  motor->measuresList[ MOTOR_FORCE ] = rawMeasuresList[ AXIS_MEASURE_CURRENT ] * motor->currentToForceRatio * motor->gearReduction;
+  motor->measuresList[ MOTOR_POSITION ] = rawMeasuresList[ AXIS_ENCODER ] * motor->measureGainsList[ MOTOR_POSITION ];
+  motor->measuresList[ MOTOR_VELOCITY ] = rawMeasuresList[ AXIS_RPS ] * motor->measureGainsList[ MOTOR_VELOCITY ];
+  motor->measuresList[ MOTOR_FORCE ] = rawMeasuresList[ AXIS_CURRENT ] * motor->measureGainsList[ MOTOR_FORCE ];
   
-  for( size_t measureIndex = 0; measureIndex < MOTOR_MEASURES_NUMBER; measureIndex++ )
+  for( size_t measureIndex = 0; measureIndex < MOTOR_VARS_NUMBER; measureIndex++ )
     motor->measuresList[ measureIndex ] -= motor->measureOffsetsList[ measureIndex ];
 }
 
-static void AxisMotor_WriteControl( int motorID )
+static void AxisMotor_WriteControl( int motorID, double setpoint )
 {
-  static double rawSetpointsList[ AXIS_SETPOINTS_NUMBER ];
-  
   if( !kh_exist( motorsList, (khint_t) motorID ) ) return;
   
-  Motor motor = kh_value( motorsList, (khint_t) motorID ) );
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
   
-  rawSetpointsList[ AXIS_SETPOINT_ENCODER ] = setpoint * motor->encoderResolution * motor->gearReduction + motor->measureOffsetsList[ MOTOR_POSITION ];
-  rawSetpointsList[ AXIS_SETPOINT_VELOCITY ] = setpoint * motor->gearReduction;
-  rawSetpointsList[ AXIS_SETPOINT_CURRENT ] = setpoint / ( motor->currentToForceRatio * motor->gearReduction ) + motor->measureOffsetsList[ MOTOR_FORCE ];
+  double axisSetpoint = ( setpoint / motor->measureGainsList[ motor->operationMode ] ) + motor->measureOffsetsList[ motor->operationMode ];
   
-  motor->interface->WriteSetpoints( motor->axisID, rawSetpointsList[ motor->operationMode ] );
+  motor->interface->WriteSetpoint( motor->axisID, axisSetpoint );
 }
 
+const int AXIS_OPERATION_MODES[ MOTOR_VARS_NUMBER ] = { AXIS_ENCODER, AXIS_RPS, AXIS_CURRENT };
+static void AxisMotor_SetOperationMode( int motorID, enum AxisMotorVariables mode )
+{
+  if( !kh_exist( motorsList, (khint_t) motorID ) ) return;
+  
+  if( mode < 0 || mode >= MOTOR_VARS_NUMBER ) return;
+  
+  Motor motor = kh_value( motorsList, (khint_t) motorID );
+  
+  motor->interface->SetOperationMode( motor->axisID, AXIS_OPERATION_MODES[ mode ] );
+  
+  motor->operationMode = mode;
+}
                                     
                                     
 static inline Motor LoadMotorData( const char* configFileName )
@@ -221,10 +234,16 @@ static inline Motor LoadMotorData( const char* configFileName )
   
   newMotor->interface = &AxisCANEPOSOperations;
   newMotor->axisID = newMotor->interface->Connect( "CAN Motor Teste" );
-  newMotor->operationMode = AXIS_SETPOINT_CURRENT;
-  newMotor->encoderResolution = 1;
-  newMotor->currentToForceRatio = 151.8; // 0.0302;
-  newMotor->gearReduction = 1.0; // 0.0025 / ( 2 * 2 * M_PI );
+  newMotor->operationMode = AXIS_CURRENT;
+  newMotor->interface->SetOperationMode( newMotor->axisID, newMotor->operationMode );
+  
+  unsigned int encoderResolution = 1;
+  double currentToForceRatio = 151.8; // 0.0302;
+  double gearReduction = 1.0; // 0.0025 / ( 2 * 2 * M_PI );
+  
+  newMotor->measureGainsList[ MOTOR_POSITION ] = 1.0 / ( encoderResolution * gearReduction );
+  newMotor->measureGainsList[ MOTOR_VELOCITY ] = 1.0 / gearReduction;
+  newMotor->measureGainsList[ MOTOR_FORCE ] = currentToForceRatio * gearReduction;
   
   return newMotor;
 }
