@@ -21,16 +21,17 @@ Splined3Curve;
 
 static Splined3Curve* LoadCurve( const char* );
 static void UnloadCurve( Splined3Curve* );
-static void SetScale( double );
+static void SetScale( Splined3Curve*, double );
 static double GetValue( Splined3Curve*, double );
 
 const struct 
 {
   Splined3Curve* (*LoadCurve)( const char* );
   void (*UnloadCurve)( Splined3Curve* );
+  void (*SetScale)( Splined3Curve*, double );
   double (*GetValue)( Splined3Curve*, double );
 }
-Spline3Interp = { .LoadCurve = LoadCurve, .UnloadCurve = UnloadCurve, .GetValue = GetValue };
+Spline3Interp = { .LoadCurve = LoadCurve, .UnloadCurve = UnloadCurve, .SetScale = SetScale, .GetValue = GetValue };
 
 static Splined3Curve* LoadCurve( const char* curveName )
 {

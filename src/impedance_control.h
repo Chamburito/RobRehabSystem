@@ -6,15 +6,16 @@
 #include "debug/async_debug.h"
 
 // Control used values enumerations
-enum { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_ACCELERATION, CONTROL_FORCE, CONTROL_ERROR, CONTROL_MEASURES_NUMBER };
-enum { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_SETPOINTS_NUMBER };
+enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_SETPOINTS_NUMBER, 
+                        CONTROL_ACCELERATION = CONTROL_SETPOINTS_NUMBER, CONTROL_ACCELERATION, CONTROL_ERROR, CONTROL_VARS_NUMBER };
+enum ControlParameters { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_PARAMS_NUMBER };
 
-typedef double (*ImpedanceControlFunction)( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
+typedef double* (*ImpedanceControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
 
 // Control algorhitms
-static double RunDefaultControl( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
-static double RunForcePIControl( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
-static double RunVelocityControl( double[ CONTROL_MEASURES_NUMBER ], double[ CONTROL_SETPOINTS_NUMBER ], double );
+static double* RunDefaultControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
+static double* RunForcePIControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
+static double* RunVelocityControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
 
 // Available precompiled control methods
 struct IndexedFunction
@@ -69,7 +70,7 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunVelocityControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
+static double* RunVelocityControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
   /*static double sensorTension_0, sensorPosition_0;
 
@@ -134,7 +135,7 @@ static double RunVelocityControl( double measuresList[ CONTROL_MEASURES_NUMBER ]
 
   //Motor_SetSetpoint( hipsControl->actuator, MOTOR_VELOCITY_SETPOINT, velocityRPMSetpoint );
   return velocityRPMSetpoint;*/
-  return 0.0;
+  return NULL;
 }
 
 
@@ -160,11 +161,13 @@ const double d3 = 0.0015;
 /////                          KNEE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
+static double* RunForcePIControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
   static double position, positionSetpoint, positionError, positionErrorSum, positionSetpointSum;
   static double velocity[3], velocityFiltered[3], velocitySetpoint[3];
   static double force[3], forceFiltered[3], forceError[3];
+  
+  static double setpointsList[ CONTROL_SETPOINTS_NUMBER ];
   
   static double error;
   
@@ -186,6 +189,7 @@ static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ],
   velocityFiltered[0] = -c2 * velocityFiltered[1] - c3 * velocityFiltered[2] + d1 * velocity[0] + d2 * velocity[1] + d3 * velocity[2];
   
   positionSetpoint = parametersList[ CONTROL_REFERENCE ];
+  setpointsList[ CONTROL_POSITION ] = positionSetpoint;
   positionError = position - positionSetpoint;
   positionErrorSum += deltaTime * positionError * positionError;
   positionSetpointSum += deltaTime * positionSetpoint * positionSetpoint;
@@ -193,6 +197,7 @@ static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ],
   measuresList[ CONTROL_ERROR ] = positionError / positionSetpoint;
   
   double forceSetpoint = -parametersList[ CONTROL_STIFFNESS ] * positionError - parametersList[ CONTROL_DAMPING ] * velocityFiltered[0];
+  setpointsList[ CONTROL_FORCE ] = forceSetpoint;
 
   force[0] = measuresList[ CONTROL_FORCE ];
   forceFiltered[0] = -a2 * forceFiltered[1] - a3 * forceFiltered[2] + b1 * force[0] + b2 * force[1] + b3 * force[2];
@@ -200,6 +205,7 @@ static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ],
   forceError[0] = forceSetpoint - forceFiltered[0];
 
   velocitySetpoint[0] += 370.0 * ( forceError[0] - forceError[1] ) + 3.5 * deltaTime * forceError[0];
+  setpointsList[ CONTROL_VELOCITY ] = velocitySetpoint[ 0 ];
   
   //velocitySetpoint[0] = 0.9822 * velocitySetpoint[1] + 0.01407 * velocitySetpoint[2] + 338.6 * forceError[1] - 337.4 * forceError[2]; //5ms
   
@@ -211,19 +217,25 @@ static double RunForcePIControl( double measuresList[ CONTROL_MEASURES_NUMBER ],
     forceFiltered[ i ] = forceFiltered[ i - 1 ];
     velocitySetpoint[ i ] = velocitySetpoint[ i - 1 ];
   }
-  
-  return velocitySetpoint[0];
+
+  return (double*) setpointsList;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
 /////                        DEFAULT CONTROL FUNCTION                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double RunDefaultControl( double measuresList[ CONTROL_MEASURES_NUMBER ], double parametersList[ CONTROL_SETPOINTS_NUMBER ], double deltaTime )
+static double* RunDefaultControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime, enum ControlMeasures measureIndex )
 {
+  static double setpointsList[ CONTROL_SETPOINTS_NUMBER ];
+  
   DEBUG_PRINT( "returning %g", parametersList[ CONTROL_REFERENCE ] );
   
-  return parametersList[ CONTROL_REFERENCE ];
+  setpointsList[ CONTROL_POSITION ] = parametersList[ CONTROL_REFERENCE ];
+  setpointsList[ CONTROL_VELOCITY ] = parametersList[ CONTROL_REFERENCE ];
+  setpointsList[ CONTROL_FORCE ] = parametersList[ CONTROL_REFERENCE ];
+  
+  return (double*) setpointsList;
 }
 
 #endif  /* IMPEDANCE_CONTROL_H */
