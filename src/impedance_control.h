@@ -7,7 +7,7 @@
 
 // Control used values enumerations
 enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_SETPOINTS_NUMBER, 
-                        CONTROL_ACCELERATION = CONTROL_SETPOINTS_NUMBER, CONTROL_ACCELERATION, CONTROL_ERROR, CONTROL_VARS_NUMBER };
+                        CONTROL_ACCELERATION = CONTROL_SETPOINTS_NUMBER, CONTROL_ERROR, CONTROL_VARS_NUMBER };
 enum ControlParameters { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_PARAMS_NUMBER };
 
 typedef double* (*ImpedanceControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
@@ -225,7 +225,7 @@ static double* RunForcePIControl( double measuresList[ CONTROL_VARS_NUMBER ], do
 /////                        DEFAULT CONTROL FUNCTION                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double* RunDefaultControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime, enum ControlMeasures measureIndex )
+static double* RunDefaultControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
 {
   static double setpointsList[ CONTROL_SETPOINTS_NUMBER ];
   

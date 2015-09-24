@@ -63,7 +63,7 @@ NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
 static inline Sensor LoadSensorData( const char* );
 static inline void UnloadSensorData( Sensor );
 
-static inline void ReadRawMeasures( AxisSensor sensor );
+//static inline void ReadRawMeasures( Sensor sensor );
 
 static int AxisSensor_Init( const char* configFileName )
 {
@@ -77,7 +77,7 @@ static int AxisSensor_Init( const char* configFileName )
   khint_t newSensorID = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( sensorsList, newMotorID ) = LoadSensorData( configFileName );
+    kh_value( sensorsList, newSensorID ) = LoadSensorData( configFileName );
     if( kh_value( sensorsList, newSensorID ) == NULL )
     {
       AxisSensor_End( (int) newSensorID );
@@ -118,15 +118,22 @@ static void AxisSensor_Reset( int sensorID )
 
 static void AxisSensor_SetOffset( int sensorID )
 {
-  static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
+  static double rawMeasuresList[ AXIS_VARS_NUMBER ];
   
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
   
   Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
   sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
   
-  sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
+  sensor->inputBuffer[5] = sensor->inputBuffer[4];
+  sensor->inputBuffer[4] = sensor->inputBuffer[3];
+  sensor->inputBuffer[3] = sensor->inputBuffer[2];
+  sensor->inputBuffer[2] = sensor->inputBuffer[1];
+  sensor->inputBuffer[1] = sensor->inputBuffer[0];
+  sensor->inputBuffer[0] = rawMeasuresList[ sensor->measureIndex ];
+  
+  sensor->inputOffset = (sensor->inputBuffer[0] + sensor->inputBuffer[1] + sensor->inputBuffer[2] + sensor->inputBuffer[3]+ sensor->inputBuffer[4] + sensor->inputBuffer[5])/6;
 }
 
 static bool AxisSensor_HasError( int sensorID )
@@ -148,9 +155,9 @@ const double p7 = 0.0021429;
 const double p8 = 2.0556;
 static double AxisSensor_Read( int sensorID )
 {
-  static double rawMeasuresList[ AXIS_MEASURES_NUMBER ];
+  static double rawMeasuresList[ AXIS_VARS_NUMBER ];
   
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
+  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
   
   Sensor sensor = kh_value( sensorsList, (khint_t) sensorID );
   
@@ -161,17 +168,21 @@ static double AxisSensor_Read( int sensorID )
   sensor->inputBuffer[3] = sensor->inputBuffer[2];
   sensor->inputBuffer[2] = sensor->inputBuffer[1];
   sensor->inputBuffer[1] = sensor->inputBuffer[0];
-  sensor->inputBuffer[0] = rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset;
+  sensor->inputBuffer[0] = rawMeasuresList[ sensor->measureIndex ];
   
-  double inputFiltered = (sensor->inputBuffer[0] + sensor->inputBuffer[1] + sensor->inputBuffer[2] + sensor->inputBuffer[3]+ sensor->inputBuffer[4] + sensor->inputBuffer[5])/6;
+  double input = (sensor->inputBuffer[0] + sensor->inputBuffer[1] + sensor->inputBuffer[2] + sensor->inputBuffer[3]+ sensor->inputBuffer[4] + sensor->inputBuffer[5])/6 - sensor->inputOffset;
+  
+  //double input = rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset;
+  
+  //DEBUG_PRINT( "sensor input: %.3f (offset: %.3f)", input, sensor->inputOffset );
     
-  double measure = p1 * pow(inputFiltered,7) + p2 * pow(inputFiltered,6) + p3 * pow(inputFiltered,5) 
-                   + p4 * pow(inputFiltered,4) + p5 * pow(inputFiltered,3) + p6 * pow(inputFiltered,2) + p7 * inputFiltered + p8;   //mm
+  double measure = p1 * pow(input,7) + p2 * pow(input,6) + p3 * pow(input,5) 
+                   + p4 * pow(input,4) + p5 * pow(input,3) + p6 * pow(input,2) + p7 * input;// + p8;   //mm
   
   return measure;
 }
 
-static inline Sensor LoadSensorData( const char* )
+static inline Sensor LoadSensorData( const char* configFileName )
 {
   Sensor newSensor = (Sensor) malloc( sizeof(SensorData) );
   
@@ -180,6 +191,7 @@ static inline Sensor LoadSensorData( const char* )
   
   newSensor->interface = &AxisCANEPOSOperations;
   newSensor->axisID = newSensor->interface->Connect( "CAN Sensor Teste" );
+  newSensor->measureIndex = AXIS_ANALOG;
   
   return newSensor;
 }

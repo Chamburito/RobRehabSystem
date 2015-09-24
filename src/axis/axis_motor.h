@@ -5,6 +5,8 @@
     extern "C" {
 #endif
 
+#include "interface.h"
+      
 #include "axis/axis_types.h"
 
 #include "file_parsing/json_parser.h"
@@ -47,37 +49,30 @@ static void AxisMotor_WriteControl( AxisMotor, double );*/
 
 #define NAMESPACE AxisMotor
 
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( int, namespace, Init, const char* ) \
-        NAMESPACE_FUNCTION( void, namespace, End, int ) \
-        NAMESPACE_FUNCTION( void, namespace, Enable, int ) \
-        NAMESPACE_FUNCTION( void, namespace, Disable, int ) \
-        NAMESPACE_FUNCTION( void, namespace, Reset, int ) \
-        NAMESPACE_FUNCTION( void, namespace, SetOffset, int ) \
-        NAMESPACE_FUNCTION( bool, namespace, IsEnabled, int ) \
-        NAMESPACE_FUNCTION( bool, namespace, HasError, int ) \
-        NAMESPACE_FUNCTION( double*, namespace, ReadMeasures, int ) \
-        NAMESPACE_FUNCTION( void, namespace, WriteControl, int, double ) \
-        NAMESPACE_FUNCTION( void, namespace, SetOperationMode, int, enum AxisMotorVariables ) \
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( int, namespace, Init, const char* ) \
+        FUNCTION_INIT( void, namespace, End, int ) \
+        FUNCTION_INIT( void, namespace, Enable, int ) \
+        FUNCTION_INIT( void, namespace, Disable, int ) \
+        FUNCTION_INIT( void, namespace, Reset, int ) \
+        FUNCTION_INIT( void, namespace, SetOffset, int ) \
+        FUNCTION_INIT( bool, namespace, IsEnabled, int ) \
+        FUNCTION_INIT( bool, namespace, HasError, int ) \
+        FUNCTION_INIT( double*, namespace, ReadMeasures, int ) \
+        FUNCTION_INIT( void, namespace, WriteControl, int, double ) \
+        FUNCTION_INIT( void, namespace, SetOperationMode, int, enum AxisMotorVariables ) \
 
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
 
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
 
 #undef NAMESPACE_FUNCTIONS
 #undef NAMESPACE
 
-static inline AxisMotor LoadMotorData( const char* );
-static inline void UnloadMotorData( CANInterface* );
+static inline Motor LoadMotorData( const char* );
+static inline void UnloadMotorData( Motor );
 
-static inline void ReadRawMeasures( AxisMotor motor );
+//static inline void ReadRawMeasures( Motor motor );
 
 static int AxisMotor_Init( const char* configFileName )
 {
@@ -197,6 +192,8 @@ static double* AxisMotor_ReadMeasures( int motorID )
   
   for( size_t measureIndex = 0; measureIndex < MOTOR_VARS_NUMBER; measureIndex++ )
     motor->measuresList[ measureIndex ] -= motor->measureOffsetsList[ measureIndex ];
+  
+  return (double*) motor->measuresList;
 }
 
 static void AxisMotor_WriteControl( int motorID, double setpoint )
@@ -205,7 +202,7 @@ static void AxisMotor_WriteControl( int motorID, double setpoint )
   
   Motor motor = kh_value( motorsList, (khint_t) motorID );
   
-  double axisSetpoint = ( setpoint / motor->measureGainsList[ motor->operationMode ] ) + motor->measureOffsetsList[ motor->operationMode ];
+  double axisSetpoint = ( setpoint + motor->measureOffsetsList[ motor->operationMode ] ) / motor->measureGainsList[ motor->operationMode ];
   
   motor->interface->WriteSetpoint( motor->axisID, axisSetpoint );
 }
@@ -234,8 +231,6 @@ static inline Motor LoadMotorData( const char* configFileName )
   
   newMotor->interface = &AxisCANEPOSOperations;
   newMotor->axisID = newMotor->interface->Connect( "CAN Motor Teste" );
-  newMotor->operationMode = AXIS_CURRENT;
-  newMotor->interface->SetOperationMode( newMotor->axisID, newMotor->operationMode );
   
   unsigned int encoderResolution = 1;
   double currentToForceRatio = 151.8; // 0.0302;

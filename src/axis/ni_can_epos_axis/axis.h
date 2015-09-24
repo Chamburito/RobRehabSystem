@@ -72,7 +72,7 @@ static bool CANEPOS_IsEnabled( int );
 static bool CANEPOS_HasError( int );
 static bool CANEPOS_ReadMeasures( int, double[ AXIS_MEASURES_NUMBER ] );
 static void CANEPOS_WriteSetpoint( int, double );
-static void CANEPOS_SetOperationMode( int, enum AxisSetpoints );*/
+static void CANEPOS_SetOperationMode( int, enum AxisVariables );*/
 
 #define AXIS_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
 AXIS_INTERFACE( CANEPOS )
@@ -100,7 +100,7 @@ static int CANEPOS_Connect( const char* configFileName )
   if( interfacesList == NULL )
   {
     CANNetwork_Start( CAN_DATABASE, CAN_CLUSTER );
-    interfacesList = kh_init( CAN );
+    interfacesList = kh_init( CANInt );
   }
   
   DEBUG_PRINT( "CAN EPOS list %p created", interfacesList );
@@ -324,7 +324,7 @@ void CANEPOS_WriteSetpoint( int interfaceID, double setpoint )
 }
 
 static const int OPERATION_MODES[ AXIS_VARS_NUMBER ] = { 0xFF, 0xFE, 0xFD, 0x00 };
-static inline void CANEPOS_SetOperationMode( int interfaceID, enum AxisSetpoints mode )
+static void CANEPOS_SetOperationMode( int interfaceID, enum AxisVariables mode )
 {
   if( !kh_exist( interfacesList, (khint_t) interfaceID ) ) return;
   

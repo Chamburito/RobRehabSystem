@@ -13,17 +13,17 @@
 #ifdef _CVI_
   #define CLEAR_SCREEN Cls()
 #elif WIN32
-  #include <Windows.h>
+  //#include <Windows.h>
   #define CLEAR_SCREEN system( "cls" )
 #else
   #define CLEAR_SCREEN system( "clear" )
 #endif
 
-#ifdef _MSC_VER
-  #define INLINE __forceinline /* use __forceinline (VC++ specific) */
-#else
-  #define INLINE inline        /* use standard inline */
-#endif
+//#ifdef _MSC_VER
+//  #define INLINE __forceinline /* use __forceinline (VC++ specific) */
+//#else
+//  #define INLINE inline        /* use standard inline */
+//#endif
 
 #ifdef DEBUG
   #define DEBUG_PRINT( format, ... ) printf( "debug: %s: " format "\n", __func__, __VA_ARGS__ )

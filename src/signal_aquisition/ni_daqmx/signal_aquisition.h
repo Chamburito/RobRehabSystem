@@ -16,7 +16,7 @@ static const size_t AQUISITION_BUFFER_LENGTH = 10;
 typedef struct _SignalAquisitionTask
 {
   TaskHandle handle;
-  Thread_Handle threadID;
+  Thread threadID;
   ThreadLock threadLock;
   bool isReading;
   bool* channelUsedList;
@@ -99,7 +99,7 @@ static double* NIDAQmx_Read( int taskID, unsigned int channel, size_t* ref_aquir
   
   if( !task->isReading ) return NULL;
  
-  ThreadLock_Aquire( task->threadLock );
+  ThreadLocks_Aquire( task->threadLock );
     
   double* aquiredSamplesList = (double*) task->samplesTable[ channel ];
   task->samplesTable[ channel ] = NULL;
@@ -107,7 +107,7 @@ static double* NIDAQmx_Read( int taskID, unsigned int channel, size_t* ref_aquir
   *ref_aquiredSamplesCount = (size_t) task->aquiredSamplesCountList[ channel ];
   task->aquiredSamplesCountList[ channel ] = 0;
     
-  ThreadLock_Release( task->threadLock );
+  ThreadLocks_Release( task->threadLock );
   
   return aquiredSamplesList;
 }
@@ -156,7 +156,7 @@ static void* AsyncReadBuffer( void* callbackData )
   
   while( task->isReading )
   {
-    ThreadLock_Aquire( task->threadLock ); // Trying to make Read call blocking
+    ThreadLocks_Aquire( task->threadLock ); // Trying to make Read call blocking
     
     int errorCode = DAQmxReadAnalogF64( task->handle, AQUISITION_BUFFER_LENGTH, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
                                         task->samplesList, task->channelsNumber * AQUISITION_BUFFER_LENGTH, &aquiredSamplesCount, NULL );
@@ -170,7 +170,7 @@ static void* AsyncReadBuffer( void* callbackData )
       //break;
     }
     
-    //ThreadLock_Aquire( task->threadLock );
+    //ThreadLocks_Aquire( task->threadLock );
     
     for( size_t channel = 0; channel < task->channelsNumber; channel++ )
     {
@@ -178,12 +178,12 @@ static void* AsyncReadBuffer( void* callbackData )
       task->aquiredSamplesCountList[ channel ] = aquiredSamplesCount;
     }
     
-    ThreadLock_Release( task->threadLock );
+    ThreadLocks_Release( task->threadLock );
   }
   
   DEBUG_PRINT( "ending aquisition thread %x", THREAD_ID );
   
-  Thread_Exit( 0 );
+  Threading_EndThread( 0 );
   return NULL;
 }
 
@@ -209,10 +209,10 @@ SignalAquisitionTask* LoadTaskData( const char* taskName )
   
       if( DAQmxStartTask( newTask->handle ) >= 0 )
       {
-        newTask->threadLock = ThreadLock_Create();
+        newTask->threadLock = ThreadLocks_Create();
   
         newTask->isReading = true;
-        if( (newTask->threadID = Thread_Start( AsyncReadBuffer, newTask, THREAD_JOINABLE )) == INVALID_THREAD_HANDLE ) loadError = true;
+        if( (newTask->threadID = Threading_StartThread( AsyncReadBuffer, newTask, THREAD_JOINABLE )) == INVALID_THREAD_HANDLE ) loadError = true;
       }
       else
       {
@@ -263,9 +263,9 @@ void UnloadTaskData( SignalAquisitionTask* task )
     DEBUG_PRINT( "ending task with handle %d", task->handle );
     
     task->isReading = false;
-    if( task->threadID != INVALID_THREAD_HANDLE ) Thread_WaitExit( task->threadID, 5000 );
+    if( task->threadID != INVALID_THREAD_HANDLE ) Threading_WaitExit( task->threadID, 5000 );
   
-    if( task->threadLock != -1 ) ThreadLock_Discard( task->threadLock );
+    if( task->threadLock != -1 ) ThreadLocks_Discard( task->threadLock );
   
     DAQmxStopTask( task->handle );
     DAQmxClearTask( task->handle );

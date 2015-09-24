@@ -30,7 +30,7 @@ typedef struct _AsyncIPConnection
   IPConnection* baseConnection;
   DataQueue* readQueue;
   DataQueue* writeQueue;
-  Thread_Handle readThread, writeThread;
+  Thread readThread, writeThread;
   char address[ IP_ADDRESS_LENGTH ];
 }
 AsyncIPConnection;
@@ -38,6 +38,31 @@ AsyncIPConnection;
 // Internal (private) list of asyncronous connections created (accessible only by index)
 static AsyncIPConnection** globalConnectionsList = NULL;
 static size_t globalConnectionsListSize = 0;
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                            INTERFACE                                            /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#define NAMESPACE AsyncIPConnection
+
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( char*, namespace, GetAddress, int ) \
+        FUNCTION_INIT( size_t, namespace, GetActivesNumber, void ) \
+        FUNCTION_INIT( size_t, namespace, GetClientsNumber, int ) \
+        FUNCTION_INIT( size_t, namespace, SetMessageLength, int, size_t ) \
+        FUNCTION_INIT( int, namespace, Open, const char*, const char*, uint8_t ) \
+        FUNCTION_INIT( void, namespace, Close, int ) \
+        FUNCTION_INIT( char*, namespace, ReadMessage, int ) \
+        FUNCTION_INIT( int, namespace, WriteMessage, int, const char* ) \
+        FUNCTION_INIT( int, namespace, GetClient, int )
+
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
+
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      INFORMATION UTILITIES                                      /////
@@ -128,16 +153,16 @@ static int AddAsyncConnection( IPConnection* baseConnection )
   if( baseConnection->networkRole == CLIENT )
   {
     connection->readQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );  
-    connection->readThread = Thread_Start( AsyncReadQueue, (void*) connection, THREAD_JOINABLE );
+    connection->readThread = Threading_StartThread( AsyncReadQueue, (void*) connection, THREAD_JOINABLE );
   }
   else if( baseConnection->networkRole == SERVER )
   {
     connection->readQueue = DataQueue_Init( QUEUE_MAX_ITEMS, sizeof(int) );
-    connection->readThread = Thread_Start( AsyncAcceptClients, (void*) connection, THREAD_JOINABLE );
+    connection->readThread = Threading_StartThread( AsyncAcceptClients, (void*) connection, THREAD_JOINABLE );
   }
 
   connection->writeQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );
-  connection->writeThread = Thread_Start( AsyncWriteQueue, (void*) connection, THREAD_JOINABLE );
+  connection->writeThread = Threading_StartThread( AsyncWriteQueue, (void*) connection, THREAD_JOINABLE );
   
   DEBUG_EVENT( 0, "last connection index: %d - socket fd: %d", globalConnectionsListSize,  baseConnection->socketFD );
   
@@ -205,7 +230,6 @@ static void* AsyncReadQueue( void* args )
     }
   }
   
-  Thread_Exit( 0 );
   return NULL;
 }
 
@@ -242,8 +266,8 @@ static void* AsyncWriteQueue( void* args )
       break;
   }
   
-  Thread_Exit( 1 );
-  return NULL;
+  //Threading_EndThread( 1 );
+  return NULL;//(void*) 1;
 }
 
 // Loop of client accepting (storing in client list) to be called asyncronously for server connections
@@ -303,8 +327,8 @@ static void* AsyncAcceptClients( void* args )
     }
   }
   
-  Thread_Exit( 2 );
-  return NULL;
+  //Threading_EndThread( 2 );
+  return NULL;//(void*) 2;
 }
 
 
@@ -401,11 +425,11 @@ void AsyncIPConnection_Close( int connectionIndex )
   
   DEBUG_EVENT( 0, "waiting threads for connection id %u", connectionIndex );
   
-  (void) Thread_WaitExit( globalConnectionsList[ connectionIndex ]->readThread, 5000 );
+  (void) Threading_WaitExit( globalConnectionsList[ connectionIndex ]->readThread, 5000 );
   
   DEBUG_EVENT( 0, "read thread for connection id %u returned", connectionIndex );     
   
-  (void) Thread_WaitExit( globalConnectionsList[ connectionIndex ]->writeThread, 5000 );
+  (void) Threading_WaitExit( globalConnectionsList[ connectionIndex ]->writeThread, 5000 );
   
   DEBUG_EVENT( 0, "write thread for connection id %u returned", connectionIndex ); 
   

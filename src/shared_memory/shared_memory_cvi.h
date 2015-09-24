@@ -43,6 +43,8 @@ SharedObjects = { CreateObject, DestroyObject };
 
 void* CreateObject( const char* mappingName, size_t objectSize, int flags )
 {
+  DEBUG_PRINT( "trying to create shared object %s with %u bytes", mappingName, objectSize );
+  
   if( sharedObjectsList != NULL )
   {
     khint_t sharedObjectID = kh_get( SO, sharedObjectsList, mappingName );
@@ -96,6 +98,8 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
       free( variablePathName );
       return NULL;
     }
+    
+    DEBUG_PRINT( "created timer %d", newSharedObject->timerID );
   }
   
   free( variablePathName );

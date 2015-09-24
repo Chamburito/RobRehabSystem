@@ -16,9 +16,9 @@
   #include "time/timing_unix.h"
 #endif
 
-#ifdef _CVI_
+/*#ifdef _CVI_
   #include "threads/threads_realtime.h"
-#elif WIN32
+#elif*/#ifdef WIN32
   #include "threads/threads_windows.h"
 #else
   #include "threads/threads_unix.h"
@@ -81,7 +81,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     {
       if( messageUpdate == 1 )
       {
-        //ThreadLock_Aquire( printLock );
+        //ThreadLocks_Aquire( printLock );
         
         CLEAR_SCREEN;
 
@@ -91,7 +91,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
 
         messageUpdate = 0;
         
-        //ThreadLock_Release( printLock );
+        //ThreadLocks_Release( printLock );
         
         lastUpdateTime = Timing_GetExecTimeSeconds();
       }
@@ -99,13 +99,13 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
       if( Timing_GetExecTimeSeconds() - lastUpdateTime > 0 )
       {
         messageUpdate = -1;
-        //ThreadLock_Discard( printLock );
+        //ThreadLocks_Discard( printLock );
       }
     
       Timing_Delay( 200 );
     }
   
-    Thread_Exit( 0 );
+    Threading_EndThread( 0 );
     return 0;
   }
 
@@ -119,8 +119,8 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     if( messageUpdate == -1 )
     {
       messageUpdate = 0;
-      //printLock = ThreadLock_Create();
-      Thread_Start( AsyncDebug_Print, NULL, THREAD_DETACHED );
+      //printLock = ThreadLocks_Create();
+      Threading_StartThread( AsyncDebug_Print, NULL, THREAD_DETACHED );
     }
     
     if( debugMessagesCount < MAX_DEBUG_MESSAGES ) 

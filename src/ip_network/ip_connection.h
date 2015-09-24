@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
   
 #ifdef WIN32
   
@@ -40,6 +41,8 @@
   typedef int Socket;
   
 #endif
+
+#include "interface.h"
   
 #include "async_debug.h"
 
@@ -58,7 +61,7 @@
 // const size_t IP_PORT = IP_HOST_LENGTH;
   
 #define QUEUE_SIZE 20
-#define IP_CONNECTION_MSG_LEN 256
+const size_t IP_MAX_MESSAGE_LENGTH = 256;
 
 #define IP_HOST_LENGTH 40
 #define IP_PORT_LENGTH 6
@@ -74,22 +77,23 @@ enum Property { CLIENT = 0x01, SERVER = 0x02, NETWORK_ROLE_MASK = 0x0f, TCP = 0x
 /////                         DATA STRUCTURES                        /////
 //////////////////////////////////////////////////////////////////////////
 
-typedef struct _IPConnection IPConnection;
+typedef struct _IPConnectionData IPConnectionData;
+typedef IPConnectionData* IPConnection;
 
 // Generic structure to store methods and data of any connection type handled by the library
-struct _IPConnection
+struct _IPConnectionData
 {
   Socket socketFD;
   union {
-    char* (*ref_ReceiveMessage)( IPConnection* );
-    IPConnection* (*ref_AcceptClient)( IPConnection* );
+    char* (*ref_ReceiveMessage)( IPConnection );
+    IPConnection (*ref_AcceptClient)( IPConnection );
   };
-  int (*ref_SendMessage)( IPConnection*, const char* );
+  int (*ref_SendMessage)( IPConnection, const char* );
   struct sockaddr_in6* address;
   uint8_t protocol, networkRole;
   union {
     char* buffer;
-    IPConnection** clientsList;
+    IPConnection* clientsList;
   };
   size_t* ref_clientsCount;
 };
@@ -102,12 +106,37 @@ struct _IPConnection
 static fd_set socketReadFDs; // stores all the socket file descriptors in use (for performance when verifying incoming messages) 
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                            INTERFACE                                            /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#define NAMESPACE IPNetwork
+
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( char*, namespace, GetAddress, int ) \
+        FUNCTION_INIT( size_t, namespace, GetClientsNumber, int ) \
+        FUNCTION_INIT( size_t, namespace, SetMessageLength, int, size_t ) \
+        FUNCTION_INIT( int, namespace, OpenConnection, const char*, const char*, uint8_t ) \
+        FUNCTION_INIT( void, namespace, CloseConnection, int ) \
+        FUNCTION_INIT( bool, WaitEvent, IPConnection, unsigned int ) \
+        FUNCTION_INIT( char*, namespace, ReadMessage, int ) \
+        FUNCTION_INIT( int, namespace, WriteMessage, int, const char* ) \
+        FUNCTION_INIT( int, namespace, AcceptClient, int )
+
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
+
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
+
+
 /////////////////////////////////////////////////////////////////////////////
 /////                         NETWORK UTILITIES                         /////
 /////////////////////////////////////////////////////////////////////////////
 
 // Utility method to request an address (host and port) string for client connections (returns default values for server connections)
-char* IPConnection_GetAddress( IPConnection* connection )
+char* IPNetwork_GetAddress( IPConnection connection )
 {
   static char addressString[ IP_ADDRESS_LENGTH ];
   static int error = 0;
@@ -153,7 +182,7 @@ static int CompareAddresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
 }
 
 // Returns number of active clients for a connection 
-size_t IPConnection_GetClientsNumber( IPConnection* connection )
+size_t IPNetwork_GetClientsNumber( IPConnection connection )
 {
   size_t connectionsNumber = 0;
   
@@ -171,20 +200,20 @@ size_t IPConnection_GetClientsNumber( IPConnection* connection )
 //////////////////////////////////////////////////////////////////////////////////
 
 // Forward Declaration
-static char* ReceiveTCPMessage( IPConnection* );
-static char* ReceiveUDPMessage( IPConnection* );
-static int SendTCPMessage( IPConnection*, const char* );
-static int SendUDPMessage( IPConnection*, const char* );
-static int SendMessageAll( IPConnection*, const char* );
-static IPConnection* AcceptTCPClient( IPConnection* );
-static IPConnection* AcceptUDPClient( IPConnection* );
+static char* ReceiveTCPMessage( IPConnection );
+static char* ReceiveUDPMessage( IPConnection );
+static int SendTCPMessage( IPConnection, const char* );
+static int SendUDPMessage( IPConnection, const char* );
+static int SendMessageAll( IPConnection, const char* );
+static IPConnection AcceptTCPClient( IPConnection );
+static IPConnection AcceptUDPClient( IPConnection );
 
 
 // Handle construction of a IPConnection structure with the defined properties
-static IPConnection* AddConnection( int socketFD, struct sockaddr* address, uint8_t type )
+static IPConnection AddConnection( int socketFD, struct sockaddr* address, uint8_t type )
 {
   int opt;
-  IPConnection* connection = (IPConnection*) malloc( sizeof(IPConnection) );
+  IPConnection connection = (IPConnection) malloc( sizeof(IPConnection) );
   connection->socketFD = socketFD;
   connection->protocol = type & PROTOCOL_MASK;
   connection->networkRole = type & NETWORK_ROLE_MASK;
@@ -220,7 +249,7 @@ static IPConnection* AddConnection( int socketFD, struct sockaddr* address, uint
 }
 
 // Add defined connection to the client list of the given server connection
-static INLINE void AddClient( IPConnection* server, IPConnection* client )
+static inline void AddClient( IPConnection server, IPConnection client )
 {
   static size_t clientsNumber, clientIndex = 0, clientsListSize = 0;
   
@@ -238,7 +267,7 @@ static INLINE void AddClient( IPConnection* server, IPConnection* client )
   }
   
   if( clientIndex == clientsListSize )
-    server->clientsList = (IPConnection**) realloc( server->clientsList, ( clientIndex + 1 ) * sizeof(IPConnection*) );
+    server->clientsList = (IPConnection*) realloc( server->clientsList, ( clientIndex + 1 ) * sizeof(IPConnection) );
   server->clientsList[ clientIndex ] = client;
   
   (*(server->ref_clientsCount))++;
@@ -247,9 +276,9 @@ static INLINE void AddClient( IPConnection* server, IPConnection* client )
 }
 
 // Generic method for opening a new socket and providing a corresponding IPConnection structure for use
-IPConnection* IPConnection_Open( const char* host, const char* port, uint8_t protocol )
+IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protocol )
 {
-  static IPConnection* connection;
+  static IPConnection connection;
 
   static int socketFD;
   static struct addrinfo hints;
@@ -435,12 +464,12 @@ IPConnection* IPConnection_Open( const char* host, const char* port, uint8_t pro
 /////////////////////////////////////////////////////////////////////////////////
 
 // Wrapper functions
-extern INLINE char* IPConnection_ReceiveMessage( IPConnection* c ) { return c->ref_ReceiveMessage( c ); }
-extern INLINE int IPConnection_SendMessage( IPConnection* c, const char* message ) { return c->ref_SendMessage( c, message ); }
-extern INLINE IPConnection* IPConnection_AcceptClient( IPConnection* c ) { return c->ref_AcceptClient( c ); }
+inline char* IPNetwork_ReceiveMessage( IPConnection c ) { return c->ref_ReceiveMessage( c ); }
+inline int IPNetwork_SendMessage( IPConnection c, const char* message ) { return c->ref_SendMessage( c, message ); }
+inline IPConnection IPNetwork_AcceptClient( IPConnection c ) { return c->ref_AcceptClient( c ); }
 
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
-short IPConnection_WaitEvent( IPConnection* connection, unsigned int milliseconds )
+bool IPNetwork_WaitEvent( IPConnection connection, unsigned int milliseconds )
 {
   fd_set readFDs;
   struct timeval timeout;
@@ -462,13 +491,13 @@ short IPConnection_WaitEvent( IPConnection* connection, unsigned int millisecond
     return 0;
   
   if( FD_ISSET( connection->socketFD, &readFDs ) )
-    return 1;
+    return true;
   else
-    return 0;
+    return false;
 }
 
 // Try to receive incoming message from the given TCP client connection and store it on its buffer
-static char* ReceiveTCPMessage( IPConnection* connection )
+static char* ReceiveTCPMessage( IPConnection connection )
 {
   int bytes_received;
   
@@ -493,7 +522,7 @@ static char* ReceiveTCPMessage( IPConnection* connection )
 }
 
 // Send given message through the given TCP connection
-static int SendTCPMessage( IPConnection* connection, const char* message )
+static int SendTCPMessage( IPConnection connection, const char* message )
 {
   if( strlen( message ) + 1 > IP_CONNECTION_MSG_LEN )
   {
@@ -513,7 +542,7 @@ static int SendTCPMessage( IPConnection* connection, const char* message )
 }
 
 // Try to receive incoming message from the given UDP client connection and store it on its buffer
-static char* ReceiveUDPMessage( IPConnection* connection )
+static char* ReceiveUDPMessage( IPConnection connection )
 {
   struct sockaddr_in6 address;
   socklen_t addressLength = sizeof(struct sockaddr_storage);
@@ -548,7 +577,7 @@ static char* ReceiveUDPMessage( IPConnection* connection )
 }
 
 // Send given message through the given UDP connection
-static int SendUDPMessage( IPConnection* connection, const char* message )
+static int SendUDPMessage( IPConnection connection, const char* message )
 {
   if( strlen( message ) + 1 > IP_CONNECTION_MSG_LEN )
   {
@@ -568,7 +597,7 @@ static int SendUDPMessage( IPConnection* connection, const char* message )
 }
 
 // Send given message to all the clients of the given server connection
-static int SendMessageAll( IPConnection* connection, const char* message )
+static int SendMessageAll( IPConnection connection, const char* message )
 {
   static size_t clientIndex = 0, clientsNumber;
     clientsNumber = *(connection->ref_clientsCount);
@@ -576,7 +605,7 @@ static int SendMessageAll( IPConnection* connection, const char* message )
   {
     if( connection->clientsList[ clientIndex ] != NULL )
     {
-      IPConnection_SendMessage( connection->clientsList[ clientIndex ], message );
+      IPNetwork_SendMessage( connection->clientsList[ clientIndex ], message );
       clientIndex++;
     }
   }
@@ -585,9 +614,9 @@ static int SendMessageAll( IPConnection* connection, const char* message )
 }
 
 // Waits for a remote connection to be added to the client list of the given TCP server connection
-static IPConnection* AcceptTCPClient( IPConnection* server )
+static IPConnection AcceptTCPClient( IPConnection server )
 {
-  IPConnection* client;
+  IPConnection client;
   int clientSocketFD;
   static struct sockaddr_storage clientAddress;
   static socklen_t addressLength = sizeof(clientAddress);
@@ -610,10 +639,10 @@ static IPConnection* AcceptTCPClient( IPConnection* server )
 }
 
 // Waits for a remote connection to be added to the client list of the given UDP server connection
-static IPConnection* AcceptUDPClient( IPConnection* server )
+static IPConnection AcceptUDPClient( IPConnection server )
 {
   size_t clientIndex, clientsNumber;
-  IPConnection* client;
+  IPConnection client;
   static struct sockaddr_storage clientAddress;
   static socklen_t addressLength = sizeof(clientAddress);
   static char buffer[ IP_CONNECTION_MSG_LEN ];
@@ -658,7 +687,7 @@ static IPConnection* AcceptUDPClient( IPConnection* server )
 //////////////////////////////////////////////////////////////////////////////////
 
 // Handle proper destruction of any given connection type
-void IPConnection_Close( IPConnection* connection )
+void IPNetwork_Close( IPConnection connection )
 {
   if( connection != NULL )
   {

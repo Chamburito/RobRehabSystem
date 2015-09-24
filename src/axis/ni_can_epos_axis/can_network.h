@@ -39,7 +39,7 @@ void CANNetwork_Start( const char* databaseName, const char* clusterName )
   // Address and initialize SYNC (Syncronization) frame
   SYNC = CANFrame_Init( FRAME_OUT, "CAN2", networkDatabaseName, networkClusterName, "SYNC" );
   
-  framesList = kh_init( framesList );
+  framesList = kh_init( FrameInt );
 
   CANNetwork_Reset();
 }

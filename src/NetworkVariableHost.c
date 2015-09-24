@@ -40,25 +40,20 @@
 #include <cvirte.h>		
 #include <userint.h>
 
-#include "async_debug.h"
-#include "cvirte_ip_connection.h"
+#include "ip_network/cvirte_ip_connection.h"
 #include "NetworkVariable.h"
 #include "common.h"
 
-#include "data_logging.h"
+//#include "data_logging.h"
 
 /* Global variables */
 static int panel;
-static CNVSubscriber gWaveSubscriber;
-static CNVWriter gMaxToggleWriter, gMinToggleWriter;
+//static CNVSubscriber gWaveSubscriber;
 
 /* Function prototypes */
 static void* UpdateData( void* );
 static void ConnectToNetworkVariables( void );
-int CVICALLBACK GainCallback( int, int, int, void*, int, int );
 void CVICALLBACK DataCallback( void*, CNVData, void* );
-
-int axisLogID;
 
 enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
 
@@ -74,7 +69,7 @@ int calibrationRunning = 0;
 double maxReach = 0.0, minReach = 0.0;
 double positionOffset = 0.0;
 
-Thread_Handle dataConnectionThreadID;
+Thread dataConnectionThreadID;
 bool isDataUpdateRunning = false;
 
 char address[ 256 ] = "169.254.110.158";
@@ -103,8 +98,7 @@ int main( int argc, char *argv[] )
   
   fprintf( stderr, "received info message: %s\n", infoMessage );
   
-  char resetMessage[ IP_CONNECTION_MSG_LEN ];
-  strcpy( resetMessage, "0 0 1 0.000 0.000" );
+  char resetMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0, 0, 0, 1, 0 };
   AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
   
   infoMessage = NULL;
@@ -113,32 +107,28 @@ int main( int argc, char *argv[] )
   
   fprintf( stderr, "received info message: %s\n", infoMessage );
   
-  dataConnectionThreadID = Thread_Start( UpdateData, NULL, THREAD_JOINABLE );
-	
-  axisLogID = DataLogging_CreateLog( NULL, "axis", DISPLAY_VALUES_NUMBER );
+  dataConnectionThreadID = Threading_StartThread( UpdateData, NULL, THREAD_JOINABLE );
   
 	if( (panel = LoadPanel( 0, "NetworkVariable.uir", PANEL )) < 0 )
 		return -1;
 
-	ConnectToNetworkVariables();
+	//ConnectToNetworkVariables();
 	
 	DisplayPanel( panel );
 	RunUserInterface();
 	
   isDataUpdateRunning = false;
-  Thread_WaitExit( dataConnectionThreadID, 5000 );
+  Threading_WaitExit( dataConnectionThreadID, 5000 );
   
 	AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
-  
-  DataLogging_CloseLog( axisLogID );
   
   AsyncIPConnection_Close( infoClientID ); 
   
 	// Cleanup
-	CNVDispose( gWaveSubscriber );
-	CNVDispose( gMaxToggleWriter );
-	CNVDispose( gMinToggleWriter );
-	CNVFinish();
+	//CNVDispose( gWaveSubscriber );
+	//CNVDispose( gMaxToggleWriter );
+	//CNVDispose( gMinToggleWriter );
+	//CNVFinish();
   
 	DiscardPanel( panel );
 	
@@ -152,10 +142,7 @@ static void* UpdateData( void* callbackData )
   const size_t WAIT_SAMPLES = 10;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
-  char dataMessageOut[ IP_CONNECTION_MSG_LEN ];
-  
-  double serverDispatchTime = 0.0, clientReceiveTime = 0.0, serverReceiveTime = 0.0;
-  double latency = 0.0;
+  char dataMessageOut[ IP_CONNECTION_MSG_LEN ] = { 1, 0 };
   
   double initialTime = Timing_GetExecTimeSeconds();
   
@@ -176,22 +163,7 @@ static void* UpdateData( void* callbackData )
     char* messageIn = AsyncIPConnection_ReadMessage( dataClientID );
     if( messageIn != NULL )
     {
-      char* timeData = strtok( messageIn, "|" );
-    
-      clientDispatchTime = strtod( timeData, &timeData );
-      serverReceiveTime = strtod( timeData, &timeData );
-      serverDispatchTime = strtod( timeData, &timeData );
-      clientReceiveTime = Timing_GetExecTimeSeconds();
-      
-      char* axesData = strtok( NULL, "|" );
-      
-      for( char* axisData = strtok( axesData, ":" ); axisData != NULL; axisData = strtok( NULL, ":" ) )
-      {
-        if( (unsigned int) strtoul( axisData, &axisData, 0 ) == 0 )
-        {
-          latency = ( ( clientReceiveTime - clientDispatchTime ) - ( serverDispatchTime - serverReceiveTime ) ) / 2;
-        }
-      }
+      fprintf( stderr, "received data message: %s\n", messageIn );
     }
     
     if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
@@ -214,7 +186,6 @@ static void* UpdateData( void* callbackData )
   
   AsyncIPConnection_Close( dataClientID );
   
-  Thread_Exit( 0 );
   return NULL;
 }
 
@@ -226,14 +197,14 @@ static void ConnectToNetworkVariables( void )
 	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
 	
 	// Connect to network variables.
-	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MAX_TOGGLE_VARIABLE );
+	/*sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MAX_TOGGLE_VARIABLE );
 	CNVCreateWriter( path, 0, 0, 10000, 0, &gMaxToggleWriter );
 	
 	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MIN_TOGGLE_VARIABLE );
 	CNVCreateWriter( path, 0, 0, 10000, 0, &gMinToggleWriter );
 
 	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, WAVE_VARIABLE );
-	CNVCreateSubscriber( path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber );
+	CNVCreateSubscriber( path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber );*/
 	
 	// Manually call the control callbacks to write the initial values for
 	// amplitude and frequency to the network variables.

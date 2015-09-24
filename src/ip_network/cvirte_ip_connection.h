@@ -8,14 +8,15 @@
 
 #include "cvidef.h"
 #include "debug/async_debug.h"
-  
+
+#include "interface.h"
+
 #include <tcpsupp.h>
 #include <udpsupp.h>
 #include <utility.h>
 #include <toolbox.h>
 #include <userint.h>
 
-  
 //////////////////////////////////////////////////////////////////////////
 /////                         DATA STRUCTURES                        /////
 //////////////////////////////////////////////////////////////////////////
@@ -38,7 +39,7 @@ struct _AsyncConnection
   unsigned int handle;
   uint8_t protocol, networkRole;
   uint16_t messageLength;
-  Thread_Handle callbackThreadID;
+  Thread callbackThread;
   int (*ref_SendMessage)( AsyncConnection*, const char* );
   struct
   {
@@ -56,6 +57,30 @@ struct _AsyncConnection
 // Internal (private) list of asyncronous connections created (accessible only by ID)
 static ListType globalConnectionsList = NULL;
 
+
+/////////////////////////////////////////////////////////////////////////////
+/////                             INTERFACE                             /////
+/////////////////////////////////////////////////////////////////////////////
+
+#define NAMESPACE AsyncIPConnection
+
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( char*, namespace, GetAddress, int ) \
+        FUNCTION_INIT( size_t, namespace, GetActivesNumber, void ) \
+        FUNCTION_INIT( size_t, namespace, GetClientsNumber, int ) \
+        FUNCTION_INIT( size_t, namespace, SetMessageLength, int, size_t ) \
+        FUNCTION_INIT( int, namespace, Open, const char*, const char*, uint8_t ) \
+        FUNCTION_INIT( void, namespace, Close, int ) \
+        FUNCTION_INIT( char*, namespace, ReadMessage, int ) \
+        FUNCTION_INIT( int, namespace, WriteMessage, int, const char* ) \
+        FUNCTION_INIT( int, namespace, GetClient, int )
+
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
+
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
 
 /////////////////////////////////////////////////////////////////////////////
 /////                         NETWORK UTILITIES                         /////
@@ -238,7 +263,7 @@ static void* AsyncConnect( void* connectionData )
   
   DEBUG_PRINT( "connection handle %u closed. exiting event loop on thread %x", connection->handle, THREAD_ID );
   
-  Thread_Exit( statusCode );
+  //Threading_EndThread( statusCode );
   return NULL;
 }
 
@@ -253,7 +278,7 @@ static AsyncConnection* AddConnection( unsigned int connectionHandle, unsigned i
   
   connection->messageLength = CMT_MAX_MESSAGE_BUF_SIZE;
   
-  connection->callbackThreadID = -1;
+  connection->callbackThread = INVALID_THREAD_HANDLE;
   
   connection->address.port = addressPort;
   if( addressHost != NULL ) strncpy( connection->address.host, addressHost, IP_HOST_LENGTH );
@@ -301,7 +326,7 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
   
   static unsigned int portNumber;
   
-  DEBUG_EVENT( 0, "trying to open %s connection for host %s and port %s", ( protocol == TCP ) ? "TCP" : "UDP", 
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to open %s connection for host %s and port %s", ( protocol == TCP ) ? "TCP" : "UDP", 
                                                                        ( host != NULL ) ? host : "0.0.0.0", port );
   
   // Assure that the port number is in the Dynamic/Private range (49152-65535)
@@ -322,22 +347,22 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
                                  ( host != NULL ) ? host : "0.0.0.0",
                                  ( ( host == NULL ) ? SERVER : CLIENT ) | protocol );
   
-  newConnection->callbackThreadID = Thread_Start( AsyncConnect, newConnection, THREAD_JOINABLE );
+  newConnection->callbackThread = Threading_StartThread( AsyncConnect, newConnection, THREAD_JOINABLE );
   
-  (void) Thread_WaitExit( newConnection->callbackThreadID, 1000 );
+  (void) Threading_WaitExit( newConnection->callbackThread, 1000 );
   
   if( newConnection->networkRole == DISCONNECTED )
   {
     ListRemoveItem( globalConnectionsList, NULL, END_OF_LIST );
     
-    newConnection->callbackThreadID = -1;
+    newConnection->callbackThread = INVALID_THREAD_HANDLE;
     
     CloseConnection( 0, newConnection, NULL );
     
     return -1;
   }
 
-  DEBUG_EVENT( 0, "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",
                                                                  ( newConnection->networkRole == SERVER ) ? "Server" : "Client",
                                                                  ( newConnection->networkRole == SERVER ) ? "local" : "remote",
                                                                  GetAddress( newConnection ) );
@@ -802,6 +827,8 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
         
           ListDispose( connection->clientsList );
           connection->clientsList = NULL;
+          
+          DEBUG_PRINT( "TCP server %u closed", connection->handle );
         }
         else
         {
@@ -825,7 +852,7 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
           
           (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
           
-          DEBUG_PRINT( "client %u closed", connection->handle );
+          DEBUG_PRINT( "TCP client %u closed", connection->handle );
           //CloseConnection( 0, &(connection->ref_server), NULL );
         }
       
@@ -869,13 +896,13 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
     
     connection->networkRole = DISCONNECTED;
     
-    if( connection->callbackThreadID != -1 )
+    if( connection->callbackThread != -1 )
     {
-      (void) Thread_WaitExit( connection->callbackThreadID, INFINITE );
+      (void) Threading_WaitExit( connection->callbackThread, INFINITE );
       
-      DEBUG_EVENT( 0, "connection callback thread %x returned successfully", connection->callbackThreadID );
+      /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "connection callback thread %x returned successfully", connection->callbackThread );
       
-      connection->callbackThreadID = -1;
+      connection->callbackThread = INVALID_THREAD_HANDLE;
     }
     
     (void) CmtDiscardTSQ( connection->readQueue );
@@ -884,7 +911,7 @@ static int CVICALLBACK CloseConnection( int index, void* ref_connection, void* c
     *((AsyncConnection**) ref_connection) = NULL;
   }
 
-  DEBUG_EVENT( 0, "%u active connections listed", ListNumItems( globalConnectionsList ) );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "%u active connections listed", ListNumItems( globalConnectionsList ) );
   
   return 0;
 }
@@ -903,10 +930,14 @@ void AsyncIPConnection_Close( int connectionID )
   
   (void) CloseConnection( 0, &connection, NULL );
   
-  if( AsyncIPConnection_GetActivesNumber() <= 0 )
+  DEBUG_PRINT( "connection %d closed", connectionID );
+  
+  if( ListNumItems( globalConnectionsList )/*AsyncIPConnection_GetActivesNumber()*/ <= 0 )
   {
     ListDispose( globalConnectionsList );
     globalConnectionsList = NULL;
+    
+    DEBUG_PRINT( "connections list %p destroyed", globalConnectionsList );
   }
 }
 

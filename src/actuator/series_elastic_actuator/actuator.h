@@ -15,7 +15,7 @@ typedef struct _Actuator
   int motorID, sensorID;
   double measuresList[ ACTUATOR_VARS_NUMBER ];
   double gearConversionFactor;
-  Splined3Curve* interactionForceCurve;
+  Splined3Curve interactionForceCurve;
   enum ActuatorVariables operationMode;
 }
 Actuator;
@@ -23,29 +23,13 @@ Actuator;
 KHASH_MAP_INIT_INT( SEA, Actuator* )
 static khash_t( SEA )* actuatorsList = NULL;
 
-/*static int SEA_Init( const char* );
-static void SEA_End( int );
-static void SEA_Enable( int );
-static void SEA_Disable( int );
-static void SEA_Reset( int );
-static void SEA_Calibrate( int );
-static bool SEA_IsEnabled( int );
-static bool SEA_HasError( int );
-static void SEA_ReadAxes( int );
-static double SEA_GetMeasure( int, enum AxisDimensions );
-static void SEA_SetSetpoint( int, double );*/
-
-#define ACTUATOR_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-ACTUATOR_INTERFACE( SEA )
-#undef ACTUATOR_FUNCTION
+#define NAMESPACE SEA
+ACTUATOR_INTERFACE( INIT_NAMESPACE_FILE, NAMESPACE )
+const ActuatorOperations SEActuatorOperations = { ACTUATOR_INTERFACE( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+#undef NAMESPACE
 
 static inline Actuator* LoadActuatorData( const char* );
 static inline void UnloadActuatorData( Actuator* );
-
-#define ACTUATOR_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-const ActuatorOperations SEActuatorOperations = { ACTUATOR_INTERFACE( SEA ) };/*{ .Init = SEA_Init, .End = SEA_End, .Enable = SEA_Enable, .Disable = SEA_Disable, .Reset = SEA_Reset, .Calibrate = SEA_Calibrate,
-                                                  .IsEnabled = SEA_IsEnabled, .HasError = SEA_HasError, .ReadAxes = SEA_ReadAxes, .GetMeasure = SEA_GetMeasure, .SetSetpoint = SEA_SetSetpoint };*/
-#undef ACTUATOR_FUNCTION
                                          
 int SEA_Init( const char* configFileName )
 {
@@ -172,15 +156,14 @@ static double* SEA_ReadAxes( int actuatorID )
   {
     actuator->measuresList[ ACTUATOR_POSITION ] = sensorMeasure / actuator->gearConversionFactor;
     
-    actuator->measuresList[ ACTUATOR_FORCE ] = 320 * ( sensorMeasure - motorMeasuresList[ MOTOR_POSITION ] );     //Newton
-    
-    //DEBUG_PRINT( "current: %.3f - force: %.3f (initial: %.3f)", sensorMeasuresList[ AXIS_VELOCITY ], actuator->measuresList[ AXIS_FORCE ], actuator->initialForce );
-    
-    /*DEBUG_PRINT( "p: %.3f - v: %.3f - f: %.3f (%.3f)", actuator->measuresList[ AXIS_POSITION ], actuator->measuresList[ AXIS_VELOCITY ], 
-    actuator->measuresLis*t[ AXIS_FORCE ], actuator->initialForce );*/
-    
+    //double deformation = sensorMeasure - motorMeasuresList[ MOTOR_POSITION ];         // mm
+    actuator->measuresList[ ACTUATOR_FORCE ] = 320 * sensorMeasure;/*deformation*/;                     // Newton
     //actuator->measuresList[ AXIS_FORCE ] = Spline3Interp.GetValue( actuator->interactionForceCurve, deformation );
     actuator->measuresList[ ACTUATOR_FORCE ] *= actuator->gearConversionFactor;
+    
+    /*DEBUG_PRINT( "motor: %.3f - sensor: %.3f - force: %.3f", motorMeasuresList[ MOTOR_POSITION ],
+                                                             actuator->measuresList[ ACTUATOR_POSITION ],
+                                                             actuator->measuresList[ ACTUATOR_FORCE ] );*/
   }
   
   return (double*) actuator->measuresList;
@@ -204,7 +187,7 @@ static void SEA_SetSetpoint( int actuatorID, double setpoint )
 const enum AxisMotorVariables MOTOR_OPERATION_MODES[ ACTUATOR_VARS_NUMBER ] = { MOTOR_POSITION, MOTOR_VELOCITY, MOTOR_FORCE };
 static void SEA_SetOperationMode( int actuatorID, enum ActuatorVariables mode )
 {
-  if( !kh_exist( actuatorsList, (khint_t) actuatorID ) ) return NULL;
+  if( !kh_exist( actuatorsList, (khint_t) actuatorID ) ) return;
   
   if( mode < 0 || mode >= ACTUATOR_VARS_NUMBER ) return;
     
@@ -262,6 +245,7 @@ static inline Actuator* LoadActuatorData( const char* configFileName )
   
   newActuator->motorID = AxisMotor_Init( "Motor Teste" );
   newActuator->sensorID = AxisSensor_Init( "Sensor Teste" );
+  newActuator->gearConversionFactor = 1.0;
   
   return newActuator;
 }

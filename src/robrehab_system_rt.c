@@ -34,6 +34,8 @@
 *******************************************************************************/
 
 /* Include files */
+#include <rtutil.h>
+
 #ifdef ROBREHAB_SERVER
   #include "robrehab_network.h"
   #define SUBSYSTEM RobRehabNetwork
@@ -50,9 +52,7 @@
 #include <cvinetv.h>
 #include <cvirte.h>
 #include <ansi_c.h>
-#include <rtutil.h>
 #include "common.h"
-
 
 /* Program entry-point */
 void CVIFUNC_C RTmain( void )

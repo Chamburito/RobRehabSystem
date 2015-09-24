@@ -60,7 +60,7 @@ KHASH_MAP_INIT_INT( SensorInt, EMGSensor* )
 static khash_t( SensorInt )* sensorsList = NULL;
 
 static bool isProcessRunning;
-Thread_Handle processingThreadID;
+Thread processingThreadID;
 ThreadLock phasePassCountLock;
 
 static int InitSensor( const char* );
@@ -98,10 +98,10 @@ int InitSensor( const char* configFileName )
   {
     sensorsList = kh_init( SensorInt );
     
-    phasePassCountLock = ThreadLock_Create();
+    phasePassCountLock = ThreadLocks_Create();
     
     isProcessRunning = true;
-    processingThreadID = Thread_Start( AsyncUpdate, NULL, THREAD_JOINABLE );
+    processingThreadID = Threading_StartThread( AsyncUpdate, NULL, THREAD_JOINABLE );
   }
   
   int configKey = (int) kh_str_hash_func( configFileName );
@@ -130,9 +130,9 @@ void EndSensor( int sensorID )
   if( kh_size( sensorsList ) == 0 )
   {
     isProcessRunning = false;
-    (void) Thread_WaitExit( processingThreadID, 5000 );
+    (void) Threading_WaitExit( processingThreadID, 5000 );
     
-    ThreadLock_Discard( phasePassCountLock );
+    ThreadLocks_Discard( phasePassCountLock );
     
     if( sensorsList != NULL )
     {
@@ -187,7 +187,7 @@ void ChangePhase( int sensorID, int newProcessingPhase )
   
   EMGSensor* sensor = kh_value( sensorsList, sensorID );
   
-  ThreadLock_Aquire( sensor->lock/*phasePassCountLock*/ );
+  ThreadLocks_Aquire( sensor->lock/*phasePassCountLock*/ );
   
   EMGData* data = &(sensor->emgData);
 
@@ -210,7 +210,7 @@ void ChangePhase( int sensorID, int newProcessingPhase )
   
   data->processingPhase = newProcessingPhase;
   
-  ThreadLock_Release( sensor->lock/*phasePassCountLock*/ );
+  ThreadLocks_Release( sensor->lock/*phasePassCountLock*/ );
 }
 
 
@@ -297,9 +297,9 @@ static void* AsyncUpdate( void* data )
           
           //DEBUG_PRINT( "emg sum: %g", emgData->processingResultsList[ emgData->processingPhase ] );
 
-          ThreadLock_Aquire( sensor->lock/*phasePassCountLock*/ );
+          ThreadLocks_Aquire( sensor->lock/*phasePassCountLock*/ );
           data->preparationPassesCount++;
-          ThreadLock_Release( sensor->lock/*phasePassCountLock*/ );
+          ThreadLocks_Release( sensor->lock/*phasePassCountLock*/ );
         }
         else if( data->processingPhase == EMG_ACTIVATION_PHASE )
         {
@@ -325,7 +325,7 @@ static void* AsyncUpdate( void* data )
   
   DEBUG_PRINT( "ending processing thread %x", THREAD_ID );
   
-  Thread_Exit( 0 );
+  Threading_EndThread( 0 );
   return NULL;
 }
 
@@ -384,7 +384,7 @@ static EMGSensor* LoadEMGSensorData( const char* configFileName )
     newSensor->muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
     newSensor->muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
     
-    newSensor->lock = ThreadLock_Create();
+    newSensor->lock = ThreadLocks_Create();
     
     parser.UnloadFile( configFileID );
   }
@@ -407,10 +407,10 @@ void UnloadEMGSensorData( EMGSensor* sensor )
 {
   if( sensor == NULL ) return;
   
-  ThreadLock_Aquire( sensor->lock );
-  ThreadLock_Release( sensor->lock );
+  ThreadLocks_Aquire( sensor->lock );
+  ThreadLocks_Release( sensor->lock );
     
-  ThreadLock_Discard( sensor->lock );
+  ThreadLocks_Discard( sensor->lock );
   
   free( sensor->emgData.samplesBuffer );
   free( sensor->emgData.filteredSamplesBuffer );

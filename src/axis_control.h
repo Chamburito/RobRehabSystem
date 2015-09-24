@@ -24,11 +24,11 @@ typedef struct _AxisController
 {
   struct { ActuatorInterface interface; int ID; } actuator;
   ImpedanceControlFunction ref_RunControl;                        // Control method definition structure
-  Thread_Handle controlThread;                                       // Processing thread handle
+  Thread controlThread;                                       // Processing thread handle
   double measuresList[ CONTROL_VARS_NUMBER ];
   SimpleKalmanFilter* positionFilter;
   double parametersList[ CONTROL_PARAMS_NUMBER ];
-  Splined3Curve* parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
+  Splined3Curve parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
   double setpoint, maxSetpoint, minSetpoint;
   enum ControlVariables controlMode;
   bool isRunning;                                                   // Is control thread running ?
@@ -57,7 +57,7 @@ static khash_t( AxisControlInt )* axisControllersList = NULL;
         NAMESPACE_FUNCTION( double*, namespace, GetSetpointsList, int ) \
         NAMESPACE_FUNCTION( void, namespace, SetImpedance, int, double, double ) \
         NAMESPACE_FUNCTION( void, namespace, SetSetpoint, int, double ) \
-        NAMESPACE_FUNCTION( void, namespace, SetControlMode, int, enum ControlMeasures ) \
+        NAMESPACE_FUNCTION( void, namespace, SetControlMode, int, enum ControlVariables ) \
         NAMESPACE_FUNCTION( size_t, namespace, GetDevicesNumber, void )
 
 #define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
@@ -114,7 +114,7 @@ static inline void UnloadControllerData( AxisController* );
                 
 static void* AsyncControl( void* );
 static inline void UpdateControlMeasures( AxisController* );
-static inline void UpdateControlSetpoints( AxisController* );
+static inline void UpdateControlParameters( AxisController* );
 static inline void RunControl( AxisController* );
 
 int AxisControl_InitController( const char* configFileName )
@@ -145,7 +145,10 @@ int AxisControl_InitController( const char* configFileName )
   
   newController->actuator.interface->SetSetpoint( newController->actuator.ID, 0.0 );
   newController->actuator.interface->Calibrate( newController->actuator.ID );
-  //newController->actuator.interface->Enable( newController->actuator.ID );
+  
+  Timing_Delay( 1000 );
+  
+  newController->actuator.interface->Enable( newController->actuator.ID );
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Axis Controller %d initialized", (int) newControllerID );
   
@@ -172,12 +175,12 @@ void AxisControl_EndController( int controllerID )
   }
 }
 
-static size_t AxisControl_GetDevicesNumber()
+size_t AxisControl_GetDevicesNumber()
 {
   return kh_size( axisControllersList );
 }
 
-static void AxisControl_Enable( int controllerID )
+void AxisControl_Enable( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -196,7 +199,7 @@ static void AxisControl_Enable( int controllerID )
   }
 }
 
-static void AxisControl_Disable( int controllerID )
+void AxisControl_Disable( int controllerID )
 {
   DEBUG_EVENT( 0, "disabling Axis Controller %d", controllerID );
   
@@ -210,7 +213,7 @@ static void AxisControl_Disable( int controllerID )
   }
 }
 
-static void AxisControl_Reset( int controllerID )
+void AxisControl_Reset( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -223,7 +226,7 @@ static void AxisControl_Reset( int controllerID )
   }
 }
 
-static bool AxisControl_IsEnabled( int controllerID )
+bool AxisControl_IsEnabled( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -235,7 +238,7 @@ static bool AxisControl_IsEnabled( int controllerID )
   return false;
 }
 
-static bool AxisControl_HasError( int controllerID )
+bool AxisControl_HasError( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -247,7 +250,7 @@ static bool AxisControl_HasError( int controllerID )
   return false;
 }
 
-static void AxisControl_Calibrate( int controllerID )
+void AxisControl_Calibrate( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -257,7 +260,7 @@ static void AxisControl_Calibrate( int controllerID )
   }
 }
 
-static double* AxisControl_GetMeasuresList( int controllerID )
+double* AxisControl_GetMeasuresList( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -269,7 +272,7 @@ static double* AxisControl_GetMeasuresList( int controllerID )
   return NULL;
 }
 
-static double* AxisControl_GetSetpointsList( int controllerID )
+double* AxisControl_GetSetpointsList( int controllerID )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -281,7 +284,7 @@ static double* AxisControl_GetSetpointsList( int controllerID )
   return NULL;
 }
 
-static void AxisControl_SetSetpoint( int controllerID, double setpoint )
+void AxisControl_SetSetpoint( int controllerID, double setpoint )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -293,7 +296,7 @@ static void AxisControl_SetSetpoint( int controllerID, double setpoint )
   }
 }
 
-static void AxisControl_SetImpedance( int controllerID, double referenceStiffness, double referenceDamping )
+void AxisControl_SetImpedance( int controllerID, double referenceStiffness, double referenceDamping )
 {
   if( kh_exist( axisControllersList, (khint_t) controllerID ) )
   {
@@ -305,7 +308,7 @@ static void AxisControl_SetImpedance( int controllerID, double referenceStiffnes
 }
 
 const enum ActuatorVariables ACTUATOR_OPERATION_MODES[ CONTROL_SETPOINTS_NUMBER ] = { ACTUATOR_POSITION, ACTUATOR_VELOCITY, ACTUATOR_FORCE };
-static void AxisControl_SetControlMode( int controllerID, enum ControlVariables mode )
+void AxisControl_SetControlMode( int controllerID, enum ControlVariables mode )
 {
   if( !kh_exist( axisControllersList, (khint_t) controllerID ) ) return;
   
@@ -362,17 +365,22 @@ static inline AxisController* LoadControllerData( const char* configFileName )
     return NULL;
   }*/
   
+  DEBUG_PRINT( "Trying to create axis controller %s", configFileName ); 
+  
   newController->actuator.interface = &SEActuatorOperations;
   newController->actuator.ID = newController->actuator.interface->Init( "SEA Teste" );
   newController->positionFilter = SimpleKalman_CreateFilter( 0.0 );
-  newController->controlMode = CONTROL_FORCE;
+  newController->controlMode = CONTROL_VELOCITY;
+  newController->actuator.interface->SetOperationMode( newController->actuator.ID, ACTUATOR_VELOCITY );
   for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
     newController->parameterCurvesList[ parameterIndex ] = Spline3Interp.LoadCurve( NULL );
   
   newController->isRunning = true;
   newController->ref_RunControl = RunDefaultControl;
-  newController->controlThread = Thread_Start( AsyncControl, newController, THREAD_JOINABLE );
-      
+  newController->controlThread = Threading_StartThread( AsyncControl, newController, THREAD_JOINABLE );
+  
+  DEBUG_PRINT( "axis controller %s created", configFileName );
+  
   return newController;
 }
 
@@ -386,7 +394,7 @@ static inline void UnloadControllerData( AxisController* controller )
     controller->isRunning = false;
     
     if( controller->controlThread != -1 )
-      Thread_WaitExit( controller->controlThread, 5000 );
+      Threading_WaitExit( controller->controlThread, 5000 );
     
     DEBUG_PRINT( "ending actuator %d", controller->actuator.ID );
     
@@ -397,8 +405,8 @@ static inline void UnloadControllerData( AxisController* controller )
       
     for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
     {
-      DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parametersList[ parameterIndex ].normalizedCurve );
-      Spline3Interp.UnloadCurve( controller->parametersList[ parameterIndex ].normalizedCurve );
+      DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parameterCurvesList[ parameterIndex ] );
+      Spline3Interp.UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
     }
   }
 }
@@ -444,25 +452,28 @@ static void* AsyncControl( void* args )
   
   DEBUG_PRINT( "ending control thread %x", THREAD_ID );
    
-  Thread_Exit( 0 );
+  Threading_EndThread( 0 );
   return NULL;
 }
 
 static inline void UpdateControlMeasures( AxisController* controller )
 {
-  controller->actuator.interface->ReadAxes( controller->actuator.ID );
+  double* measuresList = controller->actuator.interface->ReadAxes( controller->actuator.ID );
+  if( measuresList != NULL )
+  {
+    double* filteredMeasures = SimpleKalman_Update( controller->positionFilter, measuresList[ ACTUATOR_POSITION ], CONTROL_SAMPLING_INTERVAL );
 
-  double sensorPosition = controller->actuator.interface->GetMeasure( controller->actuator.ID, ACTUATOR_POSITION );
+    controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ];
+    controller->measuresList[ CONTROL_VELOCITY ] = filteredMeasures[ KALMAN_DERIVATIVE ];
+    controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];
 
-  double* filteredMeasures = SimpleKalman_Update( controller->positionFilter, sensorPosition, CONTROL_SAMPLING_INTERVAL );
-
-  controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ];
-  controller->measuresList[ CONTROL_VELOCITY ] = filteredMeasures[ KALMAN_DERIVATIVE ];
-  controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];
-
-  controller->measuresList[ CONTROL_FORCE ] = controller->actuator.interface->GetMeasure( controller->actuator.ID, ACTUATOR_FORCE );
+    controller->measuresList[ CONTROL_FORCE ] = measuresList[ ACTUATOR_FORCE ];
   
-  DEBUG_PRINT( "position: %g", controller->measuresList[ CONTROL_POSITION ] );   
+    DEBUG_PRINT( "p: %.3f - v: %.3f - a: %.3f - f: %.3f", controller->measuresList[ CONTROL_POSITION ],
+                                                          controller->measuresList[ CONTROL_VELOCITY ], 
+                                                          controller->measuresList[ CONTROL_ACCELERATION ],
+                                                          controller->measuresList[ CONTROL_FORCE ] );
+  }
 }
 
 static inline void UpdateControlParameters( AxisController* controller )
@@ -476,13 +487,13 @@ static inline void RunControl( AxisController* controller )
   // If the motor is being actually controlled, call control pass algorhitm
   if( controller->actuator.interface->IsEnabled( controller->actuator.ID ) )
   {
-    //double controlOutput = controller->ref_RunControl( controller->measuresList, controller->parametersList, CONTROL_SAMPLING_INTERVAL, controller->controlMode );
+    //double* controlOutputsList = controller->ref_RunControl( controller->measuresList, controller->parametersList, CONTROL_SAMPLING_INTERVAL, controller->controlMode );
     
-    double controlOutput = - 0.5 * controller->measuresList[ CONTROL_FORCE ];
+    double controlOutput = -20.0 * controller->measuresList[ CONTROL_FORCE ];
     
     //DEBUG_PRINT( "force: %.3f - control: %.3f", controller->measuresList[ CONTROL_FORCE ], controlOutput );
     
-    controller->actuator.interface->SetSetpoint( controller->actuator.ID, controlOutput );
+    controller->actuator.interface->SetSetpoint( controller->actuator.ID, controlOutput/*controlOutputsList[ controller->controlMode ]*/ );
   }
 }
 

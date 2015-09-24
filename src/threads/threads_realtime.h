@@ -24,17 +24,17 @@ const CmtThreadFunctionID INVALID_THREAD_HANDLE = -1;
 #define THREAD_ID CmtGetCurrentThreadID()
 
 // Controls the thread opening mode. THREAD_JOINABLE if you want the thread to only end and free its resources
-// when calling Thread_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
+// when calling Threading_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
 enum { THREAD_DETACHED, THREAD_JOINABLE };
 
 // Aliases for platform abstraction
-typedef CmtThreadFunctionID Thread_Handle;
+typedef CmtThreadFunctionID Thread;
 
 // Exclusive thread pool
 CmtThreadPoolHandle threadPool = NULL;
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
+Thread Threading_StartThread( void* (*function)( void* ), void* args, int mode )
 {
   CmtThreadFunctionID threadID = INVALID_THREAD_HANDLE;
   static int status;
@@ -69,7 +69,7 @@ static int CVICALLBACK ClearThreadPool( void* data )
 }
 
 // Exit the calling thread, returning the given value
-void Thread_Exit( uint32_t exitCode )
+void Threading_EndThread( uint32_t exitCode )
 {
   static char errorBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
   
@@ -86,7 +86,7 @@ void Thread_Exit( uint32_t exitCode )
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
+uint32_t Threading_WaitExit( Thread handle, unsigned int milliseconds )
 {
   static uint32_t exitCode = 0;
   static int exitStatus = 0;
@@ -122,7 +122,7 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
 }
 
 // Returns number of running threads (method for encapsulation purposes)
-size_t Thread_GetActiveThreadsNumber()
+size_t Threading_GetActiveThreadsNumber()
 {
   static size_t threadsNumber;
   
@@ -139,7 +139,7 @@ size_t Thread_GetActiveThreadsNumber()
 typedef CmtThreadLockHandle ThreadLock;
 
 // Request new unique mutex for using in thread syncronization
-ThreadLock ThreadLock_Create()
+ThreadLock ThreadLocks_Create()
 {
   CmtThreadLockHandle newLock;
   CmtNewLock( NULL, 0, &newLock );
@@ -147,11 +147,11 @@ ThreadLock ThreadLock_Create()
 }
 
 // Properly discard mutex variable
-extern inline void ThreadLock_Discard( CmtThreadLockHandle lock ) { CmtDiscardLock( lock ); }
+extern inline void ThreadLocks_Discard( CmtThreadLockHandle lock ) { CmtDiscardLock( lock ); }
 
 // Mutex aquisition and release
-extern inline void ThreadLock_Aquire( CmtThreadLockHandle lock ) { CmtGetLock( lock ); }
-extern inline void ThreadLock_Release( CmtThreadLockHandle lock ) { CmtReleaseLock( lock ); }
+extern inline void ThreadLocks_Aquire( CmtThreadLockHandle lock ) { CmtGetLock( lock ); }
+extern inline void ThreadLocks_Release( CmtThreadLockHandle lock ) { CmtReleaseLock( lock ); }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -160,33 +160,33 @@ extern inline void ThreadLock_Release( CmtThreadLockHandle lock ) { CmtReleaseLo
 
 typedef CmtTSQHandle Semaphore;
 
-extern inline void Semaphore_Increment( Semaphore* );
+extern inline void Semaphores_Increment( Semaphore* );
 
-Semaphore* Semaphore_Create( size_t startCount, size_t maxCount )
+Semaphore* Semaphores_Create( size_t startCount, size_t maxCount )
 {
   CmtTSQHandle* sem = (CmtTSQHandle*) malloc( sizeof(CmtTSQHandle) );
   
   CmtNewTSQ( (int) maxCount, sizeof(uint8_t), 0, sem );
   
   for( size_t i = 0; i < startCount; i++ )
-    Semaphore_Increment( sem );
+    Semaphores_Increment( sem );
   
   return sem;
 }
 
-extern inline void Semaphore_Discard( Semaphore* sem )
+extern inline void Semaphores_Discard( Semaphore* sem )
 {
   CmtDiscardTSQ( *sem );
 }
 
-extern inline void Semaphore_Increment( Semaphore* sem )
+extern inline void Semaphores_Increment( Semaphore* sem )
 {
   static uint8_t signal = 1;
   
   CmtWriteTSQData( *sem, &signal, 1, TSQ_INFINITE_TIMEOUT, NULL );  
 }
 
-extern inline void Semaphore_Decrement( Semaphore* sem )
+extern inline void Semaphores_Decrement( Semaphore* sem )
 {
   static uint8_t signal;
   

@@ -6,15 +6,12 @@
 #ifndef THREADS_H
 #define THREADS_H
 
-#ifdef _CVI_
-  #include <ansi_c.h>
-#else
-  #include <Windows.h>
-  #include <process.h>
-  #include <stdio.h>
-  #include <stdint.h>
-#endif
+#include "debug/debug.h"
+#include "interface.h"
 
+#include <stdint.h>
+#include <Windows.h>
+//#include <process.h>
 	
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING 									                    /////
@@ -26,48 +23,48 @@ const HANDLE INVALID_THREAD_HANDLE = NULL;
 #define THREAD_ID GetCurrentThreadId()
 
 // Controls the thread opening mode. THREAD_JOINABLE if you want the thread to only end and free its resources
-// when calling Thread_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
+// when calling Threading_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
 enum { THREAD_DETACHED, THREAD_JOINABLE };
 
 // Aliases for platform abstraction
-typedef HANDLE Thread_Handle;
+typedef HANDLE Thread;
 
-// Number of running threads
-static size_t threadsNumber = 0;
+typedef void* (*AsyncFunction)( void* );
+
+#define NAMESPACE Threading
+
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( Thread, namespace, StartThread, AsyncFunction, void*, int ) \
+        FUNCTION_INIT( uint32_t, namespace, WaitExit, Thread, unsigned int )
+
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
+
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
+Thread Threading_StartThread( AsyncFunction function, void* args, int mode )
 {
   static HANDLE handle;
-  static unsigned int thread_id;
+  static unsigned int threadID;
   
-  if( (handle = (HANDLE) _beginthreadex( NULL, 0, (unsigned int (__stdcall *) (void*)) function, args, 0, &thread_id )) == INVALID_HANDLE )
+  if( (handle = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) function, args, 0, &threadID )) == INVALID_THREAD_HANDLE )
   {
     ERROR_PRINT( "_beginthreadex: failed creating new thread with function %p", function );
-    return INVALID_HANDLE;
+    return INVALID_THREAD_HANDLE;
   }
   
   DEBUG_PRINT( "created thread %x successfully", handle );
-
-  threadsNumber++;
   
   if( mode == THREAD_DETACHED ) CloseHandle( handle );
 
   return handle;
 }
 
-// Exit the calling thread, returning the given value
-extern inline void Thread_Exit( uint32_t exitCode )
-{
-  threadsNumber--;
-
-  DEBUG_PRINT( "thread %x exiting with code: %u", GetCurrentThreadId(), exitCode );
-
-  _endthreadex( (DWORD) exitCode );
-}
-
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
+uint32_t Threading_WaitExit( Thread handle, unsigned int milliseconds )
 {
   static DWORD exitCode = 0;
   static DWORD exitStatus = WAIT_OBJECT_0;
@@ -97,12 +94,6 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milliseconds )
   return exitCode;
 }
 
-// Returns number of running threads (method for encapsulation purposes)
-size_t Thread_GetActiveThreadsNumber()
-{
-  return threadsNumber;
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD LOCK (MUTEX)									                    /////
@@ -110,23 +101,38 @@ size_t Thread_GetActiveThreadsNumber()
 
 typedef CRITICAL_SECTION* ThreadLock;
 
+#define NAMESPACE ThreadLocks
+
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( ThreadLock, namespace, Create, void ) \
+        FUNCTION_INIT( void, namespace, Discard, ThreadLock ) \
+        FUNCTION_INIT( void, namespace, Aquire, ThreadLock ) \
+        FUNCTION_INIT( void, namespace, Release, ThreadLock )
+
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
+
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
+
 // Request new unique mutex for using in thread syncronization
-ThreadLock ThreadLock_Create()
+inline ThreadLock ThreadLocks_Create()
 {
   CRITICAL_SECTION* lock = malloc( sizeof(CRITICAL_SECTION) );
   InitializeCriticalSection( lock );
   return lock;
 }
 
-extern inline void ThreadLock_Discard( CRITICAL_SECTION* lock )
+inline void ThreadLocks_Discard( ThreadLock lock )
 {
   DeleteCriticalSection( lock );
   free( lock );
 }
 
 // Mutex aquisition and release
-extern inline void ThreadLock_Aquire( CRITICAL_SECTION* lock ) { EnterCriticalSection( lock ); }
-extern inline void ThreadLock_Release( CRITICAL_SECTION* lock ) { LeaveCriticalSection( lock ); }
+inline void ThreadLocks_Aquire( ThreadLock lock ) { EnterCriticalSection( lock ); }
+inline void ThreadLocks_Release( ThreadLock lock ) { LeaveCriticalSection( lock ); }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,36 +143,54 @@ typedef struct {
   HANDLE counter;
   size_t value;
 }
-Semaphore;
+SemaphoreData;
 
-Semaphore* Semaphore_Create( size_t startCount, size_t maxCount )
+typedef SemaphoreData* Semaphore;
+
+#define NAMESPACE Semaphores
+
+#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
+        FUNCTION_INIT( Semaphore, namespace, Create, size_t, size_t ) \
+        FUNCTION_INIT( void, namespace, Discard, Semaphore ) \
+        FUNCTION_INIT( void, namespace, Increment, Semaphore ) \
+        FUNCTION_INIT( void, namespace, Decrement, Semaphore ) \
+        FUNCTION_INIT( size_t, namespace, GetValue, Semaphore )
+
+NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
+
+const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
+
+inline Semaphore Semaphores_Create( size_t startCount, size_t maxCount )
 {
-  Semaphore* sem = (Semaphore*) malloc( sizeof(Semaphore) );
+  Semaphore sem = (Semaphore) malloc( sizeof(SemaphoreData) );
   sem->counter = CreateSemaphore( NULL, startCount, maxCount, NULL );
   sem->value = startCount;
   
   return sem;
 }
 
-extern inline void Semaphore_Discard( Semaphore* sem )
+inline void Semaphores_Discard( Semaphore sem )
 {
   CloseHandle( sem->counter );
   free( sem );
 }
 
-extern inline void Semaphore_Increment( Semaphore* sem )
+inline void Semaphores_Increment( Semaphore sem )
 {
   ReleaseSemaphore( sem->counter, 1, &(sem->value) );
   sem->value++;  
 }
 
-extern inline void Semaphore_Decrement( Semaphore* sem )
+inline void Semaphores_Decrement( Semaphore sem )
 {
   WaitForSingleObject( sem->counter, INFINITE );
   sem->value--;
 }
 
-extern inline size_t Semaphore_GetValue( Semaphore* sem )
+inline size_t Semaphores_GetValue( Semaphore sem )
 {
   return sem->value;
 }
