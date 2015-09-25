@@ -12,17 +12,19 @@ enum MuscleGroups { MUSCLE_AGONIST, MUSCLE_ANTAGONIST, MUSCLE_GROUPS_NUMBER };
 
 enum { JOINT_TORQUE, JOINT_STIFFNESS, JOINT_MEASURES_NUMBER };
 
-typedef struct _EMGJoint
+typedef struct _EMGJointData
 {
   int* muscleIDsTable[ MUSCLE_GROUPS_NUMBER ];
   size_t muscleGroupsSizesList[ MUSCLE_GROUPS_NUMBER ];
 }
-EMGJoint;
+EMGJointData;
 
-KHASH_MAP_INIT_INT( JointInt, EMGJoint* )
+typedef EMGJointData* EMGJoint;
+
+KHASH_MAP_INIT_INT( JointInt, EMGJoint )
 static khash_t( JointInt )* jointsList = NULL;
 
-static int InitJoint( const char* );
+/*static int InitJoint( const char* );
 static void EndJoint( int );
 static double GetTorque( int, double );
 static double GetStiffness( int, double );
@@ -36,12 +38,35 @@ const struct
   double (*GetStiffness)( int, double );
   void (*ChangeState)( int, enum MuscleGroups, enum EMGProcessPhase );
 }
-EMGJointControl = { .InitJoint = InitJoint, .EndJoint = EndJoint, .GetTorque = GetTorque, .GetStiffness = GetStiffness, .ChangeState = ChangeState };
+EMGJointControl = { .InitJoint = InitJoint, .EndJoint = EndJoint, .GetTorque = GetTorque, .GetStiffness = GetStiffness, .ChangeState = ChangeState };*/
 
-static EMGJoint* LoadEMGJointData( const char* );
-static void UnloadEMGJointData( EMGJoint* );
+#define NAMESPACE EMGJointControl
 
-static int InitJoint( const char* configFileName )
+#define NAMESPACE_FUNCTIONS( namespace ) \
+        NAMESPACE_FUNCTION( int, namespace, InitJoint, const char* ) \
+        NAMESPACE_FUNCTION( void, namespace, EndJoint, int ) \
+        NAMESPACE_FUNCTION( double, namespace, GetTorque, int, double ) \
+        NAMESPACE_FUNCTION( double, namespace, GetStiffness, int, double ) \
+        NAMESPACE_FUNCTION( void, namespace, ChangeState, int, enum MuscleGroups, enum EMGProcessPhase )
+
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
+NAMESPACE_FUNCTIONS( NAMESPACE )
+#undef NAMESPACE_FUNCTION
+
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
+const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
+#undef NAMESPACE_FUNCTION
+#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
+NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
+#undef NAMESPACE_FUNCTION
+
+#undef NAMESPACE_FUNCTIONS
+#undef NAMESPACE
+
+static EMGJoint LoadEMGJointData( const char* );
+static void UnloadEMGJointData( EMGJoint );
+
+static int EMGJointControl_InitJoint( const char* configFileName )
 {
   if( jointsList == NULL ) jointsList = kh_init( JointInt );
   
@@ -55,7 +80,7 @@ static int InitJoint( const char* configFileName )
     if( kh_value( jointsList, newJointID ) == NULL )
     {
       DEBUG_PRINT( "EMG joint controller %s configuration failed", configFileName );
-      EndJoint( (int) newJointID );
+      EMGJointControl_EndJoint( (int) newJointID );
       return -1;
     }
     
@@ -66,7 +91,7 @@ static int InitJoint( const char* configFileName )
   return (int) newJointID;
 }
 
-void EndJoint( int jointID )
+void EMGJointControl_EndJoint( int jointID )
 {
   if( !kh_exist( jointsList, (khint_t) jointID ) ) return;
   
@@ -81,13 +106,13 @@ void EndJoint( int jointID )
   }
 }
 
-double GetTorque( int jointID, double jointAngle )
+double EMGJointControl_GetTorque( int jointID, double jointAngle )
 {
   if( !kh_exist( jointsList, (khint_t) jointID ) ) return 0.0;
   
   double jointTorque = 0.0;
   
-  EMGJoint* joint = kh_value( jointsList, (khint_t) jointID );
+  EMGJoint joint = kh_value( jointsList, (khint_t) jointID );
   
   for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ MUSCLE_AGONIST ]; muscleIndex++ )
     jointTorque += fabs( EMGProcessing.GetMuscleTorque( joint->muscleIDsTable[ MUSCLE_AGONIST ][ muscleIndex ], jointAngle ) );
@@ -98,7 +123,7 @@ double GetTorque( int jointID, double jointAngle )
   return jointTorque;
 }
 
-double GetStiffness( int jointID, double jointAngle )
+double EMGJointControl_GetStiffness( int jointID, double jointAngle )
 {
   if( !kh_exist( jointsList, (khint_t) jointID ) ) return 0.0;
   
@@ -106,7 +131,7 @@ double GetStiffness( int jointID, double jointAngle )
   
   double jointStiffness = 0.0;
   
-  EMGJoint* joint = kh_value( jointsList, (khint_t) jointID );
+  EMGJoint joint = kh_value( jointsList, (khint_t) jointID );
   
   for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
   {
@@ -123,11 +148,11 @@ double GetStiffness( int jointID, double jointAngle )
   return jointStiffness;
 }
 
-void ChangeState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessPhase emgProcessingPhase )
+void EMGJointControl_ChangeState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessPhase emgProcessingPhase )
 {
   if( !kh_exist( jointsList, (khint_t) jointID ) ) return;
   
-  EMGJoint* joint = kh_value( jointsList, (khint_t) jointID );
+  EMGJoint joint = kh_value( jointsList, (khint_t) jointID );
   
   if( muscleGroupID < 0 || muscleGroupID >= MUSCLE_GROUPS_NUMBER ) return;
 
@@ -137,7 +162,8 @@ void ChangeState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessP
 
 
 const char* MUSCLE_GROUP_NAMES[ MUSCLE_GROUPS_NUMBER ] = { "agonist", "antagonist" };
-static EMGJoint* LoadEMGJointData( const char* configFileName )
+const char* sensorsDirectory = "emg_sensors";
+static EMGJoint LoadEMGJointData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load joint %s EMG data", configFileName );
   
@@ -145,13 +171,11 @@ static EMGJoint* LoadEMGJointData( const char* configFileName )
   
   bool loadError = false;
   
-  EMGJoint* newJoint = (EMGJoint*) malloc( sizeof(EMGJoint) );
-  memset( newJoint, 0, sizeof(EMGJoint) );
-  
-  sprintf( searchPath, "emg_joints/%s", configFileName );
+  EMGJoint newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );
+  memset( newJoint, 0, sizeof(EMGJointData) );
   
   FileParser parser = JSONParser;
-  int configFileID = parser.LoadFile( searchPath );
+  int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
     parser.SetBaseKey( configFileID, "muscle_groups" );
@@ -159,13 +183,21 @@ static EMGJoint* LoadEMGJointData( const char* configFileName )
     {
       if( (newJoint->muscleGroupsSizesList[ muscleGroupIndex ] = (size_t) parser.GetListSize( configFileID, MUSCLE_GROUP_NAMES[ muscleGroupIndex ] )) > 0 )
       {
+        DEBUG_PRINT( "%u %s muscles found for joint %s", newJoint->muscleGroupsSizesList[ muscleGroupIndex ], MUSCLE_GROUP_NAMES[ muscleGroupIndex ], configFileName );
+        
         newJoint->muscleIDsTable[ muscleGroupIndex ] = (int*) calloc( newJoint->muscleGroupsSizesList[ muscleGroupIndex ], sizeof(int) );
       
         for( size_t muscleIndex = 0; muscleIndex < newJoint->muscleGroupsSizesList[ muscleGroupIndex ]; muscleIndex++ )
         {
           sprintf( searchPath, "%s.%u", MUSCLE_GROUP_NAMES[ muscleGroupIndex ], muscleIndex );
-          newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( parser.GetStringValue( configFileID, searchPath ) );
-          if( newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] == -1 ) loadError = true;
+          char* sensorName = parser.GetStringValue( configFileID, searchPath );
+          if( sensorName != NULL )
+          {
+            sprintf( searchPath, "%s/%s", sensorsDirectory, sensorName );
+            newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( searchPath );
+            if( newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] == -1 ) loadError = true;
+          }
+          else loadError = true;
         }
       }
     }
@@ -187,7 +219,7 @@ static EMGJoint* LoadEMGJointData( const char* configFileName )
   return newJoint;
 }
 
-static void UnloadEMGJointData( EMGJoint* joint )
+static void UnloadEMGJointData( EMGJoint joint )
 {
   if( joint == NULL ) return;
   

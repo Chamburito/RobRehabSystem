@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #ifdef _CVI_
+  #include <utility.h>
   #define SET_PATH( dirPath ) SetDir( dirPath );
 #else
   #define SET_PATH( dirPath ) system( "cd " dirPath );

@@ -5,44 +5,47 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib
 	"C:\\Users\\Public\\Documents\\National Instruments\\TestStand 2014 (32-bit)\\AdapterSupport\\CVI"
 	"C:\\Program Files (x86)\\National Instruments\\TestStand 2014\\API\\DLLInterfaces"
 	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\instr\\TestStand\\API"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\activex\\word"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\activex\\excel"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\custctrl"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\custctrl\\custsupp"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\cvirtsup"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\datasock"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\daqUtil"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\printing"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\toolbox"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\reportgen"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\toolslib\\localui"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\instr"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\activex\\word"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\activex\\excel"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\custctrl"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\custctrl\\custsupp"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\cvirtsup"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\datasock"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\daqUtil"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\printing"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\toolbox"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\reportgen"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\localui"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\instr"
 	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\toolslib\\custctrl"
 	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\toolslib\\custctrl\\custsupp"
 	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\instr"
-	"C:\\ProgramData\\National Instruments\\CVI2013\\instr"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\include"
+	"C:\\ProgramData\\National Instruments\\CVI2015\\instr"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\include"
 	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\include"
-	"C:\\ProgramData\\National Instruments\\CVI2013\\include"
+	"C:\\ProgramData\\National Instruments\\CVI2015\\include"
 	"C:\\ProgramData\\National Instruments\\CVI\\include"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\include\\ansi"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\include\\clang\\2.9"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\include\\ansi"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\include\\clang\\3.3"
 	"C:\\Program Files (x86)\\IVI Foundation\\IVI\\Include"
 	"C:\\Program Files (x86)\\IVI Foundation\\VISA\\winnt\\include"
-	"c:\\program files (x86)\\national instruments\\cvi2013\\sdk\\include"
-	"c:\\Program Files (x86)\\National Instruments\\CVI2013\\bin"
-	"c:\\ProgramData\\National Instruments\\CVI2013\\bin"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\MSDTRedistributables\\SDKHeaderFiles\\8.1"
+	"c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin"
+	"c:\\ProgramData\\National Instruments\\CVI2015\\bin"
 	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
 	;
 include Jamfile_instr ;
+TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robrehab_emg.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\UnsavedChanges\\robrehab_emg.c" ;
 LOCATE on "async_debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
+LOCATE on "data_logging.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "emg_joint_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "emg_processing.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "file_parser_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing" ;
 LOCATE on "json_parser.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing" ;
 LOCATE on "kson.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib" ;
-LOCATE on "robrehab_emg.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "robrehab_emg.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "robrehab_system_rt.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "shared_memory_cvi.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
 LOCATE on "shared_memory_unix.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
 LOCATE on "shared_memory_windows.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
@@ -57,11 +60,11 @@ FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibui
 DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj.cvidefprots" ;
 OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj.out" ;
 PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\kson.obj" ;
-Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robrehab_emg.c" ;
-FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj" = 2 ;
-DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj.cvidefprots" ;
-OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj.out" ;
-PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_emg.obj" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robrehab_system_rt.c" ;
+FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj" = 2 ;
+DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj.cvidefprots" ;
+OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj.out" ;
+PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\robrehab_system_rt.obj" ;
 PreLinkInputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\resources.in.rc" ;
 PreLinkInputs += $(PrjObjects) $(InstrObjects) ;
 PreLinkOutputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\resources.out.rc" ;
@@ -72,5 +75,6 @@ Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\manifest.xml" ;
 MainFromObjects "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\RobRehabEMG.dll" : $(PrjObjects) $(InstrObjects) ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\RobRehabEMG.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\link_options.txt" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\RobRehabEMG.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\dependencies.lnk.in" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\RobRehabEMG.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\resources.res" ;
 Depends all : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabEMG\\Debug\\RobRehabEMG.dll" ;

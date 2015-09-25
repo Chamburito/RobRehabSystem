@@ -34,7 +34,6 @@
 *******************************************************************************/
 
 /* Include files */
-#include <rtutil.h>
 
 #ifdef ROBREHAB_SERVER
   #include "robrehab_network.h"
@@ -43,12 +42,13 @@
   #include "robrehab_control.h"
   #define SUBSYSTEM RobRehabControl
 #elif ROBREHAB_EMG
-  #include "robrehab_control.h"
+  #include "robrehab_emg.h"
   #define SUBSYSTEM RobRehabEMG
 #endif
 
-#include <analysis.h>
 #include <utility.h>
+#include <rtutil.h>
+#include <analysis.h>
 #include <cvinetv.h>
 #include <cvirte.h>
 #include <ansi_c.h>
@@ -69,6 +69,12 @@ void CVIFUNC_C RTmain( void )
 		if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
 		SleepUS( 10000 );
 	}
+  
+  SetDir( ".." );
+  
+  char pathName[ MAX_PATHNAME_LEN ];
+  GetDir( pathName );
+  DEBUG_PRINT( "current path: %s", pathName );
   
   SUBSYSTEM.Init();
 		

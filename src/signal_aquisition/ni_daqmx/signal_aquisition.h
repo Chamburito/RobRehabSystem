@@ -183,7 +183,6 @@ static void* AsyncReadBuffer( void* callbackData )
   
   DEBUG_PRINT( "ending aquisition thread %x", THREAD_ID );
   
-  Threading_EndThread( 0 );
   return NULL;
 }
 

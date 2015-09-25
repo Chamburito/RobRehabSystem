@@ -452,7 +452,6 @@ static void* AsyncControl( void* args )
   
   DEBUG_PRINT( "ending control thread %x", THREAD_ID );
    
-  Threading_EndThread( 0 );
   return NULL;
 }
 

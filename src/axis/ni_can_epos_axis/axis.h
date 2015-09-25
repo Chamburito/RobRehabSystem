@@ -11,7 +11,7 @@
 #define AXIS_CAN_EPOS_INTERFACE_H
 
 #include "axis/axis_interface.h"
-#include "ni_can_epos_axis/can_network.h"
+#include "axis/ni_can_epos_axis/can_network.h"
 
 #ifdef WIN32
   #include "time/timing_windows.h"

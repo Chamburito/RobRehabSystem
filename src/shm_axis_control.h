@@ -14,13 +14,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum SHMControlLists { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_LISTS_NUMBER };
+enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER };
 
 enum SHMControlFloats { SHM_CONTROL_POSITION, SHM_CONTROL_VELOCITY, SHM_CONTROL_FORCE, SHM_CONTROL_STIFFNESS = SHM_CONTROL_FORCE,
                         SHM_CONTROL_ACCELERATION, SHM_CONTROL_DAMPING = SHM_CONTROL_ACCELERATION, SHM_CONTROL_TIME, SHM_CONTROL_FLOATS_NUMBER };
 
-enum SHMControlBytes { SHM_CONTROL_ENABLE, SHM_CONTROL_DISABLE, SHM_CONTROL_RESET, SHM_CONTROL_CALIBRATE,
-                       SHM_CONTROL_ENABLED = SHM_CONTROL_ENABLE, SHM_CONTROL_ERROR, SHM_CONTROL_STATES_NUMBER,};
+enum SHMControlBytes { SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE,
+                       SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_STATE_ENABLED, SHM_STATE_ERROR, SHM_CONTROL_BYTES_NUMBER,};
 
 const bool SHM_PEEK = false;
 const bool SHM_REMOVE = true;
@@ -30,9 +30,9 @@ const bool SHM_REMOVE = true;
 
 typedef struct _AxisControlData
 {
-  float numericValuesTable[ SHM_CONTROL_LISTS_NUMBER ][ SHM_CONTROL_FLOATS_NUMBER ];
-  uint8_t numericValuesUpdatedTable[ SHM_CONTROL_LISTS_NUMBER ];
-  uint8_t byteValuesList[ SHM_CONTROL_LISTS_NUMBER ];
+  float numericValuesTable[ SHM_CONTROL_TYPES_NUMBER ][ SHM_CONTROL_FLOATS_NUMBER ];
+  uint8_t numericValuesUpdatedTable[ SHM_CONTROL_TYPES_NUMBER ];
+  uint8_t byteValuesList[ SHM_CONTROL_TYPES_NUMBER ];
   uint8_t byteValuesUpdatedList;
 }
 AxisControlData;
@@ -72,7 +72,7 @@ SHMAxisControl = { .InitControllerData = InitControllerData, .EndControllerData 
         FUNCTION_INIT( void, namespace, SetNumericValue, SHMAxisController, int, int, float ) \
         FUNCTION_INIT( float*, namespace, GetNumericValuesList, SHMAxisController, int, uint8_t*, bool ) \
         FUNCTION_INIT( void, namespace, SetNumericValuesList, SHMAxisController, int, float*, uint8_t ) \
-        FUNCTION_INIT( uint8_t, namespace, GetByteValue, SHMAxisController, int, bool ) \
+        FUNCTION_INIT( bool, namespace, GetByteValue, SHMAxisController, int, uint8_t*, bool ) \
         FUNCTION_INIT( void, namespace, SetByteValue, SHMAxisController, int, uint8_t )
 
 NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
@@ -102,86 +102,88 @@ void SHMAxisControl_EndController( SHMAxisController controller )
   SharedObjects.DestroyObject( (void*) controller );
 }
 
-bool SHMAxisControl_GetNumericValue( SHMAxisController controller, int listIndex, int valueIndex, float* ref_value, bool remove )
+bool SHMAxisControl_GetNumericValue( SHMAxisController controller, int valueType, int valueIndex, float* ref_value, bool remove )
 {
   if( controller == NULL ) return false;
     
-  if( listIndex < 0 || listIndex >= SHM_CONTROL_LISTS_NUMBER ) return false;
+  if( valueType < 0 || valueType >= SHM_CONTROL_TYPES_NUMBER ) return false;
     
   if( valueIndex < 0 || valueIndex >= SHM_CONTROL_FLOATS_NUMBER ) return false;
     
-  if( !( controller->numericValuesUpdatedTable[ listIndex ] & BIT_INDEX( valueIndex ) ) ) return false;
+  if( !( controller->numericValuesUpdatedTable[ valueType ] & BIT_INDEX( valueIndex ) ) ) return false;
     
-  if( remove ) controller->numericValuesUpdatedTable[ listIndex ] ^= BIT_INDEX( valueIndex );
+  if( remove ) controller->numericValuesUpdatedTable[ valueType ] ^= BIT_INDEX( valueIndex );
   
-  if( ref_value != NULL ) *ref_value = controller->numericValuesTable[ listIndex ][ valueIndex ];
+  if( ref_value != NULL ) *ref_value = controller->numericValuesTable[ valueType ][ valueIndex ];
     
   return true;
 }
 
-void SHMAxisControl_SetNumericValue( SHMAxisController controller, int listIndex, int valueIndex, float value )
+void SHMAxisControl_SetNumericValue( SHMAxisController controller, int valueType, int valueIndex, float value )
 {
   if( controller == NULL ) return;
     
-  if( listIndex < 0 || listIndex >= SHM_CONTROL_LISTS_NUMBER ) return;
+  if( valueType < 0 || valueType >= SHM_CONTROL_TYPES_NUMBER ) return;
     
   if( valueIndex < 0 || valueIndex >= SHM_CONTROL_FLOATS_NUMBER ) return;
   
-  controller->numericValuesTable[ listIndex ][ valueIndex ] = value;
-  controller->numericValuesUpdatedTable[ listIndex ] |= BIT_INDEX( valueIndex );
+  controller->numericValuesTable[ valueType ][ valueIndex ] = value;
+  controller->numericValuesUpdatedTable[ valueType ] |= BIT_INDEX( valueIndex );
 }
 
-void SHMAxisControl_SetNumericValuesList( SHMAxisController controller, int listIndex, float* numericValuesList, uint8_t mask )
+void SHMAxisControl_SetNumericValuesList( SHMAxisController controller, int valueType, float* numericValuesList, uint8_t mask )
 {
   if( controller == NULL ) return;
     
-  if( listIndex < 0 || listIndex >= SHM_CONTROL_LISTS_NUMBER ) return;
+  if( valueType < 0 || valueType >= SHM_CONTROL_TYPES_NUMBER ) return;
     
   if( numericValuesList != NULL ) 
   {
     size_t dataSize = sizeof(float) * SHM_CONTROL_FLOATS_NUMBER;
-    memcpy( &(controller->numericValuesTable[ listIndex ]), numericValuesList, dataSize );
+    memcpy( &(controller->numericValuesTable[ valueType ]), numericValuesList, dataSize );
   }
   
-  controller->numericValuesUpdatedTable[ listIndex ] = mask;
+  controller->numericValuesUpdatedTable[ valueType ] = mask;
 }
 
-float* SHMAxisControl_GetNumericValuesList( SHMAxisController controller, int listIndex, uint8_t* ref_mask, bool remove )
+float* SHMAxisControl_GetNumericValuesList( SHMAxisController controller, int valueType, uint8_t* ref_mask, bool remove )
 {
   if( controller == NULL ) return false;
     
-  if( listIndex < 0 || listIndex >= SHM_CONTROL_LISTS_NUMBER ) return false;
+  if( valueType < 0 || valueType >= SHM_CONTROL_TYPES_NUMBER ) return false;
     
-  if( ref_mask != NULL ) *ref_mask = controller->numericValuesUpdatedTable[ listIndex ];
+  if( ref_mask != NULL ) *ref_mask = controller->numericValuesUpdatedTable[ valueType ];
   
-  return (float*) controller->numericValuesTable[ listIndex ];
+  return (float*) controller->numericValuesTable[ valueType ];
 }
 
-uint8_t SHMAxisControl_GetByteValue( SHMAxisController controller, int valueIndex, bool remove )
+bool SHMAxisControl_GetByteValue( SHMAxisController controller, int valueType, uint8_t* ref_value, bool remove )
 {
   if( controller == NULL ) return false;
     
-  if( valueIndex < 0 || valueIndex >= SHM_CONTROL_LISTS_NUMBER ) return false;
+  if( valueType < 0 || valueType >= SHM_CONTROL_TYPES_NUMBER ) return false;
     
-  if( !( controller->byteValuesUpdatedList & (128 >> valueIndex) ) ) return false;
+  if( !( controller->byteValuesUpdatedList & BIT_INDEX( valueType ) ) ) return false;
   
-  DEBUG_PRINT( "Getting %s byte from axis control data (address: %p)", ( valueIndex == SHM_CONTROL_OUT ) ? "out" : "in", controller );
+  DEBUG_PRINT( "Getting %s byte from axis control data (address: %p)", ( valueType == SHM_CONTROL_OUT ) ? "out" : "in", controller );
   
-  if( remove ) controller->byteValuesUpdatedList ^= BIT_INDEX( valueIndex );
+  if( remove ) controller->byteValuesUpdatedList ^= BIT_INDEX( valueType );
     
-  return controller->byteValuesList[ valueIndex ];
+  if( ref_value != NULL ) *ref_value = controller->byteValuesList[ valueType ];
+  
+  return true;
 }
 
-void SHMAxisControl_SetByteValue( SHMAxisController controller, int valueIndex, uint8_t value )
+void SHMAxisControl_SetByteValue( SHMAxisController controller, int valueType, uint8_t value )
 {
   if( controller == NULL ) return;
     
-  if( valueIndex < 0 || valueIndex >= SHM_CONTROL_LISTS_NUMBER ) return;
+  if( valueType < 0 || valueType >= SHM_CONTROL_TYPES_NUMBER ) return;
     
-  DEBUG_PRINT( "Setting %s byte %u for axis control data (address: %p)", ( valueIndex == SHM_CONTROL_OUT ) ? "out" : "in", value, controller );
+  DEBUG_PRINT( "Setting %s byte %u for axis control data (address: %p)", ( valueType == SHM_CONTROL_OUT ) ? "out" : "in", value, controller );
   
-  controller->byteValuesList[ valueIndex ] = value;
-  controller->byteValuesUpdatedList |= BIT_INDEX( valueIndex );
+  controller->byteValuesList[ valueType ] = value;
+  controller->byteValuesUpdatedList |= BIT_INDEX( valueType );
 }
 
 #endif // SHM_AXIS_CONTROL_H
