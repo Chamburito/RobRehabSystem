@@ -41,24 +41,20 @@
 #include <userint.h>
 
 #include "ip_network/cvirte_ip_connection.h"
-#include "NetworkVariable.h"
+#include "RobRehabControlGUI.h"
 #include "common.h"
 
-//#include "data_logging.h"
+enum SHMControlFloats { SHM_CONTROL_POSITION, SHM_CONTROL_VELOCITY, SHM_CONTROL_FORCE, SHM_CONTROL_STIFFNESS = SHM_CONTROL_FORCE,
+                        SHM_CONTROL_ACCELERATION, SHM_CONTROL_DAMPING = SHM_CONTROL_ACCELERATION, SHM_CONTROL_TIME, SHM_CONTROL_FLOATS_NUMBER };
+
+enum SHMControlBytes { SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE,
+                       SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_STATE_ENABLED, SHM_STATE_ERROR, SHM_CONTROL_BYTES_NUMBER };
 
 /* Global variables */
 static int panel;
-//static CNVSubscriber gWaveSubscriber;
 
 /* Function prototypes */
 static void* UpdateData( void* );
-static void ConnectToNetworkVariables( void );
-void CVICALLBACK DataCallback( void*, CNVData, void* );
-
-enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_SETPOINT, ROBOT_ERROR, ROBOT_STIFFNESS, ROBOT_TORQUE, MAX_STIFFNESS, PATIENT_STIFFNESS, PATIENT_TORQUE, EMG_AGONIST, EMG_ANTAGONIST, DISPLAY_VALUES_NUMBER };
-
-enum { AGONIST, ANTAGONIST };
-int muscleGroup = AGONIST;
 
 int axisID = 0;
 
@@ -80,16 +76,19 @@ const double TOTAL_CURVE_INTERVAL = 2.22;
 const double CONTROL_SAMPLING_INTERVAL = 0.005;
 const double NORMALIZED_SAMPLING_INTERVAL = CONTROL_SAMPLING_INTERVAL / TOTAL_CURVE_INTERVAL;
 
-static double clientDispatchTime;
-
 static double referenceValues[ NUM_POINTS ];
 size_t setpointIndex = 0;
+
+void InitUserInterface( void );
 
 /* Program entry-point */
 int main( int argc, char *argv[] )
 {
 	if( InitCVIRTE( 0, argv, 0 ) == 0 )
 		return -1;
+  
+  // Get address of real-time target.
+	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
   
   infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
   char* infoMessage = NULL;
@@ -98,7 +97,7 @@ int main( int argc, char *argv[] )
   
   fprintf( stderr, "received info message: %s\n", infoMessage );
   
-  char resetMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0, 0, 0, 1, 0 };
+  char resetMessage[ 256 ] = { 1, 0, SHM_COMMAND_RESET };
   AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
   
   infoMessage = NULL;
@@ -109,11 +108,10 @@ int main( int argc, char *argv[] )
   
   dataConnectionThreadID = Threading_StartThread( UpdateData, NULL, THREAD_JOINABLE );
   
-	if( (panel = LoadPanel( 0, "NetworkVariable.uir", PANEL )) < 0 )
+	if( (panel = LoadPanel( 0, "RobRehabControlGUI.uir", PANEL )) < 0 )
 		return -1;
 
-	//ConnectToNetworkVariables();
-	
+	InitUserInterface();
 	DisplayPanel( panel );
 	RunUserInterface();
 	
@@ -123,12 +121,6 @@ int main( int argc, char *argv[] )
 	AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
   
   AsyncIPConnection_Close( infoClientID ); 
-  
-	// Cleanup
-	//CNVDispose( gWaveSubscriber );
-	//CNVDispose( gMaxToggleWriter );
-	//CNVDispose( gMinToggleWriter );
-	//CNVFinish();
   
 	DiscardPanel( panel );
 	
@@ -142,13 +134,20 @@ static void* UpdateData( void* callbackData )
   const size_t WAIT_SAMPLES = 10;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
-  char dataMessageOut[ IP_CONNECTION_MSG_LEN ] = { 1, 0 };
+  float measuresList[ SHM_CONTROL_FLOATS_NUMBER ], setpointsList[ SHM_CONTROL_FLOATS_NUMBER ];
+  
+  double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], accelerationValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ];
+  size_t measureIndex = 0;
+  
+  char dataMessageOut[ IP_MAX_MESSAGE_LENGTH ];
+  dataMessageOut[ 0 ] = 1;
+  dataMessageOut[ 1 ] = 0;
+  dataMessageOut[ 2 ] = 0xFF;
   
   double initialTime = Timing_GetExecTimeSeconds();
+  double elapsedTime = 0.0, deltaTime = 0.0, absoluteTime = initialTime; 
   
-  double elapsedTime = 0.0, absoluteTime = initialTime; 
-  
-  double deltaTime = 0.0;
+  size_t setpointIndex = 0;
   
   int dataClientID = AsyncIPConnection_Open( address, "50001", UDP );
   
@@ -163,20 +162,42 @@ static void* UpdateData( void* callbackData )
     char* messageIn = AsyncIPConnection_ReadMessage( dataClientID );
     if( messageIn != NULL )
     {
-      fprintf( stderr, "received data message: %s\n", messageIn );
+      if( messageIn[ 0 ] == 1 && messageIn[ 1 ] == 0 )
+      {
+        memcpy( measuresList, messageIn + 2, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
+        
+        positionValues[ measureIndex ] = measuresList[ SHM_CONTROL_POSITION ];
+        velocityValues[ measureIndex ] = measuresList[ SHM_CONTROL_VELOCITY ];
+        accelerationValues[ measureIndex ] = measuresList[ SHM_CONTROL_ACCELERATION ];
+        torqueValues[ measureIndex ] = measuresList[ SHM_CONTROL_FORCE ];
+        
+        if( ++measureIndex >= NUM_POINTS )
+        {
+          DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
+          PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
+          PlotY( panel, PANEL_GRAPH_1, velocityValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+          PlotY( panel, PANEL_GRAPH_1, accelerationValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
+          
+          DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
+          PlotY( panel, PANEL_GRAPH_2, torqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+          
+          measureIndex = 0;
+        }
+      }
     }
     
     if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      double setpointValue = elapsedTime / TOTAL_CURVE_INTERVAL;
-    
-      double setpointDerivative = 1.0 / TOTAL_CURVE_INTERVAL;
+      setpointsList[ SHM_CONTROL_POSITION ] = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
+      setpointsList[ SHM_CONTROL_VELOCITY ] = 1.0 / TOTAL_CURVE_INTERVAL;
+      setpointsList[ SHM_CONTROL_STIFFNESS ] = maxStiffness;
+      setpointsList[ SHM_CONTROL_TIME ] = SETPOINT_UPDATE_INTERVAL;
       
       for( size_t i = 0; i < WAIT_SAMPLES; i++ )
-        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = fmod( setpointValue, 1.0 );
+        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointsList[ SHM_CONTROL_POSITION ];
       setpointIndex += WAIT_SAMPLES;
     
-      sprintf( dataMessageOut, "%g %g %g|0 %g %g %g", serverDispatchTime, clientReceiveTime, absoluteTime, setpointValue, setpointDerivative, SETPOINT_UPDATE_INTERVAL );
+      memcpy( dataMessageOut + 3, setpointsList, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
     
       deltaTime = 0.0;
       
@@ -189,113 +210,63 @@ static void* UpdateData( void* callbackData )
   return NULL;
 }
 
-static void ConnectToNetworkVariables( void )
+static void InitUserInterface( void )
 {
-	char path[ 512 ];
-	
-	// Get address of real-time target.
-	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
-	
-	// Connect to network variables.
-	/*sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MAX_TOGGLE_VARIABLE );
-	CNVCreateWriter( path, 0, 0, 10000, 0, &gMaxToggleWriter );
-	
-	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, MIN_TOGGLE_VARIABLE );
-	CNVCreateWriter( path, 0, 0, 10000, 0, &gMinToggleWriter );
-
-	sprintf( path, "\\\\%s\\" PROCESS "\\%s", address, WAVE_VARIABLE );
-	CNVCreateSubscriber( path, DataCallback, 0, 0, 10000, 0, &gWaveSubscriber );*/
-	
 	// Manually call the control callbacks to write the initial values for
 	// amplitude and frequency to the network variables.
-  SetCtrlVal( panel, PANEL_MAX_TOGGLE, 0 );
-  SetCtrlVal( panel, PANEL_MIN_TOGGLE, 0 );
   SetCtrlVal( panel, PANEL_MOTOR_TOGGLE, 0 );
-	ChangeStateCallback( panel, PANEL_MAX_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
-	ChangeStateCallback( panel, PANEL_MIN_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
   ChangeStateCallback( panel, PANEL_MOTOR_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
   
 	ChangeValueCallback( panel, PANEL_STIFFNESS, EVENT_COMMIT, 0, 0, 0 );
 }
 
-int CVICALLBACK ChangeMuscleGroupCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
-{
-  switch( event )
-	{
-		case EVENT_COMMIT:
-			// Get the new value.
-			GetCtrlVal( panel, control, &muscleGroup );
-			break;
-	}
-	return 0;
-}
-
 int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-	CNVData	data;
+  static char commandMessage[ IP_MAX_MESSAGE_LENGTH ];
+  commandMessage[ 0 ] = 1;
+  commandMessage[ 1 ] = 0;
   
-  int enabled = 0;
-  int messageCode = 0;
+  int enabled;
   
 	switch( event )
 	{
 		case EVENT_COMMIT:
 			// Get the new value.
 			GetCtrlVal( panel, control, &enabled );
-      
-      messageCode |= ( axisID & 0x000000ff );
-      messageCode |= ( ( enabled * 0x100 ) & 0x0000ff00 );
-      messageCode |= ( ( muscleGroup * 0x10000 ) & 0x00ff0000 );
-      
-			CNVCreateScalarDataValue( &data, CNVInt32, messageCode );
 		
+      commandMessage[ 2 ] = SHM_CONTROL_BYTES_NUMBER; 
+      
 			// Write the new value to the appropriate network variable.
-			if( control == PANEL_MAX_TOGGLE )
-				CNVWrite( gMaxToggleWriter, data, CNVDoNotWait );
-			else if( control == PANEL_MIN_TOGGLE )
-				CNVWrite( gMinToggleWriter, data, CNVDoNotWait );
-      else if( control == PANEL_MOTOR_TOGGLE )
+			if( control == PANEL_MOTOR_TOGGLE )
       {
-        char enableMessage[ IP_CONNECTION_MSG_LEN ];
-        motorEnabled = enabled;
-        sprintf( enableMessage, "0 %d 0 %.3f 0.000 %.3f", motorEnabled, maxStiffness, positionOffset );
-        AsyncIPConnection_WriteMessage( infoClientID, enableMessage );
+        if( enabled == 1 )
+          commandMessage[ 2 ] = SHM_COMMAND_ENABLE;
+        else
+          commandMessage[ 2 ] = SHM_COMMAND_DISABLE;
       }
       else if( control == PANEL_OFFSET_TOGGLE )
       {
-        calibrationRunning = enabled;
-        if( calibrationRunning == 0 )
-        {
-          char offsetMessage[ IP_CONNECTION_MSG_LEN ];
-          positionOffset = ( maxReach + minReach ) / 2.0;
-          fprintf( stderr, "offset = ( %g + %g ) / 2 = %g\n", maxReach, minReach, positionOffset );
-          sprintf( offsetMessage, "0 %d 0 %.3f 0.000 %.3f", motorEnabled, maxStiffness, positionOffset );
-          AsyncIPConnection_WriteMessage( infoClientID, offsetMessage );
-        }
-        
-        maxReach = minReach = 0.0;
+        commandMessage[ 2 ] = SHM_COMMAND_CALIBRATE;
       }
-		
-			CNVDisposeData( data );
+      
+			AsyncIPConnection_WriteMessage( infoClientID, commandMessage );
       
 			break;
 	}
+  
 	return 0;
 }
 
-int  CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
+int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
 	switch( event )
 	{
 		case EVENT_COMMIT:
-			// Get the new value.
-			GetCtrlVal( panel, control, &maxStiffness );
-
+			
 			if( control == PANEL_STIFFNESS )
 			{
-        char impedanceMessage[ IP_CONNECTION_MSG_LEN ];
-        sprintf( impedanceMessage, "0 %d 0 %.3f 0.000", motorEnabled, maxStiffness );
-        AsyncIPConnection_WriteMessage( infoClientID, impedanceMessage );
+        // Get the new value.
+			  GetCtrlVal( panel, control, &maxStiffness );
       }
       
 			break;
@@ -314,88 +285,5 @@ int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int even
 			break;
 	}
 	return 0;
-}
-
-void CVICALLBACK DataCallback( void* handle, CNVData data, void* callbackData )
-{
-  static double execTime, elapsedTime;
-  static double responseTime;
-  
-  elapsedTime = Timing_GetExecTimeSeconds()  - execTime;
-  execTime = Timing_GetExecTimeSeconds();
-  
-  responseTime = execTime - clientDispatchTime;
-  
-  size_t referencePointsNumber = (size_t) ( elapsedTime / CONTROL_SAMPLING_INTERVAL );
-  if( referencePointsNumber > NUM_POINTS ) referencePointsNumber = NUM_POINTS;
-  else if( referencePointsNumber <= 0 ) referencePointsNumber = 1;
-  
-  //size_t pointLength = NUM_POINTS / referencePointsNumber;
-  
-  size_t setpointOffset = 0;//(size_t) ( responseTime / CONTROL_SAMPLING_INTERVAL );
-  
-  //fprintf( stderr, "positionOffset: 2 * %f / %.3f = %u\r", responseTime, CONTROL_SAMPLING_INTERVAL, setpointOffset );
-  
-  //size_t setpointStart = ( setpointIndex > NUM_POINTS + setpointOffset ) ? ( setpointIndex - setpointOffset - NUM_POINTS + 1 ) : 0;
-  
-	static double dataArray[ DISPLAY_VALUES_NUMBER * NUM_POINTS ];
-  static double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], setpointValues[ NUM_POINTS ], errorValues[ NUM_POINTS ];
-  static double robotTorqueValues[ NUM_POINTS ], patientTorqueValues[ NUM_POINTS ];
-  static double robotStiffnessValues[ NUM_POINTS ], patientStiffnessValues[ NUM_POINTS ], maxStiffnessValues[ NUM_POINTS ];
-  static double emgAgonistValues[ NUM_POINTS ], emgAntagonistValues[ NUM_POINTS ];
-  
-  static double originalValues[ NUM_POINTS ];
-	
-	// Get the published data.
-	CNVGetArrayDataValue( data, CNVDouble, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
-  
-  for( size_t pointIndex = 0; pointIndex < NUM_POINTS; pointIndex++ )
-  {
-    positionValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_POSITION ];
-    
-    if( calibrationRunning == 1 )
-    {
-      if( -positionValues[ pointIndex ] > maxReach ) maxReach = -positionValues[ pointIndex ];
-      if( -positionValues[ pointIndex ] < minReach ) minReach = -positionValues[ pointIndex ];
-    }
-    
-    velocityValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ];
-    setpointValues[ pointIndex ] = -dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_SETPOINT ];
-    errorValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_ERROR ];
-    robotStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_STIFFNESS ];
-    maxStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + MAX_STIFFNESS ];
-    patientStiffnessValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + PATIENT_STIFFNESS ];
-    robotTorqueValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_TORQUE ];
-    patientTorqueValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + PATIENT_TORQUE ];
-    emgAgonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_AGONIST ];
-    emgAntagonistValues[ pointIndex ] = dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + EMG_ANTAGONIST ];
-    
-    //if( pointIndex >= setpointOffset )
-    //  originalValues[ pointIndex ] = referenceValues[ pointIndex - setpointOffset ];
-    //dataArray[ pointIndex * DISPLAY_VALUES_NUMBER + ROBOT_VELOCITY ] = -referenceValues[ pointIndex ];
-  }
-  
-  //if( emgAgonistValues[ NUM_POINTS - 1 ] > 0.0 && emgAntagonistValues[ NUM_POINTS - 1 ] > 0.0 )
-  DataLogging_SaveData( axisLogID, dataArray, DISPLAY_VALUES_NUMBER * NUM_POINTS );
-  
-	// Plot the data to the graph.
-	DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
-  //PlotY( panel, PANEL_GRAPH_1, originalValues, NUM_POINTS - setpointOffset, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
-  //PlotY( panel, PANEL_GRAPH_1, setpointValues + setpointOffset, NUM_POINTS - setpointOffset, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
-	PlotY( panel, PANEL_GRAPH_1, setpointValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
-  PlotY( panel, PANEL_GRAPH_1, errorValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
-  PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
-  PlotY( panel, PANEL_GRAPH_1, velocityValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
-  PlotY( panel, PANEL_GRAPH_1, emgAgonistValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_DK_MAGENTA );
-  PlotY( panel, PANEL_GRAPH_1, emgAntagonistValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_MAGENTA );
-  
-  DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
-  PlotY( panel, PANEL_GRAPH_2, maxStiffnessValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_MAGENTA );
-  PlotY( panel, PANEL_GRAPH_2, robotTorqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_CYAN );
-  PlotY( panel, PANEL_GRAPH_2, patientTorqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
-  PlotY( panel, PANEL_GRAPH_2, robotStiffnessValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
-  PlotY( panel, PANEL_GRAPH_2, patientStiffnessValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
-		
-	CNVDisposeData( data );
 }
 

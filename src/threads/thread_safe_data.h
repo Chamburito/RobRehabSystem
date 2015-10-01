@@ -7,13 +7,17 @@
   #include "threads_unix.h"
 #endif
 
+#include "interface.h"
+
 #include "klib/khash.h"
+
+#include <stdbool.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD SAFE QUEUE                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct _TSQueueData
+typedef struct _ThreadSafeQueueData
 {
   void** cache;
   size_t first, last, maxLength;
@@ -21,15 +25,25 @@ typedef struct _TSQueueData
   ThreadLock accessLock;
   Semaphore countLock;
 }
-TSQueueData;
+ThreadSafeQueueData;
 
-typedef TSQueueData* TSQueue;
+typedef ThreadSafeQueueData* ThreadSafeQueue;
 
+enum QueueReadMode { QUEUE_READ_WAIT, QUEUE_READ_NOWAIT };
+enum QueueWriteMode { QUEUE_APPEND_WAIT, QUEUE_APPEND_OVERWRITE, QUEUE_WRITE_FLUSH };
 
+#define THREAD_SAFE_QUEUE_FUNCTIONS( namespace, function_init ) \
+        function_init( ThreadSafeQueue, namespace, Create, size_t, size_t ) \
+        function_init( void, namespace, Discard, ThreadSafeQueue ) \
+        function_init( size_t, namespace, GetItemsCount, ThreadSafeQueue ) \
+        function_init( bool, namespace, Dequeue, ThreadSafeQueue, void*, enum QueueReadMode ) \
+        function_init( void, namespace, Enqueue, ThreadSafeQueue, void*, enum QueueWriteMode )
 
-DataQueue* DataQueue_Init( size_t maxLength, size_t itemSize )
+INIT_NAMESPACE_INTERFACE( ThreadSafeQueues, THREAD_SAFE_QUEUE_FUNCTIONS )
+
+ThreadSafeQueue ThreadSafeQueues_Create( size_t maxLength, size_t itemSize )
 {
-  DataQueue* queue = (DataQueue*) malloc( sizeof(DataQueue) );
+  ThreadSafeQueue queue = (ThreadSafeQueue) malloc( sizeof(ThreadSafeQueueData) );
   
   queue->maxLength = maxLength;
   queue->itemSize = itemSize;
@@ -46,7 +60,7 @@ DataQueue* DataQueue_Init( size_t maxLength, size_t itemSize )
   return queue;
 }
 
-void DataQueue_End( DataQueue* queue )
+void ThreadSafeQueues_Discard( ThreadSafeQueue queue )
 {
   if( queue != NULL )
   {
@@ -62,44 +76,45 @@ void DataQueue_End( DataQueue* queue )
   }
 }
 
-extern inline size_t DataQueue_GetItemsCount( DataQueue* queue )
+inline size_t ThreadSafeQueues_GetItemsCount( ThreadSafeQueue queue )
 {
   return ( queue->last - queue->first );
 }
 
-enum QueueReadMode { QUEUE_READ_WAIT, QUEUE_READ_NOWAIT };
-int DataQueue_Pop( DataQueue* queue, void* buffer, enum QueueReadMode mode )
+bool ThreadSafeQueues_Dequeue( ThreadSafeQueue queue, void* buffer, enum QueueReadMode mode )
 {
-  static void* dataOut = NULL;
-
-  if( mode == QUEUE_READ_NOWAIT && DataQueue_GetItemsCount( queue ) == 0 )
-    return -1;
+  if( mode == QUEUE_READ_NOWAIT && ThreadSafeQueues_GetItemsCount( queue ) == 0 )
+    return false;
   
   Semaphores_Decrement( queue->countLock );
   
   ThreadLocks_Aquire( queue->accessLock );
   
-  dataOut = queue->cache[ queue->first % queue->maxLength ];
+  void* dataOut = queue->cache[ queue->first % queue->maxLength ];
   buffer = memcpy( buffer, dataOut, queue->itemSize );
   queue->first++;
   
   ThreadLocks_Release( queue->accessLock );
   
-  return 0;
+  return true;
 }
 
-enum QueueWriteMode { QUEUE_APPEND_WAIT, QUEUE_APPEND_OVERWRITE, QUEUE_APPEND_FLUSH };
-int DataQueue_Push( DataQueue* queue, void* buffer, enum QueueWriteMode mode )
+void ThreadSafeQueues_Enqueue( ThreadSafeQueue queue, void* buffer, enum QueueWriteMode mode )
 {
-  static void* dataIn = NULL;
+  if( mode == QUEUE_WRITE_FLUSH )
+  {
+    Semaphores_SetCount( queue->countLock, 0 );
+    queue->first = queue->last = 0;
+  }
   
-  if( mode == QUEUE_APPEND_WAIT ) Semaphores_Increment( queue->countLock );
+  if( mode != QUEUE_APPEND_OVERWRITE || Semaphores_GetCount( queue->countLock ) < queue->maxLength )
+    Semaphores_Increment( queue->countLock );
   
   ThreadLocks_Aquire( queue->accessLock );
   
-  dataIn = queue->cache[ queue->last % queue->maxLength ];
+  void* dataIn = queue->cache[ queue->last % queue->maxLength ];
   memcpy( dataIn, buffer, queue->itemSize );
-  if( DataQueue_GetItemsCount( queue ) == queue->maxLength ) queue->first++;
+  if( ThreadSafeQueues_GetItemsCount( queue ) == queue->maxLength ) queue->first++;
   queue->last++;
   
   ThreadLocks_Release( queue->accessLock );
@@ -133,7 +148,7 @@ DataList* DataList_Init( size_t itemSize )
   DataList* list = (DataList*) malloc( sizeof(DataList) );
   
   list->data = (Item*) malloc( LIST_LENGTH_INCREMENT * sizeof(Item) );
-  for( size_t position; position < LIST_LENGTH_INCREMENT; position++ )
+  for( size_t position = 0; position < LIST_LENGTH_INCREMENT; position++ )
     list->data[ position ].data = malloc( itemSize );
   
   list->length = LIST_LENGTH_INCREMENT;
@@ -141,6 +156,8 @@ DataList* DataList_Init( size_t itemSize )
   list->itemSize = itemSize;
   
   list->accessLock = ThreadLocks_Create();
+  
+  return list;
 }
 
 void DataList_End( DataList* list )

@@ -2,7 +2,8 @@
   "aquisition_system": {
     "type": "NIDAQmx",
     "task": "EMGReadTask",
-    "channel": 1
+    "channel": 1,
+    "input_gain": 909
   },
   "muscle_properties": {
     "curves": {

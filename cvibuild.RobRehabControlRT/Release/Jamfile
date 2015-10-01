@@ -46,7 +46,6 @@ LOCATE on "axis_sensor.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRe
 LOCATE on "axis_types.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis" ;
 LOCATE on "can_frame.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis\\ni_can_epos_axis" ;
 LOCATE on "can_network.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis\\ni_can_epos_axis" ;
-LOCATE on "cvirte_ip_connection.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\ip_network" ;
 LOCATE on "data_logging.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "filters.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
@@ -60,7 +59,6 @@ LOCATE on "shared_memory_cvi.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\
 LOCATE on "shm_axis_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "spline3_interpolation.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "threads_data_structures.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
-LOCATE on "threads_realtime.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
 LOCATE on "timing_realtime.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\time" ;
 Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\kson.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib\\kson.c" ;
 FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlRT\\Release\\kson.obj" = 1 ;

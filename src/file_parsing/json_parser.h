@@ -8,18 +8,7 @@
 
 #include "debug/async_debug.h"
 
-static int LoadFile( const char* );
-static void UnloadFile( int );
-static void SetBaseKey( int, const char* );
-static long GetIntegerValue( int, const char* );
-static double GetRealValue( int, const char* );
-static char* GetStringValue( int, const char* );
-static bool GetBooleanValue( int, const char* );
-static size_t GetListSize( int, const char* );
-static bool HasKey( int, const char* );
-
-const FileParser JSONParser = { .LoadFile = LoadFile, .UnloadFile = UnloadFile, .SetBaseKey = SetBaseKey, .GetIntegerValue = GetIntegerValue,
-                                .GetRealValue = GetRealValue, .GetStringValue = GetStringValue, .GetBooleanValue = GetBooleanValue, .GetListSize = GetListSize, .HasKey = HasKey };
+IMPLEMENT_INTERFACE( FileParser, JSONParser )
 
 typedef struct _FileData
 {

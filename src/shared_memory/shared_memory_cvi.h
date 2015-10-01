@@ -28,20 +28,16 @@ SharedObject;
 KHASH_MAP_INIT_STR( SO, SharedObject )
 khash_t( SO )* sharedObjectsList = NULL;
 
-void* CreateObject( const char*, size_t, int );
-void DestroyObject( void* );
+#define SHARED_MEMORY_FUNCTIONS( namespace, function_init ) \
+        function_init( void*, namespace, CreateObject, const char*, size_t, int ) \
+        function_init( void, namespace, DestroyObject, void* )
+
+INIT_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_FUNCTIONS )
 
 void CVICALLBACK UpdateDataIn( void*, CNVData, void* );
 int CVICALLBACK UpdateDataOut( int, int, int, void*, int, int );
 
-const struct 
-{ 
-  void* (*CreateObject)( const char*, size_t, int );
-  void (*DestroyObject)( void* );
-} 
-SharedObjects = { CreateObject, DestroyObject };
-
-void* CreateObject( const char* mappingName, size_t objectSize, int flags )
+void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, int flags )
 {
   DEBUG_PRINT( "trying to create shared object %s with %u bytes", mappingName, objectSize );
   
@@ -65,8 +61,10 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
   memset( newSharedObject, 0, sizeof(SharedObject) );
   
   newSharedObject->data = malloc( objectSize );
+  memset( newSharedObject->data, 0, objectSize );
+  
   newSharedObject->dataSize = objectSize;
-  CNVCreateArrayDataValue( &(newSharedObject->networkData), CNVBool, newSharedObject->data, 1, &(newSharedObject->dataSize) );
+  CNVCreateArrayDataValue( &(newSharedObject->networkData), CNVUInt8, newSharedObject->data, 1, &(newSharedObject->dataSize) );
   
   char* variablePathName = (char*) calloc( strlen( "\\\\localhost\\system\\" ) + strlen( mappingName ) + 1, sizeof(char) );
   sprintf( variablePathName, "\\\\localhost\\system\\%s", mappingName );
@@ -92,7 +90,7 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
       return NULL;
     }
     
-    if( (newSharedObject->timerID = NewAsyncTimer( 0.001, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
+    if( (newSharedObject->timerID = NewAsyncTimer( /*0.001*/0.01, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
     {
       DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
       free( variablePathName );
@@ -107,7 +105,7 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
   return newSharedObject->data;
 }
 
-void DestroyObject( void* sharedObjectData )
+void SharedObjects_DestroyObject( void* sharedObjectData )
 {
   for( khint_t sharedObjectID = 0; sharedObjectID != kh_end( sharedObjectsList ); sharedObjectID++ )
   {
@@ -151,8 +149,8 @@ void CVICALLBACK UpdateDataIn( void* handle, CNVData data, void* callbackData )
   
   if( sharedObject->reader == (CNVSubscriber) handle )
   {
-    int status = CNVGetArrayDataValue( data, CNVBool, sharedObject->data, sharedObject->dataSize );
-    if( status != 0 ) DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+    int status = CNVGetArrayDataValue( data, CNVUInt8, (void*) sharedObject->data, sharedObject->dataSize );
+    if( status != 0 ) DEBUG_PRINT( "CNVGetArrayDataValue: %s", CNVGetErrorDescription( status ) );
     
     CNVDisposeData( data );
   }
@@ -164,7 +162,7 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
   
   if( sharedObject->timerID == timerId && event == EVENT_TIMER_TICK )
   {
-    int status = CNVCreateArrayDataValue( &(sharedObject->networkData), CNVBool, sharedObject->data, 1, &(sharedObject->dataSize) );
+    int status = CNVCreateArrayDataValue( &(sharedObject->networkData), CNVUInt8, sharedObject->data, 1, &(sharedObject->dataSize) );
     if( status != 0 )
     {
       DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );

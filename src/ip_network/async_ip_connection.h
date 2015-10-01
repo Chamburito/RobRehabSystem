@@ -44,32 +44,25 @@ static size_t globalConnectionsListSize = 0;
 /////                                            INTERFACE                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define NAMESPACE AsyncIPConnection
+#define ASYNC_IP_CONNECTION_FUNCTIONS( namespace, function_init ) \
+        function_init( char*, namespace, GetAddress, int ) \
+        function_init( size_t, namespace, GetActivesNumber, void ) \
+        function_init( size_t, namespace, GetClientsNumber, int ) \
+        function_init( size_t, namespace, SetMessageLength, int, size_t ) \
+        function_init( int, namespace, Open, const char*, const char*, uint8_t ) \
+        function_init( void, namespace, Close, int ) \
+        function_init( char*, namespace, ReadMessage, int ) \
+        function_init( int, namespace, WriteMessage, int, const char* ) \
+        function_init( int, namespace, GetClient, int )
 
-#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
-        FUNCTION_INIT( char*, namespace, GetAddress, int ) \
-        FUNCTION_INIT( size_t, namespace, GetActivesNumber, void ) \
-        FUNCTION_INIT( size_t, namespace, GetClientsNumber, int ) \
-        FUNCTION_INIT( size_t, namespace, SetMessageLength, int, size_t ) \
-        FUNCTION_INIT( int, namespace, Open, const char*, const char*, uint8_t ) \
-        FUNCTION_INIT( void, namespace, Close, int ) \
-        FUNCTION_INIT( char*, namespace, ReadMessage, int ) \
-        FUNCTION_INIT( int, namespace, WriteMessage, int, const char* ) \
-        FUNCTION_INIT( int, namespace, GetClient, int )
-
-NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FILE, NAMESPACE )
-
-const struct { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_POINTER, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_STRUCT, NAMESPACE ) };
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
+INIT_NAMESPACE_INTERFACE( AsyncIPConnection, ASYNC_IP_CONNECTION_FUNCTIONS )
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      INFORMATION UTILITIES                                      /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Verifies if connection index is valid or not already closed
-static INLINE bool IsValidConnectionIndex( int connectionIndex )
+static inline bool IsValidConnectionIndex( int connectionIndex )
 {
   if( connectionIndex < 0 || connectionIndex >= (int) globalConnectionsListSize )
   {
@@ -114,7 +107,7 @@ size_t AsyncIPConnection_GetClientsNumber( int serverIndex )
 }
 
 // Returns address string (host and port) for the connection of given index
-extern INLINE char* AsyncIPConnection_GetAddress( int connectionIndex )
+inline char* AsyncIPConnection_GetAddress( int connectionIndex )
 {
   if( !IsValidConnectionIndex( connectionIndex ) ) return NULL;
   

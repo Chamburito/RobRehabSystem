@@ -12,13 +12,24 @@
 #define INIT_NAMESPACE_FILE( rtype, namespace, name, ... ) static rtype namespace##_##name( __VA_ARGS__ );
 #define INIT_NAMESPACE_POINTER( rtype, namespace, name, ... ) INIT_INTERFACE_POINTER( rtype, name, __VA_ARGS__ )        
 #define INIT_NAMESPACE_STRUCT( rtype, namespace, name, ... ) .name = namespace##_##name,
+
+#define DEFINE_INTERFACE( interface ) \
+        typedef struct { \
+          interface( INIT_INTERFACE_POINTER ) \
+        } \
+        interface##Operations; \
+        typedef interface##Operations* interface##Interface;
       
-#define INIT_INTERFACE( INTERFACE_FUNCTIONS, interfaceName ) \
-  INTERFACE_FUNCTIONS( INIT_INTERFACE_FILE, interfaceName ) \
-  const struct { \
-      INTERFACE_FUNCTIONS( INIT_INTERFACE_POINTER, interfaceName ) \
-    } \
-    interfaceName = { INTERFACE_FUNCTIONS( INIT_INTERFACE_STRUCT, interfaceName ) };
+#define IMPLEMENT_INTERFACE( interface, implementation ) \
+        interface( INIT_INTERFACE_FILE ) \
+        const interface##Operations implementation = { interface( INIT_INTERFACE_STRUCT ) };
+      
+#define INIT_NAMESPACE_INTERFACE( namespace, functions ) \
+        functions( namespace, INIT_NAMESPACE_FILE ) \
+        const struct { \
+          functions( namespace, INIT_NAMESPACE_POINTER ) \
+        } \
+        namespace = { functions( namespace, INIT_NAMESPACE_STRUCT ) };
       
 /*#ifdef WIN32
   #include <ansi_c.h>

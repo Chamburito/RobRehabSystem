@@ -45,8 +45,7 @@ LOCATE on "robrehab_network.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\
 LOCATE on "robrehab_system_rt.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "shared_memory_cvi.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\shared_memory" ;
 LOCATE on "shm_axis_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
-LOCATE on "threads_data_structures.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
-LOCATE on "threads_realtime.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
+LOCATE on "thread_safe_data.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
 LOCATE on "threads_windows.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
 Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabServerRT\\Debug\\kson.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib\\kson.c" ;
 FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabServerRT\\Debug\\kson.obj" = 1 ;

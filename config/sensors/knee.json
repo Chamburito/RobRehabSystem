@@ -1,0 +1,8 @@
+{
+  "interface": {
+    "type": "CAN_EPOS",
+    "id": 2,
+    "channel": 0
+  },
+  "conversion_factor": -2000
+}

@@ -68,44 +68,14 @@ static bool isProcessRunning;
 Thread processingThreadID;
 ThreadLock phasePassCountLock;
 
-/*static int InitSensor( const char* );
-static void EndSensor( int );
-static double GetActivation( int );
-static double GetMuscleTorque( int, double );
-static void ChangePhase( int, enum EMGProcessPhase );
+#define EMG_PROCESS_FUNCTIONS( namespace, function_init ) \
+        function_init( int, namespace, InitSensor, const char* ) \
+        function_init( void, namespace, EndSensor, int ) \
+        function_init( double, namespace, GetActivation, int ) \
+        function_init( double, namespace, GetMuscleTorque, int, double ) \
+        function_init( void, namespace, ChangePhase, int, enum EMGProcessPhase )
 
-const struct
-{
-  int (*InitSensor)( const char* );
-  void (*EndSensor)( int );
-  double (*GetActivation)( int );
-  double (*GetMuscleTorque)( int, double );
-  void (*ChangePhase)( int, enum EMGProcessPhase );
-}
-EMGProcessing = { .InitSensor = InitSensor, .EndSensor = EndSensor, .GetActivation = GetActivation, .GetMuscleTorque = GetMuscleTorque, .ChangePhase = ChangePhase };*/
-
-#define NAMESPACE EMGProcessing
-
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( int, namespace, InitSensor, const char* ) \
-        NAMESPACE_FUNCTION( void, namespace, EndSensor, int ) \
-        NAMESPACE_FUNCTION( double, namespace, GetActivation, int ) \
-        NAMESPACE_FUNCTION( double, namespace, GetMuscleTorque, int, double ) \
-        NAMESPACE_FUNCTION( void, namespace, ChangePhase, int, enum EMGProcessPhase )
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
+INIT_NAMESPACE_INTERFACE( EMGProcessing, EMG_PROCESS_FUNCTIONS )
 
 static void* AsyncUpdate( void* );
 static double* GetFilteredSignal( EMGSensor, size_t* );
@@ -383,7 +353,7 @@ static EMGSensor LoadEMGSensorData( const char* configFileName )
   EMGSensor newSensor = (EMGSensor) malloc( sizeof(EMGSensorData) );
   memset( newSensor, 0, sizeof(EMGSensorData) );
   
-  FileParser parser = JSONParser;
+  FileParserOperations parser = JSONParser;
   int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {

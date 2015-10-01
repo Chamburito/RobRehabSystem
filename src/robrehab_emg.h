@@ -29,26 +29,12 @@ typedef SHMJointData* SHMJoint;
 
 kvec_t( SHMJointData ) sharedJointsList;
 
-#define NAMESPACE RobRehabEMG
+#define ROBREHAB_EMG_FUNCTIONS( namespace, function_init ) \
+        function_init( int, namespace, Init, void ) \
+        function_init( void, namespace, End, void ) \
+        function_init( void, namespace, Update, void )
 
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( int, namespace, Init, void ) \
-        NAMESPACE_FUNCTION( void, namespace, End, void ) \
-        NAMESPACE_FUNCTION( void, namespace, Update, void ) \
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
+INIT_NAMESPACE_INTERFACE( RobRehabEMG, ROBREHAB_EMG_FUNCTIONS )
 
 const char* jointsDirectory = "emg_joints";
 int RobRehabEMG_Init()
@@ -57,7 +43,7 @@ int RobRehabEMG_Init()
   
   SET_PATH( "./config/" );
   
-  FileParser parser = JSONParser;
+  FileParserOperations parser = JSONParser;
   int configFileID = parser.LoadFile( "shared_axes" );
   if( configFileID != -1 )
   {

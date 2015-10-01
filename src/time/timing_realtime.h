@@ -6,10 +6,19 @@
 #ifndef TIMING_H
 #define TIMING_H
 
+#include "interface.h"
+
 #include <rtutil.h>
 
+#define TIMING_FUNCTIONS( namespace, function_init ) \
+        function_init( void, namespace, Delay, unsigned long ) \
+        function_init( unsigned long, namespace, GetExecTimeMilliseconds, void ) \
+        function_init( double, namespace, GetExecTimeSeconds, void )
+
+INIT_NAMESPACE_INTERFACE( Timing, TIMING_FUNCTIONS )
+
 // Make the calling thread wait for the given time ( in milliseconds )
-extern inline void Timing_Delay( unsigned long milliseconds )
+inline void Timing_Delay( unsigned long milliseconds )
 {
   SleepUS( 1000 * milliseconds );
     
@@ -17,13 +26,13 @@ extern inline void Timing_Delay( unsigned long milliseconds )
 }
 
 // Get system time in milliseconds
-extern inline unsigned long Timing_GetExecTimeMilliseconds()
+inline unsigned long Timing_GetExecTimeMilliseconds()
 {
   return ( (unsigned long) ( GetTimeUS() / 1000 ) );
 }
 
 // Get system time in seconds
-extern inline double Timing_GetExecTimeSeconds()
+inline double Timing_GetExecTimeSeconds()
 {
   return ( (double) GetTimeUS() ) / 1000000.0;
 }

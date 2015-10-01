@@ -13,53 +13,29 @@
 
 typedef struct _SharedAxis
 {
-  int axisID;
-  SHMAxisController controller;
+  AxisController controller;
+  SHMAxis sharedData;
 }
-SharedAxis;
+SharedAxisController;
 
-kvec_t( SharedAxis ) sharedAxesList;
+kvec_t( SharedAxisController ) sharedControllersList;
 
-/*static int RobRehabControl_Init();
-static void RobRehabControl_End();
-static void RobRehabControl_Update();
 
-const struct
+#define ROBREHAB_CONTROL_FUNCTIONS( namespace, function_init ) \
+        function_init( int, namespace, Init, void ) \
+        function_init( void, namespace, End, void ) \
+        function_init( void, namespace, Update, void ) \
+
+INIT_NAMESPACE_INTERFACE( RobRehabControl, ROBREHAB_CONTROL_FUNCTIONS )
+
+
+int RobRehabControl_Init()
 {
-  int (*Init)( void );
-  void (*End)( void );
-  void (*Update)( void );
-}
-RobRehabControl = { .Init = RobRehabControl_Init, .End = RobRehabControl_End, .Update = RobRehabControl_Update };*/
-
-#define NAMESPACE RobRehabControl
-
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( int, namespace, Init, void ) \
-        NAMESPACE_FUNCTION( void, namespace, End, void ) \
-        NAMESPACE_FUNCTION( void, namespace, Update, void ) \
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
-
-static int RobRehabControl_Init()
-{
-  kv_init( sharedAxesList );
+  kv_init( sharedControllersList );
   
   SET_PATH( "config/" );
   
-  FileParser parser = JSONParser;
+  FileParserOperations parser = JSONParser;
   int configFileID = parser.LoadFile( "shared_axes" );
   if( configFileID != -1 )
   {
@@ -70,25 +46,25 @@ static int RobRehabControl_Init()
       DEBUG_PRINT( "List size: %u", sharedAxesNumber );
       
       char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-      for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
+      for( size_t sharedAxisIndex = 0; sharedAxisIndex < sharedAxesNumber; sharedAxisIndex++ )
       {
-        sprintf( searchPath, "axes.%u", sharedAxisDataIndex );
+        sprintf( searchPath, "axes.%u", sharedAxisIndex );
         char* deviceName = parser.GetStringValue( configFileID, searchPath );
         if( deviceName != NULL )
         {
-          int sharedAxisID = AxisControl.InitController( deviceName );
-          if( sharedAxisID != -1 )
+          AxisController sharedController = AxisControl.InitController( deviceName );
+          if( sharedController != NULL )
           {
-            SHMAxisController sharedController = SHMAxisControl.InitController( deviceName );
-            if( sharedController != NULL )
+            SHMAxis sharedData = SHMAxisControl.InitData( deviceName );
+            if( sharedData != NULL )
             {
-              SharedAxis newAxis = { .controller = sharedController, .axisID = sharedAxisID };
+              SharedAxisController newAxis = { .sharedData = sharedData, .controller = sharedController };
               
-              kv_push( SharedAxis, sharedAxesList, newAxis );
+              kv_push( SharedAxisController, sharedControllersList, newAxis );
             }
             else
             {
-              AxisControl.EndController( sharedAxisID );
+              AxisControl.EndController( sharedController );
             }
           }
         }
@@ -107,64 +83,74 @@ static int RobRehabControl_Init()
   return 0;
 }
 
-static void RobRehabControl_End()
+void RobRehabControl_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %x", THREAD_ID );
   
-  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedAxesList ); controllerIndex++ )
+  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedControllersList ); controllerIndex++ )
   {
-    AxisControl.EndController( kv_A( sharedAxesList, controllerIndex ).axisID );
-    SHMAxisControl.EndController( kv_A( sharedAxesList, controllerIndex ).controller );
+    AxisControl.EndController( kv_A( sharedControllersList, controllerIndex ).controller );
+    SHMAxisControl.EndData( kv_A( sharedControllersList, controllerIndex ).sharedData );
     //TrajectoryPlanner_End( kh_value( shmAxisControlsList, shmSHMAxisControlDataID ).trajectoryPlanner );
   }
   
-  kv_destroy( sharedAxesList );
+  kv_destroy( sharedControllersList );
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Control ended on thread %x", THREAD_ID );
 }
 
-static void RobRehabControl_Update()
+void RobRehabControl_Update()
 {
   static uint8_t state, command, dataMask;
   static float measuresList[ SHM_CONTROL_FLOATS_NUMBER ];
   
-  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedAxesList ); controllerIndex++ )
+  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedControllersList ); controllerIndex++ )
   {
     //DEBUG_PRINT( "updating axis controller %u", controllerIndex );
     
-    SHMAxisController sharedController = kv_A( sharedAxesList, controllerIndex ).controller;
-    int sharedAxisID = kv_A( sharedAxesList, controllerIndex ).axisID;
+    SHMAxis sharedData = kv_A( sharedControllersList, controllerIndex ).sharedData;
+    AxisController sharedController = kv_A( sharedControllersList, controllerIndex ).controller;
     
-    if( SHMAxisControl.GetByteValue( sharedController, SHM_CONTROL_IN, &command, SHM_REMOVE ) )
+    if( SHMAxisControl.GetByteValue( sharedData, SHM_CONTROL_IN, &command, SHM_REMOVE ) )
     {
-      if( command == SHM_COMMAND_ENABLE ) AxisControl.Enable( sharedAxisID );
-      else if( command == SHM_COMMAND_DISABLE ) AxisControl.Disable( sharedAxisID );
-      else if( command == SHM_COMMAND_RESET ) AxisControl.Reset( sharedAxisID );
-      else if( command == SHM_COMMAND_CALIBRATE ) AxisControl.Calibrate( sharedAxisID );
+      if( command == SHM_COMMAND_ENABLE ) AxisControl.Enable( sharedController );
+      else if( command == SHM_COMMAND_DISABLE ) AxisControl.Disable( sharedController );
+      else if( command == SHM_COMMAND_RESET ) AxisControl.Reset( sharedController );
+      else if( command == SHM_COMMAND_CALIBRATE ) AxisControl.Calibrate( sharedController );
       
-      if( AxisControl.HasError( sharedAxisID ) ) state = SHM_STATE_ERROR;
-      else if( AxisControl.IsEnabled( sharedAxisID ) ) state = SHM_STATE_ENABLED;
-      SHMAxisControl.SetByteValue( sharedController, SHM_CONTROL_OUT, state );
+      DEBUG_PRINT( "received command: %x", command );
+      
+      if( AxisControl.HasError( sharedController ) ) state = SHM_STATE_ERROR;
+      else if( AxisControl.IsEnabled( sharedController ) ) state = SHM_STATE_ENABLED;
+      SHMAxisControl.SetByteValue( sharedData, SHM_CONTROL_OUT, state );
     }
     
-    float* parametersList = SHMAxisControl.GetNumericValuesList( sharedController, SHM_CONTROL_IN, &dataMask, SHM_REMOVE );
+    float* parametersList = SHMAxisControl.GetNumericValuesList( sharedData, SHM_CONTROL_IN, &dataMask, SHM_REMOVE );
     if( parametersList != NULL )
     {
+      /*if( dataMask )
+      {
+        DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", parametersList[ SHM_CONTROL_POSITION ], 
+                                                               parametersList[ SHM_CONTROL_VELOCITY ], parametersList[ SHM_CONTROL_STIFFNESS ] );
+      }*/
+      
       if( (dataMask & BIT_INDEX( SHM_CONTROL_POSITION )) | (dataMask & BIT_INDEX( SHM_CONTROL_VELOCITY )) ) 
-        AxisControl.SetSetpoint( sharedAxisID, 0.0 /*parametersList[ SHM_CONTROL_POSITION ]*/ /*+ parametersList[ SHM_CONTROL_VELOCITY ] * 0.005*/ ); // hack
+        AxisControl.SetSetpoint( sharedController, parametersList[ SHM_CONTROL_POSITION ] /*+ parametersList[ SHM_CONTROL_VELOCITY ] * 0.005*/ ); // hack
       
       if( (dataMask & BIT_INDEX( SHM_CONTROL_STIFFNESS )) | (dataMask & BIT_INDEX( SHM_CONTROL_DAMPING )) )
-        AxisControl.SetImpedance( sharedAxisID, parametersList[ SHM_CONTROL_STIFFNESS ], parametersList[ SHM_CONTROL_DAMPING ] );
+        AxisControl.SetImpedance( sharedController, parametersList[ SHM_CONTROL_STIFFNESS ], parametersList[ SHM_CONTROL_DAMPING ] );
     }
     
-    double* controlMeasuresList = AxisControl.GetMeasuresList( sharedAxisID );
+    double* controlMeasuresList = AxisControl.GetMeasuresList( sharedController );
     if( controlMeasuresList != NULL )
     {
       measuresList[ SHM_CONTROL_POSITION ] = (float) controlMeasuresList[ CONTROL_POSITION ];
       measuresList[ SHM_CONTROL_VELOCITY ] = (float) controlMeasuresList[ CONTROL_VELOCITY ];
       measuresList[ SHM_CONTROL_ACCELERATION ] = (float) controlMeasuresList[ CONTROL_ACCELERATION ];
       measuresList[ SHM_CONTROL_FORCE ] = (float) controlMeasuresList[ CONTROL_FORCE ];
-      SHMAxisControl.SetNumericValuesList( sharedController, SHM_CONTROL_OUT, measuresList, 0xFFFF );
+      SHMAxisControl.SetNumericValuesList( sharedData, SHM_CONTROL_OUT, measuresList, 0xFF );
+      
+      //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", measuresList[ SHM_CONTROL_POSITION ], measuresList[ SHM_CONTROL_VELOCITY ], measuresList[ SHM_CONTROL_FORCE ] );
     }
   }
 }

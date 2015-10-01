@@ -30,43 +30,15 @@ typedef LogData* Log;
 KHASH_MAP_INIT_INT( LogInt, Log );
 static khash_t( LogInt )* logsList = NULL;
 
-/*static int DataLogging_InitLog( const char*, size_t );
-static void DataLogging_EndLog( int ); 
-static void DataLogging_SaveData( int , double*, size_t );
-static void DataLogging_RegisterValues( int, size_t, ... );
+#define DATA_LOGGING_FUNCTIONS( namespace, function_init ) \
+        function_init( int, namespace, InitLog, const char*, size_t, size_t ) \
+        function_init( void, namespace, EndLog, int ) \
+        function_init( void, namespace, SaveData, int, double*, size_t ) \
+        function_init( void, namespace, RegisterValues, int, size_t, ... ) \
+        function_init( void, namespace, RegisterList, int, size_t, double* ) \
+        function_init( void, namespace, SetDataPrecision, int, size_t )
 
-const struct
-{
-  int (*InitLog)( const char*, size_t );
-  void (*EndLog)( int ); 
-  void (*SaveData)( int , double*, size_t );
-  void (*RegisterValues)( int, size_t, ... );
-}
-DataLogging = { .InitLog = DataLogging_InitLog, .EndLog = DataLogging_EndLog, .SaveData = DataLogging_SaveData, .RegisterValues = DataLogging_RegisterValues };*/
-
-#define NAMESPACE DataLogging
-
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( int, namespace, InitLog, const char*, size_t, size_t ) \
-        NAMESPACE_FUNCTION( void, namespace, EndLog, int ) \
-        NAMESPACE_FUNCTION( void, namespace, SaveData, int, double*, size_t ) \
-        NAMESPACE_FUNCTION( void, namespace, RegisterValues, int, size_t, ... ) \
-        NAMESPACE_FUNCTION( void, namespace, RegisterList, int, size_t, double* ) \
-        NAMESPACE_FUNCTION( void, namespace, SetDataPrecision, int, size_t )
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
+INIT_NAMESPACE_INTERFACE( DataLogging, DATA_LOGGING_FUNCTIONS )
 
 const size_t LOG_FILE_PATH_MAX_LEN = 256;
 static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t memoryBufferLength )

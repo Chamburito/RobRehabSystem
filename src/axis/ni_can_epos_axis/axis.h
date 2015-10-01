@@ -63,22 +63,11 @@ CANInterface;
 KHASH_MAP_INIT_INT( CANInt, CANInterface* )
 static khash_t( CANInt )* interfacesList = NULL;
 
-/*static int CANEPOS_Connect( const char* );
-static void CANEPOS_Disconnect( int );
-static void CANEPOS_Enable( int );
-static void CANEPOS_Disable( int );
-static void CANEPOS_Reset( int );
-static bool CANEPOS_IsEnabled( int );
-static bool CANEPOS_HasError( int );
-static bool CANEPOS_ReadMeasures( int, double[ AXIS_MEASURES_NUMBER ] );
-static void CANEPOS_WriteSetpoint( int, double );
-static void CANEPOS_SetOperationMode( int, enum AxisVariables );*/
-
 #define AXIS_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
 AXIS_INTERFACE( CANEPOS )
 #undef AXIS_FUNCTION
 
-static inline CANInterface* LoadInterfaceData( const char* );
+static inline CANInterface* LoadInterfaceData( unsigned int );
 static inline void UnloadInterfaceData( CANInterface* );
 
 static inline void SetControl( CANInterface*, enum Controls, bool );
@@ -88,14 +77,13 @@ static inline void WriteSingleValue( CANInterface*, uint16_t, uint8_t, int );
 static inline void EnableDigitalOutput( CANInterface*, bool );
 
 #define AXIS_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-const AxisOperations AxisCANEPOSOperations = { AXIS_INTERFACE(CANEPOS) };/*{ .Connect = CANEPOS_Connect, .Disconnect = CANEPOS_Disconnect, .Enable = CANEPOS_Enable, .Disable = CANEPOS_Disable, .Reset = CANEPOS_Reset,
-                                               .IsEnabled = CANEPOS_IsEnabled, .HasError = CANEPOS_HasError, .ReadMeasures = CANEPOS_ReadMeasures, .WriteSetpoint = CANEPOS_WriteSetpoint };*/
+const AxisOperations AxisCANEPOSOperations = { AXIS_INTERFACE(CANEPOS) };
 #undef AXIS_FUNCTION
                                                     
 // Create CAN controlled DC motor handle
-static int CANEPOS_Connect( const char* configFileName )
+static int CANEPOS_Connect( unsigned int nodeID )
 {
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to connect CAN interface %s", configFileName );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to connect CAN interface %u", nodeID );
   
   if( interfacesList == NULL )
   {
@@ -103,19 +91,15 @@ static int CANEPOS_Connect( const char* configFileName )
     interfacesList = kh_init( CANInt );
   }
   
-  DEBUG_PRINT( "CAN EPOS list %p created", interfacesList );
-  
-  int configKey = (int) kh_str_hash_func( configFileName );
-  
-  DEBUG_PRINT( "generated CAN EPOS config key: %d", configKey );
+  DEBUG_PRINT( "CAN EPOS config key: %d", (int) nodeID );
   
   int insertionStatus;
-  khiter_t newInterfaceID = kh_put( CANInt, interfacesList, configKey, &insertionStatus );
+  khiter_t newInterfaceID = kh_put( CANInt, interfacesList, (int) nodeID, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    DEBUG_PRINT( "inserting CAN EPOS config key on list: %d", configKey );
+    DEBUG_PRINT( "inserting CAN EPOS config key on list: %d", (int) nodeID );
     
-    kh_value( interfacesList, newInterfaceID ) = LoadInterfaceData( configFileName );
+    kh_value( interfacesList, newInterfaceID ) = LoadInterfaceData( nodeID );
     if( kh_value( interfacesList, newInterfaceID ) == NULL )
     {
       CANEPOS_Disconnect( (int) newInterfaceID );
@@ -131,10 +115,10 @@ static int CANEPOS_Connect( const char* configFileName )
     
     CANEPOS_Disable( newInterfaceID );
     
-    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "created CAN EPOS interface %s", configFileName );
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "created CAN EPOS interface %u", nodeID );
   }
   if( insertionStatus == 0 )
-    ERROR_EVENT( "CAN EPOS interface %s already exists", configFileName );
+    ERROR_EVENT( "CAN EPOS interface %u already exists", nodeID );
     
   return (int) newInterfaceID;
 }
@@ -269,6 +253,8 @@ static bool CANEPOS_ReadMeasures( int interfaceID, double measuresList[ AXIS_VAR
     
     double analog = payload[ 5 ] * 0x100 + payload[ 4 ];
     measuresList[ AXIS_ANALOG ] = analog;
+    
+    //DEBUG_PRINT( "encoder: %.5f (interface %u)", measuresList[ AXIS_ENCODER ], (khint_t) interfaceID );
   }
   
   return false;
@@ -341,7 +327,7 @@ static void CANEPOS_SetOperationMode( int interfaceID, enum AxisVariables mode )
 const size_t ADDRESS_MAX_LENGTH = 16;
 static const char* CAN_FRAME_NAMES[ AXIS_FRAME_TYPES_NUMBER ] = { "SDO", "PDO01", "PDO02" };
 //static const char* configDirName = "axes/";
-static inline CANInterface* LoadInterfaceData( const char* configFileName )
+static inline CANInterface* LoadInterfaceData( unsigned int nodeID )
 {
   static char networkAddress[ ADDRESS_MAX_LENGTH ];
   
@@ -397,27 +383,24 @@ static inline CANInterface* LoadInterfaceData( const char* configFileName )
     return NULL;
   }*/
   
-  DEBUG_PRINT( "Trying to load CAN interface %s", configFileName );
+  DEBUG_PRINT( "Trying to load CAN interface %u", nodeID );
   
-  unsigned int nodeID = 1;
   for( size_t frameID = 0; frameID < AXIS_FRAME_TYPES_NUMBER; frameID++ )
   {
     sprintf( networkAddress, "%s_RX_%02u", CAN_FRAME_NAMES[ frameID ], nodeID );
     newInterface->readFramesList[ frameID ] = CANNetwork_InitFrame( FRAME_IN, "CAN1", networkAddress );
 
     if( newInterface->readFramesList[ frameID ] == NULL )
-      DEBUG_PRINT( "error creating frame %s for CAN interface %s", networkAddress, configFileName );
+      DEBUG_PRINT( "error creating frame %s for CAN interface %u", networkAddress, nodeID );
     
     sprintf( networkAddress, "%s_TX_%02u", CAN_FRAME_NAMES[ frameID ], nodeID );
     newInterface->writeFramesList[ frameID ] = CANNetwork_InitFrame( FRAME_OUT, "CAN2", networkAddress );
     
     if( newInterface->writeFramesList[ frameID ] == NULL )
-      DEBUG_PRINT( "error creating frame %s for CAN interface %s", networkAddress, configFileName );
+      DEBUG_PRINT( "error creating frame %s for CAN interface %u", networkAddress, nodeID );
   }
-  
-  DEBUG_PRINT( "operation mode: %d", ReadSingleValue( newInterface, 0x6060, 0x00 ) );
-  
-  DEBUG_PRINT( "loaded CAN interface %s", configFileName );
+
+  DEBUG_PRINT( "loaded CAN interface %u", nodeID );
   
   return newInterface;
 }

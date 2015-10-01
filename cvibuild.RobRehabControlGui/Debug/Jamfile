@@ -1,5 +1,6 @@
 CCFLAGS = -g ;
-HDRS = 	"C:\\Users\\Public\\Documents\\National Instruments\\TestStand 2014 (32-bit)\\AdapterSupport\\CVI"
+HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src"
+	"C:\\Users\\Public\\Documents\\National Instruments\\TestStand 2014 (32-bit)\\AdapterSupport\\CVI"
 	"C:\\Program Files (x86)\\National Instruments\\TestStand 2014\\API\\DLLInterfaces"
 	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\instr\\TestStand\\API"
 	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\activex\\word"
@@ -33,8 +34,8 @@ HDRS = 	"C:\\Users\\Public\\Documents\\National Instruments\\TestStand 2014 (32-
 	;
 include Jamfile_instr ;
 LOCATE on "Common.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
-LOCATE on "NetworkVariable.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "NetworkVariableHost.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "RobRehabControlGUI.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "threads_windows.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\threads" ;
 LOCATE on "timing_windows.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\time" ;
 Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\NetworkVariableHost.c" ;
@@ -42,16 +43,8 @@ FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibui
 DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.obj.cvidefprots" ;
 OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.obj.out" ;
 PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.obj" ;
-PreLinkInputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.in.rc" ;
-PreLinkInputs += $(PrjObjects) $(InstrObjects) ;
-PreLinkOutputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.out.rc" ;
-PreLink $(PreLinkOutputs) : $(PreLinkInputs) ;
-Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.out.rc" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" : $(PreLinkOutputs) ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.out.rc" : $(PrjObjects) $(InstrObjects) ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\manifest.xml" ;
-MainFromObjects "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.dll" : $(PrjObjects) $(InstrObjects) ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\link_options.txt" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\dependencies.lnk.in" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" ;
-Depends all : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.dll" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.in.rc" ;
+MainFromObjects "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" : $(PrjObjects) $(InstrObjects) ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\link_options.txt" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" ;
+Depends all : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" ;

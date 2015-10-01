@@ -16,64 +16,43 @@ typedef struct _Splined3CurveData
   SplineCoeffs* splinesList;
   SplineBounds* splineBoundsList;
   size_t splinesNumber;
-  double scaleFactor, maxScaleFactor;
+  double scaleFactor, offset;
+  double maxAbsoluteValue;
   double totalLength;
 }
 Splined3CurveData;
 
 typedef Splined3CurveData* Splined3Curve;
 
-/*static Splined3Curve LoadCurve( const char* );
-static void UnloadCurve( Splined3Curve );
-static void SetScale( Splined3Curve, double );
-static double GetValue( Splined3Curve, double );
 
-const struct 
-{
-  Splined3Curve (*LoadCurve)( const char* );
-  void (*UnloadCurve)( Splined3Curve );
-  void (*SetScale)( Splined3Curve, double );
-  double (*GetValue)( Splined3Curve, double );
-}
-Spline3Interp = { .LoadCurve = LoadCurve, .UnloadCurve = UnloadCurve, .SetScale = SetScale, .GetValue = GetValue };*/
+#define SPLINE3_INTERP_FUNCTIONS( namespace, function_init ) \
+        function_init( Splined3Curve, namespace, LoadCurve, const char* ) \
+        function_init( void, namespace, UnloadCurve, Splined3Curve ) \
+        function_init( void, namespace, SetScale, Splined3Curve, double ) \
+        function_init( void, namespace, SetOffset, Splined3Curve, double ) \
+        function_init( double, namespace, GetValue, Splined3Curve, double )
 
-#define NAMESPACE Spline3Interp
+INIT_NAMESPACE_INTERFACE( Spline3Interp, SPLINE3_INTERP_FUNCTIONS )
 
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( Splined3Curve, namespace, LoadCurve, const char* ) \
-        NAMESPACE_FUNCTION( void, namespace, UnloadCurve, Splined3Curve ) \
-        NAMESPACE_FUNCTION( void, namespace, SetScale, Splined3Curve, double ) \
-        NAMESPACE_FUNCTION( double, namespace, GetValue, Splined3Curve, double )
 
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
-
-static Splined3Curve Spline3Interp_LoadCurve( const char* curveName )
+Splined3Curve Spline3Interp_LoadCurve( const char* curveName )
 {
   static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
   
   Splined3Curve newCurve = (Splined3Curve) malloc( sizeof(Splined3CurveData) );
   memset( newCurve, 0, sizeof(Splined3CurveData) );
   
+  newCurve->scaleFactor = 1.0;
+  newCurve->maxAbsoluteValue = -1.0;
+  
   if( curveName != NULL )
   {
-    FileParser parser = JSONParser;
+    FileParserOperations parser = JSONParser;
     int configFileID = parser.LoadFile( curveName );
   
     if( configFileID != -1 )
     {
-      newCurve->maxScaleFactor = parser.GetRealValue( configFileID, "max_scale" );
+      if( parser.HasKey( configFileID, "max_value" ) ) newCurve->maxAbsoluteValue = parser.GetRealValue( configFileID, "max_value" );
       newCurve->totalLength = parser.GetRealValue( configFileID, "total_length" );
 
       if( (newCurve->splinesNumber = (size_t) parser.GetListSize( configFileID, "phases" )) > 0 )
@@ -120,16 +99,11 @@ static Splined3Curve Spline3Interp_LoadCurve( const char* curveName )
       return NULL;
     }
   }
-  else
-  {
-    newCurve->scaleFactor = 1.0;
-    newCurve->maxScaleFactor = -1.0;
-  }
   
   return newCurve;
 }
 
-static void Spline3Interp_UnloadCurve( Splined3Curve curve )
+void Spline3Interp_UnloadCurve( Splined3Curve curve )
 {
   DEBUG_PRINT( "unloading curve %p data", curve );
   
@@ -142,53 +116,62 @@ static void Spline3Interp_UnloadCurve( Splined3Curve curve )
   }
 }
 
-static void Spline3Interp_SetScale( Splined3Curve curve, double scaleFactor )
+inline void Spline3Interp_SetScale( Splined3Curve curve, double scaleFactor )
 {
   if( curve == NULL ) return;
   
   curve->scaleFactor = scaleFactor;
-  
-  if( curve->maxScaleFactor >= 0.0 )
-  {
-    if( curve->scaleFactor > curve->maxScaleFactor ) curve->scaleFactor = curve->maxScaleFactor;
-    else if( curve->scaleFactor < -curve->maxScaleFactor ) curve->scaleFactor = -curve->maxScaleFactor;
-  }
 }
 
-static double Spline3Interp_GetValue( Splined3Curve curveData, double valuePosition )
+inline void Spline3Interp_SetOffset( Splined3Curve curve, double offset )
 {
-  if( curveData == NULL ) return 1.0;
+  if( curve == NULL ) return;
   
-  if( curveData->splinesNumber == 0 ) return curveData->scaleFactor;
-  
+  curve->offset = offset;
+}
+
+double Spline3Interp_GetValue( Splined3Curve curve, double valuePosition )
+{
+  if( curve == NULL ) return 0.0;
+
   double curveValue = 0.0;
   
-  valuePosition = fmod( valuePosition, curveData->totalLength );
-  //if( valuePosition < curveData->splineBoundsList[ 0 ][ 0 ] ) valuePosition += curveData->totalLength;
+  valuePosition = fmod( valuePosition, curve->totalLength );
+  //if( valuePosition < curve->splineBoundsList[ 0 ][ 0 ] ) valuePosition += curve->totalLength;
 
-  double* splineCoeffs = curveData->splinesList[ 0 ];
-  double relativePosition = curveData->splineBoundsList[ 0 ][ 0 ];
-
-  for( size_t splineID = 0; splineID < curveData->splinesNumber; splineID++ )
+  if( curve->splinesNumber > 0 )
   {
-    if( valuePosition >= curveData->splineBoundsList[ splineID ][ 0 ] )
+    double* splineCoeffs = curve->splinesList[ 0 ];
+    double relativePosition = curve->splineBoundsList[ 0 ][ 0 ];
+
+    for( size_t splineID = 0; splineID < curve->splinesNumber; splineID++ )
     {
-      splineCoeffs = curveData->splinesList[ splineID ];
-
-      if( valuePosition < curveData->splineBoundsList[ splineID ][ 1 ] )
+      if( valuePosition >= curve->splineBoundsList[ splineID ][ 0 ] )
       {
-        relativePosition = valuePosition - curveData->splineBoundsList[ splineID ][ 0 ];
-        break;
-      }
-      else
-        relativePosition = curveData->splineBoundsList[ splineID ][ 1 ] - curveData->splineBoundsList[ splineID ][ 0 ];
-    }
-  }
+        splineCoeffs = curve->splinesList[ splineID ];
 
-  for( size_t coeffIndex = 0; coeffIndex < SPLINE_COEFFS_NUMBER; coeffIndex++ )
-    curveValue += splineCoeffs[ coeffIndex ] * pow( relativePosition, coeffIndex );
+        if( valuePosition < curve->splineBoundsList[ splineID ][ 1 ] )
+        {
+          relativePosition = valuePosition - curve->splineBoundsList[ splineID ][ 0 ];
+          break;
+        }
+        else
+          relativePosition = curve->splineBoundsList[ splineID ][ 1 ] - curve->splineBoundsList[ splineID ][ 0 ];
+      }
+    }
+
+    for( size_t coeffIndex = 0; coeffIndex < SPLINE_COEFFS_NUMBER; coeffIndex++ )
+      curveValue += splineCoeffs[ coeffIndex ] * pow( relativePosition, coeffIndex );
+  }
   
-  return curveData->scaleFactor * curveValue;
+  curveValue = curve->scaleFactor * curveValue + curve->offset;
+  if( curve->maxAbsoluteValue > 0.0 )
+  {
+    if( curveValue > curve->maxAbsoluteValue ) curveValue = curve->maxAbsoluteValue;
+    else if( curveValue < -curve->maxAbsoluteValue ) curveValue = -curve->maxAbsoluteValue;
+  }
+  
+  return curveValue;
 }
 
 #endif  /* SPLINE3_INTERP_H */

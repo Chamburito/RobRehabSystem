@@ -70,7 +70,7 @@ void CVIFUNC_C RTmain( void )
 		SleepUS( 10000 );
 	}
   
-  SetDir( ".." );
+  SetDir( "C:\\ni-rt" );
   
   char pathName[ MAX_PATHNAME_LEN ];
   GetDir( pathName );

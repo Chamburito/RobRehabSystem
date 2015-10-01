@@ -1,0 +1,9 @@
+{
+  "interface": {
+    "type": "CAN_EPOS",
+    "id": 1
+  },
+  "encoder_resolution": 4096,
+  "force_constant": 0.1,
+  "gear_reduction": 150
+}

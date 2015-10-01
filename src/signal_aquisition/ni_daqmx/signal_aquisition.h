@@ -30,23 +30,25 @@ SignalAquisitionTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalAquisitionTask* )
 static khash_t( TaskInt )* tasksList = NULL;
 
-static int NIDAQmx_InitTask( const char* );
-static void NIDAQmx_EndTask( int );
-static double* NIDAQmx_Read( int, unsigned int, size_t* );
-static bool NIDAQmx_AquireChannel( int, unsigned int );
-static void NIDAQmx_ReleaseChannel( int, unsigned int );
-static size_t NIDAQmx_GetMaxSamplesNumber( int );
+/*static int InitTask( const char* );
+static void EndTask( int );
+static double* Read( int, unsigned int, size_t* );
+static bool AquireChannel( int, unsigned int );
+static void ReleaseChannel( int, unsigned int );
+static size_t GetMaxSamplesNumber( int );
 
-const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = NIDAQmx_InitTask, .EndTask = NIDAQmx_EndTask, 
-                                                       .Read = NIDAQmx_Read, .AquireChannel = NIDAQmx_AquireChannel,
-                                                       .ReleaseChannel = NIDAQmx_ReleaseChannel, .GetMaxSamplesNumber = NIDAQmx_GetMaxSamplesNumber };
+const SignalAquisitionOperations NIDAQmxOperations = { .InitTask = InitTask, .EndTask = EndTask, 
+                                                       .Read = Read, .AquireChannel = AquireChannel,
+                                                       .ReleaseChannel = ReleaseChannel, .GetMaxSamplesNumber = GetMaxSamplesNumber };*/
+IMPLEMENT_INTERFACE( SignalAquisition, NIDAQmx )
+
 #ifdef _CVI_
 static void* AsyncReadBuffer( void* );
 
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
-static int NIDAQmx_InitTask( const char* taskName )
+static int InitTask( const char* taskName )
 {
   if( tasksList == NULL ) tasksList = kh_init( TaskInt );
   
@@ -61,7 +63,7 @@ static int NIDAQmx_InitTask( const char* taskName )
     if( kh_value( tasksList, newTaskID ) == NULL )
     {
       DEBUG_PRINT( "loading task %s failed", taskName );
-      NIDAQmx_EndTask( (int) newTaskID ); 
+      EndTask( (int) newTaskID ); 
       return -1;
     }
         
@@ -72,7 +74,7 @@ static int NIDAQmx_InitTask( const char* taskName )
   return (int) newTaskID;
 }
 
-static void NIDAQmx_EndTask( int taskID )
+static void EndTask( int taskID )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
   
@@ -89,7 +91,7 @@ static void NIDAQmx_EndTask( int taskID )
   }
 }
 
-static double* NIDAQmx_Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
+static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return NULL;
   
@@ -112,7 +114,7 @@ static double* NIDAQmx_Read( int taskID, unsigned int channel, size_t* ref_aquir
   return aquiredSamplesList;
 }
 
-static bool NIDAQmx_AquireChannel( int taskID, unsigned int channel )
+static bool AquireChannel( int taskID, unsigned int channel )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return false;
   
@@ -129,7 +131,7 @@ static bool NIDAQmx_AquireChannel( int taskID, unsigned int channel )
   return true;
 }
 
-static void NIDAQmx_ReleaseChannel( int taskID, unsigned int channel )
+static void ReleaseChannel( int taskID, unsigned int channel )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
   
@@ -140,7 +142,7 @@ static void NIDAQmx_ReleaseChannel( int taskID, unsigned int channel )
   task->channelUsedList[ channel ] = false;
 }
 
-static size_t NIDAQmx_GetMaxSamplesNumber( int taskID )
+static size_t GetMaxSamplesNumber( int taskID )
 {
   if( !kh_exist( tasksList, (khint_t) taskID ) ) return 0;
   

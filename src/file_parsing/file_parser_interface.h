@@ -1,6 +1,8 @@
 #ifndef FILE_PARSER_H
 #define FILE_PARSER_H
 
+#include "interface.h"
+
 #include <stdbool.h>
 
 #ifdef _CVI_
@@ -12,20 +14,17 @@
 
 #define FILE_PARSER_MAX_PATH_LENGTH 256
 
-typedef struct _FileParser
-{
-  int (*LoadFile)( const char* );
-  void (*UnloadFile)( int );
-  void (*SetBaseKey)( int, const char* );
-  long (*GetIntegerValue)( int, const char* );
-  double (*GetRealValue)( int, const char* );
-  char* (*GetStringValue)( int, const char* );
-  bool (*GetBooleanValue)( int, const char* );
-  size_t (*GetListSize)( int, const char* );
-  bool (*HasKey)( int, const char* );
-}
-FileParser;
+#define FileParser( function_init ) \
+        function_init( int, LoadFile, const char* ) \
+        function_init( void, UnloadFile, int ) \
+        function_init( void, SetBaseKey, int, const char* ) \
+        function_init( long, GetIntegerValue, int, const char* ) \
+        function_init( double, GetRealValue, int, const char* ) \
+        function_init( char*, GetStringValue, int, const char* ) \
+        function_init( bool, GetBooleanValue, int, const char* ) \
+        function_init( size_t, GetListSize, int, const char* ) \
+        function_init( bool, HasKey, int, const char* )
 
-typedef FileParser* FileParserInterface;
+DEFINE_INTERFACE( FileParser )
 
 #endif // FILE_PARSER_H

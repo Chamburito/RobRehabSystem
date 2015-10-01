@@ -1,12 +1,16 @@
 #ifndef AXIS_INTERFACE_H
 #define AXIS_INTERFACE_H
 
+#ifndef M_PI
+#define M_PI   3.14159265358979323846	/* pi */
+#endif
+
 #include <stdbool.h>
 
 enum AxisVariables { AXIS_ENCODER, AXIS_RPS, AXIS_CURRENT, AXIS_ANALOG, AXIS_VARS_NUMBER };
 
 #define AXIS_INTERFACE( namespace ) \
-        AXIS_FUNCTION( int, namespace, Connect, const char* ) \
+        AXIS_FUNCTION( int, namespace, Connect, unsigned int ) \
         AXIS_FUNCTION( void, namespace, Disconnect, int ) \
         AXIS_FUNCTION( void, namespace, Enable, int ) \
         AXIS_FUNCTION( void, namespace, Disable, int ) \

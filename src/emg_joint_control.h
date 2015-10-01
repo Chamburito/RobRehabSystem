@@ -24,44 +24,14 @@ typedef EMGJointData* EMGJoint;
 KHASH_MAP_INIT_INT( JointInt, EMGJoint )
 static khash_t( JointInt )* jointsList = NULL;
 
-/*static int InitJoint( const char* );
-static void EndJoint( int );
-static double GetTorque( int, double );
-static double GetStiffness( int, double );
-static void ChangeState( int, enum MuscleGroups, enum EMGProcessPhase );
+#define EMG_JOINT_CONTROL_FUNCTIONS( namespace, function_init ) \
+        function_init( int, namespace, InitJoint, const char* ) \
+        function_init( void, namespace, EndJoint, int ) \
+        function_init( double, namespace, GetTorque, int, double ) \
+        function_init( double, namespace, GetStiffness, int, double ) \
+        function_init( void, namespace, ChangeState, int, enum MuscleGroups, enum EMGProcessPhase )
 
-const struct
-{
-  int (*InitJoint)( const char* );
-  void (*EndJoint)( int );
-  double (*GetTorque)( int, double );
-  double (*GetStiffness)( int, double );
-  void (*ChangeState)( int, enum MuscleGroups, enum EMGProcessPhase );
-}
-EMGJointControl = { .InitJoint = InitJoint, .EndJoint = EndJoint, .GetTorque = GetTorque, .GetStiffness = GetStiffness, .ChangeState = ChangeState };*/
-
-#define NAMESPACE EMGJointControl
-
-#define NAMESPACE_FUNCTIONS( namespace ) \
-        NAMESPACE_FUNCTION( int, namespace, InitJoint, const char* ) \
-        NAMESPACE_FUNCTION( void, namespace, EndJoint, int ) \
-        NAMESPACE_FUNCTION( double, namespace, GetTorque, int, double ) \
-        NAMESPACE_FUNCTION( double, namespace, GetStiffness, int, double ) \
-        NAMESPACE_FUNCTION( void, namespace, ChangeState, int, enum MuscleGroups, enum EMGProcessPhase )
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-NAMESPACE_FUNCTIONS( NAMESPACE )
-#undef NAMESPACE_FUNCTION
-
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) rvalue (*name)( __VA_ARGS__ );
-const struct { NAMESPACE_FUNCTIONS( NAMESPACE ) }
-#undef NAMESPACE_FUNCTION
-#define NAMESPACE_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-NAMESPACE = { NAMESPACE_FUNCTIONS( NAMESPACE ) };
-#undef NAMESPACE_FUNCTION
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
+INIT_NAMESPACE_INTERFACE( EMGJointControl, EMG_JOINT_CONTROL_FUNCTIONS )
 
 static EMGJoint LoadEMGJointData( const char* );
 static void UnloadEMGJointData( EMGJoint );
@@ -174,7 +144,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
   EMGJoint newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );
   memset( newJoint, 0, sizeof(EMGJointData) );
   
-  FileParser parser = JSONParser;
+  FileParserOperations parser = JSONParser;
   int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
