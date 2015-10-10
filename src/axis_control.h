@@ -145,10 +145,15 @@ inline void AxisControl_Enable( AxisController controller )
 {
   if( controller == NULL ) return;
 
-  //controller->actuator.interface->Reset( controller->actuator.ID );
+  AxisControl_Reset( controller );
+  
+  if( !( controller->actuator.interface->IsEnabled( controller->actuator.ID ) ) )
+  {
+    DEBUG_PRINT( "enabling controller %p", controller );
 
-  if( controller->ref_RunControl != NULL )
-    controller->actuator.interface->Enable( controller->actuator.ID );
+    if( controller->ref_RunControl != NULL )
+      controller->actuator.interface->Enable( controller->actuator.ID );
+  }
 
   controller->measuresList[ CONTROL_ERROR ] = 0.0;
 }
@@ -156,8 +161,12 @@ inline void AxisControl_Enable( AxisController controller )
 inline void AxisControl_Disable( AxisController controller )
 {
   if( controller == NULL ) return;
-    
-  controller->actuator.interface->Disable( controller->actuator.ID );
+  
+  if( controller->actuator.interface->IsEnabled( controller->actuator.ID ) )
+  {
+    DEBUG_PRINT( "disabling controller %p", controller );
+    controller->actuator.interface->Disable( controller->actuator.ID );
+  }
   
   controller->measuresList[ CONTROL_ERROR ] = 0.0;
 }
@@ -165,6 +174,8 @@ inline void AxisControl_Disable( AxisController controller )
 inline void AxisControl_Reset( AxisController controller )
 {
   if( controller == NULL ) return;
+  
+  DEBUG_PRINT( "reseting controller %p", controller );
     
   if( controller->actuator.interface->HasError( controller->actuator.ID ) ) 
     controller->actuator.interface->Reset( controller->actuator.ID );
@@ -189,6 +200,8 @@ inline bool AxisControl_HasError( AxisController controller )
 inline void AxisControl_Calibrate( AxisController controller )
 {
   if( controller == NULL ) return;
+  
+  DEBUG_PRINT( "calibrating controller %p", controller );
 
   controller->actuator.interface->Calibrate( controller->actuator.ID );
 }
@@ -406,7 +419,7 @@ static inline void UpdateControlParameters( AxisController controller )
     DEBUG_UPDATE( "got parameter %u: %g", parameterIndex, controller->parametersList[ parameterIndex ] );
   }
   
-  //DEBUG_PRINT( "got parameters: %.5f %.5f", controller->parametersList[ CONTROL_REFERENCE ], controller->parametersList[ CONTROL_STIFFNESS ] );
+  DEBUG_PRINT( "got parameters: %.5f %.5f", controller->parametersList[ CONTROL_REFERENCE ], controller->parametersList[ CONTROL_STIFFNESS ] );
 }
 
 static inline void RunControl( AxisController controller )

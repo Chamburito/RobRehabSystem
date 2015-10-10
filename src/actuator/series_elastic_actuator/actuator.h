@@ -167,7 +167,7 @@ double* /*SEA_*/ReadAxes( int actuatorID )
     //actuator->measuresList[ AXIS_FORCE ] *= actuator->gearConversionFactor;
     //actuator->measuresList[ AXIS_FORCE ] = -104.0 * deformation;
     
-    DEBUG_PRINT( "motor: %.3f - sensor: %.3f - force: %.3f", motorMeasuresList[ AXIS_POSITION ], sensorMeasure, actuator->measuresList[ AXIS_FORCE ] );
+    //DEBUG_PRINT( "motor: %.3f - sensor: %.3f - force: %.3f", motorMeasuresList[ AXIS_POSITION ], sensorMeasure, actuator->measuresList[ AXIS_FORCE ] );
   }
   
   return (double*) actuator->measuresList;

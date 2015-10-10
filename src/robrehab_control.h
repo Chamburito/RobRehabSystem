@@ -11,22 +11,27 @@
 
 #include "debug/async_debug.h"
 
+const unsigned long UPDATE_INTERVAL_MS = (unsigned long) CONTROL_SAMPLING_INTERVAL * 1000;
+
 typedef struct _SharedAxis
 {
   AxisController controller;
   SHMAxis sharedData;
+  double setpointPosition, setpointVelocity;
 }
 SharedAxisController;
 
 kvec_t( SharedAxisController ) sharedControllersList;
 
 
+#define SUBSYSTEM RobRehabControl
+
 #define ROBREHAB_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, Init, void ) \
         function_init( void, namespace, End, void ) \
         function_init( void, namespace, Update, void ) \
 
-INIT_NAMESPACE_INTERFACE( RobRehabControl, ROBREHAB_CONTROL_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_CONTROL_FUNCTIONS )
 
 
 int RobRehabControl_Init()
@@ -52,19 +57,19 @@ int RobRehabControl_Init()
         char* deviceName = parser.GetStringValue( configFileID, searchPath );
         if( deviceName != NULL )
         {
-          AxisController sharedController = AxisControl.InitController( deviceName );
-          if( sharedController != NULL )
+          AxisController axisController = AxisControl.InitController( deviceName );
+          if( axisController != NULL )
           {
-            SHMAxis sharedData = SHMAxisControl.InitData( deviceName );
+            SHMAxis sharedData = SHMAxisControl.InitData( deviceName, SHM_CONTROL_IN );
             if( sharedData != NULL )
             {
-              SharedAxisController newAxis = { .sharedData = sharedData, .controller = sharedController };
+              SharedAxisController newAxis = { .sharedData = sharedData, .controller = axisController };
               
               kv_push( SharedAxisController, sharedControllersList, newAxis );
             }
             else
             {
-              AxisControl.EndController( sharedController );
+              AxisControl.EndController( axisController );
             }
           }
         }
@@ -101,56 +106,58 @@ void RobRehabControl_End()
 
 void RobRehabControl_Update()
 {
-  static uint8_t state, command, dataMask;
-  static float measuresList[ SHM_CONTROL_FLOATS_NUMBER ];
+  static float controlValuesList[ SHM_CONTROL_FLOATS_NUMBER ];
   
   for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedControllersList ); controllerIndex++ )
   {
-    //DEBUG_PRINT( "updating axis controller %u", controllerIndex );
+    DEBUG_UPDATE( "updating axis controller %u", controllerIndex );
     
-    SHMAxis sharedData = kv_A( sharedControllersList, controllerIndex ).sharedData;
-    AxisController sharedController = kv_A( sharedControllersList, controllerIndex ).controller;
-    
-    if( SHMAxisControl.GetByteValue( sharedData, SHM_CONTROL_IN, &command, SHM_REMOVE ) )
+    SharedAxisController* sharedController = &(kv_A( sharedControllersList, controllerIndex ));
+    SHMAxis sharedData = sharedController->sharedData;
+    AxisController axisController = sharedController->controller;
+   
+    uint8_t command = SHM_CONTROL_BYTES_NUMBER;
+    if( SHMAxisControl.GetByteValue( sharedData, &command, SHM_REMOVE ) == true )
     {
-      if( command == SHM_COMMAND_ENABLE ) AxisControl.Enable( sharedController );
-      else if( command == SHM_COMMAND_DISABLE ) AxisControl.Disable( sharedController );
-      else if( command == SHM_COMMAND_RESET ) AxisControl.Reset( sharedController );
-      else if( command == SHM_COMMAND_CALIBRATE ) AxisControl.Calibrate( sharedController );
+      //DEBUG_PRINT( "received command: %x", command );
       
-      DEBUG_PRINT( "received command: %x", command );
+      if( command == SHM_COMMAND_ENABLE ) AxisControl.Enable( axisController );
+      else if( command == SHM_COMMAND_DISABLE ) AxisControl.Disable( axisController );
+      else if( command == SHM_COMMAND_RESET ) AxisControl.Reset( axisController );
+      else if( command == SHM_COMMAND_CALIBRATE ) AxisControl.Calibrate( axisController );
       
-      if( AxisControl.HasError( sharedController ) ) state = SHM_STATE_ERROR;
-      else if( AxisControl.IsEnabled( sharedController ) ) state = SHM_STATE_ENABLED;
-      SHMAxisControl.SetByteValue( sharedData, SHM_CONTROL_OUT, state );
+      sharedData->channelIn->byteValueUpdated = false;
+      
+      if( AxisControl.IsEnabled( axisController ) ) SHMAxisControl.SetByteValue( sharedData, SHM_STATE_ENABLED );
     }
     
-    float* parametersList = SHMAxisControl.GetNumericValuesList( sharedData, SHM_CONTROL_IN, &dataMask, SHM_REMOVE );
-    if( parametersList != NULL )
+    if( AxisControl.HasError( axisController ) ) SHMAxisControl.SetByteValue( sharedData, SHM_STATE_ERROR );
+
+    uint8_t dataMask = SHMAxisControl.GetNumericValuesList( sharedData, controlValuesList, SHM_REMOVE );
+    if( dataMask )
     {
-      /*if( dataMask )
-      {
-        DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", parametersList[ SHM_CONTROL_POSITION ], 
-                                                               parametersList[ SHM_CONTROL_VELOCITY ], parametersList[ SHM_CONTROL_STIFFNESS ] );
-      }*/
+      //DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_STIFFNESS ] );
       
-      if( (dataMask & BIT_INDEX( SHM_CONTROL_POSITION )) | (dataMask & BIT_INDEX( SHM_CONTROL_VELOCITY )) ) 
-        AxisControl.SetSetpoint( sharedController, parametersList[ SHM_CONTROL_POSITION ] /*+ parametersList[ SHM_CONTROL_VELOCITY ] * 0.005*/ ); // hack
+      if( (dataMask & BIT_INDEX( SHM_CONTROL_POSITION )) ) sharedController->setpointPosition = controlValuesList[ SHM_CONTROL_POSITION ];
+      if( (dataMask & BIT_INDEX( SHM_CONTROL_VELOCITY )) ) sharedController->setpointVelocity = controlValuesList[ SHM_CONTROL_VELOCITY ];
       
       if( (dataMask & BIT_INDEX( SHM_CONTROL_STIFFNESS )) | (dataMask & BIT_INDEX( SHM_CONTROL_DAMPING )) )
-        AxisControl.SetImpedance( sharedController, parametersList[ SHM_CONTROL_STIFFNESS ], parametersList[ SHM_CONTROL_DAMPING ] );
+        AxisControl.SetImpedance( axisController, controlValuesList[ SHM_CONTROL_STIFFNESS ], controlValuesList[ SHM_CONTROL_DAMPING ] );
     }
     
-    double* controlMeasuresList = AxisControl.GetMeasuresList( sharedController );
+    sharedController->setpointPosition += sharedController->setpointVelocity * CONTROL_SAMPLING_INTERVAL;
+    AxisControl.SetSetpoint( axisController, sharedController->setpointPosition );
+    
+    double* controlMeasuresList = AxisControl.GetMeasuresList( axisController );
     if( controlMeasuresList != NULL )
     {
-      measuresList[ SHM_CONTROL_POSITION ] = (float) controlMeasuresList[ CONTROL_POSITION ];
-      measuresList[ SHM_CONTROL_VELOCITY ] = (float) controlMeasuresList[ CONTROL_VELOCITY ];
-      measuresList[ SHM_CONTROL_ACCELERATION ] = (float) controlMeasuresList[ CONTROL_ACCELERATION ];
-      measuresList[ SHM_CONTROL_FORCE ] = (float) controlMeasuresList[ CONTROL_FORCE ];
-      SHMAxisControl.SetNumericValuesList( sharedData, SHM_CONTROL_OUT, measuresList, 0xFF );
+      controlValuesList[ SHM_CONTROL_POSITION ] = (float) controlMeasuresList[ CONTROL_POSITION ];
+      controlValuesList[ SHM_CONTROL_VELOCITY ] = (float) controlMeasuresList[ CONTROL_VELOCITY ];
+      controlValuesList[ SHM_CONTROL_ACCELERATION ] = (float) controlMeasuresList[ CONTROL_ACCELERATION ];
+      controlValuesList[ SHM_CONTROL_FORCE ] = (float) controlMeasuresList[ CONTROL_FORCE ];
+      SHMAxisControl.SetNumericValuesList( sharedData, controlValuesList, 0xFF );
       
-      //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", measuresList[ SHM_CONTROL_POSITION ], measuresList[ SHM_CONTROL_VELOCITY ], measuresList[ SHM_CONTROL_FORCE ] );
+      //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_FORCE ] );
     }
   }
 }

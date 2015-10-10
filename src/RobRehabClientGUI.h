@@ -16,13 +16,11 @@
 #define  PANEL                            1       /* callback function: QuitCallback */
 #define  PANEL_GRAPH_2                    2       /* control type: graph, callback function: (none) */
 #define  PANEL_GRAPH_1                    3       /* control type: graph, callback function: (none) */
-#define  PANEL_OFFSET_TOGGLE              4       /* control type: textButton, callback function: ChangeStateCallback */
-#define  PANEL_MOTOR_TOGGLE               5       /* control type: textButton, callback function: ChangeStateCallback */
-#define  PANEL_MIN_TOGGLE                 6       /* control type: textButton, callback function: ChangeStateCallback */
-#define  PANEL_MAX_TOGGLE                 7       /* control type: textButton, callback function: ChangeStateCallback */
-#define  PANEL_AXIS_SELECTOR              8       /* control type: ring, callback function: (none) */
-#define  PANEL_MUSCLE_GROUP               9       /* control type: binary, callback function: ChangeStateCallback */
-#define  PANEL_STIFFNESS                  10      /* control type: scale, callback function: ChangeValueCallback */
+#define  PANEL_MOTOR_TOGGLE               4       /* control type: textButton, callback function: ChangeStateCallback */
+#define  PANEL_AXIS_SELECTOR              5       /* control type: ring, callback function: (none) */
+#define  PANEL_STIFFNESS_SLIDER           6       /* control type: scale, callback function: ChangeValueCallback */
+#define  PANEL_OFFSET_BUTTON              7       /* control type: command, callback function: ChangeStateCallback */
+#define  PANEL_RESET_BUTTON               8       /* control type: command, callback function: ChangeStateCallback */
 
 
      /* Control Arrays: */

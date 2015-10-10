@@ -8,22 +8,23 @@
 
 #include "threads/thread_safe_data.h"
 
+#include "interface.h"
+
 #include "cvidef.h"
 #include "debug/async_debug.h"
 
-#include "interface.h"
+#include "klib/khash.h"
 
 #include <tcpsupp.h>
 #include <udpsupp.h>
 #include <utility.h>
-#include <toolbox.h>
 #include <userint.h>
 
 //////////////////////////////////////////////////////////////////////////
 /////                         DATA STRUCTURES                        /////
 //////////////////////////////////////////////////////////////////////////
 
-const size_t IP_MAX_MESSAGE_LENGTH = CMT_MAX_MESSAGE_BUF_SIZE;  // 256
+#define IP_MAX_MESSAGE_LENGTH CMT_MAX_MESSAGE_BUF_SIZE  // 256
 
 const int QUEUE_MAX_ITEMS = 10;
 
@@ -38,6 +39,8 @@ typedef struct _AsyncConnectionData AsyncConnectionData;
 
 typedef AsyncConnectionData* AsyncConnection;
 
+KHASH_MAP_INIT_INT( IPInt, AsyncConnection )
+
 struct _AsyncConnectionData
 {
   unsigned int handle;
@@ -50,17 +53,16 @@ struct _AsyncConnectionData
     unsigned int port;
     char host[ IP_HOST_LENGTH ];
   } address;
-  //CmtTSQHandle readQueue;
   ThreadSafeQueue readQueue;
   union
   {
-    ListType clientsList;
+    khash_t( IPInt )* clientsList;
     AsyncConnection ref_server;
   };
 };
 
 // Internal (private) list of asyncronous connections created (accessible only by ID)
-static ListType globalConnectionsList = NULL;
+static khash_t( IPInt )* globalConnectionsList = NULL;
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -84,40 +86,6 @@ INIT_NAMESPACE_INTERFACE( AsyncIPConnection, ASYNC_IP_CONNECTION_FUNCTIONS )
 /////                         NETWORK UTILITIES                         /////
 /////////////////////////////////////////////////////////////////////////////
 
-// Connection comparison auxiliary function
-static int CVICALLBACK CompareConnections( void* item_1, void* item_2 )
-{
-  AsyncConnection connection_1 = (*((AsyncConnection*) item_1));
-  AsyncConnection connection_2 = (*((AsyncConnection*) item_2));
-  
-  DEBUG_UPDATE( "comparing handles: %u - %u", connection_1->handle, connection_2->handle );
-  
-  return ( connection_1->handle - connection_2->handle );
-}
-
-enum { PEEK, REMOVE };
-// Looks for a connection with given ID, and returns it if something is found
-static AsyncConnection FindConnection( ListType connectionsList, unsigned int connectionID, uint8_t remove )
-{
-  AsyncConnectionData connection_data = { .handle = connectionID };
-  AsyncConnection connection = &connection_data;
-  
-  DEBUG_UPDATE( "looking for connection handle %u", connection->handle );
-  
-  size_t index = ListFindItem( connectionsList, &connection, FRONT_OF_LIST, CompareConnections );
-      
-  if( index > 0 )
-  {
-    if( remove == 1 )
-      ListRemoveItem( connectionsList, &connection, index );
-    else
-      ListGetItem( connectionsList, &connection, index );
-    return connection;
-  }
-  
-  return NULL;
-}
-
 // Utility method to request an address (host and port) string for a connection structure
 static char* GetAddress( AsyncConnection connection )
 {
@@ -133,59 +101,59 @@ static char* GetAddress( AsyncConnection connection )
 // Returns the address string relative to the given connection ID
 char* AsyncIPConnection_GetAddress( int connectionID )
 {
-  static AsyncConnection connection;
-  
-  connection = FindConnection( globalConnectionsList, (unsigned int) connectionID, PEEK ); 
-
-  if( connectionID < 0 || connection == NULL )
+  khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
+  if( connectionIndex == kh_end( globalConnectionsList ) )
+  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) )
   {
     ERROR_EVENT( "invalid connection ID: %d", connectionID );
     return NULL;
   }
   
-  return GetAddress( connection );
+  return GetAddress( kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex ) );
 }
 
 // Returns total number of active connections
 inline size_t AsyncIPConnection_GetActivesNumber()
 {
-  return ListNumItems( globalConnectionsList );
+  return kh_size( globalConnectionsList );
 }
 
 // Returns number of active clients for a connection 
 size_t AsyncIPConnection_GetClientsNumber( int connectionID )
 {
-  static AsyncConnection connection;
-  
-  connection = FindConnection( globalConnectionsList, (unsigned int) connectionID, PEEK ); 
-
-  if( connectionID < 0 || connection == NULL )
+  khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
+  if( connectionIndex == kh_end( globalConnectionsList ) )
+  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) )
   {
     ERROR_EVENT( "invalid connection ID: %d", connectionID );
-    return -1;
+    return 0;
   }
   
+  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex );
+  if( connection == NULL ) return 0;
+  
   if( connection->networkRole == SERVER )
-    return ListNumItems( connection->clientsList );
+    return kh_size( connection->clientsList );
   
   return 1;
 }
 
 inline size_t AsyncIPConnection_SetMessageLength( int connectionID, size_t messageLength )
 {
-  static AsyncConnection connection;
-  
-  connection = FindConnection( globalConnectionsList, (unsigned int) connectionID, PEEK );
-  
-  if( connectionID < 0 || connection == NULL )
+  khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
+  if( connectionIndex == kh_end( globalConnectionsList ) )
+  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) )
   {
     ERROR_EVENT( "invalid connection ID: %d", connectionID );
-    return -1;
+    return 0;
   }
+  
+  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex );
+  if( connection == NULL ) return 0;
   
   if( connection->networkRole == SERVER ) return 0;
   
-  connection->messageLength = /*( messageLength <= CMT_MAX_MESSAGE_BUF_SIZE ) ?*/ (uint16_t) messageLength /*: CMT_MAX_MESSAGE_BUF_SIZE*/;
+  connection->messageLength = (uint16_t) messageLength;
   
   return (size_t) connection->messageLength;
 }
@@ -213,43 +181,31 @@ static void* AsyncConnect( void* connectionData )
   
   static int statusCode;
   
-  switch( connection->protocol | connection->networkRole )
+  if( connection->protocol == TCP )
   {
-    case ( TCP | SERVER ):
-      
-      if( (statusCode = RegisterTCPServer( connection->address.port, AcceptTCPClient, connection )) < 0 )
-        ERROR_EVENT( "%s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
-      else
-        connection->handle = connection->address.port;
-      
-      break;
-      
-    case ( TCP | CLIENT ):
-      
-      if( (statusCode = ConnectToTCPServer( &(connection->handle), connection->address.port, connection->address.host, ReceiveTCPMessage, connection, 1000 )) < 0 )
-        ERROR_EVENT( "%s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
-      
-      break;
-      
-    case ( UDP | SERVER ):
-      
-      if( (statusCode = CreateUDPChannelConfig( connection->address.port, UDP_ANY_ADDRESS, 0, AcceptUDPClient, connection, &(connection->handle) )) < 0 )
-        ERROR_EVENT( "%s", GetUDPErrorString( statusCode ) );
-      
-      break;
-      
-    case ( UDP | CLIENT ):
-      
-      if( (statusCode = CreateUDPChannelConfig( UDP_ANY_LOCAL_PORT, UDP_ANY_ADDRESS, 0, ReceiveUDPMessage, connection, &(connection->handle) )) < 0 )
-        ERROR_EVENT( "%s", GetUDPErrorString( statusCode ) );
-      
-      break;
-      
-      default: break;
+    if( connection->networkRole == SERVER )
+    {
+      statusCode = RegisterTCPServer( connection->address.port, AcceptTCPClient, connection );
+      connection->handle = connection->address.port;
+    }
+    else
+      statusCode = ConnectToTCPServer( &(connection->handle), connection->address.port, connection->address.host, ReceiveTCPMessage, connection, 1000 );
+  }
+  else
+  {
+    if( connection->networkRole == SERVER )
+      statusCode = CreateUDPChannelConfig( connection->address.port, UDP_ANY_ADDRESS, 0, AcceptUDPClient, connection, &(connection->handle) );
+    else
+      statusCode = CreateUDPChannelConfig( UDP_ANY_LOCAL_PORT, UDP_ANY_ADDRESS, 0, ReceiveUDPMessage, connection, &(connection->handle) );
   }
   
-  if( statusCode < 0 ) 
+  if( statusCode < 0 )
+  {
+    if( connection->protocol == TCP ) ERROR_EVENT( "%s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
+    else ERROR_EVENT( "%s", GetUDPErrorString( statusCode ) );
+    
     connection->networkRole = DISCONNECTED;
+  }
   else
     DEBUG_EVENT( 0, "starting to process system events for connection %u on thread %x", connection->handle, THREAD_ID );
   
@@ -265,109 +221,95 @@ static void* AsyncConnect( void* connectionData )
 }
 
 // Generate connection data structure based on input arguments
-static AsyncConnection AddConnection( unsigned int connectionHandle, unsigned int addressPort, const char* addressHost, uint8_t connectionType )
+static khint_t AddConnection( unsigned int connectionHandle, unsigned int addressPort, const char* addressHost, uint8_t connectionType )
 {
-  AsyncConnection connection = (AsyncConnection) malloc( sizeof(AsyncConnectionData) );
+  AsyncConnection newConnection = (AsyncConnection) malloc( sizeof(AsyncConnectionData) );
   
-  connection->handle = connectionHandle;
-  connection->protocol = (connectionType & PROTOCOL_MASK);  
-  connection->networkRole = (connectionType & NETWORK_ROLE_MASK);
+  newConnection->handle = connectionHandle;
+  newConnection->protocol = (connectionType & PROTOCOL_MASK);  
+  newConnection->networkRole = (connectionType & NETWORK_ROLE_MASK);
   
-  connection->messageLength = CMT_MAX_MESSAGE_BUF_SIZE;
+  newConnection->messageLength = IP_MAX_MESSAGE_LENGTH;
   
-  connection->callbackThread = INVALID_THREAD_HANDLE;
+  newConnection->callbackThread = INVALID_THREAD_HANDLE;
   
-  connection->address.port = addressPort;
-  if( addressHost != NULL ) strncpy( connection->address.host, addressHost, IP_HOST_LENGTH );
+  newConnection->address.port = addressPort;
+  strncpy( newConnection->address.host, addressHost, IP_HOST_LENGTH );
   
-  if( connection->networkRole == SERVER )
+  if( newConnection->networkRole == SERVER )
   {
-    connection->clientsList = NULL;
-    
-    //CmtNewTSQ( QUEUE_MAX_ITEMS, sizeof(int), 0, &(connection->readQueue) );
-    connection->readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, sizeof(int) );
-    
-    connection->ref_SendMessage = SendMessageToAll;
-    
-    connection->clientsList = ListCreate( sizeof(AsyncConnection) );
+    newConnection->clientsList = NULL;
+    newConnection->readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, sizeof(int) );
+    newConnection->ref_SendMessage = SendMessageToAll;
+    newConnection->clientsList = kh_init( IPInt );
   }
   else
   {
-    if( connection->protocol == TCP )
-    {
-      connection->ref_SendMessage = SendTCPMessage;
-      //CmtNewTSQ( QUEUE_MAX_ITEMS, CMT_MAX_MESSAGE_BUF_SIZE, 0, &(connection->readQueue) );
-    }
-    else
-    {
-      connection->ref_SendMessage = SendUDPMessage;
-      //CmtNewTSQ( QUEUE_MAX_ITEMS, CMT_MAX_MESSAGE_BUF_SIZE, OPT_TSQ_AUTO_FLUSH_EXACT, &(connection->readQueue) );
-    }
+    if( newConnection->protocol == TCP ) newConnection->ref_SendMessage = SendTCPMessage;
+    else newConnection->ref_SendMessage = SendUDPMessage;
     
-    connection->readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, CMT_MAX_MESSAGE_BUF_SIZE );
-    
-    connection->ref_server = NULL;
+    newConnection->readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, IP_MAX_MESSAGE_LENGTH );
+    newConnection->ref_server = NULL;
   }
   
-  if( globalConnectionsList == NULL )
-    globalConnectionsList = ListCreate( sizeof(AsyncConnection) ); 
+  int insertionStatus;
+  int connectionKey = kh_str_hash_func( addressHost ) + addressPort + newConnection->protocol;
+  khint_t newConnectionID = kh_put( IPInt, globalConnectionsList, connectionKey, &insertionStatus );
+  kh_value( globalConnectionsList, newConnectionID ) = newConnection;
   
-  ListInsertItem( globalConnectionsList, &connection, END_OF_LIST );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "%u active connections listed", kh_size( globalConnectionsList ) );
   
-  DEBUG_EVENT( 0, "%u active connections listed", ListNumItems( globalConnectionsList ) );
-  
-  return connection;
+  return newConnectionID;//connection;
 }
 
 // Generic method for opening a new socket and providing a corresponding Connection structure for use
+const char* ANY_HOST = "0.0.0.0";
 int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol )
 {
-  static AsyncConnection newConnection;
-  
-  static unsigned int portNumber;
-  
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to open %s connection for host %s and port %s", ( protocol == TCP ) ? "TCP" : "UDP", 
-                                                                       ( host != NULL ) ? host : "0.0.0.0", port );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to open %s connection for host %s and port %s", ( protocol == TCP ) ? "TCP" : "UDP", ( host != NULL ) ? host : ANY_HOST, port );
   
   // Assure that the port number is in the Dynamic/Private range (49152-65535)
-  portNumber = (unsigned int) strtoul( port, NULL, 0 );
+  unsigned int portNumber = (unsigned int) strtoul( port, NULL, 0 );
   if( portNumber < 49152 || portNumber > 65535 )
   {
     ERROR_EVENT( "invalid port number value: %s", port );
     return -1;
   }
-  
+
   if( ( protocol != TCP ) && ( protocol != UDP ) )
   {
     ERROR_EVENT( "invalid protocol option: %x", protocol );
     return -1;
   }
   
-  newConnection = AddConnection( 0, portNumber, 
-                                 ( host != NULL ) ? host : "0.0.0.0",
-                                 ( ( host == NULL ) ? SERVER : CLIENT ) | protocol );
+  if( globalConnectionsList == NULL ) globalConnectionsList = kh_init( IPInt );
   
-  newConnection->callbackThread = Threading_StartThread( AsyncConnect, newConnection, THREAD_JOINABLE );
-  
-  (void) Threading_WaitExit( newConnection->callbackThread, 1000 );
-  
-  if( newConnection->networkRole == DISCONNECTED )
+  int connectionKey = kh_str_hash_func( ( host != NULL ) ? host : ANY_HOST ) + portNumber + protocol;
+  khint_t newConnectionID = kh_get( IPInt, globalConnectionsList, connectionKey );
+  if( newConnectionID == kh_end( globalConnectionsList ) )
   {
-    ListRemoveItem( globalConnectionsList, NULL, END_OF_LIST );
-    
-    newConnection->callbackThread = INVALID_THREAD_HANDLE;
-    
-    CloseConnection( newConnection );
-    
-    return -1;
-  }
+    if( host == NULL ) newConnectionID = AddConnection( 0, portNumber, ANY_HOST, SERVER | protocol );
+    else newConnectionID = AddConnection( 0, portNumber, host, CLIENT | protocol );
+    AsyncConnection newConnection = kh_value( globalConnectionsList, newConnectionID );
 
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",
-                                                                 ( newConnection->networkRole == SERVER ) ? "Server" : "Client",
-                                                                 ( newConnection->networkRole == SERVER ) ? "local" : "remote",
-                                                                 GetAddress( newConnection ) );
+    newConnection->callbackThread = Threading_StartThread( AsyncConnect, newConnection, THREAD_JOINABLE );
+    (void) Threading_WaitExit( newConnection->callbackThread, 1000 );
+
+    if( newConnection->networkRole == DISCONNECTED )
+    {
+      newConnection->callbackThread = INVALID_THREAD_HANDLE;
+      //CloseConnection( newConnection );
+      AsyncIPConnection_Close( newConnectionID );
+      return -1;
+    }
+
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",
+                                                                                   ( newConnection->networkRole == SERVER ) ? "local" : "remote",
+                                                                                   ( newConnection->networkRole == SERVER ) ? "Server" : "Client",
+                                                                                   GetAddress( newConnection ) );
+  }
   
-  return (int) newConnection->handle;
+  return (int) kh_key( globalConnectionsList, newConnectionID );//newConnectionID;
 }
 
 
@@ -380,45 +322,25 @@ static int CVICALLBACK ReceiveTCPMessage( unsigned int connectionHandle, int eve
 {
   AsyncConnection connection = (AsyncConnection) connectionData;
   
-  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
+  char messageBuffer[ IP_MAX_MESSAGE_LENGTH ];
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connectionHandle, THREAD_ID );
   
-  switch( eventType )
+  if( eventType == TCP_DISCONNECT )
   {
-    case TCP_DISCONNECT:
+    DEBUG_PRINT( "sender %u disconnected", connectionHandle ); 
+    CloseConnection( connection );
+  }    
+  else if( eventType == TCP_DATAREADY )
+  {
+    if( (errorCode = ClientTCPRead( connectionHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
+    {
+      /*ERROR_EVENT*/DEBUG_PRINT( "ClientTCPRead: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
+      CloseConnection( connection );
+    }
 
-      if( connectionHandle == connection->handle )
-      {
-        DEBUG_PRINT( "sender %u disconnected", connectionHandle ); 
-        CloseConnection( connection );
-      }
-      break;
-      
-    case TCP_DATAREADY:
-        
-      if( (errorCode = ClientTCPRead( connectionHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
-      {
-        /*ERROR_EVENT*/DEBUG_PRINT( "ClientTCPRead: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
-        if( connectionHandle == connection->handle )
-          CloseConnection( connection );
-        break;
-      }
-      
-      /*if( (errorCode = CmtWriteTSQData( connection->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-      {
-        CmtGetErrorMessage( errorCode, messageBuffer );
-        ERROR_EVENT( "CmtWriteTSQData: %s", messageBuffer );
-        if( connectionHandle == connection->handle )
-          CloseConnection( connection );
-        break;
-      }*/
-      
-      ThreadSafeQueues.Enqueue( connection->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-      
-      DEBUG_UPDATE( "TCP connection handle %u received message: %s", connection->handle, messageBuffer );
-    
-      break;
+    ThreadSafeQueues.Enqueue( connection->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
+    DEBUG_UPDATE( "TCP connection handle %u received message: %s", connection->handle, messageBuffer );
   }
   
   return 0;
@@ -436,12 +358,12 @@ static int SendTCPMessage( AsyncConnection connection, const char* message )
     DEBUG_UPDATE( "TCP connection handle %u sending message: %s", connection->handle, message );
     
     if( connection->ref_server == NULL ) errorCode = ClientTCPWrite( connection->handle, message, connection->messageLength, 0 );
-    else errorCode = ServerTCPWrite( connection->handle - connection->ref_server->handle, message, connection->messageLength, 0 );
+    else errorCode = ServerTCPWrite( connection->handle, message, connection->messageLength, 0 );
     
     if( errorCode < 0 )
     {
       ERROR_EVENT( "ServerTCPWrite: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
-      CloseConnection( connection );
+      //CloseConnection( connection );
       return errorCode;
     }
   }
@@ -459,7 +381,7 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
 {
   AsyncConnection connection = (AsyncConnection) connectionData;
   
-  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
+  char messageBuffer[ IP_MAX_MESSAGE_LENGTH ];
   
   unsigned int sourcePort;
   char sourceHost[ IP_HOST_LENGTH ];
@@ -480,17 +402,7 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
       if( strncmp( connection->address.host, sourceHost, IP_HOST_LENGTH ) == 0 )
       {
         UDPRead( channel, messageBuffer, connection->messageLength, UDP_DO_NOT_WAIT, NULL, NULL );
-    
-        /*if( (errorCode = CmtWriteTSQData( connection->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-        {
-          CmtGetErrorMessage( errorCode, messageBuffer );
-          ERROR_EVENT( "CmtWriteTSQData: %s", messageBuffer );
-          CloseConnection( connection );
-          return -1;
-        }*/
-        
         ThreadSafeQueues.Enqueue( connection->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-        
         DEBUG_UPDATE( "UDP connection handle %u (server %u) received right message: %s", connection->handle, channel, messageBuffer );
       }
     }
@@ -529,15 +441,6 @@ static int SendUDPMessage( AsyncConnection connection, const char* message )
   return 0;
 }
 
-static int CVICALLBACK SendMessageToClient( size_t index, void* ref_client, void* messageData )
-{
-  AsyncConnection client = *((AsyncConnection*) ref_client);
-  
-  client->ref_SendMessage( client, (const char*) messageData );
-  
-  return 0;
-}
-
 // Send given message to all the clients of the given server connection
 static int SendMessageToAll( AsyncConnection connection, const char* message )
 {
@@ -545,9 +448,36 @@ static int SendMessageToAll( AsyncConnection connection, const char* message )
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connection->handle, THREAD_ID );
   
-  statusCode = ListApplyToEachEx( connection->clientsList, 1, SendMessageToClient, (void*) message );
+  for( khint_t clientID = 0; clientID != kh_end( connection->clientsList ); clientID++ )
+  {
+    if( !kh_exist( connection->clientsList, clientID ) ) continue;
+    
+    AsyncConnection client = kh_value( connection->clientsList, clientID );
+    client->ref_SendMessage( client, (const char*) message );
+  }
   
   return statusCode;
+}
+
+static khint_t AddClient( AsyncConnection server, const char* clientHost, unsigned int clientHandle, uint8_t protocol )
+{
+  khint_t newConnectionID = AddConnection( clientHandle, clientHandle, clientHost, protocol | CLIENT );
+  AsyncConnection newClient = kh_value( globalConnectionsList, newConnectionID );
+  newClient->ref_server = server;
+
+  DEBUG_PRINT( "added connection ID %u", newConnectionID );
+  
+  if( server->clientsList == NULL ) server->clientsList = kh_init( IPInt );
+
+  int insertionStatus;
+  khint_t newClientID = kh_put( IPInt, server->clientsList, clientHandle, &insertionStatus );
+  DEBUG_PRINT( "new client in list with key %u and iterator %u", clientHandle, newClientID );
+  kh_value( server->clientsList, newClientID ) = newClient;
+
+  DEBUG_PRINT( "enqueueing new connection ID %u", kh_key( globalConnectionsList, newConnectionID ) );
+  ThreadSafeQueues.Enqueue( server->readQueue, &(kh_key( globalConnectionsList, newConnectionID )), QUEUE_APPEND_OVERWRITE );
+  
+  return newClientID;
 }
 
 // Waits for a remote connection to be added to the client list of the given TCP server connection
@@ -555,75 +485,47 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
 {
   AsyncConnection connection = (AsyncConnection) connectionData;
   
-  AsyncConnection client;
+  char messageBuffer[ IP_MAX_MESSAGE_LENGTH ], clientHost[ IP_HOST_LENGTH ];
   
-  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
+  /*DEBUG_UPDATE*/DEBUG_PRINT( "called for connection handle %u on server %u on thread %x", clientHandle, connection->handle, THREAD_ID );
   
-  DEBUG_UPDATE( "called for connection handle %u on server %u on thread %x", clientHandle, connection->handle, CmtGetCurrentThreadID() );
-  
-  switch( eventType )
+  if( eventType == TCP_DISCONNECT )
   {
-    case TCP_DISCONNECT:
-    
-      if( (client = FindConnection( connection->clientsList, clientHandle, REMOVE )) != NULL )
-      {
-        ERROR_EVENT( 0, "TCP client handle %u disconnected", client->handle );
-        
-        CloseConnection( client );
-      }
-      
-      break;
-      
-    case TCP_CONNECT:
-      
-      if( connection->networkRole == SERVER )
-      {
-        client = AddConnection( clientHandle + connection->handle, 0, NULL, TCP | CLIENT );
-        GetTCPPeerAddr( client->handle, client->address.host, IP_HOST_LENGTH );
-        client->ref_server = connection;
-      
-        ListInsertItem( connection->clientsList, &client, END_OF_LIST );
-      
-        /*if( (errorCode = CmtWriteTSQData( connection->readQueue, &(client->handle), 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-        {
-          CmtGetErrorMessage( errorCode, messageBuffer );
-          ERROR_EVENT( "CmtWriteTSQData: %s", messageBuffer );
-          break;
-        }*/
-        
-        ThreadSafeQueues.Enqueue( connection->readQueue, &(client->handle), QUEUE_APPEND_OVERWRITE );
-        
-        DEBUG_PRINT( "TCP connection handle %u accepted client: %u (%s/%u)", connection->handle, client->handle, client->address.host, client->address.port );
-      }
-      else
-        DEBUG_EVENT( 0, "TCP connection handle %u not accepting more clients", connection->handle );
-    
-      break;
-      
-    case TCP_DATAREADY:
-      
-      if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
-      {
-        ERROR_EVENT( 0, "ServerTCPRead: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
-        //CloseConnection( client );
-        break;
-      }
-      
-      if( (client = FindConnection( connection->clientsList, clientHandle + connection->handle, PEEK )) != NULL )
-      {
-        /*if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-        { 
-          CmtGetErrorMessage( errorCode, messageBuffer );
-          ERROR_EVENT( 0, "CmtWriteTSQData: %s", messageBuffer );
-          break;
-        }*/
-        
-        ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-        
-        DEBUG_PRINT( "TCP connection handle %u (server_handle %u) received message: %s", client->handle, connection->handle, messageBuffer );
-      }
-    
-      break;
+    khint_t clientID = kh_get( IPInt, connection->clientsList, clientHandle );
+    if( clientID != kh_end( connection->clientsList ) )
+    {
+      AsyncConnection client = kh_value( connection->clientsList, clientID );
+      /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "TCP client handle %u disconnected", client->handle );
+      CloseConnection( client );
+    }
+  }
+  else if( eventType == TCP_CONNECT /*&& connection->networkRole == SERVER*/ )
+  {
+    if( connection->networkRole == SERVER )
+    {
+      GetTCPPeerAddr( clientHandle, clientHost, IP_HOST_LENGTH );
+      (void) AddClient( connection, clientHost, clientHandle, TCP );
+
+      DEBUG_PRINT( "new TCP client from host %s with handle %u accepted !", clientHost, clientHandle );
+    }
+    else
+      DEBUG_EVENT( 0, "TCP connection handle %u not accepting more clients", connection->handle );
+  }
+  else if( eventType == TCP_DATAREADY )
+  {
+    if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
+    {
+      ERROR_EVENT( 0, "ServerTCPRead: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
+      //CloseConnection( client );
+    }
+
+    khint_t clientID = kh_get( IPInt, connection->clientsList, clientHandle );
+    if( clientID != kh_end( connection->clientsList ) )
+    {
+      AsyncConnection client = kh_value( connection->clientsList, clientID );
+      ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
+      DEBUG_UPDATE( "TCP connection handle %u (server_handle %u) received message: %s", client->handle, connection->handle, messageBuffer );
+    }
   }
   
   return errorCode;
@@ -634,12 +536,8 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
 {
   AsyncConnection connection = (AsyncConnection) connectionData;
   
-  AsyncConnection client = NULL;
-  
-  char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
-  
-  static unsigned int clientPort;
-  static char clientHost[ IP_HOST_LENGTH ];
+  char messageBuffer[ IP_MAX_MESSAGE_LENGTH ], clientHost[ IP_HOST_LENGTH ];
+  unsigned int clientPort;
   
   DEBUG_UPDATE( "called for connection handle %u on thread %x", channel, THREAD_ID );
   
@@ -648,43 +546,20 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
     if( (errorCode = UDPRead( channel, messageBuffer, connection->messageLength, UDP_DO_NOT_WAIT, &(clientPort), clientHost )) < 0 )
     {
       /*ERROR_EVENT*/DEBUG_PRINT( "UDPRead: %s", GetUDPErrorString( errorCode ) );
-      CloseConnection( client );
+      //CloseConnection( client );
       return -1;
     }
     
-    if( connection->networkRole == SERVER )
+    khint_t clientID = kh_get( IPInt, connection->clientsList, clientPort );
+    if( clientID == kh_end( connection->clientsList ) )
     {
-      unsigned int clientHandle = channel + clientPort;
-      if( (client = FindConnection( connection->clientsList, clientHandle, PEEK )) == NULL )
-      {
-        client = AddConnection( clientHandle, clientPort, clientHost, UDP | CLIENT );
-        client->ref_server = connection;
-        
-        ListInsertItem( connection->clientsList, &client, END_OF_LIST );
-        
-        /*if( (errorCode = CmtWriteTSQData( connection->readQueue, &(client->handle), 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-        {
-          CmtGetErrorMessage( errorCode, messageBuffer );
-          ERROR_EVENT( "CmtWriteTSQData: %s", messageBuffer );
-          return -1;
-        }*/
-        
-        ThreadSafeQueues.Enqueue( connection->readQueue, &(client->handle), QUEUE_APPEND_OVERWRITE );
-      
-        DEBUG_EVENT( 0, "client with handle %u accepted !", client->handle );
-      }
-      
-      /*if( (errorCode = CmtWriteTSQData( client->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, NULL )) < 0 )
-      {
-        CmtGetErrorMessage( errorCode, messageBuffer );
-        ERROR_EVENT( "CmtWriteTSQData: %s", messageBuffer );
-        return -1;
-      }*/
-      
-      ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-
-      DEBUG_UPDATE( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
+      clientID = AddClient( connection, clientHost, clientPort, UDP );
+      /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new UDP client from host %s and port %u accepted !", clientHost, clientPort );
     }
+
+    AsyncConnection client = kh_value( connection->clientsList, clientID );
+    ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
+    ///*DEBUG_UPDATE*/DEBUG_PRINT( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
   }
   
   return 0;
@@ -699,45 +574,28 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
 // Method to be called from the main thread
 char* AsyncIPConnection_ReadMessage( int clientID )
 {
-  static char messageBuffer[ CMT_MAX_MESSAGE_BUF_SIZE ];
+  static char messageBuffer[ IP_MAX_MESSAGE_LENGTH ];
   
-  //static size_t messagesCount;
-  //static int errorCode;
+  khint_t clientIndex = kh_get( IPInt, globalConnectionsList, (khint_t) clientID );
+  if( clientIndex == kh_end( globalConnectionsList ) ) return NULL;
+  //if( !kh_exist( globalConnectionsList, (khint_t) clientID ) ) return NULL;
   
-  AsyncConnection connection = FindConnection( globalConnectionsList, (unsigned int) clientID, PEEK ); 
-
-  if( clientID < 0 || connection == NULL )
-  {
-    ERROR_EVENT( "no queue available for this connection: ID %d", clientID );
-    return NULL;
-  }
+  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) clientID*/clientIndex );
+  if( connection == NULL ) return NULL;
   
   if( connection->networkRole != CLIENT )
   {
     ERROR_EVENT( "not a client connection: ID %d", clientID );  
 	  return NULL;
   }
-
-  /*if( (errorCode = CmtGetTSQAttribute( connection->readQueue, ATTR_TSQ_ITEMS_IN_QUEUE, &messagesCount )) < 0 )
-  {
-    CmtGetErrorMessage( errorCode, messageBuffer );
-    ERROR_EVENT( "failed getting queue items count: %s", messageBuffer );
-    return NULL;
-  }*/
   
-  if( /*messagesCount*/ThreadSafeQueues.GetItemsCount( connection->readQueue ) <= 0 )
+  //if( connection->protocol == TCP ) DEBUG_PRINT( "messages available: %u", ThreadSafeQueues.GetItemsCount( connection->readQueue ) );
+  
+  if( ThreadSafeQueues.GetItemsCount( connection->readQueue ) <= 0 )
   {
 	  DEBUG_UPDATE( "no messages available for this connection: ID %d", clientID );
     return NULL;
   }
-  
-  /*if( (errorCode = CmtReadTSQData( connection->readQueue, messageBuffer, 1, TSQ_INFINITE_TIMEOUT, 0 )) < 0 )
-  {
-    CmtGetErrorMessage( errorCode, messageBuffer );
-    ERROR_EVENT( "failed reading data from queue: %s", messageBuffer );
-    connection->networkRole = DISCONNECTED;
-    return NULL;
-  }*/
   
   ThreadSafeQueues.Dequeue( connection->readQueue, messageBuffer, QUEUE_READ_WAIT );
   
@@ -746,13 +604,12 @@ char* AsyncIPConnection_ReadMessage( int clientID )
 
 int AsyncIPConnection_WriteMessage( int connectionID, const char* message )
 {
-  AsyncConnection connection = FindConnection( globalConnectionsList, (unsigned int) connectionID, PEEK ); 
-
-  if( connectionID < 0 || connection == NULL )
-  {
-    ERROR_EVENT( "no queue available for this connection: ID %d", connectionID );    
-    return -1;
-  }
+  khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
+  if( connectionIndex == kh_end( globalConnectionsList ) ) return -1;
+  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) ) return -1;
+  
+  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex );
+  if( connection == NULL ) return -1;
   
   DEBUG_UPDATE( "writing \"%s\" to handle %d", message, connectionID );
   
@@ -762,17 +619,12 @@ int AsyncIPConnection_WriteMessage( int connectionID, const char* message )
 int AsyncIPConnection_GetClient( int serverID )
 {
   static int clientID;
-
-  //static size_t clientsCount;
-  //static int errorCode;
   
-  AsyncConnection connection = FindConnection( globalConnectionsList, (unsigned int) serverID, PEEK ); 
+  khint_t serverIndex = kh_get( IPInt, globalConnectionsList, (khint_t) serverID );
+  if( serverIndex == kh_end( globalConnectionsList ) ) return -1;
+  //if( !kh_exist( globalConnectionsList, (khint_t) serverID ) ) return -1;
   
-  if( serverID < 0 || connection == NULL )
-  {
-    ERROR_EVENT( "no queue available for connection ID %d", serverID );
-    return -1;
-  }
+  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) serverID*/serverIndex );
   
   if( connection->networkRole != SERVER )
   {
@@ -780,27 +632,12 @@ int AsyncIPConnection_GetClient( int serverID )
 	  return -1;
   }
   
-  /*if( (errorCode = CmtGetTSQAttribute( connection->readQueue, ATTR_TSQ_ITEMS_IN_QUEUE, &clientsCount )) < 0 )
-  {
-    char errorMessage[ DEBUG_MESSAGE_LENGTH ]; 
-    CmtGetErrorMessage( errorCode, errorMessage );
-    ERROR_EVENT( "%s", errorMessage );
-    return -1;
-  }*/
-  
-  if( /*clientsCount*/ThreadSafeQueues.GetItemsCount( connection->readQueue ) <= 0 )
+  if( ThreadSafeQueues.GetItemsCount( connection->readQueue ) <= 0 )
   {
 	  DEBUG_UPDATE( "no new clients available for server connection ID %d", serverID );
     return -1;
   }
-  
-  /*if( (errorCode = CmtReadTSQData( connection->readQueue, &clientID, 1, TSQ_INFINITE_TIMEOUT, 0 )) < 0 )
-  {
-    char errorMessage[ DEBUG_MESSAGE_LENGTH ]; 
-    CmtGetErrorMessage( errorCode, errorMessage );
-    ERROR_EVENT( "%s", errorMessage );
-    return -1;
-  }*/
+  else if( connection->protocol == TCP ) DEBUG_PRINT( "clients available: %u", ThreadSafeQueues.GetItemsCount( connection->readQueue ) );
   
   ThreadSafeQueues.Dequeue( connection->readQueue, &clientID, QUEUE_READ_WAIT );
   
@@ -819,139 +656,114 @@ static void CloseConnection( AsyncConnection connection )
 {
   static int statusCode;
   
-  if( connection != NULL )
+  if( connection == NULL ) return;
+
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "closing connection handle %u", connection->handle );
+  
+  if( connection->networkRole == SERVER || connection->networkRole == LISTENER )
   {
-    DEBUG_EVENT( 0, "closing connection handle %u\n", connection->handle );
-    
-    (void) FindConnection( globalConnectionsList, connection->handle, REMOVE );
-    
-    switch( connection->protocol | connection->networkRole )
+    if( kh_size( connection->clientsList ) == 0 )
     {
-      case ( TCP | LISTENER ):
-      case ( TCP | SERVER ):
-        
-        if( ListNumItems( connection->clientsList ) <= 0 )
-        {
-          if( (statusCode = UnregisterTCPServer( connection->address.port )) < 0 )
-            ERROR_EVENT( "UnregisterTCPServer: error closing TCP server: %s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
-        
-          ListDispose( connection->clientsList );
-          connection->clientsList = NULL;
-          
-          DEBUG_PRINT( "TCP server %u closed", connection->handle );
-        }
+      if( connection->protocol == TCP )
+      {
+        if( (statusCode = UnregisterTCPServer( connection->address.port )) < 0 )
+          ERROR_EVENT( "UnregisterTCPServer: error closing TCP server: %s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
         else
-        {
-          connection->networkRole = LISTENER;
-          return;
-        }
-      
-        break;
-      
-      case ( TCP | CLIENT ):
-      
-        if( connection->ref_server == NULL )
-        {
-          if( (statusCode = DisconnectFromTCPServer( connection->handle )) < 0 )
-            ERROR_EVENT( "DisconnectFromTCPServer: error closing TCP server: %s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
-        }
+          DEBUG_EVENT( 0, "TCP server %u closed", connection->handle );
+      }
+      else
+      {
+        if( (statusCode = DisposeUDPChannel( connection->handle )) < 0 )
+          ERROR_EVENT( "DisposeUDPChannel: %s", GetUDPErrorString( statusCode ) );
         else
-        {
-          if( (statusCode = DisconnectTCPClient( connection->handle )) < 0 )
-            ERROR_EVENT( "DisconnectTCPClient: %s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
-          
-          (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
-          
-          DEBUG_PRINT( "TCP client %u closed", connection->handle );
-          //CloseConnection( 0, &(connection->ref_server), NULL );
-        }
-      
-        break;
-      
-      case ( UDP | LISTENER ):
-      case ( UDP | SERVER ):
-      
-        if( ListNumItems( connection->clientsList ) <= 0 )
-        {
-          if( (statusCode = DisposeUDPChannel( connection->handle )) < 0 )
-            ERROR_EVENT( "DisposeUDPChannel: %s", GetUDPErrorString( statusCode ) );
-        
-          ListDispose( connection->clientsList );
-          connection->clientsList = NULL;
-        }
-        else
-        {
-          connection->networkRole = LISTENER;
-          return;
-        }
-      
-        break;
-      
-      case ( UDP | CLIENT ):
-      
-        if( connection->ref_server == NULL )
-        {
-          if( (statusCode = DisposeUDPChannel( connection->handle )) < 0 )
-            ERROR_EVENT( "DisposeUDPChannel: %s", GetUDPErrorString( statusCode ) );
-        }
-        else
-        {
-          (void) FindConnection( connection->ref_server->clientsList, connection->handle, REMOVE );
-          
-          CloseConnection( connection->ref_server );
-        }
-      
-        break;
-        
-      default: break;
+          DEBUG_EVENT( 0, "UDP server %u closed", connection->handle );
+      }
+
+      kh_destroy( IPInt, connection->clientsList );
+      connection->clientsList = NULL;
     }
-    
-    connection->networkRole = DISCONNECTED;
-    
-    if( connection->callbackThread != INVALID_THREAD_HANDLE )
+    else
     {
-      DEBUG_PRINT( "waiting connection callback thread %x return", connection->callbackThread );
-      
-      (void) Threading_WaitExit( connection->callbackThread, INFINITE );
-      
-      /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "connection callback thread %x returned successfully", connection->callbackThread );
-      
-      connection->callbackThread = INVALID_THREAD_HANDLE;
+      connection->networkRole = LISTENER;
+      return;
     }
-    
-    DEBUG_PRINT( "destroying message queue %p", connection->readQueue );
-    //(void) CmtDiscardTSQ( connection->readQueue );
-    ThreadSafeQueues.Discard( connection->readQueue );
-    
-    DEBUG_PRINT( "freeing connection %p", connection );
-    free( connection );
+  }
+  else
+  {
+    if( connection->protocol == TCP )
+    {
+      if( connection->ref_server == NULL ) statusCode = DisconnectFromTCPServer( connection->handle );
+      else statusCode = DisconnectTCPClient( connection->handle );
+      
+      if( statusCode < 0 ) ERROR_EVENT( "error closing TCP client: %s: %s", GetTCPErrorString( statusCode ), GetTCPSystemErrorString() );
+      else DEBUG_EVENT( 0, "TCP client %u closed", connection->handle ); 
+    }
+    else if( connection->ref_server == NULL )
+    {
+      if( (statusCode = DisposeUDPChannel( connection->handle )) < 0 ) 
+        ERROR_EVENT( "error closing UDP client: %s", GetUDPErrorString( statusCode ) );
+      else
+        DEBUG_EVENT( 0, "UDP client %u closed", connection->handle );
+    }
+      
+    /*if( connection->ref_server != NULL )
+    {
+      khint_t clientID = kh_get( IPInt, connection->ref_server->clientsList, connection->handle );
+      if( clientID != kh_end( connection->ref_server->clientsList ) )
+      {
+        kh_del( IPInt, connection->ref_server->clientsList, clientID );
+        if( kh_size( connection->ref_server->clientsList ) == 0 )
+        {
+          if( connection->ref_server->networkRole == LISTENER ) CloseConnection( connection->ref_server );
+        }
+      }
+    }*/
   }
 
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "%u active connections listed", ListNumItems( globalConnectionsList ) );
+  connection->networkRole = DISCONNECTED;
+
+  if( connection->callbackThread != INVALID_THREAD_HANDLE )
+  {
+    DEBUG_EVENT( 0, "waiting connection callback thread %x return", connection->callbackThread );
+    (void) Threading_WaitExit( connection->callbackThread, INFINITE );
+    DEBUG_EVENT( 0, "connection callback thread %x returned successfully", connection->callbackThread );
+    
+    connection->callbackThread = INVALID_THREAD_HANDLE;
+  }
+
+  DEBUG_EVENT( 0, "destroying read queue %p", connection->readQueue );
+  ThreadSafeQueues.Discard( connection->readQueue );
+
+  DEBUG_EVENT( 0, "freeing connection %p", connection );
+  free( connection );
+  
+  for( size_t connectionID = 0; connectionID < kh_end( globalConnectionsList ); connectionID++ )
+  {
+    if( kh_exist( globalConnectionsList, connectionID ) )
+    {
+      if( kh_value( globalConnectionsList, connectionID ) == connection )
+        kh_value( globalConnectionsList, connectionID ) = NULL;
+    }
+  }
 }
 
 void AsyncIPConnection_Close( int connectionID )
 {
-  static AsyncConnection connection;
+  DEBUG_PRINT( "trying to close connection %d", connectionID );
   
-  connection = FindConnection( globalConnectionsList, (unsigned int) connectionID, PEEK ); 
+  khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
+  if( connectionIndex == kh_end( globalConnectionsList ) ) return;
+  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) ) return;
 
-  if( connectionID < 0 || connection == NULL )
+  CloseConnection( kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex ) );
+  kh_del( IPInt, globalConnectionsList, /*(khint_t) connectionID*/connectionIndex );
+  DEBUG_PRINT( "connection %d closed (remaining: %u)", connectionID, kh_size( globalConnectionsList ) );
+  
+  if( kh_size( globalConnectionsList ) == 0 )
   {
-    ERROR_EVENT( "invalid connection ID %d", connectionID );
-    return;
-  }
-  
-  CloseConnection( connection );
-  
-  DEBUG_PRINT( "connection %d closed", connectionID );
-  
-  if( ListNumItems( globalConnectionsList )/*AsyncIPConnection_GetActivesNumber()*/ <= 0 )
-  {
-    ListDispose( globalConnectionsList );
-    globalConnectionsList = NULL;
-    
+    kh_destroy( IPInt, globalConnectionsList );
     DEBUG_PRINT( "connections list %p destroyed", globalConnectionsList );
+    globalConnectionsList = NULL;
   }
 }
 

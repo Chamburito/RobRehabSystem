@@ -91,11 +91,13 @@ static inline const kson_node_t* GetPathNode( int fileID, const kson_node_t* cur
 {
   if( !kh_exist( jsonFilesList, (khint_t) fileID ) ) return NULL;
   
-  strncpy( kh_value( jsonFilesList, fileID ).searchPath, path, FILE_PARSER_MAX_PATH_LENGTH );
+  char* searchPath = kh_value( jsonFilesList, (khint_t) fileID ).searchPath;
   
-  DEBUG_PRINT( "Search path: %s", kh_value( jsonFilesList, fileID ).searchPath );
+  strncpy( searchPath, path, FILE_PARSER_MAX_PATH_LENGTH );
   
-  for( char* key = strtok( kh_value( jsonFilesList, fileID ).searchPath, "." ); key != NULL; key = strtok( NULL, "." ) )
+  DEBUG_PRINT( "Search path: %s", searchPath );
+  
+  for( char* key = strtok( searchPath, "." ); key != NULL; key = strtok( NULL, "." ) )
   {
     if( currentNode->type == KSON_TYPE_BRACE )
       currentNode = kson_by_key( currentNode, key );

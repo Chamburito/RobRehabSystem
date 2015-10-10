@@ -22,6 +22,7 @@ typedef struct _SharedObject
   CNVData networkData;
   void* data;
   size_t dataSize;
+  void* oldData;
 }
 SharedObject;
 
@@ -39,7 +40,7 @@ int CVICALLBACK UpdateDataOut( int, int, int, void*, int, int );
 
 void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, int flags )
 {
-  DEBUG_PRINT( "trying to create shared object %s with %u bytes", mappingName, objectSize );
+  DEBUG_PRINT( "trying to create shared object %s with %u bytes (mode: %d)", mappingName, objectSize, flags );
   
   if( sharedObjectsList != NULL )
   {
@@ -62,6 +63,8 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
   
   newSharedObject->data = malloc( objectSize );
   memset( newSharedObject->data, 0, objectSize );
+  newSharedObject->oldData = malloc( objectSize );
+  memset( newSharedObject->oldData, 0, objectSize );
   
   newSharedObject->dataSize = objectSize;
   CNVCreateArrayDataValue( &(newSharedObject->networkData), CNVUInt8, newSharedObject->data, 1, &(newSharedObject->dataSize) );
@@ -78,6 +81,8 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
       free( variablePathName );
       return NULL;
     }
+    
+    DEBUG_PRINT( "created subscriber %s with pointer %p", variablePathName, newSharedObject->reader );
   }
   
   if( ( flags & SHM_WRITE ) )
@@ -90,7 +95,10 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
       return NULL;
     }
     
-    if( (newSharedObject->timerID = NewAsyncTimer( /*0.001*/0.01, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
+    DEBUG_PRINT( "created writer %s with pointer %p", variablePathName, newSharedObject->writer );
+    
+    //if( (newSharedObject->timerID = NewAsyncTimer( 0.001, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
+    if( (newSharedObject->timerID = NewAsyncTimerWithPriority( 0.001, -1, 1, UpdateDataOut, newSharedObject, 0 )) < 0 )
     {
       DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
       free( variablePathName );
@@ -149,6 +157,8 @@ void CVICALLBACK UpdateDataIn( void* handle, CNVData data, void* callbackData )
   
   if( sharedObject->reader == (CNVSubscriber) handle )
   {
+    DEBUG_UPDATE( "received data %p on subscriber %p", data, handle );
+    
     int status = CNVGetArrayDataValue( data, CNVUInt8, (void*) sharedObject->data, sharedObject->dataSize );
     if( status != 0 ) DEBUG_PRINT( "CNVGetArrayDataValue: %s", CNVGetErrorDescription( status ) );
     
@@ -162,17 +172,29 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
   
   if( sharedObject->timerID == timerId && event == EVENT_TIMER_TICK )
   {
-    int status = CNVCreateArrayDataValue( &(sharedObject->networkData), CNVUInt8, sharedObject->data, 1, &(sharedObject->dataSize) );
-    if( status != 0 )
+    for( size_t byteIndex = 0; byteIndex < sharedObject->dataSize; byteIndex++ )
     {
-      DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-      return 0;
-    }
-    status = CNVWrite( sharedObject->writer, sharedObject->networkData, 1000 );
-    if( status != 0 )
-    {
-      DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-      return 0;
+      if( ( (uint8_t*) sharedObject->data )[ byteIndex ] != ( (uint8_t*) sharedObject->oldData )[ byteIndex ] )
+      {
+        int status = CNVCreateArrayDataValue( &(sharedObject->networkData), CNVUInt8, sharedObject->data, 1, &(sharedObject->dataSize) );
+        if( status != 0 )
+        {
+          DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+          return 0;
+        }
+        status = CNVWrite( sharedObject->writer, sharedObject->networkData, 100 );
+        if( status != 0 )
+        {
+          DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+          return 0;
+        }
+        
+        DEBUG_UPDATE( "writing data %p on writer %p", sharedObject->networkData, sharedObject->writer );
+        
+        memcpy( sharedObject->oldData, sharedObject->data, sharedObject->dataSize );
+        
+        break;
+      }
     }
   }
   

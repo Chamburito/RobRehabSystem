@@ -18,6 +18,8 @@
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
 
+const unsigned long UPDATE_INTERVAL_MS = 5;
+
 typedef struct _SHMJointData
 {
   SHMAxisController controller;
@@ -29,19 +31,23 @@ typedef SHMJointData* SHMJoint;
 
 kvec_t( SHMJointData ) sharedJointsList;
 
+
+#define SUBSYSTEM RobRehabEMG
+
 #define ROBREHAB_EMG_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, Init, void ) \
         function_init( void, namespace, End, void ) \
         function_init( void, namespace, Update, void )
 
-INIT_NAMESPACE_INTERFACE( RobRehabEMG, ROBREHAB_EMG_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_EMG_FUNCTIONS )
+
 
 const char* jointsDirectory = "emg_joints";
 int RobRehabEMG_Init()
 {
   kv_init( sharedJointsList );
   
-  SET_PATH( "./config/" );
+  SET_PATH( "config/" );
   
   FileParserOperations parser = JSONParser;
   int configFileID = parser.LoadFile( "shared_axes" );

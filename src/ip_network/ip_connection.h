@@ -236,8 +236,7 @@ static IPConnection AddConnection( int socketFD, struct sockaddr* address, uint8
     static char addressString[ 16 * sizeof(uint8_t) ];
     for( opt = 0; opt < 16; opt++ )
       sprintf( &(addressString[ opt * sizeof(uint8_t) ]), "%3u", connection->address->sin6_addr.s6_addr[ opt ] );
-    DEBUG_EVENT( 0, "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family,
-                                                                               connection->address->sin6_port, addressString );
+    DEBUG_EVENT( 0, "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family, connection->address->sin6_port, addressString );
 
     //connection->address->sin6_family = AF_INET6;
     connection->buffer = (char*) calloc( IP_CONNECTION_MSG_LEN, sizeof(char) );

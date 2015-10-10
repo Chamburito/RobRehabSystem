@@ -64,20 +64,20 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milliseconds )
 
   if( handle != INVALID_THREAD_HANDLE )
   {
-    DEBUG_PRINT( "waiting thread %x\n", handle );
+    DEBUG_PRINT( "waiting thread %x", handle );
 
     exitStatus = WaitForSingleObject( handle, (DWORD) milliseconds );
   
     if( exitStatus == WAIT_FAILED )
-      ERROR_PRINT( "WaitForSingleObject: error waiting for thread %x end: code: %x\n", handle, GetLastError() );
+      ERROR_PRINT( "WaitForSingleObject: error waiting for thread %x end: code: %x", handle, GetLastError() );
     else if( exitStatus == WAIT_TIMEOUT )
-      ERROR_PRINT( "WaitForSingleObject: wait for thread %x timed out\n", handle );
+      ERROR_PRINT( "WaitForSingleObject: wait for thread %x timed out", handle );
     else
     {
-      DEBUG_PRINT( "thread %x returned\n", handle );
+      DEBUG_PRINT( "thread %x returned", handle );
     
       if( GetExitCodeThread( handle, &exitCode ) != 0 )
-        DEBUG_PRINT( "thread exit code: %u\n", exitCode ); 
+        DEBUG_PRINT( "thread exit code: %u", exitCode ); 
     }
   
     if( CloseHandle( handle ) == 0 )

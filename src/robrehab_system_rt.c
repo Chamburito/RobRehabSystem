@@ -37,13 +37,10 @@
 
 #ifdef ROBREHAB_SERVER
   #include "robrehab_network.h"
-  #define SUBSYSTEM RobRehabNetwork
 #elif ROBREHAB_CONTROL
   #include "robrehab_control.h"
-  #define SUBSYSTEM RobRehabControl
 #elif ROBREHAB_EMG
   #include "robrehab_emg.h"
-  #define SUBSYSTEM RobRehabEMG
 #endif
 
 #include <utility.h>
@@ -52,7 +49,6 @@
 #include <cvinetv.h>
 #include <cvirte.h>
 #include <ansi_c.h>
-#include "common.h"
 
 /* Program entry-point */
 void CVIFUNC_C RTmain( void )
@@ -60,21 +56,17 @@ void CVIFUNC_C RTmain( void )
 	if( InitCVIRTE( 0, 0, 0 ) == 0 )
 		return;
 	
-	int status;
+	/*int status;
 	int systemStarted = 0;
 	
 	while( !RTIsShuttingDown() && !systemStarted )
 	{
-		status = CNVProcessIsRunning( PROCESS, &systemStarted );
+		status = CNVProcessIsRunning( "system", &systemStarted );
 		if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
 		SleepUS( 10000 );
-	}
+	}*/
   
   SetDir( "C:\\ni-rt" );
-  
-  char pathName[ MAX_PATHNAME_LEN ];
-  GetDir( pathName );
-  DEBUG_PRINT( "current path: %s", pathName );
   
   SUBSYSTEM.Init();
 		
@@ -82,7 +74,7 @@ void CVIFUNC_C RTmain( void )
 	{
     SUBSYSTEM.Update();
     
-    SleepUntilNextMultipleUS( 5000 ); // Sleep to give the desired loop rate.
+    SleepUntilNextMultipleUS( 1000 * UPDATE_INTERVAL_MS ); // Sleep to give the desired loop rate.
 	}
 
   SUBSYSTEM.End();

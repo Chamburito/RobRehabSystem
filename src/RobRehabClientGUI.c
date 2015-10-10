@@ -34,21 +34,22 @@
 *******************************************************************************/
 
 /* Include files */
-//#include <ansi_c.h>
+#include <ansi_c.h>
 #include <stdbool.h>
-#include <cvinetv.h>
+//#include <cvinetv.h>
 #include <cvirte.h>		
 #include <userint.h>
 
 #include "ip_network/cvirte_ip_connection.h"
-#include "RobRehabControlGUI.h"
-#include "common.h"
+#include "RobRehabClientGUI.h"
+
+#define NUM_POINTS			400
 
 enum SHMControlFloats { SHM_CONTROL_POSITION, SHM_CONTROL_VELOCITY, SHM_CONTROL_FORCE, SHM_CONTROL_STIFFNESS = SHM_CONTROL_FORCE,
                         SHM_CONTROL_ACCELERATION, SHM_CONTROL_DAMPING = SHM_CONTROL_ACCELERATION, SHM_CONTROL_TIME, SHM_CONTROL_FLOATS_NUMBER };
 
-enum SHMControlBytes { SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE,
-                       SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_STATE_ENABLED, SHM_STATE_ERROR, SHM_CONTROL_BYTES_NUMBER };
+enum SHMControlBytes { SHM_COMMAND_DISABLE, SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, SHM_STATE_ENABLED = SHM_COMMAND_ENABLE, 
+                       SHM_COMMAND_RESET, SHM_STATE_ERROR = SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE, SHM_CONTROL_BYTES_NUMBER };
 
 /* Global variables */
 static int panel;
@@ -97,18 +98,18 @@ int main( int argc, char *argv[] )
   
   fprintf( stderr, "received info message: %s\n", infoMessage );
   
-  char resetMessage[ 256 ] = { 1, 0, SHM_COMMAND_RESET };
+  char resetMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0, SHM_COMMAND_RESET };
   AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
   
-  infoMessage = NULL;
-  while( infoMessage == NULL )
-    infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
+  //infoMessage = NULL;
+  //while( infoMessage == NULL )
+  //  infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
   
-  fprintf( stderr, "received info message: %s\n", infoMessage );
+  //fprintf( stderr, "received info message: %s\n", infoMessage );
   
   dataConnectionThreadID = Threading_StartThread( UpdateData, NULL, THREAD_JOINABLE );
   
-	if( (panel = LoadPanel( 0, "RobRehabControlGUI.uir", PANEL )) < 0 )
+	if( (panel = LoadPanel( 0, "RobRehabClientGUI.uir", PANEL )) < 0 )
 		return -1;
 
 	InitUserInterface();
@@ -152,6 +153,9 @@ static void* UpdateData( void* callbackData )
   int dataClientID = AsyncIPConnection_Open( address, "50001", UDP );
   
   if( dataClientID != -1 ) isDataUpdateRunning = true;
+  
+  char testMessage[ IP_MAX_MESSAGE_LENGTH ] = "UDP Start";
+  AsyncIPConnection_WriteMessage( dataClientID, testMessage );
   
   while( isDataUpdateRunning )
   {
@@ -205,6 +209,9 @@ static void* UpdateData( void* callbackData )
     }
   }
   
+  memset( dataMessageOut + 3, 0, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
+  AsyncIPConnection_WriteMessage( dataClientID, dataMessageOut ); 
+  
   AsyncIPConnection_Close( dataClientID );
   
   return NULL;
@@ -215,43 +222,41 @@ static void InitUserInterface( void )
 	// Manually call the control callbacks to write the initial values for
 	// amplitude and frequency to the network variables.
   SetCtrlVal( panel, PANEL_MOTOR_TOGGLE, 0 );
-  ChangeStateCallback( panel, PANEL_MOTOR_TOGGLE, EVENT_COMMIT, 0, 0, 0 );
+  ChangeStateCallback( panel, PANEL_MOTOR_TOGGLE, EVENT_COMMIT, NULL, 0, 0 );
   
-	ChangeValueCallback( panel, PANEL_STIFFNESS, EVENT_COMMIT, 0, 0, 0 );
+	ChangeValueCallback( panel, PANEL_STIFFNESS_SLIDER, EVENT_COMMIT, NULL, 0, 0 );
 }
 
 int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-  static char commandMessage[ IP_MAX_MESSAGE_LENGTH ];
-  commandMessage[ 0 ] = 1;
-  commandMessage[ 1 ] = 0;
+  static char commandMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0 };
   
-  int enabled;
-  
-	switch( event )
+	if( event == EVENT_COMMIT )
 	{
-		case EVENT_COMMIT:
-			// Get the new value.
-			GetCtrlVal( panel, control, &enabled );
-		
-      commandMessage[ 2 ] = SHM_CONTROL_BYTES_NUMBER; 
-      
-			// Write the new value to the appropriate network variable.
-			if( control == PANEL_MOTOR_TOGGLE )
-      {
-        if( enabled == 1 )
-          commandMessage[ 2 ] = SHM_COMMAND_ENABLE;
-        else
-          commandMessage[ 2 ] = SHM_COMMAND_DISABLE;
-      }
-      else if( control == PANEL_OFFSET_TOGGLE )
-      {
-        commandMessage[ 2 ] = SHM_COMMAND_CALIBRATE;
-      }
-      
-			AsyncIPConnection_WriteMessage( infoClientID, commandMessage );
-      
-			break;
+    // Write the new value to the appropriate network variable.
+    if( control == PANEL_MOTOR_TOGGLE )
+    {
+      // Get the new value.
+      int enabled;
+      GetCtrlVal( panel, control, &enabled );
+
+      if( enabled == 1 )
+        commandMessage[ 2 ] = SHM_COMMAND_ENABLE;
+      else
+        commandMessage[ 2 ] = SHM_COMMAND_DISABLE;
+    }
+    else if( control == PANEL_RESET_BUTTON )
+    {
+      commandMessage[ 2 ] = SHM_COMMAND_RESET;
+    }
+    else if( control == PANEL_OFFSET_BUTTON )
+    {
+      commandMessage[ 2 ] = SHM_COMMAND_CALIBRATE;
+    }
+
+    //AsyncIPConnection_WriteMessage( infoClientID, commandMessage );
+    commandMessage[ 2 ] = SHM_CONTROL_BYTES_NUMBER;
+    //AsyncIPConnection_WriteMessage( infoClientID, commandMessage );
 	}
   
 	return 0;
@@ -259,31 +264,24 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
 
 int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-	switch( event )
+	if( event == EVENT_COMMIT )
 	{
-		case EVENT_COMMIT:
-			
-			if( control == PANEL_STIFFNESS )
-			{
-        // Get the new value.
-			  GetCtrlVal( panel, control, &maxStiffness );
-      }
-      
-			break;
+    if( control == PANEL_STIFFNESS_SLIDER )
+    {
+      // Get the new value.
+      GetCtrlVal( panel, control, &maxStiffness );
+    }
 	}
 	return 0;
 }
 
 int CVICALLBACK QuitCallback( int panel, int event, void *callbackData, int eventData1, int eventData2 )
 {
-  switch( event )
+  if( event == EVENT_CLOSE )
 	{
-		case EVENT_CLOSE:
-			
-      QuitUserInterface( 0 );
-      
-			break;
+		QuitUserInterface( 0 );
 	}
+  
 	return 0;
 }
 
