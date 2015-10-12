@@ -54,7 +54,7 @@ ThreadSafeQueue ThreadSafeQueues_Create( size_t maxLength, size_t itemSize )
   
   queue->first = queue->last = 0;
   
-  queue->accessLock = ThreadLocks_Create();
+  queue->accessLock = ThreadLocks.Create();
   queue->countLock = Semaphores_Create( 0, queue->maxLength );
   
   return queue;
@@ -68,7 +68,7 @@ void ThreadSafeQueues_Discard( ThreadSafeQueue queue )
       free( queue->cache[ i ] );
     free( queue->cache );
     
-    ThreadLocks_Discard( queue->accessLock );
+    ThreadLocks.Discard( queue->accessLock );
     Semaphores_Discard( queue->countLock );
 
     free( queue );
@@ -88,13 +88,13 @@ bool ThreadSafeQueues_Dequeue( ThreadSafeQueue queue, void* buffer, enum QueueRe
   
   Semaphores_Decrement( queue->countLock );
   
-  ThreadLocks_Aquire( queue->accessLock );
+  ThreadLocks.Aquire( queue->accessLock );
   
   void* dataOut = queue->cache[ queue->first % queue->maxLength ];
   buffer = memcpy( buffer, dataOut, queue->itemSize );
   queue->first++;
   
-  ThreadLocks_Release( queue->accessLock );
+  ThreadLocks.Release( queue->accessLock );
   
   return true;
 }
@@ -110,14 +110,14 @@ void ThreadSafeQueues_Enqueue( ThreadSafeQueue queue, void* buffer, enum QueueWr
   if( mode != QUEUE_APPEND_OVERWRITE || Semaphores_GetCount( queue->countLock ) < queue->maxLength )
     Semaphores_Increment( queue->countLock );
   
-  ThreadLocks_Aquire( queue->accessLock );
+  ThreadLocks.Aquire( queue->accessLock );
   
   void* dataIn = queue->cache[ queue->last % queue->maxLength ];
   memcpy( dataIn, buffer, queue->itemSize );
   if( ThreadSafeQueues_GetItemsCount( queue ) == queue->maxLength ) queue->first++;
   queue->last++;
   
-  ThreadLocks_Release( queue->accessLock );
+  ThreadLocks.Release( queue->accessLock );
 }
 
 
@@ -155,7 +155,7 @@ DataList* DataList_Init( size_t itemSize )
   list->itemsCount = list->insertCount = 0;
   list->itemSize = itemSize;
   
-  list->accessLock = ThreadLocks_Create();
+  list->accessLock = ThreadLocks.Create();
   
   return list;
 }
@@ -168,7 +168,7 @@ void DataList_End( DataList* list )
     //  free( list->data[ position ] );
     free( list->data );
     
-    ThreadLocks_Discard( list->accessLock );
+    ThreadLocks.Discard( list->accessLock );
 
     free( list );
     list = NULL;
@@ -182,7 +182,7 @@ int ListCompare( const void* ref_item_1, const void* ref_item_2 )
 
 size_t DataList_Insert( DataList* list, void* dataIn )
 {
-  ThreadLocks_Aquire( list->accessLock );
+  ThreadLocks.Aquire( list->accessLock );
   
   list->insertCount++;
   
@@ -200,14 +200,14 @@ size_t DataList_Insert( DataList* list, void* dataIn )
   
   list->itemsCount++;
   
-  ThreadLocks_Release( list->accessLock );
+  ThreadLocks.Release( list->accessLock );
   
   return list->insertCount;
 }
 
 void DataList_Remove( DataList* list, size_t index )
 {
-  ThreadLocks_Aquire( list->accessLock );
+  ThreadLocks.Aquire( list->accessLock );
   
   if( list->insertCount > 0 )
   {  
@@ -232,18 +232,18 @@ void DataList_Remove( DataList* list, size_t index )
     }
   }
   
-  ThreadLocks_Release( list->accessLock );
+  ThreadLocks.Release( list->accessLock );
 }
 
 void* DataList_GetValue( DataList* list, size_t index )
 {
-  //ThreadLocks_Aquire( list->accessLock );
+  //ThreadLocks.Aquire( list->accessLock );
   
   Item comparisonItem = { index, NULL };
   
   void* foundItem = bsearch( (void*) &comparisonItem, (void*) list->data, list->length, list->itemSize, ListCompare );
   
-  //ThreadLocks_Release( list->accessLock );
+  //ThreadLocks.Release( list->accessLock );
   
   return foundItem;
 }

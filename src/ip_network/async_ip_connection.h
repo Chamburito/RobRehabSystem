@@ -146,16 +146,16 @@ static int AddAsyncConnection( IPConnection* baseConnection )
   if( baseConnection->networkRole == CLIENT )
   {
     connection->readQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );  
-    connection->readThread = Threading_StartThread( AsyncReadQueue, (void*) connection, THREAD_JOINABLE );
+    connection->readThread = Threading.StartThread( AsyncReadQueue, (void*) connection, THREAD_JOINABLE );
   }
   else if( baseConnection->networkRole == SERVER )
   {
     connection->readQueue = DataQueue_Init( QUEUE_MAX_ITEMS, sizeof(int) );
-    connection->readThread = Threading_StartThread( AsyncAcceptClients, (void*) connection, THREAD_JOINABLE );
+    connection->readThread = Threading.StartThread( AsyncAcceptClients, (void*) connection, THREAD_JOINABLE );
   }
 
   connection->writeQueue = DataQueue_Init( QUEUE_MAX_ITEMS, IP_CONNECTION_MSG_LEN );
-  connection->writeThread = Threading_StartThread( AsyncWriteQueue, (void*) connection, THREAD_JOINABLE );
+  connection->writeThread = Threading.StartThread( AsyncWriteQueue, (void*) connection, THREAD_JOINABLE );
   
   DEBUG_EVENT( 0, "last connection index: %d - socket fd: %d", globalConnectionsListSize,  baseConnection->socketFD );
   
@@ -259,7 +259,6 @@ static void* AsyncWriteQueue( void* args )
       break;
   }
   
-  //Threading_EndThread( 1 );
   return NULL;//(void*) 1;
 }
 
@@ -320,7 +319,6 @@ static void* AsyncAcceptClients( void* args )
     }
   }
   
-  //Threading_EndThread( 2 );
   return NULL;//(void*) 2;
 }
 
@@ -418,11 +416,11 @@ void AsyncIPConnection_Close( int connectionIndex )
   
   DEBUG_EVENT( 0, "waiting threads for connection id %u", connectionIndex );
   
-  (void) Threading_WaitExit( globalConnectionsList[ connectionIndex ]->readThread, 5000 );
+  (void) Threading.WaitExit( globalConnectionsList[ connectionIndex ]->readThread, 5000 );
   
   DEBUG_EVENT( 0, "read thread for connection id %u returned", connectionIndex );     
   
-  (void) Threading_WaitExit( globalConnectionsList[ connectionIndex ]->writeThread, 5000 );
+  (void) Threading.WaitExit( globalConnectionsList[ connectionIndex ]->writeThread, 5000 );
   
   DEBUG_EVENT( 0, "write thread for connection id %u returned", connectionIndex ); 
   

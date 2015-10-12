@@ -4,19 +4,7 @@
 #include "interface.h"
 
 #include <stdbool.h>
-
-/*typedef struct _SignalAquisitionOperations
-{
-  int (*InitTask)( const char* );
-  void (*EndTask)( int );
-  double* (*Read)( int, unsigned int, size_t* );
-  bool (*AquireChannel)( int, unsigned int );
-  void (*ReleaseChannel)( int, unsigned int );
-  size_t (*GetMaxSamplesNumber)( int );
-}
-SignalAquisitionOperations;
-
-typedef SignalAquisitionOperations* SignalAquisitionInterface;*/
+#include <stdint.h>
 
 #define SignalAquisition( function_init ) \
         function_init( int, InitTask, const char* ) \

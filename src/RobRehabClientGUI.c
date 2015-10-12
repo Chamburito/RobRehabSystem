@@ -48,8 +48,8 @@
 enum SHMControlFloats { SHM_CONTROL_POSITION, SHM_CONTROL_VELOCITY, SHM_CONTROL_FORCE, SHM_CONTROL_STIFFNESS = SHM_CONTROL_FORCE,
                         SHM_CONTROL_ACCELERATION, SHM_CONTROL_DAMPING = SHM_CONTROL_ACCELERATION, SHM_CONTROL_TIME, SHM_CONTROL_FLOATS_NUMBER };
 
-enum SHMControlBytes { SHM_COMMAND_DISABLE, SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, SHM_STATE_ENABLED = SHM_COMMAND_ENABLE, 
-                       SHM_COMMAND_RESET, SHM_STATE_ERROR = SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE, SHM_CONTROL_BYTES_NUMBER };
+enum SHMControlBytes { SHM_CONTROL_NULL_BYTE, SHM_COMMAND_DISABLE, SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, 
+                       SHM_STATE_ENABLED = SHM_COMMAND_ENABLE, SHM_COMMAND_RESET, SHM_STATE_ERROR = SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE };
 
 /* Global variables */
 static int panel;
@@ -91,23 +91,23 @@ int main( int argc, char *argv[] )
   // Get address of real-time target.
 	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
   
-  infoClientID = AsyncIPConnection_Open( address, "50000", TCP );
+  infoClientID = AsyncIPNetwork.OpenConnection( address, "50000", TCP );
   char* infoMessage = NULL;
   while( infoMessage == NULL )
-    infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
+    infoMessage = AsyncIPNetwork.ReadMessage( infoClientID );
   
   fprintf( stderr, "received info message: %s\n", infoMessage );
   
   char resetMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0, SHM_COMMAND_RESET };
-  AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
+  AsyncIPNetwork_WriteMessage( infoClientID, resetMessage );
   
   //infoMessage = NULL;
   //while( infoMessage == NULL )
-  //  infoMessage = AsyncIPConnection_ReadMessage( infoClientID );
+  //  infoMessage = AsyncIPNetwork_ReadMessage( infoClientID );
   
   //fprintf( stderr, "received info message: %s\n", infoMessage );
   
-  dataConnectionThreadID = Threading_StartThread( UpdateData, NULL, THREAD_JOINABLE );
+  dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
   
 	if( (panel = LoadPanel( 0, "RobRehabClientGUI.uir", PANEL )) < 0 )
 		return -1;
@@ -117,11 +117,11 @@ int main( int argc, char *argv[] )
 	RunUserInterface();
 	
   isDataUpdateRunning = false;
-  Threading_WaitExit( dataConnectionThreadID, 5000 );
+  Threading.WaitExit( dataConnectionThreadID, 5000 );
   
-	AsyncIPConnection_WriteMessage( infoClientID, resetMessage );
+	AsyncIPNetwork.WriteMessage( infoClientID, resetMessage );
   
-  AsyncIPConnection_Close( infoClientID ); 
+  AsyncIPNetwork.CloseConnection( infoClientID ); 
   
 	DiscardPanel( panel );
 	
@@ -150,12 +150,12 @@ static void* UpdateData( void* callbackData )
   
   size_t setpointIndex = 0;
   
-  int dataClientID = AsyncIPConnection_Open( address, "50001", UDP );
+  int dataClientID = AsyncIPNetwork.OpenConnection( address, "50001", UDP );
   
   if( dataClientID != -1 ) isDataUpdateRunning = true;
   
   char testMessage[ IP_MAX_MESSAGE_LENGTH ] = "UDP Start";
-  AsyncIPConnection_WriteMessage( dataClientID, testMessage );
+  AsyncIPNetwork_WriteMessage( dataClientID, testMessage );
   
   while( isDataUpdateRunning )
   {
@@ -163,7 +163,7 @@ static void* UpdateData( void* callbackData )
     absoluteTime = Timing_GetExecTimeSeconds();
     elapsedTime = absoluteTime - initialTime;
     
-    char* messageIn = AsyncIPConnection_ReadMessage( dataClientID );
+    char* messageIn = AsyncIPNetwork.ReadMessage( dataClientID );
     if( messageIn != NULL )
     {
       if( messageIn[ 0 ] == 1 && messageIn[ 1 ] == 0 )
@@ -205,14 +205,14 @@ static void* UpdateData( void* callbackData )
     
       deltaTime = 0.0;
       
-      AsyncIPConnection_WriteMessage( dataClientID, dataMessageOut );
+      AsyncIPNetwork.WriteMessage( dataClientID, dataMessageOut );
     }
   }
   
   memset( dataMessageOut + 3, 0, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
-  AsyncIPConnection_WriteMessage( dataClientID, dataMessageOut ); 
+  AsyncIPNetwork.WriteMessage( dataClientID, dataMessageOut ); 
   
-  AsyncIPConnection_Close( dataClientID );
+  AsyncIPNetwork.CloseConnection( dataClientID );
   
   return NULL;
 }
@@ -233,6 +233,8 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
   
 	if( event == EVENT_COMMIT )
 	{
+    commandMessage[ 2 ] = SHM_CONTROL_NULL_BYTE;
+    
     // Write the new value to the appropriate network variable.
     if( control == PANEL_MOTOR_TOGGLE )
     {
@@ -254,9 +256,7 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
       commandMessage[ 2 ] = SHM_COMMAND_CALIBRATE;
     }
 
-    //AsyncIPConnection_WriteMessage( infoClientID, commandMessage );
-    commandMessage[ 2 ] = SHM_CONTROL_BYTES_NUMBER;
-    //AsyncIPConnection_WriteMessage( infoClientID, commandMessage );
+    AsyncIPNetwork.WriteMessage( infoClientID, commandMessage );
 	}
   
 	return 0;

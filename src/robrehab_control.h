@@ -116,8 +116,8 @@ void RobRehabControl_Update()
     SHMAxis sharedData = sharedController->sharedData;
     AxisController axisController = sharedController->controller;
    
-    uint8_t command = SHM_CONTROL_BYTES_NUMBER;
-    if( SHMAxisControl.GetByteValue( sharedData, &command, SHM_REMOVE ) == true )
+    uint8_t command = SHMAxisControl.GetByteValue( sharedData, SHM_REMOVE );
+    if( command != SHM_CONTROL_NULL_BYTE )
     {
       //DEBUG_PRINT( "received command: %x", command );
       

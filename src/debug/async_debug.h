@@ -81,7 +81,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     {
       if( messageUpdate == 1 )
       {
-        //ThreadLocks_Aquire( printLock );
+        //ThreadLocks.Aquire( printLock );
         
         CLEAR_SCREEN;
 
@@ -91,7 +91,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
 
         messageUpdate = 0;
         
-        //ThreadLocks_Release( printLock );
+        //ThreadLocks.Release( printLock );
         
         lastUpdateTime = Timing_GetExecTimeSeconds();
       }
@@ -99,13 +99,13 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
       if( Timing_GetExecTimeSeconds() - lastUpdateTime > 0 )
       {
         messageUpdate = -1;
-        //ThreadLocks_Discard( printLock );
+        //ThreadLocks.Discard( printLock );
       }
     
       Timing_Delay( 200 );
     }
   
-    Threading_EndThread( 0 );
+    Threading.EndThread( 0 );
     return 0;
   }
 
@@ -119,8 +119,8 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     if( messageUpdate == -1 )
     {
       messageUpdate = 0;
-      //printLock = ThreadLocks_Create();
-      Threading_StartThread( AsyncDebug_Print, NULL, THREAD_DETACHED );
+      //printLock = ThreadLocks.Create();
+      Threading.StartThread( AsyncDebug_Print, NULL, THREAD_DETACHED );
     }
     
     if( debugMessagesCount < MAX_DEBUG_MESSAGES ) 

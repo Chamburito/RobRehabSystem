@@ -52,18 +52,18 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
   sprintf( logFilePathExt, "../logs/%s-%u.log", logFilePath, time( NULL ) );
   
   int insertionStatus;
-  khint_t newLogID = kh_put( LogInt, logsList, logKey, &insertionStatus );
+  khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( logsList, newLogID ) = (Log) malloc( sizeof(LogData) );
+    kh_value( logsList, newLogIndex ) = (Log) malloc( sizeof(LogData) );
     
-    Log newLog = kh_value( logsList, newLogID );
+    Log newLog = kh_value( logsList, newLogIndex );
     
     DEBUG_PRINT( "trying to open file %s", logFilePathExt );
     if( (newLog->file = fopen( logFilePathExt, "w+" )) == NULL )
     {
       perror( "error opening file" );
-      DataLogging_EndLog( (int) newLogID );
+      DataLogging_EndLog( (int) newLogIndex );
       return -1;
     }
     
@@ -73,14 +73,15 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
     newLog->memoryValuesCount = 0;
   }
   
-  return (int) newLogID;
+  return (int) kh_key( logsList, newLogIndex );
 }
 
 static void DataLogging_EndLog( int logID )
 {
-  if( !kh_exist( logsList, (khint_t) logID ) ) return;
+  khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
+  if( logIndex == kh_end( logsList ) ) return;
   
-  Log log = kh_value( logsList, (khint_t) logID );
+  Log log = kh_value( logsList, logIndex );
   
   DataLogging_SaveData( logID, (double*) log->memoryBuffer, log->memoryValuesCount );
   
@@ -88,7 +89,7 @@ static void DataLogging_EndLog( int logID )
   
   free( log );
   
-  kh_del( LogInt, logsList, (khint_t) logID );
+  kh_del( LogInt, logsList, logIndex );
   
   if( kh_size( logsList ) == 0 )
   {
@@ -100,9 +101,10 @@ static void DataLogging_EndLog( int logID )
 
 static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )
 {
-  if( !kh_exist( logsList, (khint_t) logID ) ) return;
+  khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
+  if( logIndex == kh_end( logsList ) ) return;
   
-  Log log = kh_value( logsList, (khint_t) logID );
+  Log log = kh_value( logsList, logIndex );
   
   size_t linesNumber = dataListSize / log->valuesNumber;
   for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
@@ -115,9 +117,10 @@ static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSi
 
 static void DataLogging_RegisterValues( int logID, size_t valuesNumber, ... )
 {
-  if( !kh_exist( logsList, (khint_t) logID ) ) return;
+  khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
+  if( logIndex == kh_end( logsList ) ) return;
   
-  Log log = kh_value( logsList, (khint_t) logID );
+  Log log = kh_value( logsList, logIndex );
   
   va_list logValues;
   
@@ -139,9 +142,10 @@ static void DataLogging_RegisterValues( int logID, size_t valuesNumber, ... )
 
 static void DataLogging_RegisterList( int logID, size_t valuesNumber, double* valuesList )
 {
-  if( !kh_exist( logsList, (khint_t) logID ) ) return;
+  khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
+  if( logIndex == kh_end( logsList ) ) return;
   
-  Log log = kh_value( logsList, (khint_t) logID );
+  Log log = kh_value( logsList, logIndex );
 
   if( log->memoryValuesCount + log->valuesNumber >= log->memoryBufferLength )
   {
@@ -159,9 +163,12 @@ static void DataLogging_SetDataPrecision( int logID, size_t decimalPlacesNumber 
 {
   const size_t MAX_PRECISION = 6;
   
-  if( !kh_exist( logsList, (khint_t) logID ) ) return;
+  khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
+  if( logIndex == kh_end( logsList ) ) return;
   
-  kh_value( logsList, (khint_t) logID )->dataPrecision = ( decimalPlacesNumber < MAX_PRECISION ) ? decimalPlacesNumber : MAX_PRECISION;
+  Log log = kh_value( logsList, logIndex );
+  
+  log->dataPrecision = ( decimalPlacesNumber < MAX_PRECISION ) ? decimalPlacesNumber : MAX_PRECISION;
 }
 
 #endif /* DATA_LOGGING_H */

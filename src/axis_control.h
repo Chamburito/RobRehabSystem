@@ -125,7 +125,7 @@ void AxisControl_EndController( /*int controllerID*/AxisController controller )
   controller->isRunning = false;
 
   if( controller->controlThread != INVALID_THREAD_HANDLE )
-    Threading_WaitExit( controller->controlThread, 5000 );
+    Threading.WaitExit( controller->controlThread, 5000 );
 
   DEBUG_PRINT( "ending actuator %d", controller->actuator.ID );
 
@@ -308,7 +308,7 @@ static inline AxisController LoadControllerData( const char* configFileName )
   
   newController->isRunning = true;
   newController->ref_RunControl = RunForcePIControl;
-  newController->controlThread = Threading_StartThread( AsyncControl, newController, THREAD_JOINABLE );
+  newController->controlThread = Threading.StartThread( AsyncControl, newController, THREAD_JOINABLE );
   
   DEBUG_PRINT( "axis controller %s created", configFileName );
   
@@ -329,7 +329,7 @@ static inline void UnloadControllerData( AxisController controller )
     controller->isRunning = false;
     
     if( controller->controlThread != -1 )
-      Threading_WaitExit( controller->controlThread, 5000 );
+      Threading.WaitExit( controller->controlThread, 5000 );
     
     DEBUG_PRINT( "ending actuator %d", controller->actuator.ID );
     

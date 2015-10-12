@@ -8,8 +8,12 @@
 #ifdef _CVI_
   #include <utility.h>
   #define SET_PATH( dirPath ) SetDir( dirPath );
+#elif WIN32
+  #include <direct.h>
+  #define SET_PATH( dirPath ) _chdir( dirPath );
 #else
-  #define SET_PATH( dirPath ) system( "cd " dirPath );
+  #include <unistd.h>
+  #define SET_PATH( dirPath ) chdir( dirPath );
 #endif
 
 #define FILE_PARSER_MAX_PATH_LENGTH 256

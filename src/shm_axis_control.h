@@ -19,8 +19,8 @@ enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER
 enum SHMControlFloats { SHM_CONTROL_POSITION, SHM_CONTROL_VELOCITY, SHM_CONTROL_FORCE, SHM_CONTROL_STIFFNESS = SHM_CONTROL_FORCE,
                         SHM_CONTROL_ACCELERATION, SHM_CONTROL_DAMPING = SHM_CONTROL_ACCELERATION, SHM_CONTROL_TIME, SHM_CONTROL_FLOATS_NUMBER };
 
-enum SHMControlBytes { SHM_COMMAND_DISABLE, SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, SHM_STATE_ENABLED = SHM_COMMAND_ENABLE, 
-                       SHM_COMMAND_RESET, SHM_STATE_ERROR = SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE, SHM_CONTROL_BYTES_NUMBER };
+enum SHMControlBytes { SHM_CONTROL_NULL_BYTE, SHM_COMMAND_DISABLE, SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, 
+                       SHM_STATE_ENABLED = SHM_COMMAND_ENABLE, SHM_COMMAND_RESET, SHM_STATE_ERROR = SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE };
 
 const bool SHM_PEEK = false;
 const bool SHM_REMOVE = true;
@@ -33,7 +33,6 @@ typedef struct _ControlChannelData
   float numericValuesList[ SHM_CONTROL_FLOATS_NUMBER ];
   uint8_t numericValuesUpdatedList;
   uint8_t byteValue;
-  bool byteValueUpdated;
 }
 ControlChannelData;
 
@@ -48,6 +47,7 @@ SHMAxisControlData;
 
 typedef SHMAxisControlData* SHMAxis;
 
+
 /////////////////////////////////////////////////////////////////////////////
 /////                             INTERFACE                             /////
 /////////////////////////////////////////////////////////////////////////////
@@ -56,11 +56,11 @@ typedef SHMAxisControlData* SHMAxis;
         function_init( SHMAxis, namespace, InitData, const char*, enum SHMControlTypes ) \
         function_init( void, namespace, EndData, SHMAxis ) \
         function_init( bool, namespace, GetNumericValue, SHMAxis, enum SHMControlFloats, float*, bool ) \
-        function_init( void, namespace, SetNumericValue, SHMAxis, enum SHMControlFloats, float ) \
+        function_init( bool, namespace, SetNumericValue, SHMAxis, enum SHMControlFloats, float ) \
         function_init( uint8_t, namespace, GetNumericValuesList, SHMAxis, float*, bool ) \
-        function_init( void, namespace, SetNumericValuesList, SHMAxis, float*, uint8_t ) \
-        function_init( bool, namespace, GetByteValue, SHMAxis, uint8_t*, bool ) \
-        function_init( void, namespace, SetByteValue, SHMAxis, uint8_t )
+        function_init( uint8_t, namespace, SetNumericValuesList, SHMAxis, float*, uint8_t ) \
+        function_init( uint8_t, namespace, GetByteValue, SHMAxis, bool ) \
+        function_init( bool, namespace, SetByteValue, SHMAxis, uint8_t )
 
 INIT_NAMESPACE_INTERFACE( SHMAxisControl, SHM_AXIS_CONTROL_FUNCTIONS )
 
@@ -129,14 +129,16 @@ bool SHMAxisControl_GetNumericValue( SHMAxis axis, enum SHMControlFloats valueIn
   return true;
 }
 
-void SHMAxisControl_SetNumericValue( SHMAxis axis, enum SHMControlFloats valueIndex, float value )
+bool SHMAxisControl_SetNumericValue( SHMAxis axis, enum SHMControlFloats valueIndex, float value )
 {
-  if( axis == NULL ) return;
+  if( axis == NULL ) return false;
     
-  if( valueIndex < 0 || valueIndex >= SHM_CONTROL_FLOATS_NUMBER ) return;
+  if( valueIndex < 0 || valueIndex >= SHM_CONTROL_FLOATS_NUMBER ) return false;
   
   axis->channelOut->numericValuesList[ valueIndex ] = value;
   axis->channelOut->numericValuesUpdatedList |= BIT_INDEX( valueIndex );
+  
+  return true;
 }
 
 uint8_t SHMAxisControl_GetNumericValuesList( SHMAxis axis, float* valuesList, bool remove )
@@ -158,44 +160,40 @@ uint8_t SHMAxisControl_GetNumericValuesList( SHMAxis axis, float* valuesList, bo
   return mask;
 }
 
-void SHMAxisControl_SetNumericValuesList( SHMAxis axis, float* valuesList, uint8_t mask )
+uint8_t SHMAxisControl_SetNumericValuesList( SHMAxis axis, float* valuesList, uint8_t mask )
 {
-  if( axis == NULL ) return;
+  if( axis == NULL ) return 0x00;
   
-  if( valuesList != NULL ) 
-  {
-    size_t dataSize = sizeof(float) * SHM_CONTROL_FLOATS_NUMBER;
-    memcpy( axis->channelOut->numericValuesList, valuesList, dataSize );
+  if( valuesList == NULL ) return 0x00;
+  
+  size_t dataSize = sizeof(float) * SHM_CONTROL_FLOATS_NUMBER;
+  memcpy( axis->channelOut->numericValuesList, valuesList, dataSize );
     
-    axis->channelOut->numericValuesUpdatedList = mask;
-  }
+  axis->channelOut->numericValuesUpdatedList = mask;
+    
+  return axis->channelOut->numericValuesUpdatedList;
 }
 
-bool SHMAxisControl_GetByteValue( SHMAxis axis, uint8_t* ref_value, bool remove )
+uint8_t SHMAxisControl_GetByteValue( SHMAxis axis, bool remove )
+{
+  if( axis == NULL ) return SHM_CONTROL_NULL_BYTE;
+  
+  uint8_t value = axis->channelIn->byteValue;
+  
+  if( remove ) axis->channelIn->byteValue = SHM_CONTROL_NULL_BYTE;
+  
+  return value;
+}
+
+bool SHMAxisControl_SetByteValue( SHMAxis axis, uint8_t value )
 {
   if( axis == NULL ) return false;
-    
-  //DEBUG_PRINT( "new byte ?: %u", axis->channelIn->byteValueUpdated );
-  
-  if( !( axis->channelIn->byteValueUpdated ) ) return false;
-  
-  if( ref_value != NULL )
-  {
-    *ref_value = axis->channelIn->byteValue;
-    if( remove ) axis->channelIn->byteValueUpdated = false;
-  }
-  
-  return true;
-}
-
-void SHMAxisControl_SetByteValue( SHMAxis axis, uint8_t value )
-{
-  if( axis == NULL ) return;
   
   //DEBUG_PRINT( "byte value %u being set", value );
   
   axis->channelOut->byteValue = value;
-  axis->channelOut->byteValueUpdated = true;
+  
+  return true;
 }
 
 #endif // SHM_AXIS_CONTROL_H

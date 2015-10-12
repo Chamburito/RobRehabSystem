@@ -38,6 +38,13 @@ static void* AsyncReadBuffer( void* );
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
+/*BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
+{
+  printf( "WEEEEEEEEEE %p !!!\n\n", hinstDLL );
+  
+  return 0;
+}*/
+
 int InitTask( const char* taskName )
 {
   if( tasksList == NULL ) tasksList = kh_init( TaskInt );
@@ -110,7 +117,7 @@ bool AquireChannel( int taskID, unsigned int channel )
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
   if( taskIndex == kh_end( tasksList ) ) return false;
   
-  DEBUG_PRINT( "aquiring channel %u from task %d", channel, kh_key( tasksList, (khint_t) taskID ) );
+  //DEBUG_PRINT( "aquiring channel %u from task %d", channel, taskID );
   
   SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   

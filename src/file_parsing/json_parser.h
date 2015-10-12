@@ -18,8 +18,8 @@ typedef struct _FileData
 }
 FileData;
                                                 
-KHASH_MAP_INIT_INT( JSON, FileData )
-static khash_t( JSON )* jsonFilesList = NULL;
+KHASH_MAP_INIT_INT( JSONInt, FileData )
+static khash_t( JSONInt )* jsonFilesList = NULL;
 
 static int LoadFile( const char* filePath )
 {
@@ -34,12 +34,12 @@ static int LoadFile( const char* filePath )
   
   if( configFile == NULL ) return -1;
   
-  if( jsonFilesList == NULL ) jsonFilesList = kh_init( JSON );
+  if( jsonFilesList == NULL ) jsonFilesList = kh_init( JSONInt );
   
   int fileKey = (int) kh_str_hash_func( filePath );
   
   int insertionStatus;
-  khint_t fileID = kh_put( JSON, jsonFilesList, fileKey, &insertionStatus );
+  khint_t newFileIndex = kh_put( JSONInt, jsonFilesList, fileKey, &insertionStatus );
   DEBUG_PRINT( "Trying to insert key: %d (status: %d)", fileKey, insertionStatus );
   if( insertionStatus > 0 )
   {
@@ -51,47 +51,50 @@ static int LoadFile( const char* filePath )
   
     DEBUG_PRINT( "Config file content: %s", configString );
     
-    kh_value( jsonFilesList, fileID ).nodeTree = kson_parse( (const char*) configString );
+    kh_value( jsonFilesList, newFileIndex ).nodeTree = kson_parse( (const char*) configString );
 
     free( configString );
   }
   
   fclose( configFile );
   
-  if( kh_value( jsonFilesList, fileID ).nodeTree == NULL )
+  if( kh_value( jsonFilesList, newFileIndex ).nodeTree == NULL )
   {
-    UnloadFile( (int) fileID );
+    UnloadFile( (int) newFileIndex );
     return -1;
   }
   
-  kh_value( jsonFilesList, fileID ).currentNode = kh_value( jsonFilesList, fileID ).nodeTree->root;
+  kh_value( jsonFilesList, newFileIndex ).currentNode = kh_value( jsonFilesList, newFileIndex ).nodeTree->root;
 
-  DEBUG_PRINT( "New file inserted: %s (iterator: %u)", filePath, fileID );
-  DEBUG_PRINT( "Found %u keys in new JSON file", (size_t) kh_value( jsonFilesList, fileID ).nodeTree->root->n );
+  DEBUG_PRINT( "New file inserted: %s (iterator: %u)", filePath, newFileIndex );
+  DEBUG_PRINT( "Found %u keys in new JSON file", (size_t) kh_value( jsonFilesList, newFileIndex ).nodeTree->root->n );
 
-  return (int) fileID;
+  return (int) kh_key( jsonFilesList, newFileIndex );
 }
 
 static void UnloadFile( int fileID )
 {
-  if( !kh_exist( jsonFilesList, (khint_t) fileID ) ) return;
+  khint_t fileIndex = kh_get( JSONInt, jsonFilesList, (khint_t) fileID );
+  if( fileIndex == kh_end( jsonFilesList ) ) return;
     
-  kson_destroy( kh_value( jsonFilesList, (khint_t) fileID ).nodeTree );
+  kson_destroy( kh_value( jsonFilesList, fileIndex ).nodeTree );
     
-  kh_del( JSON, jsonFilesList, (khint_t) fileID );
+  kh_del( JSONInt, jsonFilesList, fileIndex );
     
   if( kh_size( jsonFilesList ) == 0 )
   {
-    kh_destroy( JSON, jsonFilesList );
+    kh_destroy( JSONInt, jsonFilesList );
     jsonFilesList = NULL;
   }
 }
 
-static inline const kson_node_t* GetPathNode( int fileID, const kson_node_t* currentNode, const char* path )
+static inline const kson_node_t* GetPathNode( int fileID, const char* path )
 {
-  if( !kh_exist( jsonFilesList, (khint_t) fileID ) ) return NULL;
+  khint_t fileIndex = kh_get( JSONInt, jsonFilesList, (khint_t) fileID );
+  if( fileIndex == kh_end( jsonFilesList ) ) return NULL;
   
-  char* searchPath = kh_value( jsonFilesList, (khint_t) fileID ).searchPath;
+  const kson_node_t* currentNode = kh_value( jsonFilesList, fileIndex ).currentNode;
+  char* searchPath = kh_value( jsonFilesList, fileIndex ).searchPath;
   
   strncpy( searchPath, path, FILE_PARSER_MAX_PATH_LENGTH );
   
@@ -110,18 +113,16 @@ static inline const kson_node_t* GetPathNode( int fileID, const kson_node_t* cur
 
 void SetBaseKey( int fileID, const char* path )
 {
-  const kson_node_t* baseNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).nodeTree->root, path );
+  khint_t fileIndex = kh_get( JSONInt, jsonFilesList, (khint_t) fileID );
+  if( fileIndex == kh_end( jsonFilesList ) ) return;
   
-  if( baseNode != NULL )
-  {
-    kh_value( jsonFilesList, fileID ).currentNode = baseNode;
-    DEBUG_PRINT( "setting base key to \"%s\"", path );
-  }
+  kh_value( jsonFilesList, fileIndex ).currentNode = GetPathNode( fileID, path );
+  DEBUG_PRINT( "setting base key to \"%s\"", path );
 }
 
 static char* GetStringValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, path );
   
   if( valueNode == NULL ) return NULL;
   
@@ -135,7 +136,7 @@ static char* GetStringValue( int fileID, const char* path )
 
 static long GetIntegerValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, path );
   
   if( valueNode == NULL ) return 0L;
   
@@ -148,7 +149,7 @@ static long GetIntegerValue( int fileID, const char* path )
 
 static double GetRealValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, path );
   
   if( valueNode == NULL ) return strtod( "NaN", NULL );
   
@@ -161,7 +162,7 @@ static double GetRealValue( int fileID, const char* path )
 
 static bool GetBooleanValue( int fileID, const char* path )
 {
-  const kson_node_t* valueNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* valueNode = GetPathNode( fileID, path );
   
   if( valueNode == NULL ) return false;
   
@@ -174,7 +175,7 @@ static bool GetBooleanValue( int fileID, const char* path )
 
 static size_t GetListSize( int fileID, const char* path )
 {
-  const kson_node_t* listNode = GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path );
+  const kson_node_t* listNode = GetPathNode( fileID, path );
   
   if( listNode == NULL ) return 0;
   
@@ -187,7 +188,7 @@ static size_t GetListSize( int fileID, const char* path )
 
 static bool HasKey( int fileID, const char* path )
 {
-  if( GetPathNode( fileID, kh_value( jsonFilesList, fileID ).currentNode, path ) != NULL ) return true;
+  if( GetPathNode( fileID, path ) != NULL ) return true;
   
   return false;
 }

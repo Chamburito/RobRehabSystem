@@ -144,7 +144,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
   EMGJoint newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );
   memset( newJoint, 0, sizeof(EMGJointData) );
   
-  FileParserOperations parser = JSONParser;
+  FileParserInterface parser = JSONParser;
   int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {

@@ -43,7 +43,7 @@ DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibu
 OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.obj.out" ;
 PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.obj" ;
 Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.in.rc" ;
-MainFromObjects "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" : $(PrjObjects) $(InstrObjects) ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\link_options.txt" ;
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" ;
-Depends all : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\NetworkVariableHost.exe" ;
+MainFromObjects "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.exe" : $(PrjObjects) $(InstrObjects) ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.exe" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\link_options.txt" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.exe" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\resources.res" ;
+Depends all : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.RobRehabControlGui\\Debug\\RobRehabClientGUI.exe" ;

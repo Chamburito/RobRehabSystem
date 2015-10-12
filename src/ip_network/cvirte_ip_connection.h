@@ -171,7 +171,7 @@ static int SendTCPMessage( AsyncConnection, const char* );
 static int SendUDPMessage( AsyncConnection, const char* );
 static int SendMessageToAll( AsyncConnection, const char* );
 
-static void CloseConnectionConnection( AsyncConnection );
+static void CloseConnection( AsyncConnection );
 
 // Asyncronous callback for ip connection setup and event processing
 static void* AsyncConnect( void* connectionData )
@@ -291,8 +291,8 @@ int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t p
     else newConnectionIndex = AddConnection( 0, portNumber, host, CLIENT | protocol );
     AsyncConnection newConnection = kh_value( globalConnectionsList, newConnectionIndex );
 
-    newConnection->callbackThread = Threading_StartThread( AsyncConnect, newConnection, THREAD_JOINABLE );
-    (void) Threading_WaitExit( newConnection->callbackThread, 1000 );
+    newConnection->callbackThread = Threading.StartThread( AsyncConnect, newConnection, THREAD_JOINABLE );
+    (void) Threading.WaitExit( newConnection->callbackThread, 1000 );
 
     if( newConnection->networkRole == DISCONNECTED )
     {
@@ -491,7 +491,7 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
     CloseConnection( client );
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "TCP client handle %u disconnected", client->handle );
   }
-  else if( eventType == TCP_CONNECT /*&& connection->networkRole == SERVER*/ )
+  else if( eventType == TCP_CONNECT && clientIndex == kh_end( connection->clientsList ) )
   {
     if( connection->networkRole == SERVER )
     {
@@ -546,7 +546,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
 
     AsyncConnection client = kh_value( connection->clientsList, clientIndex );
     ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-    ///*DEBUG_UPDATE*/DEBUG_PRINT( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
+    /*DEBUG_UPDATE*/DEBUG_PRINT( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
   }
   
   return 0;
@@ -688,7 +688,7 @@ static void CloseConnection( AsyncConnection connection )
         DEBUG_EVENT( 0, "UDP client %u closed", connection->handle );
     }
       
-    /*if( connection->ref_server != NULL )
+    if( connection->ref_server != NULL )
     {
       khint_t clientID = kh_get( IPInt, connection->ref_server->clientsList, connection->handle );
       if( clientID != kh_end( connection->ref_server->clientsList ) )
@@ -699,7 +699,7 @@ static void CloseConnection( AsyncConnection connection )
           if( connection->ref_server->networkRole == LISTENER ) CloseConnection( connection->ref_server );
         }
       }
-    }*/
+    }
   }
 
   connection->networkRole = DISCONNECTED;
@@ -707,7 +707,7 @@ static void CloseConnection( AsyncConnection connection )
   if( connection->callbackThread != INVALID_THREAD_HANDLE )
   {
     DEBUG_EVENT( 0, "waiting connection callback thread %x return", connection->callbackThread );
-    (void) Threading_WaitExit( connection->callbackThread, INFINITE );
+    (void) Threading.WaitExit( connection->callbackThread, INFINITE );
     DEBUG_EVENT( 0, "connection callback thread %x returned successfully", connection->callbackThread );
     
     connection->callbackThread = INVALID_THREAD_HANDLE;
@@ -729,7 +729,7 @@ static void CloseConnection( AsyncConnection connection )
   }
 }
 
-void AsyncIPNetwork_Close( int connectionID )
+void AsyncIPNetwork_CloseConnection( int connectionID )
 {
   DEBUG_PRINT( "trying to close connection %d", connectionID );
   

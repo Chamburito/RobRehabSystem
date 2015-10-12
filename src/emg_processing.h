@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-#include "signal_aquisition/signal_aquisition_types.h"
+#include "signal_aquisition/signal_aquisition_loader.h"
 
 #include "klib/khash.h"
 #include "file_parsing/json_parser.h"
@@ -96,10 +96,10 @@ int EMGProcessing_InitSensor( const char* configFileName )
   {
     sensorsList = kh_init( SensorInt );
     
-    phasePassCountLock = ThreadLocks_Create();
+    phasePassCountLock = ThreadLocks.Create();
     
     isProcessRunning = true;
-    processingThreadID = Threading_StartThread( AsyncUpdate, NULL, THREAD_JOINABLE );
+    processingThreadID = Threading.StartThread( AsyncUpdate, NULL, THREAD_JOINABLE );
   }
   
   int configKey = (int) kh_str_hash_func( configFileName );
@@ -129,9 +129,9 @@ void EMGProcessing_EndSensor( int sensorID )
   if( kh_size( sensorsList ) == 0 )
   {
     isProcessRunning = false;
-    (void) Threading_WaitExit( processingThreadID, 5000 );
+    (void) Threading.WaitExit( processingThreadID, 5000 );
     
-    ThreadLocks_Discard( phasePassCountLock );
+    ThreadLocks.Discard( phasePassCountLock );
     
     if( sensorsList != NULL )
     {
@@ -161,11 +161,11 @@ double EMGProcessing_GetMuscleTorque( int sensorID, double jointAngle )
   
   //DEBUG_PRINT( "logging data for sensor %d", sensorID );
   
-  size_t newSamplesBufferStart = sensor->emgData.samplesBufferStartIndex % sensor->emgData.samplesBufferLength;
-  size_t newSamplesBufferMaxLength = sensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
-  DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.samplesBuffer + newSamplesBufferStart );
-  DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
-  DataLogging_RegisterValues( sensor->logID, 3, sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
+  //size_t newSamplesBufferStart = sensor->emgData.samplesBufferStartIndex % sensor->emgData.samplesBufferLength;
+  //size_t newSamplesBufferMaxLength = sensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
+  //DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.samplesBuffer + newSamplesBufferStart );
+  //DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
+  //DataLogging_RegisterValues( sensor->logID, 3, sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
   
   for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
   {
@@ -194,7 +194,7 @@ void EMGProcessing_ChangePhase( int sensorID, int newProcessingPhase )
   
   EMGSensor sensor = kh_value( sensorsList, sensorID );
   
-  ThreadLocks_Aquire( sensor->lock/*phasePassCountLock*/ );
+  ThreadLocks.Aquire( sensor->lock/*phasePassCountLock*/ );
   
   EMGData* data = &(sensor->emgData);
 
@@ -217,7 +217,7 @@ void EMGProcessing_ChangePhase( int sensorID, int newProcessingPhase )
   
   data->processingPhase = newProcessingPhase;
   
-  ThreadLocks_Release( sensor->lock/*phasePassCountLock*/ );
+  ThreadLocks.Release( sensor->lock/*phasePassCountLock*/ );
 }
 
 
@@ -228,7 +228,7 @@ static double* GetFilteredSignal( EMGSensor sensor, size_t* ref_aquiredSamplesCo
   
   size_t aquiredSamplesCount;
   
-  double* newSamplesList = sensor->interface->Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
+  double* newSamplesList = sensor->interface.Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
   
   EMGData* data = &(sensor->emgData);
   size_t samplesBufferLength = data->samplesBufferLength;
@@ -284,7 +284,7 @@ static void* AsyncUpdate( void* data )
   {
     for( khint_t sensorID = kh_begin( sensorsList ); sensorID != kh_end( sensorsList ); sensorID++ )
     {
-      DEBUG_PRINT( "looking for sensor %u", sensorID );
+      //DEBUG_PRINT( "looking for sensor %u", sensorID );
       
       if( !kh_exist( sensorsList, sensorID ) ) continue;
       
@@ -299,7 +299,7 @@ static void* AsyncUpdate( void* data )
       
       if( filteredSamplesList != NULL )
       {
-        DEBUG_PRINT( "sensor %u read", sensorID );
+        //DEBUG_PRINT( "sensor %u read", sensorID );
         
         if( data->processingPhase == EMG_RELAXATION_PHASE || data->processingPhase == EMG_CONTRACTION_PHASE )
         {
@@ -310,9 +310,9 @@ static void* AsyncUpdate( void* data )
           
           //DEBUG_PRINT( "emg sum: %g", emgData->processingResultsList[ emgData->processingPhase ] );
 
-          ThreadLocks_Aquire( sensor->lock/*phasePassCountLock*/ );
+          ThreadLocks.Aquire( sensor->lock/*phasePassCountLock*/ );
           data->preparationPassesCount++;
-          ThreadLocks_Release( sensor->lock/*phasePassCountLock*/ );
+          ThreadLocks.Release( sensor->lock/*phasePassCountLock*/ );
         }
         else if( data->processingPhase == EMG_ACTIVATION_PHASE )
         {
@@ -353,16 +353,16 @@ static EMGSensor LoadEMGSensorData( const char* configFileName )
   EMGSensor newSensor = (EMGSensor) malloc( sizeof(EMGSensorData) );
   memset( newSensor, 0, sizeof(EMGSensorData) );
   
-  FileParserOperations parser = JSONParser;
+  FileParserInterface parser = JSONParser;
   int configFileID = parser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
-    if( (newSensor->interface = GetSignalAquisitionInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ) )) != NULL )
+    if( GetSignalAquisitionInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ), &(newSensor->interface) ) )
     {
-      newSensor->taskID = newSensor->interface->InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
+      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
       if( newSensor->taskID != -1 ) 
       {
-        size_t newSamplesBufferMaxLength = newSensor->interface->GetMaxSamplesNumber( newSensor->taskID );
+        size_t newSamplesBufferMaxLength = newSensor->interface.GetMaxSamplesNumber( newSensor->taskID );
         if( newSamplesBufferMaxLength > 0 )
         {
           newSensor->emgData.samplesBufferLength = newSamplesBufferMaxLength + OLD_SAMPLES_BUFFER_LEN;
@@ -371,13 +371,13 @@ static EMGSensor LoadEMGSensorData( const char* configFileName )
           newSensor->emgData.filteredSamplesBuffer = (double*) calloc( newSensor->emgData.filteredSamplesBufferLength, sizeof(double) );
           newSensor->emgData.rectifiedSamplesBuffer = (double*) calloc( newSensor->emgData.filteredSamplesBufferLength, sizeof(double) );
           
-          newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
-          DataLogging_SetDataPrecision( newSensor->logID, 4 );
+          //newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
+          //DataLogging_SetDataPrecision( newSensor->logID, 4 );
         }
         else loadError = true;
         
         newSensor->channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
-        if( !(newSensor->interface->AquireChannel( newSensor->taskID, newSensor->channel )) ) loadError = true;
+        if( !(newSensor->interface.AquireChannel( newSensor->taskID, newSensor->channel )) ) loadError = true;
       }
       else loadError = true;
     }
@@ -398,7 +398,7 @@ static EMGSensor LoadEMGSensorData( const char* configFileName )
     newSensor->muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
     newSensor->muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
     
-    newSensor->lock = ThreadLocks_Create();
+    newSensor->lock = ThreadLocks.Create();
     
     parser.UnloadFile( configFileID );
   }
@@ -423,19 +423,19 @@ void UnloadEMGSensorData( EMGSensor sensor )
   
   sensor->isReading = false;
   
-  ThreadLocks_Aquire( sensor->lock );
-  ThreadLocks_Release( sensor->lock );
+  ThreadLocks.Aquire( sensor->lock );
+  ThreadLocks.Release( sensor->lock );
     
-  ThreadLocks_Discard( sensor->lock );
+  ThreadLocks.Discard( sensor->lock );
   
   free( sensor->emgData.samplesBuffer );
   free( sensor->emgData.filteredSamplesBuffer );
   free( sensor->emgData.rectifiedSamplesBuffer );
   
-  sensor->interface->ReleaseChannel( sensor->taskID, sensor->channel );
-  sensor->interface->EndTask( sensor->taskID );
+  sensor->interface.ReleaseChannel( sensor->taskID, sensor->channel );
+  sensor->interface.EndTask( sensor->taskID );
   
-  DataLogging_EndLog( sensor->logID );
+  //DataLogging_EndLog( sensor->logID );
   
   free( sensor );
 }

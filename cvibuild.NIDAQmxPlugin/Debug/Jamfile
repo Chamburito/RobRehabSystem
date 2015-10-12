@@ -1,0 +1,64 @@
+CCFLAGS = -g ;
+HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition"
+	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition\\ni_daqmx"
+	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib"
+	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src"
+	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug"
+	"C:\\Users\\Public\\Documents\\National Instruments\\TestStand 2014 (32-bit)\\AdapterSupport\\CVI"
+	"C:\\Program Files (x86)\\National Instruments\\TestStand 2014\\API\\DLLInterfaces"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\instr\\TestStand\\API"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\activex\\word"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\activex\\excel"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\custctrl"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\custctrl\\custsupp"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\cvirtsup"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\datasock"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\daqUtil"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\printing"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\toolbox"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\reportgen"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\toolslib\\localui"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\instr"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\toolslib\\custctrl"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\toolslib\\custctrl\\custsupp"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\instr"
+	"C:\\ProgramData\\National Instruments\\CVI2015\\instr"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\include"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\include"
+	"C:\\ProgramData\\National Instruments\\CVI2015\\include"
+	"C:\\ProgramData\\National Instruments\\CVI\\include"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\include\\ansi"
+	"c:\\program files (x86)\\national instruments\\cvi2015\\include\\clang\\3.3"
+	"C:\\Program Files (x86)\\IVI Foundation\\IVI\\Include"
+	"C:\\Program Files (x86)\\IVI Foundation\\VISA\\winnt\\include"
+	"C:\\Program Files (x86)\\National Instruments\\Shared\\MSDTRedistributables\\SDKHeaderFiles\\8.1"
+	"c:\\Program Files (x86)\\National Instruments\\CVI2015\\bin"
+	"c:\\ProgramData\\National Instruments\\CVI2015\\bin"
+	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
+	;
+include Jamfile_instr ;
+LOCATE on "signal_aquisition.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition\\ni_daqmx" ;
+LOCATE on "signal_aquisition_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition\\ni_daqmx\\signal_aquisition.c" ;
+FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj" = 1 ;
+DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj.cvidefprots" ;
+OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj.out" ;
+PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition_interface.h.hdefs" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_aquisition\\signal_aquisition_interface.h" ;
+FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition_interface.h.hdefs" = 2 ;
+OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition_interface.h.hdefs" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition_interface.h.hdefs.out" ;
+PreLinkInputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.in.rc" ;
+PreLinkInputs += $(PrjObjects) $(InstrObjects) ;
+PreLinkOutputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.out.rc" ;
+PreLinkOutputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll.defs" ;
+PreLink $(PreLinkOutputs) : $(PreLinkInputs) ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll.defs" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.out.rc" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.res" : $(PreLinkOutputs) ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.res" "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.out.rc" : $(PrjObjects) $(InstrObjects) ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.res" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\manifest.xml" ;
+MainFromObjects "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : $(PrjObjects) $(InstrObjects) ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\link_options.txt" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\dependencies.lnk.in" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\resources.res" ;
+Depends all : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" ;
