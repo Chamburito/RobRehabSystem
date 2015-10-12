@@ -26,6 +26,8 @@
 
 #define IP_MAX_MESSAGE_LENGTH CMT_MAX_MESSAGE_BUF_SIZE  // 256
 
+const int INVALID_IP_CONNECTION_ID = -1;
+
 const int QUEUE_MAX_ITEMS = 10;
 
 const size_t IP_HOST_LENGTH = 40;
@@ -74,13 +76,13 @@ static khash_t( IPInt )* globalConnectionsList = NULL;
         function_init( size_t, namespace, GetActivesNumber, void ) \
         function_init( size_t, namespace, GetClientsNumber, int ) \
         function_init( size_t, namespace, SetMessageLength, int, size_t ) \
-        function_init( int, namespace, Open, const char*, const char*, uint8_t ) \
-        function_init( void, namespace, Close, int ) \
+        function_init( int, namespace, OpenConnection, const char*, const char*, uint8_t ) \
+        function_init( void, namespace, CloseConnection, int ) \
         function_init( char*, namespace, ReadMessage, int ) \
         function_init( int, namespace, WriteMessage, int, const char* ) \
         function_init( int, namespace, GetClient, int )
 
-INIT_NAMESPACE_INTERFACE( AsyncIPConnection, ASYNC_IP_CONNECTION_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_CONNECTION_FUNCTIONS )
 
 /////////////////////////////////////////////////////////////////////////////
 /////                         NETWORK UTILITIES                         /////
@@ -99,11 +101,10 @@ static char* GetAddress( AsyncConnection connection )
 }
 
 // Returns the address string relative to the given connection ID
-char* AsyncIPConnection_GetAddress( int connectionID )
+char* AsyncIPNetwork_GetAddress( int connectionID )
 {
   khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
   if( connectionIndex == kh_end( globalConnectionsList ) )
-  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) )
   {
     ERROR_EVENT( "invalid connection ID: %d", connectionID );
     return NULL;
@@ -113,17 +114,16 @@ char* AsyncIPConnection_GetAddress( int connectionID )
 }
 
 // Returns total number of active connections
-inline size_t AsyncIPConnection_GetActivesNumber()
+inline size_t AsyncIPNetwork_GetActivesNumber()
 {
   return kh_size( globalConnectionsList );
 }
 
 // Returns number of active clients for a connection 
-size_t AsyncIPConnection_GetClientsNumber( int connectionID )
+size_t AsyncIPNetwork_GetClientsNumber( int connectionID )
 {
   khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
   if( connectionIndex == kh_end( globalConnectionsList ) )
-  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) )
   {
     ERROR_EVENT( "invalid connection ID: %d", connectionID );
     return 0;
@@ -138,11 +138,10 @@ size_t AsyncIPConnection_GetClientsNumber( int connectionID )
   return 1;
 }
 
-inline size_t AsyncIPConnection_SetMessageLength( int connectionID, size_t messageLength )
+inline size_t AsyncIPNetwork_SetMessageLength( int connectionID, size_t messageLength )
 {
   khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
   if( connectionIndex == kh_end( globalConnectionsList ) )
-  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) )
   {
     ERROR_EVENT( "invalid connection ID: %d", connectionID );
     return 0;
@@ -172,7 +171,7 @@ static int SendTCPMessage( AsyncConnection, const char* );
 static int SendUDPMessage( AsyncConnection, const char* );
 static int SendMessageToAll( AsyncConnection, const char* );
 
-static void CloseConnection( AsyncConnection );
+static void CloseConnectionConnection( AsyncConnection );
 
 // Asyncronous callback for ip connection setup and event processing
 static void* AsyncConnect( void* connectionData )
@@ -254,17 +253,17 @@ static khint_t AddConnection( unsigned int connectionHandle, unsigned int addres
   
   int insertionStatus;
   int connectionKey = kh_str_hash_func( addressHost ) + addressPort + newConnection->protocol;
-  khint_t newConnectionID = kh_put( IPInt, globalConnectionsList, connectionKey, &insertionStatus );
-  kh_value( globalConnectionsList, newConnectionID ) = newConnection;
+  khint_t newConnectionIndex = kh_put( IPInt, globalConnectionsList, connectionKey, &insertionStatus );
+  kh_value( globalConnectionsList, newConnectionIndex ) = newConnection;
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "%u active connections listed", kh_size( globalConnectionsList ) );
   
-  return newConnectionID;//connection;
+  return newConnectionIndex;
 }
 
 // Generic method for opening a new socket and providing a corresponding Connection structure for use
 const char* ANY_HOST = "0.0.0.0";
-int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol )
+int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t protocol )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to open %s connection for host %s and port %s", ( protocol == TCP ) ? "TCP" : "UDP", ( host != NULL ) ? host : ANY_HOST, port );
   
@@ -273,24 +272,24 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
   if( portNumber < 49152 || portNumber > 65535 )
   {
     ERROR_EVENT( "invalid port number value: %s", port );
-    return -1;
+    return INVALID_IP_CONNECTION_ID;
   }
 
   if( ( protocol != TCP ) && ( protocol != UDP ) )
   {
     ERROR_EVENT( "invalid protocol option: %x", protocol );
-    return -1;
+    return INVALID_IP_CONNECTION_ID;
   }
   
   if( globalConnectionsList == NULL ) globalConnectionsList = kh_init( IPInt );
   
   int connectionKey = kh_str_hash_func( ( host != NULL ) ? host : ANY_HOST ) + portNumber + protocol;
-  khint_t newConnectionID = kh_get( IPInt, globalConnectionsList, connectionKey );
-  if( newConnectionID == kh_end( globalConnectionsList ) )
+  khint_t newConnectionIndex = kh_get( IPInt, globalConnectionsList, connectionKey );
+  if( newConnectionIndex == kh_end( globalConnectionsList ) )
   {
-    if( host == NULL ) newConnectionID = AddConnection( 0, portNumber, ANY_HOST, SERVER | protocol );
-    else newConnectionID = AddConnection( 0, portNumber, host, CLIENT | protocol );
-    AsyncConnection newConnection = kh_value( globalConnectionsList, newConnectionID );
+    if( host == NULL ) newConnectionIndex = AddConnection( 0, portNumber, ANY_HOST, SERVER | protocol );
+    else newConnectionIndex = AddConnection( 0, portNumber, host, CLIENT | protocol );
+    AsyncConnection newConnection = kh_value( globalConnectionsList, newConnectionIndex );
 
     newConnection->callbackThread = Threading_StartThread( AsyncConnect, newConnection, THREAD_JOINABLE );
     (void) Threading_WaitExit( newConnection->callbackThread, 1000 );
@@ -298,9 +297,8 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
     if( newConnection->networkRole == DISCONNECTED )
     {
       newConnection->callbackThread = INVALID_THREAD_HANDLE;
-      //CloseConnection( newConnection );
-      AsyncIPConnection_Close( newConnectionID );
-      return -1;
+      AsyncIPNetwork_CloseConnection( newConnectionIndex );
+      return INVALID_IP_CONNECTION_ID;
     }
 
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",
@@ -309,7 +307,7 @@ int AsyncIPConnection_Open( const char* host, const char* port, uint8_t protocol
                                                                                    GetAddress( newConnection ) );
   }
   
-  return (int) kh_key( globalConnectionsList, newConnectionID );//newConnectionID;
+  return (int) kh_key( globalConnectionsList, newConnectionIndex );
 }
 
 
@@ -363,7 +361,6 @@ static int SendTCPMessage( AsyncConnection connection, const char* message )
     if( errorCode < 0 )
     {
       ERROR_EVENT( "ServerTCPWrite: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
-      //CloseConnection( connection );
       return errorCode;
     }
   }
@@ -393,7 +390,7 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
     if( (errorCode = UDPRead( channel, NULL, connection->messageLength, UDP_DO_NOT_WAIT, &sourcePort, sourceHost )) < 0 )
     {
       ERROR_EVENT( "UDPRead: %s", GetUDPErrorString( errorCode ) );
-      if( channel == connection->ref_server->handle ) CloseConnection( connection ); 
+      CloseConnection( connection ); 
       return -1;
     }
     
@@ -415,8 +412,6 @@ static int CVICALLBACK ReceiveUDPMessage( unsigned int channel, int eventType, i
 // Send given message through the given UDP connection
 static int SendUDPMessage( AsyncConnection connection, const char* message )
 {
-  int errorCode;
-  
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connection->handle, THREAD_ID );
   
   if( connection->networkRole == CLIENT )
@@ -425,11 +420,11 @@ static int SendUDPMessage( AsyncConnection connection, const char* message )
     
     DEBUG_UPDATE( "UDP connection handle %u (channel %u) sending message: %s", connection->handle, channel, message );
     
-    if( (errorCode = UDPWrite( channel, connection->address.port, connection->address.host, message, connection->messageLength )) )
+    int statusCode = UDPWrite( channel, connection->address.port, connection->address.host, message, connection->messageLength );
+    if( statusCode < 0 )
     {
-      /*ERROR_EVENT*/DEBUG_PRINT( "UDPWrite: %s", GetUDPErrorString( errorCode ) );
-      //CloseConnection( connection );
-      return errorCode;
+      /*ERROR_EVENT*/DEBUG_PRINT( "UDPWrite: %s", GetUDPErrorString( statusCode ) );
+      return statusCode;
     }
   }
   else
@@ -444,16 +439,15 @@ static int SendUDPMessage( AsyncConnection connection, const char* message )
 // Send given message to all the clients of the given server connection
 static int SendMessageToAll( AsyncConnection connection, const char* message )
 {
-  static int statusCode;
-  
   DEBUG_UPDATE( "called for connection handle %u on thread %x", connection->handle, THREAD_ID );
   
-  for( khint_t clientID = 0; clientID != kh_end( connection->clientsList ); clientID++ )
+  int statusCode = 0;
+  for( khint_t clientIndex = 0; clientIndex != kh_end( connection->clientsList ); clientIndex++ )
   {
-    if( !kh_exist( connection->clientsList, clientID ) ) continue;
+    if( !kh_exist( connection->clientsList, clientIndex ) ) continue;
     
-    AsyncConnection client = kh_value( connection->clientsList, clientID );
-    client->ref_SendMessage( client, (const char*) message );
+    AsyncConnection client = kh_value( connection->clientsList, clientIndex );
+    if( client->ref_SendMessage( client, (const char*) message ) == -1 ) statusCode--;
   }
   
   return statusCode;
@@ -461,23 +455,23 @@ static int SendMessageToAll( AsyncConnection connection, const char* message )
 
 static khint_t AddClient( AsyncConnection server, const char* clientHost, unsigned int clientHandle, uint8_t protocol )
 {
-  khint_t newConnectionID = AddConnection( clientHandle, clientHandle, clientHost, protocol | CLIENT );
-  AsyncConnection newClient = kh_value( globalConnectionsList, newConnectionID );
+  khint_t newConnectionIndex = AddConnection( clientHandle, clientHandle, clientHost, protocol | CLIENT );
+  AsyncConnection newClient = kh_value( globalConnectionsList, newConnectionIndex );
   newClient->ref_server = server;
 
-  DEBUG_PRINT( "added connection ID %u", newConnectionID );
+  DEBUG_PRINT( "added connection ID %u", newConnectionIndex );
   
   if( server->clientsList == NULL ) server->clientsList = kh_init( IPInt );
 
   int insertionStatus;
-  khint_t newClientID = kh_put( IPInt, server->clientsList, clientHandle, &insertionStatus );
-  DEBUG_PRINT( "new client in list with key %u and iterator %u", clientHandle, newClientID );
-  kh_value( server->clientsList, newClientID ) = newClient;
+  khint_t newClientIndex = kh_put( IPInt, server->clientsList, clientHandle, &insertionStatus );
+  DEBUG_PRINT( "new client in list with key %u and iterator %u", clientHandle, newClientIndex );
+  kh_value( server->clientsList, newClientIndex ) = newClient;
 
-  DEBUG_PRINT( "enqueueing new connection ID %u", kh_key( globalConnectionsList, newConnectionID ) );
-  ThreadSafeQueues.Enqueue( server->readQueue, &(kh_key( globalConnectionsList, newConnectionID )), QUEUE_APPEND_OVERWRITE );
+  DEBUG_PRINT( "enqueueing new connection ID %u", kh_key( globalConnectionsList, newConnectionIndex ) );
+  ThreadSafeQueues.Enqueue( server->readQueue, &(kh_key( globalConnectionsList, newConnectionIndex )), QUEUE_APPEND_OVERWRITE );
   
-  return newClientID;
+  return newClientIndex;
 }
 
 // Waits for a remote connection to be added to the client list of the given TCP server connection
@@ -489,15 +483,13 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
   
   /*DEBUG_UPDATE*/DEBUG_PRINT( "called for connection handle %u on server %u on thread %x", clientHandle, connection->handle, THREAD_ID );
   
-  if( eventType == TCP_DISCONNECT )
+  khint_t clientIndex = kh_get( IPInt, connection->clientsList, clientHandle );
+  
+  if( eventType == TCP_DISCONNECT && clientIndex != kh_end( connection->clientsList ) )
   {
-    khint_t clientID = kh_get( IPInt, connection->clientsList, clientHandle );
-    if( clientID != kh_end( connection->clientsList ) )
-    {
-      AsyncConnection client = kh_value( connection->clientsList, clientID );
-      /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "TCP client handle %u disconnected", client->handle );
-      CloseConnection( client );
-    }
+    AsyncConnection client = kh_value( connection->clientsList, clientIndex );
+    CloseConnection( client );
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "TCP client handle %u disconnected", client->handle );
   }
   else if( eventType == TCP_CONNECT /*&& connection->networkRole == SERVER*/ )
   {
@@ -511,21 +503,17 @@ static int CVICALLBACK AcceptTCPClient( unsigned int clientHandle, int eventType
     else
       DEBUG_EVENT( 0, "TCP connection handle %u not accepting more clients", connection->handle );
   }
-  else if( eventType == TCP_DATAREADY )
+  else if( eventType == TCP_DATAREADY && clientIndex != kh_end( connection->clientsList ) )
   {
+    AsyncConnection client = kh_value( connection->clientsList, clientIndex );
     if( (errorCode = ServerTCPRead( clientHandle, messageBuffer, connection->messageLength, 0 )) < 0 )
     {
       ERROR_EVENT( 0, "ServerTCPRead: %s: %s", GetTCPErrorString( errorCode ), GetTCPSystemErrorString() );
       //CloseConnection( client );
     }
-
-    khint_t clientID = kh_get( IPInt, connection->clientsList, clientHandle );
-    if( clientID != kh_end( connection->clientsList ) )
-    {
-      AsyncConnection client = kh_value( connection->clientsList, clientID );
-      ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-      DEBUG_UPDATE( "TCP connection handle %u (server_handle %u) received message: %s", client->handle, connection->handle, messageBuffer );
-    }
+    
+    ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
+    DEBUG_UPDATE( "TCP connection handle %u (server_handle %u) received message: %s", client->handle, connection->handle, messageBuffer );
   }
   
   return errorCode;
@@ -546,18 +534,17 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
     if( (errorCode = UDPRead( channel, messageBuffer, connection->messageLength, UDP_DO_NOT_WAIT, &(clientPort), clientHost )) < 0 )
     {
       /*ERROR_EVENT*/DEBUG_PRINT( "UDPRead: %s", GetUDPErrorString( errorCode ) );
-      //CloseConnection( client );
       return -1;
     }
     
-    khint_t clientID = kh_get( IPInt, connection->clientsList, clientPort );
-    if( clientID == kh_end( connection->clientsList ) )
+    khint_t clientIndex = kh_get( IPInt, connection->clientsList, clientPort );
+    if( clientIndex == kh_end( connection->clientsList ) )
     {
-      clientID = AddClient( connection, clientHost, clientPort, UDP );
+      clientIndex = AddClient( connection, clientHost, clientPort, UDP );
       /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new UDP client from host %s and port %u accepted !", clientHost, clientPort );
     }
 
-    AsyncConnection client = kh_value( connection->clientsList, clientID );
+    AsyncConnection client = kh_value( connection->clientsList, clientIndex );
     ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
     ///*DEBUG_UPDATE*/DEBUG_PRINT( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
   }
@@ -572,15 +559,14 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
 
 // Get (and remove) message from the beginning (oldest) of the given index corresponding read queue
 // Method to be called from the main thread
-char* AsyncIPConnection_ReadMessage( int clientID )
+char* AsyncIPNetwork_ReadMessage( int clientID )
 {
   static char messageBuffer[ IP_MAX_MESSAGE_LENGTH ];
   
   khint_t clientIndex = kh_get( IPInt, globalConnectionsList, (khint_t) clientID );
   if( clientIndex == kh_end( globalConnectionsList ) ) return NULL;
-  //if( !kh_exist( globalConnectionsList, (khint_t) clientID ) ) return NULL;
   
-  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) clientID*/clientIndex );
+  AsyncConnection connection = kh_value( globalConnectionsList, clientIndex );
   if( connection == NULL ) return NULL;
   
   if( connection->networkRole != CLIENT )
@@ -588,8 +574,6 @@ char* AsyncIPConnection_ReadMessage( int clientID )
     ERROR_EVENT( "not a client connection: ID %d", clientID );  
 	  return NULL;
   }
-  
-  //if( connection->protocol == TCP ) DEBUG_PRINT( "messages available: %u", ThreadSafeQueues.GetItemsCount( connection->readQueue ) );
   
   if( ThreadSafeQueues.GetItemsCount( connection->readQueue ) <= 0 )
   {
@@ -602,13 +586,12 @@ char* AsyncIPConnection_ReadMessage( int clientID )
   return messageBuffer;
 }
 
-int AsyncIPConnection_WriteMessage( int connectionID, const char* message )
+int AsyncIPNetwork_WriteMessage( int connectionID, const char* message )
 {
   khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
   if( connectionIndex == kh_end( globalConnectionsList ) ) return -1;
-  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) ) return -1;
   
-  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex );
+  AsyncConnection connection = kh_value( globalConnectionsList, connectionIndex );
   if( connection == NULL ) return -1;
   
   DEBUG_UPDATE( "writing \"%s\" to handle %d", message, connectionID );
@@ -616,15 +599,14 @@ int AsyncIPConnection_WriteMessage( int connectionID, const char* message )
   return connection->ref_SendMessage( connection, message );
 }
 
-int AsyncIPConnection_GetClient( int serverID )
+int AsyncIPNetwork_GetClient( int serverID )
 {
   static int clientID;
   
   khint_t serverIndex = kh_get( IPInt, globalConnectionsList, (khint_t) serverID );
   if( serverIndex == kh_end( globalConnectionsList ) ) return -1;
-  //if( !kh_exist( globalConnectionsList, (khint_t) serverID ) ) return -1;
   
-  AsyncConnection connection = kh_value( globalConnectionsList, /*(khint_t) serverID*/serverIndex );
+  AsyncConnection connection = kh_value( globalConnectionsList, serverIndex );
   
   if( connection->networkRole != SERVER )
   {
@@ -747,16 +729,15 @@ static void CloseConnection( AsyncConnection connection )
   }
 }
 
-void AsyncIPConnection_Close( int connectionID )
+void AsyncIPNetwork_Close( int connectionID )
 {
   DEBUG_PRINT( "trying to close connection %d", connectionID );
   
   khint_t connectionIndex = kh_get( IPInt, globalConnectionsList, (khint_t) connectionID );
   if( connectionIndex == kh_end( globalConnectionsList ) ) return;
-  //if( !kh_exist( globalConnectionsList, (khint_t) connectionID ) ) return;
 
-  CloseConnection( kh_value( globalConnectionsList, /*(khint_t) connectionID*/connectionIndex ) );
-  kh_del( IPInt, globalConnectionsList, /*(khint_t) connectionID*/connectionIndex );
+  CloseConnection( kh_value( globalConnectionsList, connectionIndex ) );
+  kh_del( IPInt, globalConnectionsList, connectionIndex );
   DEBUG_PRINT( "connection %d closed (remaining: %u)", connectionID, kh_size( globalConnectionsList ) );
   
   if( kh_size( globalConnectionsList ) == 0 )

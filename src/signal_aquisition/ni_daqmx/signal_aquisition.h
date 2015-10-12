@@ -48,37 +48,37 @@ static void* AsyncReadBuffer( void* );
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
-static int InitTask( const char* taskName )
+int InitTask( const char* taskName )
 {
   if( tasksList == NULL ) tasksList = kh_init( TaskInt );
   
   int taskKey = (int) kh_str_hash_func( taskName );
   
   int insertionStatus;
-  khint_t newTaskID = kh_put( TaskInt, tasksList, taskKey, &insertionStatus );
-  
+  khint_t newTaskIndex = kh_put( TaskInt, tasksList, taskKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( tasksList, newTaskID ) = LoadTaskData( taskName );
-    if( kh_value( tasksList, newTaskID ) == NULL )
+    kh_value( tasksList, newTaskIndex ) = LoadTaskData( taskName );
+    if( kh_value( tasksList, newTaskIndex ) == NULL )
     {
       DEBUG_PRINT( "loading task %s failed", taskName );
-      EndTask( (int) newTaskID ); 
+      EndTask( taskKey ); 
       return -1;
     }
         
-    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( tasksList, newTaskID ), newTaskID, kh_size( tasksList ) );
+    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( tasksList, newTaskIndex ), newTaskIndex, kh_size( tasksList ) );
   }
-  else if( insertionStatus == 0 ) { DEBUG_PRINT( "task key %d already exists (iterator %u)", taskKey, newTaskID ); }
+  else if( insertionStatus == 0 ) { DEBUG_PRINT( "task key %d already exists (iterator %u)", taskKey, newTaskIndex ); }
   
-  return (int) newTaskID;
+  return (int) kh_key( tasksList, newTaskIndex );
 }
 
-static void EndTask( int taskID )
+void EndTask( int taskID )
 {
-  if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
   
-  SignalAquisitionTask* task = kh_value( tasksList, (khint_t) taskID );
+  SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
   UnloadTaskData( task );
   
@@ -91,11 +91,12 @@ static void EndTask( int taskID )
   }
 }
 
-static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
+double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
 {
-  if( !kh_exist( tasksList, (khint_t) taskID ) ) return NULL;
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return NULL;
   
-  SignalAquisitionTask* task = kh_value( tasksList, (khint_t) taskID );
+  SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
   if( channel >= task->channelsNumber ) return NULL;
   
@@ -114,13 +115,14 @@ static double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSample
   return aquiredSamplesList;
 }
 
-static bool AquireChannel( int taskID, unsigned int channel )
+bool AquireChannel( int taskID, unsigned int channel )
 {
-  if( !kh_exist( tasksList, (khint_t) taskID ) ) return false;
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return false;
   
   DEBUG_PRINT( "aquiring channel %u from task %d", channel, kh_key( tasksList, (khint_t) taskID ) );
   
-  SignalAquisitionTask* task = kh_value( tasksList, (khint_t) taskID );
+  SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
   if( channel > task->channelsNumber ) return false;
   
@@ -131,11 +133,12 @@ static bool AquireChannel( int taskID, unsigned int channel )
   return true;
 }
 
-static void ReleaseChannel( int taskID, unsigned int channel )
+void ReleaseChannel( int taskID, unsigned int channel )
 {
-  if( !kh_exist( tasksList, (khint_t) taskID ) ) return;
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
   
-  SignalAquisitionTask* task = kh_value( tasksList, (khint_t) taskID );
+  SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
   if( channel > task->channelsNumber ) return;
   
@@ -144,7 +147,8 @@ static void ReleaseChannel( int taskID, unsigned int channel )
 
 static size_t GetMaxSamplesNumber( int taskID )
 {
-  if( !kh_exist( tasksList, (khint_t) taskID ) ) return 0;
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return 0;
   
   return AQUISITION_BUFFER_LENGTH;
 }
@@ -168,11 +172,7 @@ static void* AsyncReadBuffer( void* callbackData )
       static char errorMessage[ DEBUG_MESSAGE_LENGTH ];
       DAQmxGetErrorString( errorCode, errorMessage, DEBUG_MESSAGE_LENGTH );
       DEBUG_PRINT( "error aquiring analog signal: %s", errorMessage );
-    
-      //break;
     }
-    
-    //ThreadLocks_Aquire( task->threadLock );
     
     for( size_t channel = 0; channel < task->channelsNumber; channel++ )
     {

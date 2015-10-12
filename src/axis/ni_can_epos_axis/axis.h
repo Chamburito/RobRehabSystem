@@ -56,16 +56,14 @@ typedef struct _CANInterface
   CANFrame* readFramesList[ AXIS_FRAME_TYPES_NUMBER ];
   CANFrame* writeFramesList[ AXIS_FRAME_TYPES_NUMBER ];
   uint16_t statusWord, controlWord;
-  double currentSetpoint;
+  double lastSetpoint;
 }
 CANInterface;
 
 KHASH_MAP_INIT_INT( CANInt, CANInterface* )
 static khash_t( CANInt )* interfacesList = NULL;
 
-#define AXIS_FUNCTION( rvalue, namespace, name, ... ) static rvalue namespace##_##name( __VA_ARGS__ );
-AXIS_INTERFACE( CANEPOS )
-#undef AXIS_FUNCTION
+IMPLEMENT_INTERFACE( Axis, CANEPOSOperations )
 
 static inline CANInterface* LoadInterfaceData( unsigned int );
 static inline void UnloadInterfaceData( CANInterface* );
@@ -75,13 +73,9 @@ static inline bool CheckState( CANInterface*, enum States );
 static inline int ReadSingleValue( CANInterface*, uint16_t, uint8_t );
 static inline void WriteSingleValue( CANInterface*, uint16_t, uint8_t, int );
 static inline void EnableDigitalOutput( CANInterface*, bool );
-
-#define AXIS_FUNCTION( rvalue, namespace, name, ... ) .name = namespace##_##name,
-const AxisOperations AxisCANEPOSOperations = { AXIS_INTERFACE(CANEPOS) };
-#undef AXIS_FUNCTION
                                                     
 // Create CAN controlled DC motor handle
-static int CANEPOS_Connect( unsigned int nodeID )
+int CANEPOS_Connect( unsigned int nodeID )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "trying to connect CAN interface %u", nodeID );
   
@@ -94,134 +88,130 @@ static int CANEPOS_Connect( unsigned int nodeID )
   DEBUG_PRINT( "CAN EPOS config key: %d", (int) nodeID );
   
   int insertionStatus;
-  khiter_t newInterfaceID = kh_put( CANInt, interfacesList, (int) nodeID, &insertionStatus );
+  khiter_t newInterfaceIndex = kh_put( CANInt, interfacesList, (int) nodeID, &insertionStatus );
   if( insertionStatus > 0 )
   {
     DEBUG_PRINT( "inserting CAN EPOS config key on list: %d", (int) nodeID );
     
-    kh_value( interfacesList, newInterfaceID ) = LoadInterfaceData( nodeID );
-    if( kh_value( interfacesList, newInterfaceID ) == NULL )
+    kh_value( interfacesList, newInterfaceIndex ) = LoadInterfaceData( nodeID );
+    if( kh_value( interfacesList, newInterfaceIndex ) == NULL )
     {
-      CANEPOS_Disconnect( (int) newInterfaceID );
+      CANEPOS_Disconnect( (int) nodeID );
       return -1;
     }
 
-    CANInterface* newInterface = kh_value( interfacesList, newInterfaceID );
+    CANInterface* newInterface = kh_value( interfacesList, newInterfaceIndex );
     
     //EnableDigitalOutput( newInterface, true ); // Valor está errado !! (0x6060 é operation mode)
     
     SetControl( newInterface, ENABLE_VOLTAGE, true );
     SetControl( newInterface, QUICK_STOP, true );
     
-    CANEPOS_Disable( newInterfaceID );
+    CANEPOS_Disable( newInterfaceIndex );
     
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "created CAN EPOS interface %u", nodeID );
   }
   if( insertionStatus == 0 )
     ERROR_EVENT( "CAN EPOS interface %u already exists", nodeID );
     
-  return (int) newInterfaceID;
+  return (int) kh_key( interfacesList, newInterfaceIndex );
 }
 
-static void CANEPOS_Disconnect( int interfaceID )
+void CANEPOS_Disconnect( int interfaceID )
 {
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return;
+
+  DEBUG_PRINT( "disconnecting CAN EPOS device %d", interfaceID );
+  
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
+  
+  UnloadInterfaceData( interface );
+  
+  kh_del( CANInt, interfacesList, interfaceID );
+  
+  if( kh_size( interfacesList ) == 0 )
   {
-    DEBUG_PRINT( "disconnecting CAN EPOS device %d", interfaceID );
-    
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
-    
-    UnloadInterfaceData( interface );
-    
-    kh_del( CANInt, interfacesList, interfaceID );
-    
-    if( kh_size( interfacesList ) == 0 )
-    {
-      kh_destroy( CANInt, interfacesList );
-      interfacesList = NULL;
-    }
+    kh_destroy( CANInt, interfacesList );
+    interfacesList = NULL;
   }
 }
 
-static void CANEPOS_Enable( int interfaceID )
+void CANEPOS_Enable( int interfaceID )
 {
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return;
+  
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
     
-    SetControl( interface, SWITCH_ON, false );
-    SetControl( interface, ENABLE_OPERATION, false );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-          
-    Timing_Delay( 200 );
-          
-    SetControl( interface, SWITCH_ON, true );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-
-    Timing_Delay( 200 );
-          
-    SetControl( interface, ENABLE_OPERATION, true );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-  }
+  SetControl( interface, SWITCH_ON, false );
+  SetControl( interface, ENABLE_OPERATION, false );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
+  
+  Timing_Delay( 200 );
+  
+  SetControl( interface, SWITCH_ON, true );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
+  
+  Timing_Delay( 200 );
+  
+  SetControl( interface, ENABLE_OPERATION, true );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
 }
 
-static void CANEPOS_Disable( int interfaceID )
+void CANEPOS_Disable( int interfaceID )
 {
   DEBUG_EVENT( 0, "disabling CAN EPOS device %d", interfaceID );
   
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return;
+  
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
     
-    SetControl( interface, SWITCH_ON, true );
-    SetControl( interface, ENABLE_OPERATION, false );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-          
-    Timing_Delay( 200 );
-          
-    SetControl( interface, SWITCH_ON, false );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-  }
+  SetControl( interface, SWITCH_ON, true );
+  SetControl( interface, ENABLE_OPERATION, false );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
+  
+  Timing_Delay( 200 );
+  
+  SetControl( interface, SWITCH_ON, false );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
 }
 
 void CANEPOS_Reset( int interfaceID )
 {
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return;
+  
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
     
-    SetControl( interface, FAULT_RESET, true );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-    
-    Timing_Delay( 200 );
-    
-    SetControl( interface, FAULT_RESET, false );
-    CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
-  }
+  SetControl( interface, FAULT_RESET, true );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
+  
+  Timing_Delay( 200 );
+  
+  SetControl( interface, FAULT_RESET, false );
+  CANEPOS_WriteSetpoint( interfaceID, interface->currentSetpoint );
 }
 
 static bool CANEPOS_IsEnabled( int interfaceID )
 {
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
-    
-    return ( CheckState( interface, SWITCHED_ON ) && CheckState( interface, OPERATION_ENABLED ) );
-  }
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return false;
   
-  return false;
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
+    
+  return ( CheckState( interface, SWITCHED_ON ) && CheckState( interface, OPERATION_ENABLED ) );
 }
 
 static bool CANEPOS_HasError( int interfaceID )
 {
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
-    
-    return ( CheckState( interface, FAULT ) );
-  }
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return false;
   
-  return false;
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
+    
+  return ( CheckState( interface, FAULT ) );
 }
 
 static bool CANEPOS_ReadMeasures( int interfaceID, double measuresList[ AXIS_VARS_NUMBER ] )
@@ -229,98 +219,101 @@ static bool CANEPOS_ReadMeasures( int interfaceID, double measuresList[ AXIS_VAR
   // Create reading buffer
   static uint8_t payload[ 8 ];
 
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
-    
-    CANNetwork_Sync();
-    
-    // Read values from PDO01 (Position, Current and Status Word) to buffer
-    CANFrame_Read( interface->readFramesList[ PDO01 ], payload );  
-    // Update values from PDO01
-    measuresList[ AXIS_ENCODER ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
-    int currentHEX = payload[ 5 ] * 0x100 + payload[ 4 ];
-    double currentMA = currentHEX - ( ( currentHEX >= 0x8000 ) ? 0xFFFF : 0 );
-    measuresList[ AXIS_CURRENT ] = currentMA / 1000.0;
-    
-    interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
-
-    // Read values from PDO02 (Velocity and Tension) to buffer
-    CANFrame_Read( interface->readFramesList[ PDO02 ], payload );  
-    // Update values from PDO02
-    double velocityRPM = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
-    measuresList[ AXIS_RPS ] = velocityRPM * 60.0;
-    
-    double analog = payload[ 5 ] * 0x100 + payload[ 4 ];
-    measuresList[ AXIS_ANALOG ] = analog;
-    
-    //DEBUG_PRINT( "encoder: %.5f (interface %u)", measuresList[ AXIS_ENCODER ], (khint_t) interfaceID );
-  }
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return false;
   
-  return false;
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
+    
+  CANNetwork_Sync();
+  
+  // Read values from PDO01 (Position, Current and Status Word) to buffer
+  CANFrame_Read( interface->readFramesList[ PDO01 ], payload );  
+  // Update values from PDO01
+  measuresList[ AXIS_ENCODER ] = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
+  int currentHEX = payload[ 5 ] * 0x100 + payload[ 4 ];
+  double currentMA = currentHEX - ( ( currentHEX >= 0x8000 ) ? 0xFFFF : 0 );
+  measuresList[ AXIS_CURRENT ] = currentMA / 1000.0;
+  
+  interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
+  
+  // Read values from PDO02 (Velocity and Tension) to buffer
+  CANFrame_Read( interface->readFramesList[ PDO02 ], payload );  
+  // Update values from PDO02
+  double velocityRPM = payload[ 3 ] * 0x1000000 + payload[ 2 ] * 0x10000 + payload[ 1 ] * 0x100 + payload[ 0 ];
+  measuresList[ AXIS_RPS ] = velocityRPM * 60.0;
+  
+  double analog = payload[ 5 ] * 0x100 + payload[ 4 ];
+  measuresList[ AXIS_ANALOG ] = analog;
+  
+  //DEBUG_PRINT( "encoder: %.5f (interface %u)", measuresList[ AXIS_ENCODER ], (khint_t) interfaceID );
+  
+  return true;
 }
 
-void CANEPOS_WriteSetpoint( int interfaceID, double setpoint )
+bool CANEPOS_WriteSetpoint( int interfaceID, double setpoint )
 {
   // Create writing buffer
   static uint8_t payload[ 8 ];
   
-  if( kh_exist( interfacesList, (khint_t) interfaceID ) )
-  {
-    CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return false;
   
-    interface->currentSetpoint = setpoint;
-    
-    int encoderSetpoint = (int) setpoint;
-    int16_t currentSetpointHEX = (int16_t) setpoint + ( ( setpoint < 0.0 ) ? 0xFFFF : 0 );
-    
-    // Set values for PDO01 (Position Setpoint and Control Word)
-    payload[ 0 ] = (uint8_t) ( encoderSetpoint & 0x000000ff );
-    payload[ 1 ] = (uint8_t) ( ( encoderSetpoint & 0x0000ff00 ) / 0x100 );
-    payload[ 2 ] = (uint8_t) ( ( encoderSetpoint & 0x00ff0000 ) / 0x10000 );
-    payload[ 3 ] = (uint8_t) ( ( encoderSetpoint & 0xff000000 ) / 0x1000000 );
-    payload[ 4 ] = (uint8_t) ( currentSetpointHEX & 0x000000ff );
-    payload[ 5 ] = (uint8_t) ( ( currentSetpointHEX & 0x0000ff00 ) / 0x100 ); 
-    payload[ 6 ] = (uint8_t) ( interface->controlWord & 0x000000ff );
-    payload[ 7 ] = (uint8_t) ( ( interface->controlWord & 0x0000ff00 ) / 0x100 ); 
-
-    // Write values from buffer to PDO01 
-    CANFrame_Write( interface->writeFramesList[ PDO01 ], payload );
-
-    int velocitySetpointRPM = (int) ( setpoint / 60.0 );
-    int16_t digitalOutput = (int16_t) setpoint;
-    
-    //DEBUG_PRINT( "velocity setpoint: %d", rawVelocitySetpoint );
-    
-    // Set values for PDO02 (Velocity Setpoint and Digital Output)
-    payload[ 0 ] = (uint8_t) ( velocitySetpointRPM & 0x000000ff );
-    payload[ 1 ] = (uint8_t) ( ( velocitySetpointRPM & 0x0000ff00 ) / 0x100 );
-    payload[ 2 ] = (uint8_t) ( ( velocitySetpointRPM & 0x00ff0000 ) / 0x10000 );
-    payload[ 3 ] = (uint8_t) ( ( velocitySetpointRPM & 0xff000000 ) / 0x1000000 );
-    payload[ 4 ] = (uint8_t) ( digitalOutput & 0x000000ff );
-    payload[ 5 ] = (uint8_t) ( ( digitalOutput & 0x0000ff00 ) / 0x100 ); 
-    payload[ 6 ] = ( 0 & 0x000000ff );
-    payload[ 7 ] = ( 0 & 0x0000ff00 ) / 0x100; 
-
-    // Write values from buffer to PDO01
-    CANFrame_Write( interface->writeFramesList[ PDO02 ], payload );
-    
-    CANNetwork_Sync();
-  }
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
+  
+  interface->lastSetpoint = setpoint;
+  
+  int encoderSetpoint = (int) setpoint;
+  int16_t currentSetpointHEX = (int16_t) setpoint + ( ( setpoint < 0.0 ) ? 0xFFFF : 0 );
+  
+  // Set values for PDO01 (Position Setpoint and Control Word)
+  payload[ 0 ] = (uint8_t) ( encoderSetpoint & 0x000000FF );
+  payload[ 1 ] = (uint8_t) ( ( encoderSetpoint & 0x0000FF00 ) / 0x100 );
+  payload[ 2 ] = (uint8_t) ( ( encoderSetpoint & 0x00FF0000 ) / 0x10000 );
+  payload[ 3 ] = (uint8_t) ( ( encoderSetpoint & 0xFF000000 ) / 0x1000000 );
+  payload[ 4 ] = (uint8_t) ( currentSetpointHEX & 0x000000FF );
+  payload[ 5 ] = (uint8_t) ( ( currentSetpointHEX & 0x0000FF00 ) / 0x100 ); 
+  payload[ 6 ] = (uint8_t) ( interface->controlWord & 0x000000FF );
+  payload[ 7 ] = (uint8_t) ( ( interface->controlWord & 0x0000FF00 ) / 0x100 ); 
+  
+  // Write values from buffer to PDO01 
+  CANFrame_Write( interface->writeFramesList[ PDO01 ], payload );
+  
+  int velocitySetpointRPM = (int) ( setpoint / 60.0 );
+  int16_t digitalOutput = (int16_t) setpoint;
+  
+  //DEBUG_PRINT( "velocity setpoint: %d", rawVelocitySetpoint );
+  
+  // Set values for PDO02 (Velocity Setpoint and Digital Output)
+  payload[ 0 ] = (uint8_t) ( velocitySetpointRPM & 0x000000FF );
+  payload[ 1 ] = (uint8_t) ( ( velocitySetpointRPM & 0x0000FF00 ) / 0x100 );
+  payload[ 2 ] = (uint8_t) ( ( velocitySetpointRPM & 0x00FF0000 ) / 0x10000 );
+  payload[ 3 ] = (uint8_t) ( ( velocitySetpointRPM & 0xFF000000 ) / 0x1000000 );
+  payload[ 4 ] = (uint8_t) ( digitalOutput & 0x000000FF );
+  payload[ 5 ] = (uint8_t) ( ( digitalOutput & 0x0000FF00 ) / 0x100 ); 
+  payload[ 6 ] = ( 0 & 0x000000FF );
+  payload[ 7 ] = ( 0 & 0x0000FF00 ) / 0x100; 
+  
+  // Write values from buffer to PDO01
+  CANFrame_Write( interface->writeFramesList[ PDO02 ], payload );
+  
+  CANNetwork_Sync();
+  
+  return true;
 }
 
 static const int OPERATION_MODES[ AXIS_VARS_NUMBER ] = { 0xFF, 0xFE, 0xFD, 0x00 };
 static void CANEPOS_SetOperationMode( int interfaceID, enum AxisVariables mode )
 {
-  if( !kh_exist( interfacesList, (khint_t) interfaceID ) ) return;
+  khint_t interfaceIndex = kh_get( CANInt, interfacesList, (khint_t) interfaceID );
+  if( interfaceIndex == kh_end( interfacesList ) ) return;
   
   if( mode < 0 || mode >= AXIS_VARS_NUMBER ) return;
   
-  CANInterface* interface = kh_value( interfacesList, (khint_t) interfaceID );
+  CANInterface* interface = kh_value( interfacesList, interfaceIndex );
   
   WriteSingleValue( interface, 0x6060, 0x00, OPERATION_MODES[ mode ] );
   
-  interface->currentSetpoint = 0.0;
+  interface->lastSetpoint = 0.0;
 }
 
 

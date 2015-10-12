@@ -42,75 +42,67 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
 {
   DEBUG_PRINT( "trying to create shared object %s with %u bytes (mode: %d)", mappingName, objectSize, flags );
   
-  if( sharedObjectsList != NULL )
-  {
-    khint_t sharedObjectID = kh_get( SO, sharedObjectsList, mappingName );
-    if( sharedObjectID != kh_end( sharedObjectsList ) )
-    {
-      DEBUG_PRINT( "shared object %s already exists", mappingName );
-      return kh_value( sharedObjectsList, sharedObjectID ).data;
-    }
-  }
-  
   if( sharedObjectsList == NULL ) sharedObjectsList = kh_init( SO ); 
   
   int insertionStatus;
-  khint_t newSharedObjectID = kh_put( SO, sharedObjectsList, mappingName, &insertionStatus );
-
-  SharedObject* newSharedObject = &(kh_value( sharedObjectsList, newSharedObjectID ));
-  
-  memset( newSharedObject, 0, sizeof(SharedObject) );
-  
-  newSharedObject->data = malloc( objectSize );
-  memset( newSharedObject->data, 0, objectSize );
-  newSharedObject->oldData = malloc( objectSize );
-  memset( newSharedObject->oldData, 0, objectSize );
-  
-  newSharedObject->dataSize = objectSize;
-  CNVCreateArrayDataValue( &(newSharedObject->networkData), CNVUInt8, newSharedObject->data, 1, &(newSharedObject->dataSize) );
-  
-  char* variablePathName = (char*) calloc( strlen( "\\\\localhost\\system\\" ) + strlen( mappingName ) + 1, sizeof(char) );
-  sprintf( variablePathName, "\\\\localhost\\system\\%s", mappingName );
-  
-  if( ( flags & SHM_READ ) )
+  khint_t newSharedObjectIndex = kh_get( SO, sharedObjectsList, mappingName );
+  if( newSharedObjectIndex == kh_end( sharedObjectsList ) )
   {
-    int status = CNVCreateSubscriber( variablePathName, UpdateDataIn, NULL, newSharedObject, 10000, 0, &(newSharedObject->reader) ); 
-    if( status != 0 )
+    newSharedObjectIndex = kh_put( SO, sharedObjectsList, mappingName, &insertionStatus );
+    SharedObject* newSharedObject = &(kh_value( sharedObjectsList, newSharedObjectIndex ));
+    
+    memset( newSharedObject, 0, sizeof(SharedObject) );
+    
+    newSharedObject->data = malloc( objectSize );
+    memset( newSharedObject->data, 0, objectSize );
+    newSharedObject->oldData = malloc( objectSize );
+    memset( newSharedObject->oldData, 0, objectSize );
+    
+    newSharedObject->dataSize = objectSize;
+    CNVCreateArrayDataValue( &(newSharedObject->networkData), CNVUInt8, newSharedObject->data, 1, &(newSharedObject->dataSize) );
+    
+    char* variablePathName = (char*) calloc( strlen( "\\\\localhost\\system\\" ) + strlen( mappingName ) + 1, sizeof(char) );
+    sprintf( variablePathName, "\\\\localhost\\system\\%s", mappingName );
+    
+    if( ( flags & SHM_READ ) )
     {
-      DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-      free( variablePathName );
-      return NULL;
+      int status = CNVCreateSubscriber( variablePathName, UpdateDataIn, NULL, newSharedObject, 10000, 0, &(newSharedObject->reader) ); 
+      if( status != 0 )
+      {
+        DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+        free( variablePathName );
+        return NULL;
+      }
+      
+      DEBUG_PRINT( "created subscriber %s with pointer %p", variablePathName, newSharedObject->reader );
     }
     
-    DEBUG_PRINT( "created subscriber %s with pointer %p", variablePathName, newSharedObject->reader );
+    if( ( flags & SHM_WRITE ) )
+    {
+      int status = CNVCreateWriter( variablePathName, NULL, NULL, 10000, 0, &(newSharedObject->writer) );
+      if( status != 0 )
+      {
+        DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
+        free( variablePathName );
+        return NULL;
+      }
+      
+      DEBUG_PRINT( "created writer %s with pointer %p", variablePathName, newSharedObject->writer );
+      
+      if( (newSharedObject->timerID = NewAsyncTimerWithPriority( 0.001, -1, 1, UpdateDataOut, newSharedObject, 0 )) < 0 )
+      {
+        DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
+        free( variablePathName );
+        return NULL;
+      }
+      
+      DEBUG_PRINT( "created timer %d", newSharedObject->timerID );
+    }
+    
+    free( variablePathName );
   }
   
-  if( ( flags & SHM_WRITE ) )
-  {
-    int status = CNVCreateWriter( variablePathName, NULL, NULL, 10000, 0, &(newSharedObject->writer) );
-    if( status != 0 )
-    {
-      DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
-      free( variablePathName );
-      return NULL;
-    }
-    
-    DEBUG_PRINT( "created writer %s with pointer %p", variablePathName, newSharedObject->writer );
-    
-    //if( (newSharedObject->timerID = NewAsyncTimer( 0.001, -1, 1, UpdateDataOut, newSharedObject )) < 0 )
-    if( (newSharedObject->timerID = NewAsyncTimerWithPriority( 0.001, -1, 1, UpdateDataOut, newSharedObject, 0 )) < 0 )
-    {
-      DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
-      free( variablePathName );
-      return NULL;
-    }
-    
-    DEBUG_PRINT( "created timer %d", newSharedObject->timerID );
-  }
-  
-  free( variablePathName );
-  
-  return newSharedObject->data;
+  return kh_value( sharedObjectsList, newSharedObjectIndex ).data;
 }
 
 void SharedObjects_DestroyObject( void* sharedObjectData )
