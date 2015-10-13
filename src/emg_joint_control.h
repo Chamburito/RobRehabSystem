@@ -3,8 +3,9 @@
 
 #include "emg_processing.h"
 
+#include "config_parser.h"
+
 #include "klib/khash.h"
-#include "file_parsing/json_parser.h"
 
 #include "debug/async_debug.h"
 
@@ -132,7 +133,6 @@ void EMGJointControl_ChangeState( int jointID, enum MuscleGroups muscleGroupID, 
 
 
 const char* MUSCLE_GROUP_NAMES[ MUSCLE_GROUPS_NUMBER ] = { "agonist", "antagonist" };
-const char* sensorsDirectory = "emg_sensors";
 static EMGJoint LoadEMGJointData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load joint %s EMG data", configFileName );
@@ -144,35 +144,28 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
   EMGJoint newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );
   memset( newJoint, 0, sizeof(EMGJointData) );
   
-  FileParserInterface parser = JSONParser;
-  int configFileID = parser.LoadFile( configFileName );
+  int configFileID = ConfigParser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
-    parser.SetBaseKey( configFileID, "muscle_groups" );
+    ConfigParser.SetBaseKey( configFileID, "muscle_groups" );
     for( size_t muscleGroupIndex = 0; muscleGroupIndex < MUSCLE_GROUPS_NUMBER; muscleGroupIndex++ )
     {
-      if( (newJoint->muscleGroupsSizesList[ muscleGroupIndex ] = (size_t) parser.GetListSize( configFileID, MUSCLE_GROUP_NAMES[ muscleGroupIndex ] )) > 0 )
+      if( (newJoint->muscleGroupsSizesList[ muscleGroupIndex ] = (size_t) ConfigParser.GetListSize( configFileID, MUSCLE_GROUP_NAMES[ muscleGroupIndex ] )) > 0 )
       {
         DEBUG_PRINT( "%u %s muscles found for joint %s", newJoint->muscleGroupsSizesList[ muscleGroupIndex ], MUSCLE_GROUP_NAMES[ muscleGroupIndex ], configFileName );
-        
+
         newJoint->muscleIDsTable[ muscleGroupIndex ] = (int*) calloc( newJoint->muscleGroupsSizesList[ muscleGroupIndex ], sizeof(int) );
-      
+
         for( size_t muscleIndex = 0; muscleIndex < newJoint->muscleGroupsSizesList[ muscleGroupIndex ]; muscleIndex++ )
         {
           sprintf( searchPath, "%s.%u", MUSCLE_GROUP_NAMES[ muscleGroupIndex ], muscleIndex );
-          char* sensorName = parser.GetStringValue( configFileID, searchPath );
-          if( sensorName != NULL )
-          {
-            sprintf( searchPath, "%s/%s", sensorsDirectory, sensorName );
-            newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( searchPath );
-            if( newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] == -1 ) loadError = true;
-          }
-          else loadError = true;
+          newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( ConfigParser.GetStringValue( configFileID, searchPath ) );
+          if( newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] == -1 ) loadError = true;
         }
       }
     }
-    
-    parser.UnloadFile( configFileID );
+
+    ConfigParser.UnloadFile( configFileID );
   }
   else
   {

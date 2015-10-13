@@ -4,10 +4,12 @@
 #include <math.h>
 #include <stdbool.h>
 
-#include "signal_aquisition/signal_aquisition_loader.h"
+#include "config_parser.h"
+
+#include "signal_aquisition/signal_aquisition_interface.h"
+#include "plugin_loader.h"
 
 #include "klib/khash.h"
-#include "file_parsing/json_parser.h"
 
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
@@ -161,11 +163,14 @@ double EMGProcessing_GetMuscleTorque( int sensorID, double jointAngle )
   
   //DEBUG_PRINT( "logging data for sensor %d", sensorID );
   
-  //size_t newSamplesBufferStart = sensor->emgData.samplesBufferStartIndex % sensor->emgData.samplesBufferLength;
-  //size_t newSamplesBufferMaxLength = sensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
-  //DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.samplesBuffer + newSamplesBufferStart );
-  //DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
-  //DataLogging_RegisterValues( sensor->logID, 3, sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
+  if( sensor->logID != 0 )
+  {
+    size_t newSamplesBufferStart = sensor->emgData.samplesBufferStartIndex % sensor->emgData.samplesBufferLength;
+    size_t newSamplesBufferMaxLength = sensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
+    DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.samplesBuffer + newSamplesBufferStart );
+    DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
+    DataLogging_RegisterValues( sensor->logID, 3, sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
+  }
   
   for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
   {
@@ -346,21 +351,22 @@ static EMGSensor LoadEMGSensorData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load muscle %s EMG sensor data", configFileName );
   
-  static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
   
   bool loadError = false;
   
   EMGSensor newSensor = (EMGSensor) malloc( sizeof(EMGSensorData) );
   memset( newSensor, 0, sizeof(EMGSensorData) );
   
-  FileParserInterface parser = JSONParser;
-  int configFileID = parser.LoadFile( configFileName );
+  int configFileID = ConfigParser.LoadFile( configFileName );
   if( configFileID != -1 )
   {
-    if( GetSignalAquisitionInterface( parser.GetStringValue( configFileID, "aquisition_system.type" ), &(newSensor->interface) ) )
+    bool pluginLoaded;
+    GET_PLUGIN_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "aquisition_system.type" ), newSensor->interface, pluginLoaded );
+    if( pluginLoaded )
     {
-      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "aquisition_system.task" ) );
-      if( newSensor->taskID != -1 ) 
+      newSensor->taskID = newSensor->interface.InitTask( ConfigParser.GetStringValue( configFileID, "aquisition_system.task" ) );
+      if( newSensor->taskID != -1 )
       {
         size_t newSamplesBufferMaxLength = newSensor->interface.GetMaxSamplesNumber( newSensor->taskID );
         if( newSamplesBufferMaxLength > 0 )
@@ -370,37 +376,40 @@ static EMGSensor LoadEMGSensorData( const char* configFileName )
           newSensor->emgData.filteredSamplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
           newSensor->emgData.filteredSamplesBuffer = (double*) calloc( newSensor->emgData.filteredSamplesBufferLength, sizeof(double) );
           newSensor->emgData.rectifiedSamplesBuffer = (double*) calloc( newSensor->emgData.filteredSamplesBufferLength, sizeof(double) );
-          
-          //newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
-          //DataLogging_SetDataPrecision( newSensor->logID, 4 );
+
+          if( ConfigParser.GetBooleanValue( configFileID, "log_data" ) )
+          {
+            newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
+            DataLogging_SetDataPrecision( newSensor->logID, 4 );
+          }
         }
         else loadError = true;
-        
-        newSensor->channel = parser.GetIntegerValue( configFileID, "aquisition_system.channel" );
+
+        newSensor->channel = ConfigParser.GetIntegerValue( configFileID, "aquisition_system.channel" );
         if( !(newSensor->interface.AquireChannel( newSensor->taskID, newSensor->channel )) ) loadError = true;
       }
       else loadError = true;
     }
     else loadError = true;
-    
+
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
     {
       sprintf( searchPath, "muscle_properties.curves.%s", CURVE_NAMES[ curveIndex ] );
-      size_t coeffsNumber = parser.GetListSize( configFileID, searchPath ); 
+      size_t coeffsNumber = ConfigParser.GetListSize( configFileID, searchPath );
       for( size_t coeffIndex = 0; coeffIndex < coeffsNumber; coeffIndex++ )
       {
         sprintf( searchPath, "muscle_properties.curves.%s.%u", CURVE_NAMES[ curveIndex ], coeffIndex );
         DEBUG_PRINT( "searching for value %s", searchPath );
-        newSensor->muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = parser.GetRealValue( configFileID, searchPath );
+        newSensor->muscleProperties.curvesList[ curveIndex ][ coeffIndex ] = ConfigParser.GetRealValue( configFileID, searchPath );
       }
     }
-    
-    newSensor->muscleProperties.initialPenationAngle = parser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
-    newSensor->muscleProperties.scaleFactor = parser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
-    
+
+    newSensor->muscleProperties.initialPenationAngle = ConfigParser.GetRealValue( configFileID, "muscle_properties.penation_angle" );
+    newSensor->muscleProperties.scaleFactor = ConfigParser.GetRealValue( configFileID, "muscle_properties.scale_factor" );
+
     newSensor->lock = ThreadLocks.Create();
-    
-    parser.UnloadFile( configFileID );
+
+    ConfigParser.UnloadFile( configFileID );
   }
   else
   {
@@ -435,7 +444,7 @@ void UnloadEMGSensorData( EMGSensor sensor )
   sensor->interface.ReleaseChannel( sensor->taskID, sensor->channel );
   sensor->interface.EndTask( sensor->taskID );
   
-  //DataLogging_EndLog( sensor->logID );
+  if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
   
   free( sensor );
 }

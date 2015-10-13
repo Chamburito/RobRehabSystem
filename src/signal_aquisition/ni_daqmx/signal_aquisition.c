@@ -30,20 +30,13 @@ SignalAquisitionTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalAquisitionTask* )
 static khash_t( TaskInt )* tasksList = NULL;
 
-IMPLEMENT_INTERFACE( SignalAquisition, NIDAQmx )
+IMPLEMENT_INTERFACE( SignalAquisition, SIGNAL_AQUISITION_FUNCTIONS ) 
 
 #ifdef _CVI_
 static void* AsyncReadBuffer( void* );
 
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
-
-/*BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
-{
-  printf( "WEEEEEEEEEE %p !!!\n\n", hinstDLL );
-  
-  return 0;
-}*/
 
 int InitTask( const char* taskName )
 {

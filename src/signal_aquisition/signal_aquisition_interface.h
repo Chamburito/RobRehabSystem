@@ -6,14 +6,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define SignalAquisition( function_init ) \
-        function_init( int, InitTask, const char* ) \
-        function_init( void, EndTask, int ) \
-        function_init( double*, Read, int, unsigned int, size_t* ) \
-        function_init( bool, AquireChannel, int, unsigned int ) \
-        function_init( void, ReleaseChannel, int, unsigned int ) \
-        function_init( size_t, GetMaxSamplesNumber, int )
+#define SIGNAL_AQUISITION_FUNCTIONS( interface, function_init ) \
+        function_init( int, interface, InitTask, const char* ) \
+        function_init( void, interface, EndTask, int ) \
+        function_init( double*, interface, Read, int, unsigned int, size_t* ) \
+        function_init( bool, interface, AquireChannel, int, unsigned int ) \
+        function_init( void, interface, ReleaseChannel, int, unsigned int ) \
+        function_init( size_t, interface, GetMaxSamplesNumber, int )
 
-DEFINE_INTERFACE( SignalAquisition )
+DEFINE_INTERFACE( SignalAquisition, SIGNAL_AQUISITION_FUNCTIONS )
 
 #endif // SIGNAL_AQUISITION_INTERFACE_H 

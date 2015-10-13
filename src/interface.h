@@ -5,24 +5,21 @@
     extern "C" {
 #endif
 
-#define INIT_INTERFACE_FILE( rtype, name, ... ) extern __declspec(dllexport) rtype name( __VA_ARGS__ );
-#define INIT_INTERFACE_POINTER( rtype, name, ... ) rtype (*name)( __VA_ARGS__ );
-#define INIT_INTERFACE_STRUCT( rtype, name, ... ) .name = name,
+#define INIT_INTERFACE_FILE( rtype, interface, func, ... ) extern __declspec(dllexport) rtype func( __VA_ARGS__ );
+#define INIT_INTERFACE_POINTER( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
+#define INIT_INTERFACE_STRUCT( rtype, interface, func, ... ) .func = func,
       
-#define INIT_NAMESPACE_FILE( rtype, namespace, name, ... ) static rtype namespace##_##name( __VA_ARGS__ );
-#define INIT_NAMESPACE_POINTER( rtype, namespace, name, ... ) rtype (*name)( __VA_ARGS__ );        
-#define INIT_NAMESPACE_STRUCT( rtype, namespace, name, ... ) .name = namespace##_##name,
+#define INIT_NAMESPACE_FILE( rtype, namespace, func, ... ) static rtype namespace##_##func( __VA_ARGS__ );
+#define INIT_NAMESPACE_POINTER( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
+#define INIT_NAMESPACE_STRUCT( rtype, namespace, func, ... ) .func = namespace##_##func,
 
-#define DEFINE_INTERFACE( interface ) \
+#define DEFINE_INTERFACE( interfaceName, interfaceFunctions ) \
         typedef struct { \
-          interface( INIT_INTERFACE_POINTER ) \
+          interfaceFunctions( interfaceName, INIT_INTERFACE_POINTER ) \
         } \
-        /*interface##Operations; \
-        typedef interface##Operations**/ interface##Interface;
+        interfaceName##Interface;
       
-#define IMPLEMENT_INTERFACE( interface, implementation ) \
-        interface( INIT_INTERFACE_FILE ) \
-        const /*interface##Operations*/interface##Interface implementation = { interface( INIT_INTERFACE_STRUCT ) };
+#define IMPLEMENT_INTERFACE( interfaceName, interfaceFunctions ) interfaceFunctions( interfaceName, INIT_INTERFACE_FILE )
       
 #define INIT_NAMESPACE_INTERFACE( namespace, functions ) \
         functions( namespace, INIT_NAMESPACE_FILE ) \

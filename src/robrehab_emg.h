@@ -11,7 +11,7 @@
 #include <ansi_c.h>
 #include <rtutil.h>
 
-#include "file_parsing/json_parser.h"
+#include "config_parser.h"
 
 #include "klib/kvec.h"
 
@@ -42,64 +42,59 @@ kvec_t( SHMJointData ) sharedJointsList;
 INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_EMG_FUNCTIONS )
 
 
-const char* jointsDirectory = "emg_joints";
 int RobRehabEMG_Init( void )
 {
   kv_init( sharedJointsList );
   
-  SET_PATH( "config/" );
-  
-  FileParserInterface parser = JSONParser;
-  int configFileID = parser.LoadFile( "shared_axes" );
-  if( configFileID != -1 )
+  if( ConfigParser.Init( "JSON" ) )
   {
-    if( parser.HasKey( configFileID, "axes" ) )
+    int configFileID = ConfigParser.LoadFile( "shared_axes" );
+    if( configFileID != -1 )
     {
-      size_t sharedAxesNumber = parser.GetListSize( configFileID, "axes" );
-      
-      DEBUG_PRINT( "List size: %u", sharedAxesNumber );
-      
-      char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-      for( size_t shmAxisDataIndex = 0; shmAxisDataIndex < sharedAxesNumber; shmAxisDataIndex++ )
+      if( ConfigParser.HasKey( configFileID, "axes" ) )
       {
-        sprintf( searchPath, "axes.%u", shmAxisDataIndex );
-        char* axisName = parser.GetStringValue( configFileID, searchPath );
-
-        DEBUG_PRINT( "found axis %s", axisName );
-
-        bool loadError = false;
-
-        sprintf( searchPath, "%s/%s", jointsDirectory, axisName );
-
-        int newSharedJointID = -1;
-        SHMAxis newSharedAxis = NULL;
-        if( (newSharedJointID = EMGJointControl.InitJoint( searchPath )) != -1 )
+        size_t sharedAxesNumber = ConfigParser.GetListSize( configFileID, "axes" );
+      
+        DEBUG_PRINT( "List size: %u", sharedAxesNumber );
+      
+        char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+        for( size_t shmAxisDataIndex = 0; shmAxisDataIndex < sharedAxesNumber; shmAxisDataIndex++ )
         {
-          if( (newSharedAxis = SHMAxisControl.InitData( axisName, SHM_CONTROL_OUT )) != NULL )
-          {
-            SHMJointData newSharedJoint = { .axis = newSharedAxis, .jointID = newSharedJointID };
-            
-            kv_push( SHMJointData, sharedJointsList, newSharedJoint );
+          sprintf( searchPath, "axes.%u", shmAxisDataIndex );
+          char* axisName = ConfigParser.GetStringValue( configFileID, searchPath );
 
-            DEBUG_PRINT( "Got new shared joint with ID %d and axis %p (total: %u)", newSharedJointID, newSharedAxis, kv_size( sharedJointsList ) );
+          DEBUG_PRINT( "found axis %s", axisName );
+
+          bool loadError = false;
+
+          int newSharedJointID = -1;
+          SHMAxis newSharedAxis = NULL;
+          if( (newSharedJointID = EMGJointControl.InitJoint( axisName )) != -1 )
+          {
+            if( (newSharedAxis = SHMAxisControl.InitData( axisName, SHM_CONTROL_OUT )) != NULL )
+            {
+              SHMJointData newSharedJoint = { .axis = newSharedAxis, .jointID = newSharedJointID };
+            
+              kv_push( SHMJointData, sharedJointsList, newSharedJoint );
+
+              DEBUG_PRINT( "Got new shared joint with ID %d and axis %p (total: %u)", newSharedJointID, newSharedAxis, kv_size( sharedJointsList ) );
+            }
+            else loadError = true;
           }
           else loadError = true;
-        }
-        else loadError = true;
 
-        if( loadError )
-        {
-          SHMAxisControl.EndData( newSharedAxis );
-          EMGJointControl.EndJoint( newSharedJointID );
-          return -1;
+          if( loadError )
+          {
+            SHMAxisControl.EndData( newSharedAxis );
+            EMGJointControl.EndJoint( newSharedJointID );
+            return -1;
+          }
         }
       }
-    }
     
-    parser.UnloadFile( configFileID );
+      ConfigParser.UnloadFile( configFileID );
+    }
   }
-  
-  SET_PATH( ".." );
   
   return 0;
 }

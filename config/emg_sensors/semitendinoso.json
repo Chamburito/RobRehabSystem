@@ -1,6 +1,6 @@
 {
   "aquisition_system": {
-    "type": "NIDAQmx",
+    "type": "signal_aquisition/NIDAQmx",
     "task": "EMGReadTask",
     "channel": 2,
     "input_gain": 909

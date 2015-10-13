@@ -5,59 +5,45 @@
     extern "C" {
 #endif
 
-#include "interface.h"
+//#include "interface.h"
       
 #ifdef WIN32
-  //#include <ansi_c.h>
   #include <windows.h>
 
   #define LOAD_PLUGIN( pluginName ) LoadLibrary( pluginName )
   #define GET_PLUGIN_FUNCTION( pluginHandle, funcName ) GetProcAddress( pluginHandle, funcName )
   #define UNLOAD_PLUGIN( pluginHandle ) FreeLibrary( pluginHandle )
   
+  #define PLUGIN_HANDLE HINSTANCE
   #define PLUGIN_EXTENSION "dll"
 #else
   #include <stdint.h>
+  #include <dlfcn.h>
       
   #define LOAD_PLUGIN( pluginName ) dlopen( pluginName, RTLD_NOW )
   #define GET_PLUGIN_FUNCTION( pluginHandle, funcName ) (intptr_t) dlsym( pluginHandle, funcName )
   #define UNLOAD_PLUGIN( pluginHandle ) dlclose( pluginHandle ) 
   
+  #define PLUGIN_HANDLE void*
   #define PLUGIN_EXTENSION "so" 
 #endif
+      
+#include <stdio.h>
+#include <stdbool.h>
   
 #define FUNCTION_NAME( func ) # func
   
-#define INIT_INTERFACE_SYMBOL( rtype, func, ... ) do { ref_interface -> func = (rtype (*)( __VA_ARGS__ )) GET_PLUGIN_FUNCTION( pluginHandle, FUNCTION_NAME( func ) ); \
-                                                       printf( "loaded function %s (%p)\n", FUNCTION_NAME( func ), ref_interface -> func ); } while( 0 );
+#define INIT_INTERFACE_SYMBOL( rtype, interfaceStruct, func, ... ) interfaceStruct . func = (rtype (*)( __VA_ARGS__ )) GET_PLUGIN_FUNCTION( pluginHandle, FUNCTION_NAME( func ) );
   
-#define LOAD_PLUGIN_FUNCTIONS( interface, ref_interface ) interface( INIT_INTERFACE_SYMBOL )
-  
-  
-/*bool IsPluginAvailable( const char* directoryName, const char* interfaceName )
-{
-  static char interfaceFileName[ 256 ];
-  
-  sprintf( interfaceFileName, "%s.%s", interfaceName, PLUGIN_EXTENSION );
-  
-  DIR* directory = opendir( directoryName );
-  if( directory != NULL )
-  {
-    struct dirent directoryEntry;
-    while( (directoryEntry = readdir( directory )) != NULL )
-    {
-      if( strcmp( directoryEntry->d_name, interfaceFileName ) == 0 )
-      {
-        DEBUG_PRINT( "found file %s", interfaceFilePath );
-        return true;
-      }
-    }
-    
-    closedir( directory );
-  }
-  
-  return false;
-}*/
+#define LOAD_PLUGIN_FUNCTIONS( interfaceFunctions, interfaceName ) interfaceFunctions( interfaceName, INIT_INTERFACE_SYMBOL )
+      
+#define GET_PLUGIN_INTERFACE( interfaceFunctions, interfaceFilePath, interfaceName, success ) \
+  do { char interfaceFilePathExt[ 256 ]; \
+  sprintf( interfaceFilePathExt, "plugins/%s.%s", interfaceFilePath, PLUGIN_EXTENSION ); \
+  printf( "trying to load plugin %s\n", interfaceFilePathExt ); \
+  PLUGIN_HANDLE pluginHandle = LOAD_PLUGIN( interfaceFilePathExt ); \
+  LOAD_PLUGIN_FUNCTIONS( interfaceFunctions, interfaceName ) \
+  success = (bool) pluginHandle; } while( 0 )
 
 #ifdef __cplusplus
     }

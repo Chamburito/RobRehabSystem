@@ -1,12 +1,12 @@
-#ifndef SIGNAL_AQUISITION_LOADER_H
-#define SIGNAL_AQUISITION_LOADER_H
+#ifndef FILE_PARSER_LOADER_H
+#define FILE_PARSER_LOADER_H
 
 #include "plugin_loader.h"
-#include "signal_aquisition/signal_aquisition_interface.h"
+#include "file_parsing/file_parser_interface.h"
 
 #include "debug/async_debug.h"
 
-bool GetSignalAquisitionInterface( const char* interfaceFilePath, SignalAquisitionInterface* ref_interface )
+bool GetFileParserInterface( const char* interfaceFilePath, FileParserInterface* ref_interface )
 {
   static char interfaceFilePathExt[ 256 ];
   
@@ -19,11 +19,11 @@ bool GetSignalAquisitionInterface( const char* interfaceFilePath, SignalAquisiti
   
   DEBUG_PRINT( "found plugin %s (%p)", interfaceFilePathExt, pluginHandle );
   
-  LOAD_PLUGIN_FUNCTIONS( SignalAquisition, ref_interface )
+  LOAD_PLUGIN_FUNCTIONS( FileParser, ref_interface )
   
   DEBUG_PRINT( "plugin %s loaded", interfaceFilePathExt );
   
   return true;
 }
 
-#endif // SIGNAL_AQUISITION_LOADER_H
+#endif // FILE_PARSER_LOADER_H

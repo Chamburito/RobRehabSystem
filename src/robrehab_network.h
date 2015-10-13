@@ -13,11 +13,9 @@
 
 #include "interface.h"
 
-//#include "spline3_interpolation.h"
 #include "shm_axis_control.h"
-//#include "network_axis.h"
 
-#include "file_parsing/json_parser.h"
+#include "config_parser.h"
 
 #include "klib/kvec.h"
 
@@ -73,58 +71,56 @@ int RobRehabNetwork_Init()
   
   kv_init( networkAxesList );
   
-  SET_PATH( "config/" );
-  
-  FileParserOperations parser = JSONParser;
-  int configFileID = parser.LoadFile( "shared_axes" );
-  if( configFileID != -1 )
+  if( ConfigParser.Init( "JSON" ) )
   {
-    if( parser.HasKey( configFileID, "axes" ) )
+    int configFileID = ConfigParser.LoadFile( "shared_axes" );
+    if( configFileID != -1 )
     {
-      size_t sharedAxesNumber = parser.GetListSize( configFileID, "axes" );
-      
-      DEBUG_PRINT( "shared axes list size: %u", sharedAxesNumber );
-      
-      size_t infoMessageLength = 1 + sharedAxesNumber * INFO_BLOCK_SIZE; 
-      AsyncIPNetwork_SetMessageLength( infoServerConnectionID, infoMessageLength );
-      
-      DEBUG_PRINT( "info message length: %u", infoMessageLength );
-      
-      size_t dataMessageLength = 1 + sharedAxesNumber * DATA_BLOCK_SIZE;
-      AsyncIPNetwork_SetMessageLength( dataServerConnectionID, dataMessageLength );
-      
-      DEBUG_PRINT( "data message length: %u", dataMessageLength );
-      
-      char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-      for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
+      if( ConfigParser.HasKey( configFileID, "axes" ) )
       {
-        sprintf( searchPath, "axes.%u", sharedAxisDataIndex );
-        char* deviceName = parser.GetStringValue( configFileID, searchPath );
-        
-        if( deviceName != NULL )
+        size_t sharedAxesNumber = ConfigParser.GetListSize( configFileID, "axes" );
+      
+        DEBUG_PRINT( "shared axes list size: %u", sharedAxesNumber );
+      
+        size_t infoMessageLength = 1 + sharedAxesNumber * INFO_BLOCK_SIZE; 
+        AsyncIPNetwork_SetMessageLength( infoServerConnectionID, infoMessageLength );
+      
+        DEBUG_PRINT( "info message length: %u", infoMessageLength );
+      
+        size_t dataMessageLength = 1 + sharedAxesNumber * DATA_BLOCK_SIZE;
+        AsyncIPNetwork_SetMessageLength( dataServerConnectionID, dataMessageLength );
+      
+        DEBUG_PRINT( "data message length: %u", dataMessageLength );
+      
+        char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+        for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
         {
-          DEBUG_PRINT( "found shared axis %s", deviceName );
-          
-          SHMAxis sharedAxisData = SHMAxisControl.InitData( deviceName, SHM_CONTROL_OUT );
-          if( sharedAxisData != NULL )
+          sprintf( searchPath, "axes.%u", sharedAxisDataIndex );
+          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath );
+        
+          if( deviceName != NULL )
           {
-            NetworkAxis newAxis = { .sharedData = sharedAxisData, .clientID = -1 /*, .trajectoryPlanner = TrajectoryPlanner_Init()*/ };
+            DEBUG_PRINT( "found shared axis %s", deviceName );
+          
+            SHMAxis sharedAxisData = SHMAxisControl.InitData( deviceName, SHM_CONTROL_OUT );
+            if( sharedAxisData != NULL )
+            {
+              NetworkAxis newAxis = { .sharedData = sharedAxisData, .clientID = -1 /*, .trajectoryPlanner = TrajectoryPlanner_Init()*/ };
             
-            kv_push( NetworkAxis, networkAxesList, newAxis );
+              kv_push( NetworkAxis, networkAxesList, newAxis );
             
-            if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-            snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkAxesList ) - 1, deviceName );
+              if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
+              snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkAxesList ) - 1, deviceName );
             
-            DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) - 1 );
+              DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) - 1 );
+            }
           }
         }
       }
-    }
     
-    parser.UnloadFile( configFileID );
+      ConfigParser.UnloadFile( configFileID );
+    }
   }
-  
-  SET_PATH( ".." );
   
   DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", THREAD_ID );
   

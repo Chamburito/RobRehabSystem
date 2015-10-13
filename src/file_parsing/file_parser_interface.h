@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #ifdef _CVI_
+  #include <windows.h>
   #include <utility.h>
   #define SET_PATH( dirPath ) SetDir( dirPath );
 #elif WIN32
@@ -18,17 +19,19 @@
 
 #define FILE_PARSER_MAX_PATH_LENGTH 256
 
-#define FileParser( function_init ) \
-        function_init( int, LoadFile, const char* ) \
-        function_init( void, UnloadFile, int ) \
-        function_init( void, SetBaseKey, int, const char* ) \
-        function_init( long, GetIntegerValue, int, const char* ) \
-        function_init( double, GetRealValue, int, const char* ) \
-        function_init( char*, GetStringValue, int, const char* ) \
-        function_init( bool, GetBooleanValue, int, const char* ) \
-        function_init( size_t, GetListSize, int, const char* ) \
-        function_init( bool, HasKey, int, const char* )
+const int INVALID_FILE_ID = -1;
 
-DEFINE_INTERFACE( FileParser )
+#define FILE_PARSER_FUNCTIONS( interface, function_init ) \
+        function_init( int, interface, LoadFile, const char* ) \
+        function_init( void, interface, UnloadFile, int ) \
+        function_init( void, interface, SetBaseKey, int, const char* ) \
+        function_init( long, interface, GetIntegerValue, int, const char* ) \
+        function_init( double, interface, GetRealValue, int, const char* ) \
+        function_init( char*, interface, GetStringValue, int, const char* ) \
+        function_init( bool, interface, GetBooleanValue, int, const char* ) \
+        function_init( size_t, interface, GetListSize, int, const char* ) \
+        function_init( bool, interface, HasKey, int, const char* )
+
+DEFINE_INTERFACE( FileParser, FILE_PARSER_FUNCTIONS )
 
 #endif // FILE_PARSER_H
