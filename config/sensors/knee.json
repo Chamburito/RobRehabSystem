@@ -1,8 +1,11 @@
 {
   "interface": {
-    "type": "CAN_EPOS",
+    "type": "axis_interfaces/NICANEPOS",
     "id": 2,
     "channel": 0
   },
-  "conversion_factor": -2000
+  "conversion": {
+    "factor": -2000
+  },
+  "is_absolute": true
 }

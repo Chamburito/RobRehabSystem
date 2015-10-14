@@ -8,7 +8,8 @@
 #include "axis/axis_types.h"
 #include "spline3_interpolation.h"
       
-#include "file_parsing/json_parser.h"
+#include "config_parser.h"
+#include "plugin_loader.h"
 
 #include "debug/async_debug.h"
       
@@ -18,8 +19,8 @@ typedef struct _AxisSensorData
   AxisInterface interface;
   size_t measureIndex;
   Splined3Curve measureConversionCurve;
-  double inputBuffer[ 6 ];
   double inputOffset;
+  bool absolute;
 }
 AxisSensorData;
 
@@ -36,6 +37,8 @@ typedef AxisSensorData* AxisSensor;
 
 INIT_NAMESPACE_INTERFACE( AxisSensors, AXIS_SENSOR_FUNCTIONS )
 
+static AxisSensor LoadAxisSensorData( const char* );
+static void UnloadAxisSensorData( AxisSensor );
 
 //static inline void ReadRawMeasures( AxisSensor sensor );
 
@@ -83,16 +86,11 @@ void AxisSensors_SetOffset( AxisSensor sensor )
   
   if( sensor == NULL ) return;
   
-  sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
-  
-  sensor->inputBuffer[5] = sensor->inputBuffer[4];
-  sensor->inputBuffer[4] = sensor->inputBuffer[3];
-  sensor->inputBuffer[3] = sensor->inputBuffer[2];
-  sensor->inputBuffer[2] = sensor->inputBuffer[1];
-  sensor->inputBuffer[1] = sensor->inputBuffer[0];
-  sensor->inputBuffer[0] = rawMeasuresList[ sensor->measureIndex ];
-  
-  sensor->inputOffset = (sensor->inputBuffer[0] + sensor->inputBuffer[1] + sensor->inputBuffer[2] + sensor->inputBuffer[3]+ sensor->inputBuffer[4] + sensor->inputBuffer[5])/6;
+  if( sensor->absolute )
+  {
+    sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
+    sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
+  }
 }
 
 inline static bool AxisSensors_HasError( AxisSensor sensor )
@@ -118,15 +116,8 @@ double AxisSensors_Read( AxisSensor sensor )
   
   sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
   
-  sensor->inputBuffer[5] = sensor->inputBuffer[4];
-  sensor->inputBuffer[4] = sensor->inputBuffer[3];
-  sensor->inputBuffer[3] = sensor->inputBuffer[2];
-  sensor->inputBuffer[2] = sensor->inputBuffer[1];
-  sensor->inputBuffer[1] = sensor->inputBuffer[0];
-  sensor->inputBuffer[0] = rawMeasuresList[ sensor->measureIndex ];
-  
-  double input = (sensor->inputBuffer[0] + sensor->inputBuffer[1] + sensor->inputBuffer[2] + sensor->inputBuffer[3]+ sensor->inputBuffer[4] + sensor->inputBuffer[5])/6 - sensor->inputOffset;
-  //input -= sensor->inputOffset;
+  double input = rawMeasuresList[ sensor->measureIndex ];
+  if( sensor->absolute ) input -= sensor->inputOffset;
   
   double measure = - 2 * M_PI * input / 2000.0;//Spline3Interp.GetValue( sensor->measureConversionCurve, input );
   
@@ -138,6 +129,63 @@ double AxisSensors_Read( AxisSensor sensor )
   return measure;
 }
 
+
+static AxisSensor LoadAxisSensorData( const char* configFileName )
+{
+  static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  
+  bool loadError = false;
+  
+  AxisSensor newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
+  memset( newSensor, 0, sizeof(AxisSensorData) );
+  
+  newSensor->axisID = -1;
+  
+  int configFileID = ConfigParser.LoadFile( configFileName );
+  if( configFileID != INVALID_FILE_ID )
+  {
+    bool pluginLoaded;
+    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
+    if( pluginLoaded )
+    {
+      if( ConfigParser.HasKey( configFileID, "interface.id" ) )
+        newSensor->axisID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
+      
+      if( newSensor->axisID ) loadError = true;
+      
+      newSensor->measureIndex = (size_t) ConfigParser.GetIntegerValue( configFileID, "interface.channel" );
+    }
+    else loadError = true;
+    
+    newSensor->absolute = ConfigParser.GetBooleanValue( configFileID, "is_absolute" );
+    
+    if( ConfigParser.HasKey( configFileID, "conversion.curve" ) )
+      newSensor->measureConversionCurve = Spline3Interp.LoadCurve( ConfigParser.GetStringValue( configFileID, "conversion.curve" ) );
+    else
+      newSensor->measureConversionCurve = Spline3Interp.LoadCurve( NULL );
+    
+    if( ConfigParser.HasKey( configFileID, "conversion.factor" ) )
+      Spline3Interp.SetScale( newSensor->measureConversionCurve, ConfigParser.GetRealValue( configFileID, "conversion.factor" ) );
+    
+    ConfigParser.UnloadFile( configFileID );
+  }
+  else
+  {
+    loadError = true;
+    DEBUG_PRINT( "configuration file for series elastic actuator %s not found", configFileName );
+  }
+  
+  if( loadError )
+  {
+    UnloadAxisSensorData( newSensor );
+    return NULL;
+  }
+}
+
+static void UnloadAxisSensorData( AxisSensor sensor )
+{
+  
+}
 
 #ifdef __cplusplus
     }

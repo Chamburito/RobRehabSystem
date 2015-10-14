@@ -1,6 +1,6 @@
 {
   "interface": {
-    "type": "CAN_EPOS",
+    "type": "axis_interfaces/NICANEPOS",
     "id": 1
   },
   "encoder_resolution": 4096,

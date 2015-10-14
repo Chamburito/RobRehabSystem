@@ -7,7 +7,7 @@
 #include "klib/kvec.h"
 #include "klib/khash.h"
 
-#include "file_parsing/json_parser.h"
+#include "config_parser.h"
 
 #include "debug/async_debug.h"
 
@@ -38,47 +38,44 @@ int RobRehabControl_Init()
 {
   kv_init( sharedControllersList );
   
-  SET_PATH( "config/" );
-  
-  FileParserOperations parser = JSONParser;
-  int configFileID = parser.LoadFile( "shared_axes" );
-  if( configFileID != -1 )
+  if( ConfigParser.Init( "JSON" ) )
   {
-    if( parser.HasKey( configFileID, "axes" ) )
+    int configFileID = ConfigParser.LoadFile( "shared_axes" );
+    if( configFileID != -1 )
     {
-      size_t sharedAxesNumber = parser.GetListSize( configFileID, "axes" );
-      
-      DEBUG_PRINT( "List size: %u", sharedAxesNumber );
-      
-      char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-      for( size_t sharedAxisIndex = 0; sharedAxisIndex < sharedAxesNumber; sharedAxisIndex++ )
+      if( ConfigParser.HasKey( configFileID, "axes" ) )
       {
-        sprintf( searchPath, "axes.%u", sharedAxisIndex );
-        char* deviceName = parser.GetStringValue( configFileID, searchPath );
-        if( deviceName != NULL )
+        size_t sharedAxesNumber = ConfigParser.GetListSize( configFileID, "axes" );
+      
+        DEBUG_PRINT( "List size: %u", sharedAxesNumber );
+      
+        char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+        for( size_t sharedAxisIndex = 0; sharedAxisIndex < sharedAxesNumber; sharedAxisIndex++ )
         {
-          AxisController axisController = AxisControl.InitController( deviceName );
-          if( axisController != NULL )
+          sprintf( searchPath, "axes.%u", sharedAxisIndex );
+          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath );
+          if( deviceName != NULL )
           {
-            SHMAxis sharedData = SHMAxisControl.InitData( deviceName, SHM_CONTROL_IN );
-            if( sharedData != NULL )
+            AxisController axisController = AxisControl.InitController( deviceName );
+            if( axisController != NULL )
             {
-              SharedAxisController newAxis = { .sharedData = sharedData, .controller = axisController };
-              
-              kv_push( SharedAxisController, sharedControllersList, newAxis );
-            }
-            else
-            {
-              AxisControl.EndController( axisController );
+              SHMAxis sharedData = SHMAxisControl.InitData( deviceName, SHM_CONTROL_IN );
+              if( sharedData != NULL )
+              {
+                SharedAxisController newAxis = { .sharedData = sharedData, .controller = axisController };
+                kv_push( SharedAxisController, sharedControllersList, newAxis );
+              }
+              else
+              {
+                AxisControl.EndController( axisController );
+              }
             }
           }
         }
       }
+    
+      ConfigParser.UnloadFile( configFileID );
     }
-    
-    SET_PATH( ".." );
-    
-    parser.UnloadFile( configFileID );
   }
   
   //DEBUG_PRINT( "Created axes info string: %s", axesInfoString );

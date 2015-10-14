@@ -30,6 +30,7 @@ static khash_t( JointInt )* jointsList = NULL;
         function_init( void, namespace, EndJoint, int ) \
         function_init( double, namespace, GetTorque, int, double ) \
         function_init( double, namespace, GetStiffness, int, double ) \
+        function_init( int*, namespace, GetMusclesList, int, size_t* ) \
         function_init( void, namespace, ChangeState, int, enum MuscleGroups, enum EMGProcessPhase )
 
 INIT_NAMESPACE_INTERFACE( EMGJointControl, EMG_JOINT_CONTROL_FUNCTIONS )
@@ -160,7 +161,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
         {
           sprintf( searchPath, "%s.%u", MUSCLE_GROUP_NAMES[ muscleGroupIndex ], muscleIndex );
           newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] = EMGProcessing.InitSensor( ConfigParser.GetStringValue( configFileID, searchPath ) );
-          if( newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] == -1 ) loadError = true;
+          if( newJoint->muscleIDsTable[ muscleGroupIndex ][ muscleIndex ] == EMG_SENSOR_INVALID_ID ) loadError = true;
         }
       }
     }

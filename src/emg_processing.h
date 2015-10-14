@@ -36,7 +36,7 @@ typedef struct _EMGData
 }
 EMGData;
 
-enum { ACTIVE_FORCE, PASSIVE_FORCE, MOMENT_ARM, NORM_LENGTH, MUSCLE_CURVES_NUMBER };
+enum EMGMuscleCurves { MUSCLE_ACTIVE_FORCE, MUSCLE_PASSIVE_FORCE, MUSCLE_MOMENT_ARM, MUSCLE_NORM_LENGTH, MUSCLE_CURVES_NUMBER };
 const size_t MUSCLE_CURVE_ORDER = 5;
 typedef double MuscleCurve[ MUSCLE_CURVE_ORDER ];
 
@@ -44,6 +44,7 @@ typedef struct _MuscleProperties
 {
   MuscleCurve curvesList[ MUSCLE_CURVES_NUMBER ];
   double initialPenationAngle;
+  double activationFactor;
   double scaleFactor;
 }
 MuscleProperties;
@@ -73,9 +74,12 @@ ThreadLock phasePassCountLock;
 #define EMG_PROCESS_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, InitSensor, const char* ) \
         function_init( void, namespace, EndSensor, int ) \
+        function_init( double, namespace, GetNormalizedSignal, int ) \
         function_init( double, namespace, GetActivation, int ) \
         function_init( double, namespace, GetMuscleTorque, int, double ) \
-        function_init( void, namespace, ChangePhase, int, enum EMGProcessPhase )
+        function_init( void, namespace, ChangePhase, int, enum EMGProcessPhase ) \
+        function_init( double*, namespace, GetEMGData, int ) \
+        function_init( MuscleProperties*, namespace, GetMuscleProperties, int )
 
 INIT_NAMESPACE_INTERFACE( EMGProcessing, EMG_PROCESS_FUNCTIONS )
 
@@ -85,13 +89,15 @@ static double* GetFilteredSignal( EMGSensor, size_t* );
 static EMGSensor LoadEMGSensorData( const char* );
 static void UnloadEMGSensorData( EMGSensor );
 
+const int EMG_SENSOR_INVALID_ID = 0;
+
 int EMGProcessing_InitSensor( const char* configFileName )
 {
   EMGSensor newSensor = LoadEMGSensorData( configFileName );
   if( newSensor == NULL )
   {
     DEBUG_PRINT( "EMG sensor %s configuration failed", configFileName );
-    return -1;
+    return INVALID_EMG_SENSOR_ID;
   }
   
   if( sensorsList == NULL ) 
@@ -107,26 +113,27 @@ int EMGProcessing_InitSensor( const char* configFileName )
   int configKey = (int) kh_str_hash_func( configFileName );
   
   int insertionStatus;
-  khint_t newSensorID = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
+  khint_t newSensorIndex = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( sensorsList, newSensorID ) = newSensor;
+    kh_value( sensorsList, newSensorIndex ) = newSensor;
     newSensor->isReading = true;
     
-    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( sensorsList, newSensorID ), newSensorID, kh_size( sensorsList ) );
+    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( sensorsList, newSensorIndex ), newSensorIndex, kh_size( sensorsList ) );
   }
-  else if( insertionStatus == 0 ) { DEBUG_PRINT( "EMG sensor key %d already exists (iterator %u)", configKey, newSensorID ); }
+  else if( insertionStatus == 0 ) DEBUG_PRINT( "EMG sensor key %d already exists (iterator %u)", configKey, newSensorIndex );
   
-  return (int) newSensorID;
+  return (int) kh_key( sensorsList, newSensorIndex );
 }
 
 void EMGProcessing_EndSensor( int sensorID )
 {
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
+  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
+  if( sensorIndex == kh_end( sensorsList ) ) return;
   
-  UnloadEMGSensorData( kh_value( sensorsList, (khint_t) sensorID ) );
+  UnloadEMGSensorData( kh_value( sensorsList, sensorIndex ) );
   
-  kh_del( SensorInt, sensorsList, (khint_t) sensorID );
+  kh_del( SensorInt, sensorsList, sensorIndex );
   
   if( kh_size( sensorsList ) == 0 )
   {
@@ -143,13 +150,26 @@ void EMGProcessing_EndSensor( int sensorID )
   }
 }
 
-static double EMGProcessing_GetActivation( int sensorID )
+double EMGProcessing_GetNormalizedSignal( int sensorID )
 {
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
+  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
+  if( sensorIndex == kh_end( sensorsList ) ) return 0.0;
 
-  EMGSensor sensor = kh_value( sensorsList, (khint_t) sensorID );
+  EMGSensor sensor = kh_value( sensorsList, sensorIndex );
     
   return sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ];
+}
+
+double EMGProcessing_GetActivation( int sensorID )
+{
+  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
+  if( sensorIndex == kh_end( sensorsList ) ) return 0.0;
+
+  MuscleProperties* muscleProperties = &(kh_value( sensorsList, sensorIndex )->muscleProperties);
+  
+  double normalizedSignal = EMGProcessing_GetNormalizedSignal( sensorID );
+  
+  return ( exp( muscleProperties->activationFactor * normalizedSignal ) - 1 ) / ( exp( muscleProperties->activationFactor ) - 1 );
 }
 
 double EMGProcessing_GetMuscleTorque( int sensorID, double jointAngle )
@@ -157,11 +177,14 @@ double EMGProcessing_GetMuscleTorque( int sensorID, double jointAngle )
   static double measuresList[ MUSCLE_CURVES_NUMBER ];
   static double penationAngle;
   
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return 0.0;
+  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
+  if( sensorIndex == kh_end( sensorsList ) ) return 0.0;
 
-  EMGSensor sensor = kh_value( sensorsList, (khint_t) sensorID );
+  EMGSensor sensor = kh_value( sensorsList, sensorIndex );
   
   //DEBUG_PRINT( "logging data for sensor %d", sensorID );
+  
+  double activation = EMGProcessing_GetActivation( sensorID );
   
   if( sensor->logID != 0 )
   {
@@ -179,25 +202,26 @@ double EMGProcessing_GetMuscleTorque( int sensorID, double jointAngle )
       measuresList[ curveIndex ] += sensor->muscleProperties.curvesList[ curveIndex ][ factorIndex ] * pow( jointAngle, factorIndex );
   }
   
-  /*double normalizedSin = sin( sensor->muscleProperties.initialPenationAngle ) / measuresList[ NORM_LENGTH ];
+  /*double normalizedSin = sin( sensor->muscleProperties.initialPenationAngle ) / measuresList[ MUSCLE_NORM_LENGTH ];
   if( normalizedSin > 1.0 ) normalizedSin == 1.0;
   else if( normalizedSin < -1.0 ) normalizedSin == -1.0;
   
   penationAngle = asin( normalizedSin );*/
   
-  double resultingForce = sensor->muscleProperties.scaleFactor * cos( penationAngle )
-                          * ( measuresList[ ACTIVE_FORCE ] * sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ] + measuresList[ PASSIVE_FORCE ] );
+  double activationForce = measuresList[ MUSCLE_ACTIVE_FORCE ] * activation + measuresList[ MUSCLE_PASSIVE_FORCE ];
+  double resultingForce = sensor->muscleProperties.scaleFactor * cos( penationAngle ) * activationForce;
   
-  return resultingForce * measuresList[ MOMENT_ARM ];
+  return resultingForce * measuresList[ MUSCLE_MOMENT_ARM ];
 }
 
 void EMGProcessing_ChangePhase( int sensorID, int newProcessingPhase )
 {
-  if( !kh_exist( sensorsList, (khint_t) sensorID ) ) return;
+  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
+  if( sensorIndex == kh_end( sensorsList ) ) return;
   
   if( newProcessingPhase < 0 || newProcessingPhase >= EMG_PROCESSING_PHASES_NUMBER ) return;
   
-  EMGSensor sensor = kh_value( sensorsList, sensorID );
+  EMGSensor sensor = kh_value( sensorsList, sensorIndex );
   
   ThreadLocks.Aquire( sensor->lock/*phasePassCountLock*/ );
   
@@ -207,10 +231,10 @@ void EMGProcessing_ChangePhase( int sensorID, int newProcessingPhase )
   {
     if( data->preparationPassesCount > 0 )
     {
-      //DEBUG_PRINT( "new %s value: %g / %u = %g", ( data->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
-      //                                             data->processingResultsList[ data->processingPhase ],
-      //                                             data->preparationPassesCount, 
-      //                                             data->processingResultsList[ data->processingPhase ] / data->preparationPassesCount );
+      DEBUG_EVENT( 0, "new %s value: %g / %u = %g", ( data->processingPhase == EMG_RELAXATION_PHASE ) ? "min" : "max", 
+                                                      data->processingResultsList[ data->processingPhase ],
+                                                      data->preparationPassesCount, 
+                                                      data->processingResultsList[ data->processingPhase ] / data->preparationPassesCount );
 
       data->processingResultsList[ data->processingPhase ] /= data->preparationPassesCount;
     }
@@ -223,6 +247,14 @@ void EMGProcessing_ChangePhase( int sensorID, int newProcessingPhase )
   data->processingPhase = newProcessingPhase;
   
   ThreadLocks.Release( sensor->lock/*phasePassCountLock*/ );
+}
+
+MuscleProperties* EMGProcessing_GetMuscleProperties( int sensorID )
+{
+  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
+  if( sensorIndex == kh_end( sensorsList ) ) return NULL;
+
+  return  &(kh_value( sensorsList, sensorIndex )->muscleProperties);
 }
 
 
@@ -321,11 +353,9 @@ static void* AsyncUpdate( void* data )
         }
         else if( data->processingPhase == EMG_ACTIVATION_PHASE )
         {
-          static double normalizedSample;
-          
           for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
           {
-            normalizedSample = 0.0;
+            double normalizedSample = 0.0;
 
             if( data->processingResultsList[ EMG_CONTRACTION_PHASE ] > 0.0 )
               normalizedSample = ( filteredSamplesList[ sampleIndex ] - data->processingResultsList[ EMG_RELAXATION_PHASE ] )
@@ -334,7 +364,8 @@ static void* AsyncUpdate( void* data )
             if( normalizedSample > 1.0 ) normalizedSample = 1.0;
             else if( normalizedSample < 0.0 ) normalizedSample = 0.0;
 
-            data->processingResultsList[ EMG_ACTIVATION_PHASE ] = ( exp( -2 * normalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
+            //data->processingResultsList[ EMG_ACTIVATION_PHASE ] = ( exp( -2 * normalizedSample ) - 1 ) / ( exp( -2 ) - 1 );
+            data->processingResultsList[ EMG_ACTIVATION_PHASE ] = normalizedSample;
           }
         }
       }
