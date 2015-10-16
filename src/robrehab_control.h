@@ -113,7 +113,7 @@ void RobRehabControl_Update()
     SHMAxis sharedData = sharedController->sharedData;
     AxisController axisController = sharedController->controller;
    
-    uint8_t command = SHMAxisControl.GetByteValue( sharedData, SHM_REMOVE );
+    uint8_t command = SHMAxisControl.GetByteValue( sharedData, SHM_CONTROL_REMOVE );
     if( command != SHM_CONTROL_NULL_BYTE )
     {
       //DEBUG_PRINT( "received command: %x", command );
@@ -130,15 +130,15 @@ void RobRehabControl_Update()
     
     if( AxisControl.HasError( axisController ) ) SHMAxisControl.SetByteValue( sharedData, SHM_STATE_ERROR );
 
-    uint8_t dataMask = SHMAxisControl.GetNumericValuesList( sharedData, controlValuesList, SHM_REMOVE );
+    uint8_t dataMask = SHMAxisControl.GetNumericValuesList( sharedData, controlValuesList, SHM_CONTROL_REMOVE );
     if( dataMask )
     {
       //DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_STIFFNESS ] );
       
-      if( (dataMask & BIT_INDEX( SHM_CONTROL_POSITION )) ) sharedController->setpointPosition = controlValuesList[ SHM_CONTROL_POSITION ];
-      if( (dataMask & BIT_INDEX( SHM_CONTROL_VELOCITY )) ) sharedController->setpointVelocity = controlValuesList[ SHM_CONTROL_VELOCITY ];
+      if( (dataMask & SHM_CONTROL_BIT_INDEX( SHM_CONTROL_POSITION )) ) sharedController->setpointPosition = controlValuesList[ SHM_CONTROL_POSITION ];
+      if( (dataMask & SHM_CONTROL_BIT_INDEX( SHM_CONTROL_VELOCITY )) ) sharedController->setpointVelocity = controlValuesList[ SHM_CONTROL_VELOCITY ];
       
-      if( (dataMask & BIT_INDEX( SHM_CONTROL_STIFFNESS )) | (dataMask & BIT_INDEX( SHM_CONTROL_DAMPING )) )
+      if( (dataMask & SHM_CONTROL_BIT_INDEX( SHM_CONTROL_STIFFNESS )) | (dataMask & SHM_CONTROL_BIT_INDEX( SHM_CONTROL_DAMPING )) )
         AxisControl.SetImpedance( axisController, controlValuesList[ SHM_CONTROL_STIFFNESS ], controlValuesList[ SHM_CONTROL_DAMPING ] );
     }
     

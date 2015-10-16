@@ -78,7 +78,6 @@ ThreadLock phasePassCountLock;
         function_init( double, namespace, GetActivation, int ) \
         function_init( double, namespace, GetMuscleTorque, int, double ) \
         function_init( void, namespace, ChangePhase, int, enum EMGProcessPhase ) \
-        function_init( double*, namespace, GetEMGData, int ) \
         function_init( MuscleProperties*, namespace, GetMuscleProperties, int )
 
 INIT_NAMESPACE_INTERFACE( EMGProcessing, EMG_PROCESS_FUNCTIONS )
@@ -97,7 +96,7 @@ int EMGProcessing_InitSensor( const char* configFileName )
   if( newSensor == NULL )
   {
     DEBUG_PRINT( "EMG sensor %s configuration failed", configFileName );
-    return INVALID_EMG_SENSOR_ID;
+    return EMG_SENSOR_INVALID_ID;
   }
   
   if( sensorsList == NULL ) 

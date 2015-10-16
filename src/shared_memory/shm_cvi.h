@@ -38,8 +38,11 @@ INIT_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_FUNCTIONS )
 void CVICALLBACK UpdateDataIn( void*, CNVData, void* );
 int CVICALLBACK UpdateDataOut( int, int, int, void*, int, int );
 
+const size_t SHARED_VARIABLE_PATH_MAX_LENGTH = 256;
 void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, int flags )
 {
+  char variablePathName[ SHARED_VARIABLE_PATH_MAX_LENGTH ];
+  
   DEBUG_PRINT( "trying to create shared object %s with %u bytes (mode: %d)", mappingName, objectSize, flags );
   
   if( sharedObjectsList == NULL ) sharedObjectsList = kh_init( SO ); 
@@ -61,8 +64,7 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
     newSharedObject->dataSize = objectSize;
     CNVCreateArrayDataValue( &(newSharedObject->networkData), CNVUInt8, newSharedObject->data, 1, &(newSharedObject->dataSize) );
     
-    char* variablePathName = (char*) calloc( strlen( "\\\\localhost\\system\\" ) + strlen( mappingName ) + 1, sizeof(char) );
-    sprintf( variablePathName, "\\\\localhost\\system\\%s", mappingName );
+    snprintf( variablePathName, SHARED_VARIABLE_PATH_MAX_LENGTH, "\\\\localhost\\system\\%s", mappingName );
     
     if( ( flags & SHM_READ ) )
     {
@@ -98,8 +100,6 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
       
       DEBUG_PRINT( "created timer %d", newSharedObject->timerID );
     }
-    
-    free( variablePathName );
   }
   
   return kh_value( sharedObjectsList, newSharedObjectIndex ).data;

@@ -1,7 +1,8 @@
 #ifndef ROBREHAB_EMG_H
 #define ROBREHAB_EMG_H   
 
-#include "shm_axis_control.h"
+#include "shm_control.h"
+#include "shm_emg_control.h" 
 #include "emg_joint_control.h"
 
 #include <analysis.h>
@@ -22,7 +23,7 @@ const unsigned long UPDATE_INTERVAL_MS = 5;
 
 typedef struct _SHMJointData
 {
-  SHMAxis axis;
+  SHMController controller;
   int jointID;
 }
 SHMJointData;
@@ -42,38 +43,43 @@ kvec_t( SHMJointData ) sharedJointsList;
 INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_EMG_FUNCTIONS )
 
 
+const char* CONFIG_KEY = "keys";
 int RobRehabEMG_Init( void )
 {
   kv_init( sharedJointsList );
   
+  char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  
   if( ConfigParser.Init( "JSON" ) )
   {
-    int configFileID = ConfigParser.LoadFile( "shared_axes" );
+    sprintf( searchPath, "shared_%s", CONFIG_KEY );
+    int configFileID = ConfigParser.LoadFile( searchPath );
     if( configFileID != -1 )
     {
-      if( ConfigParser.HasKey( configFileID, "axes" ) )
+      if( ConfigParser.HasKey( configFileID, CONFIG_KEY ) )
       {
-        size_t sharedAxesNumber = ConfigParser.GetListSize( configFileID, "axes" );
+        size_t sharedJointsNumber = ConfigParser.GetListSize( configFileID, CONFIG_KEY );
       
-        DEBUG_PRINT( "List size: %u", sharedAxesNumber );
+        DEBUG_PRINT( "List size: %u", sharedJointsNumber );
       
-        char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-        for( size_t shmAxisDataIndex = 0; shmAxisDataIndex < sharedAxesNumber; shmAxisDataIndex++ )
+        for( size_t sharedJointIndex = 0; sharedJointIndex < sharedJointsNumber; sharedJointIndex++ )
         {
-          sprintf( searchPath, "axes.%u", shmAxisDataIndex );
-          char* axisName = ConfigParser.GetStringValue( configFileID, searchPath );
+          sprintf( searchPath, "%s.%u", CONFIG_KEY, sharedJointIndex );
+          char* jointName = ConfigParser.GetStringValue( configFileID, searchPath );
 
-          DEBUG_PRINT( "found axis %s", axisName );
+          DEBUG_PRINT( "found joint %s", jointName );
 
           bool loadError = false;
 
-          int newSharedJointID = -1;
-          SHMAxis newSharedAxis = NULL;
-          if( (newSharedJointID = EMGJointControl.InitJoint( axisName )) != -1 )
+          int newSharedJointID = EMG_JOINT_INVALID_ID;
+          SHMController newSharedAxis = NULL;
+          //sprintf( searchPath, "%s/%s", SHM_EMG_BASE_KEY, jointName );
+          if( (newSharedJointID = EMGJointControl.InitJoint( jointName )) != EMG_JOINT_INVALID_ID )
           {
-            if( (newSharedAxis = SHMAxisControl.InitData( axisName, SHM_CONTROL_OUT )) != NULL )
+            //sprintf( searchPath, "%s-%s", SHM_AXIS_BASE_KEY, jointName );
+            if( (newSharedAxis = SHMControl.InitData( jointName, SHM_CONTROL_OUT )) != NULL )
             {
-              SHMJointData newSharedJoint = { .axis = newSharedAxis, .jointID = newSharedJointID };
+              SHMJointData newSharedJoint = { .controller = newSharedAxis, .jointID = newSharedJointID };
             
               kv_push( SHMJointData, sharedJointsList, newSharedJoint );
 
@@ -85,7 +91,7 @@ int RobRehabEMG_Init( void )
 
           if( loadError )
           {
-            SHMAxisControl.EndData( newSharedAxis );
+            SHMControl.EndData( newSharedAxis );
             EMGJointControl.EndJoint( newSharedJointID );
             return -1;
           }
@@ -109,7 +115,7 @@ void RobRehabEMG_End( void )
       
     SHMJoint sharedJoint = &(kv_A( sharedJointsList, sharedJointID ));
       
-    SHMAxisControl.EndData( sharedJoint->axis );
+    SHMControl.EndData( sharedJoint->controller );
     EMGJointControl.EndJoint( sharedJoint->jointID );
   }
   
@@ -123,14 +129,14 @@ void RobRehabEMG_Update( void )
     SHMJoint sharedJoint = &(kv_A( sharedJointsList, sharedJointID ));
 
     float jointAngle;
-    if( SHMAxisControl.GetNumericValue( sharedJoint->axis, SHM_CONTROL_POSITION, &jointAngle, SHM_PEEK ) )
+    if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_AXIS_POSITION, &jointAngle, SHM_CONTROL_PEEK ) )
     {
       double jointTorque = EMGJointControl.GetTorque( sharedJoint->jointID, jointAngle );
       double jointStiffness = EMGJointControl.GetStiffness( sharedJoint->jointID, jointAngle );
 
       DEBUG_PRINT( "Joint position: %.3f - torque: %.3f - stiffness: %.3f", jointAngle, jointTorque, jointStiffness );
 
-      SHMAxisControl.SetNumericValue( sharedJoint->axis, SHM_CONTROL_STIFFNESS, jointStiffness );
+      SHMControl.SetNumericValue( sharedJoint->controller, SHM_AXIS_STIFFNESS, jointStiffness );
     }
   }
 }

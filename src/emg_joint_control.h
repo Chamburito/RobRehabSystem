@@ -30,13 +30,15 @@ static khash_t( JointInt )* jointsList = NULL;
         function_init( void, namespace, EndJoint, int ) \
         function_init( double, namespace, GetTorque, int, double ) \
         function_init( double, namespace, GetStiffness, int, double ) \
-        function_init( int*, namespace, GetMusclesList, int, size_t* ) \
+        function_init( int*, namespace, GetMusclesList, int, enum MuscleGroups, size_t* ) \
         function_init( void, namespace, ChangeState, int, enum MuscleGroups, enum EMGProcessPhase )
 
 INIT_NAMESPACE_INTERFACE( EMGJointControl, EMG_JOINT_CONTROL_FUNCTIONS )
 
 static EMGJoint LoadEMGJointData( const char* );
 static void UnloadEMGJointData( EMGJoint );
+
+const int EMG_JOINT_INVALID_ID = 0;
 
 static int EMGJointControl_InitJoint( const char* configFileName )
 {
@@ -45,31 +47,32 @@ static int EMGJointControl_InitJoint( const char* configFileName )
   int configKey = (int) kh_str_hash_func( configFileName );
   
   int insertionStatus;
-  khint_t newJointID = kh_put( JointInt, jointsList, configKey, &insertionStatus );
+  khint_t newJointIndex = kh_put( JointInt, jointsList, configKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( jointsList, newJointID ) = LoadEMGJointData( configFileName );
-    if( kh_value( jointsList, newJointID ) == NULL )
+    kh_value( jointsList, newJointIndex ) = LoadEMGJointData( configFileName );
+    if( kh_value( jointsList, newJointIndex ) == NULL )
     {
       DEBUG_PRINT( "EMG joint controller %s configuration failed", configFileName );
-      EMGJointControl_EndJoint( (int) newJointID );
-      return -1;
+      EMGJointControl_EndJoint( (int) newJointIndex );
+      return EMG_JOINT_INVALID_ID;
     }
     
-    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( jointsList, newJointID ), newJointID, kh_size( jointsList ) );
+    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( jointsList, newJointIndex ), newJointIndex, kh_size( jointsList ) );
   }
-  else if( insertionStatus == 0 ) { DEBUG_PRINT( "joint key %d already exists", configKey ); }
+  else if( insertionStatus == 0 ) DEBUG_PRINT( "joint key %d already exists", configKey );
   
-  return (int) newJointID;
+  return (int) kh_key( jointsList, newJointIndex );
 }
 
 void EMGJointControl_EndJoint( int jointID )
 {
-  if( !kh_exist( jointsList, (khint_t) jointID ) ) return;
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return;
   
-  UnloadEMGJointData( kh_value( jointsList, (khint_t) jointID ) );
+  UnloadEMGJointData( kh_value( jointsList, jointIndex ) );
   
-  kh_del( JointInt, jointsList, (khint_t) jointID );
+  kh_del( JointInt, jointsList, jointIndex );
   
   if( kh_size( jointsList ) == 0 )
   {
@@ -80,11 +83,12 @@ void EMGJointControl_EndJoint( int jointID )
 
 double EMGJointControl_GetTorque( int jointID, double jointAngle )
 {
-  if( !kh_exist( jointsList, (khint_t) jointID ) ) return 0.0;
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return 0.0;
+  
+  EMGJoint joint = kh_value( jointsList, jointIndex );
   
   double jointTorque = 0.0;
-  
-  EMGJoint joint = kh_value( jointsList, (khint_t) jointID );
   
   for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ MUSCLE_AGONIST ]; muscleIndex++ )
     jointTorque += fabs( EMGProcessing.GetMuscleTorque( joint->muscleIDsTable[ MUSCLE_AGONIST ][ muscleIndex ], jointAngle ) );
@@ -97,21 +101,18 @@ double EMGJointControl_GetTorque( int jointID, double jointAngle )
 
 double EMGJointControl_GetStiffness( int jointID, double jointAngle )
 {
-  if( !kh_exist( jointsList, (khint_t) jointID ) ) return 0.0;
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return 0.0;
   
-  const double scaleFactor = 1.0;
+  EMGJoint joint = kh_value( jointsList, jointIndex );
   
   double jointStiffness = 0.0;
-  
-  EMGJoint joint = kh_value( jointsList, (khint_t) jointID );
   
   for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
   {
     for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ muscleGroupID ]; muscleIndex++ )
       jointStiffness += fabs( EMGProcessing.GetMuscleTorque( joint->muscleIDsTable[ muscleGroupID ][ muscleIndex ], jointAngle ) );
   }
-  
-  jointStiffness *= scaleFactor;
   
   //DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );
   
@@ -120,11 +121,24 @@ double EMGJointControl_GetStiffness( int jointID, double jointAngle )
   return jointStiffness;
 }
 
+int* EMGJointControl_GetMusclesList( int jointID, enum MuscleGroups muscleGroupID, size_t* ref_musclesCount )
+{
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return NULL;
+  
+  EMGJoint joint = kh_value( jointsList, jointIndex );
+  
+  if( ref_musclesCount != NULL ) *ref_musclesCount = joint->muscleGroupsSizesList[ muscleGroupID ];
+  
+  return joint->muscleIDsTable[ muscleGroupID ];
+}
+
 void EMGJointControl_ChangeState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessPhase emgProcessingPhase )
 {
-  if( !kh_exist( jointsList, (khint_t) jointID ) ) return;
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return;
   
-  EMGJoint joint = kh_value( jointsList, (khint_t) jointID );
+  EMGJoint joint = kh_value( jointsList, jointIndex );
   
   if( muscleGroupID < 0 || muscleGroupID >= MUSCLE_GROUPS_NUMBER ) return;
 

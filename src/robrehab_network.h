@@ -218,7 +218,7 @@ static void UpdateClientInfo( int clientID )
       
       DEBUG_UPDATE( "received axis %u command: %u", controllerID, command );
       
-      uint8_t state = SHMAxisControl.GetByteValue( networkAxis->sharedData, SHM_REMOVE );
+      uint8_t state = SHMAxisControl.GetByteValue( networkAxis->sharedData, SHM_CONTROL_REMOVE );
       if( state != SHM_CONTROL_NULL_BYTE )
       {
         messageOut[ 0 ]++;
@@ -282,7 +282,7 @@ static void UpdateClientData( int clientID )
     messageOut[ 0 ]++;
     messageOut[ measureByteIndex++ ] = (uint8_t) controllerID;
     
-    SHMAxisControl.GetNumericValuesList( networkAxis->sharedData, (float*) ( messageOut + measureByteIndex ), SHM_PEEK );
+    SHMAxisControl.GetNumericValuesList( networkAxis->sharedData, (float*) ( messageOut + measureByteIndex ), SHM_CONTROL_PEEK );
     measureByteIndex += sizeof(float) * SHM_CONTROL_FLOATS_NUMBER;
   }
   
