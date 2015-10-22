@@ -7,14 +7,6 @@
       
 enum OptimizationGoals { OPTIMIZATION_MINIMIZE, OPTIMIZATION_MAXIMIZE };
 
-/*typedef _ObjectiveFunctionData
-{
-  double* input;
-  double* reference;
-  size_t dataLength;
-}
-ObjectiveFunctionData;*/
-
 typedef double (*ObjectiveFunction)( double* parameters, const size_t parametersNumber, void* input );
 
 #define OPTIMIZATION_FUNCTIONS( namespace, function_init ) \
@@ -22,39 +14,46 @@ typedef double (*ObjectiveFunction)( double* parameters, const size_t parameters
 
 INIT_NAMESPACE_INTERFACE( Optimization, OPTIMIZATION_FUNCTIONS )
 
-void CalculateGradient( double*, size_t, ObjectiveFunction, void*, double, double* );
-void CalculateHessian( double*, size_t, ObjectiveFunction, void*, double*, double** );
-void UpdateParameters( double*, size_t, double*, enum OptimizationGoals );
+double CalculateGradient( double*, size_t, ObjectiveFunction, void*, double, double* );
+void CalculateHessian( double*, size_t, ObjectiveFunction, void*, double, double*, double** );
+void UpdateParameters( double*, size_t, double*, double* );
 
+const double ITERATION_UPDATE_FACTOR_INIT = 1;//0.002;
 bool Optimization_Run( double* parameters, size_t parametersNumber, ObjectiveFunction ref_Evaluate, void* input, enum OptimizationGoals goal, size_t maxIterations )
 {
   bool optimizationSuccess = true;
   
+  double iterationUpdateFactor = ITERATION_UPDATE_FACTOR_INIT * ( ( goal == OPTIMIZATION_MAXIMIZE ) ? 1 : -1 );
+  
   double* gradient = (double*) calloc( parametersNumber, sizeof(double) );
-  double** hessian = (double**) calloc( parametersNumber, sizeof(double*) );
-  for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-    hessian[ parameterIndex ] = (double*) calloc( parametersNumber, sizeof(double) );
+  //double** hessian = (double**) calloc( parametersNumber, sizeof(double*) );
+  //for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
+  //  hessian[ parameterIndex ] = (double*) calloc( parametersNumber, sizeof(double) );
   
   for( size_t iterationsCount = 0; iterationsCount < maxIterations; iterationsCount++ )
   {
     double currentResult = ref_Evaluate( parameters, parametersNumber, input );
-    CalculateGradient( parameters, parametersNumber, ref_Evaluate, input, currentResult, gradient );
-    CalculateHessian( parameters, parameterNumbers, ref_Evaluate, input, gradient, hessian );
+    double changeRate = CalculateGradient( parameters, parametersNumber, ref_Evaluate, input, currentResult, gradient );
+    //CalculateHessian( parameters, parametersNumber, ref_Evaluate, input, currentResult, gradient, hessian );
     
-    UpdateParameters( parameters, parametersNumber, gradient, goal );
+    UpdateParameters( parameters, parametersNumber, gradient, &iterationUpdateFactor );
+    
+    DEBUG_PRINT( "iteration %u (current: %g - change: %g * %g)", iterationsCount, currentResult, iterationUpdateFactor, changeRate );
   }
   
   free( gradient );
-  for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-    free( hessian[ parameterIndex ] );
-  free( hessian );
+  //for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
+  //  free( hessian[ parameterIndex ] );
+  //free( hessian );
   
   return optimizationSuccess;
 }
 
-const double ITERATION_PARAMETER_DELTA = 0.00001;
-void CalculateGradient( double* variablesList, size_t variablesNumber, ObjectiveFunction ref_Evaluate, void* input, double currentValue, double* result )
+const double ITERATION_PARAMETER_DELTA = 0.001;//0.00001;
+double CalculateGradient( double* variablesList, size_t variablesNumber, ObjectiveFunction ref_Evaluate, void* input, double currentValue, double* result )
 {
+  double changeRate = 0.0;
+  
   for( size_t derivativeIndex = 0; derivativeIndex < variablesNumber; derivativeIndex++ )
   {
     variablesList[ derivativeIndex ] += ITERATION_PARAMETER_DELTA;
@@ -62,11 +61,15 @@ void CalculateGradient( double* variablesList, size_t variablesNumber, Objective
     double functionDelta = ref_Evaluate( variablesList, variablesNumber, input ) - currentValue;
     result[ derivativeIndex ] = functionDelta / ITERATION_PARAMETER_DELTA;
     
+    changeRate += result[ derivativeIndex ] * result[ derivativeIndex ];
+    
     variablesList[ derivativeIndex ] -= ITERATION_PARAMETER_DELTA;
   }
+  
+  return changeRate;
 }
 
-void CalculateHessian( double* variablesList, size_t variablesNumber, ObjectiveFunction ref_Evaluate, void* input, double currentValue, double** result )
+void CalculateHessian( double* variablesList, size_t variablesNumber, ObjectiveFunction ref_Evaluate, void* input, double currentValue, double* gradient, double** result )
 {
   double nextValue[ 2 ], functionDerivative[ 2 ];
   
@@ -94,13 +97,15 @@ void CalculateHessian( double* variablesList, size_t variablesNumber, ObjectiveF
   }
 }
 
-const double ITERATION_PARAMETER_UPDATE_FACTOR = 0.002;
-void UpdateParameters( double* parametersList, size_t parametersNumber, double* changeRatesList, enum OptimizationGoals goal )
+const double ITERATION_UPDATE_FACTOR_CHANGE = 0.98;
+void UpdateParameters( double* parametersList, size_t parametersNumber, double* changeRatesList, double* ref_updateFactor )
 {
-  double updateFactor = ITERATION_PARAMETER_UPDATE_FACTOR * ( ( goal == OPTIMIZATION_MAXIMIZE ) ? 1 : -1 );
+  double updateFactor = (*ref_updateFactor);
   
   for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
     parametersList[ parameterIndex ] += updateFactor * changeRatesList[ parameterIndex ];
+  
+  (*ref_updateFactor) = updateFactor * ITERATION_UPDATE_FACTOR_CHANGE;
 }
 
 #ifdef __cplusplus

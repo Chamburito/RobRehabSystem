@@ -4,6 +4,6 @@
     "id": 1
   },
   "encoder_resolution": 4096,
-  "force_constant": 0.1,
+  "force_constant": 0.0302,
   "gear_reduction": 150
 }

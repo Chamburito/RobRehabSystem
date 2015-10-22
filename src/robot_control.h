@@ -22,7 +22,7 @@ typedef struct _RobotControllerData
 {
   RobotMechanicsInterface mechanism;
   double measuresList[ CONTROL_VARS_NUMBER ];
-  double parametersList[ CONTROL_PARAMS_NUMBER ];
+  double parametersList[ CONTROL_VARS_NUMBER ];
 }
 RobotControllerData;
 
@@ -51,7 +51,7 @@ static inline void UnloadControllerData( RobotController );
                 
 static void* AsyncControl( void* );
 static inline void UpdateControlMeasures( RobotController );
-static inline void UpdateControlParameters( RobotController );
+static inline void UpdateControlSetpoints( RobotController );
 static inline void RunControl( RobotController );
 
 RobotController RobotControl_InitController( const char* configFileName )
@@ -126,7 +126,7 @@ void RobotControl_EndController( /*int controllerID*/RobotController controller 
   DEBUG_PRINT( "discarding filter %p", controller->positionFilter );
   SimpleKalman_DiscardFilter( controller->positionFilter );
 
-  for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+  for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
   {
     DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parameterCurvesList[ parameterIndex ] );
     Spline3Interp.UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
@@ -230,19 +230,19 @@ inline void RobotControl_SetImpedance( RobotController controller, double refere
   Spline3Interp.SetOffset( controller->parameterCurvesList[ CONTROL_DAMPING ], ( referenceDamping > 0.0 ) ? referenceDamping : 0.0 );
 }
 
-const enum ActuatorVariables AXIS_OPERATION_MODES[ CONTROL_SETPOINTS_NUMBER ] = { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE };
+const enum ActuatorVariables AXIS_OPERATION_MODES[ CONTROL_VARS_NUMBER ] = { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE };
 inline void RobotControl_SetControlMode( RobotController controller, enum ControlVariables mode )
 {
   if( controller == NULL ) return;
   
-  if( mode < 0 || mode >= CONTROL_SETPOINTS_NUMBER ) return;
+  if( mode < 0 || mode >= CONTROL_VARS_NUMBER ) return;
     
   controller->actuator.interface->SetOperationMode( controller->actuator.ID, AXIS_OPERATION_MODES[ mode ] );
   controller->controlMode = mode;
 }
 
 
-const char* PARAMETER_NAMES[ CONTROL_PARAMS_NUMBER ] = { "reference", "stiffness", "damping" };
+const char* PARAMETER_NAMES[ CONTROL_VARS_NUMBER ] = { "reference", "stiffness", "damping" };
 static inline RobotController LoadControllerData( const char* configFileName )
 {
   //static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
@@ -264,7 +264,7 @@ static inline RobotController LoadControllerData( const char* configFileName )
     
     if( (newController->ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( configFileID, "control.function" ) )) == NULL ) loadError = true;
     
-    for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+    for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
     {
       sprintf( searchPath, "control.parameters.%s.normalized_curve", PARAMETER_NAMES[ parameterIndex ] );
       newController->parametersList[ parameterIndex ].normalizedCurve = Spline3Interp.LoadCurve( parser.GetStringValue( configFileID, searchPath ) );
@@ -330,7 +330,7 @@ static inline void UnloadControllerData( RobotController controller )
     DEBUG_PRINT( "discarding filter %p", controller->positionFilter );
     SimpleKalman_DiscardFilter( controller->positionFilter );
       
-    for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+    for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
     {
       DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parameterCurvesList[ parameterIndex ] );
       Spline3Interp.UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
@@ -367,7 +367,7 @@ static void* AsyncControl( void* args )
     
     UpdateControlMeasures( controller );
     
-    UpdateControlParameters( controller );
+    UpdateControlSetpoints( controller );
     
     RunControl( controller );
     
@@ -402,9 +402,9 @@ static inline void UpdateControlMeasures( RobotController controller )
   }
 }
 
-static inline void UpdateControlParameters( RobotController controller )
+static inline void UpdateControlSetpoints( RobotController controller )
 {
-  for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+  for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
   {
     DEBUG_UPDATE( "get parameter %u at point %g", parameterIndex, controller->setpoint );
     controller->parametersList[ parameterIndex ] = Spline3Interp.GetValue( controller->parameterCurvesList[ parameterIndex ], controller->setpoint );

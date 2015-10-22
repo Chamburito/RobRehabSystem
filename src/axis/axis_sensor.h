@@ -33,7 +33,7 @@ typedef AxisSensorData* AxisSensor;
         function_init( void, namespace, Reset, AxisSensor ) \
         function_init( void, namespace, SetOffset, AxisSensor ) \
         function_init( bool, namespace, HasError, AxisSensor ) \
-        function_init( double, namespace, Read, AxisSensor )
+        function_init( double, namespace, Read, AxisSensor, double[ AXIS_VARS_NUMBER ] )
 
 INIT_NAMESPACE_INTERFACE( AxisSensors, AXIS_SENSOR_FUNCTIONS )
 
@@ -46,18 +46,49 @@ AxisSensor AxisSensors_Init( const char* configFileName )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Sensor %s", configFileName );
   
+  bool loadError = false;
+  
   AxisSensor newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
+  memset( newSensor, 0, sizeof(AxisSensorData) );
   
-  // File Parsing
+  int configFileID = ConfigParser.LoadFile( configFileName );
+  if( configFileID != INVALID_FILE_ID )
+  {
+    bool pluginLoaded;
+    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
+    if( pluginLoaded )
+    {
+      newSensor->axisID = AXIS_INVALID_ID;
+      if( ConfigParser.HasKey( configFileID, "interface.id" ) )
+        newSensor->axisID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
+      
+      if( newSensor->axisID == AXIS_INVALID_ID ) loadError = true;
+    }
+    else loadError = true;
+    
+    newSensor->absolute = ConfigParser.GetBooleanValue( configFileID, "absolute" );
+    
+    if( ConfigParser.HasKey( configFileID, "conversion.curve" ) )
+      newSensor->measureConversionCurve = Spline3Interp.LoadCurve( ConfigParser.GetStringValue( configFileID, "conversion.curve" ) );
+    else
+      newSensor->measureConversionCurve = Spline3Interp.LoadCurve( NULL );
+    
+    if( ConfigParser.HasKey( configFileID, "conversion.factor" ) )
+      Spline3Interp.SetScale( newSensor->measureConversionCurve, ConfigParser.GetRealValue( configFileID, "conversion.factor" ) );
+    
+    ConfigParser.UnloadFile( configFileID );
+  }
+  else
+  {
+    loadError = true;
+    DEBUG_PRINT( "configuration file for axis sensor %s not found", configFileName );
+  }
   
-  
-  newSensor->interface = &AxisCANEPOSOperations;
-  newSensor->axisID = newSensor->interface->Connect( 2 );
-  //newSensor->measureIndex = AXIS_ANALOG;
-  newSensor->measureIndex = AXIS_POSITION;
-  
-  newSensor->measureConversionCurve = Spline3Interp.LoadCurve( NULL );
-  Spline3Interp.SetScale( newSensor->measureConversionCurve, -( 1.0/*2 * M_PI*/ ) / 2000.0 );
+  if( loadError )
+  {
+    AxisSensors_End( newSensor );
+    return NULL;
+  }
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Axis Sensor %s initialized", configFileName );
   
@@ -69,6 +100,8 @@ inline void AxisSensors_End( AxisSensor sensor )
   if( sensor == NULL ) return;
   
   sensor->interface->Disconnect( sensor->axisID );
+  
+  Spline3Interp.UnloadCurve( sensor->measureConversionCurve );
   
   free( sensor );
 }
@@ -108,7 +141,7 @@ const double p5 = -2.0475e-009;
 const double p6 = 9.3491e-007;
 const double p7 = 0.0021429;
 const double p8 = 2.0556;
-double AxisSensors_Read( AxisSensor sensor )
+double AxisSensors_Read( AxisSensor sensor, double referencesList[ AXIS_VARS_NUMBER ] )
 {
   static double rawMeasuresList[ AXIS_VARS_NUMBER ];
   
@@ -116,8 +149,8 @@ double AxisSensors_Read( AxisSensor sensor )
   
   sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
   
-  double input = rawMeasuresList[ sensor->measureIndex ];
-  if( sensor->absolute ) input -= sensor->inputOffset;
+  double input = rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset;
+  if( sensor->absolute ) input -= referencesList[ sensor->measureIndex ];
   
   double measure = - 2 * M_PI * input / 2000.0;//Spline3Interp.GetValue( sensor->measureConversionCurve, input );
   
@@ -127,64 +160,6 @@ double AxisSensors_Read( AxisSensor sensor )
   //                 + p4 * pow(input,4) + p5 * pow(input,3) + p6 * pow(input,2) + p7 * input;// + p8;   //mm
   
   return measure;
-}
-
-
-static AxisSensor LoadAxisSensorData( const char* configFileName )
-{
-  static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
-  
-  bool loadError = false;
-  
-  AxisSensor newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
-  memset( newSensor, 0, sizeof(AxisSensorData) );
-  
-  newSensor->axisID = -1;
-  
-  int configFileID = ConfigParser.LoadFile( configFileName );
-  if( configFileID != INVALID_FILE_ID )
-  {
-    bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
-    if( pluginLoaded )
-    {
-      if( ConfigParser.HasKey( configFileID, "interface.id" ) )
-        newSensor->axisID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
-      
-      if( newSensor->axisID ) loadError = true;
-      
-      newSensor->measureIndex = (size_t) ConfigParser.GetIntegerValue( configFileID, "interface.channel" );
-    }
-    else loadError = true;
-    
-    newSensor->absolute = ConfigParser.GetBooleanValue( configFileID, "is_absolute" );
-    
-    if( ConfigParser.HasKey( configFileID, "conversion.curve" ) )
-      newSensor->measureConversionCurve = Spline3Interp.LoadCurve( ConfigParser.GetStringValue( configFileID, "conversion.curve" ) );
-    else
-      newSensor->measureConversionCurve = Spline3Interp.LoadCurve( NULL );
-    
-    if( ConfigParser.HasKey( configFileID, "conversion.factor" ) )
-      Spline3Interp.SetScale( newSensor->measureConversionCurve, ConfigParser.GetRealValue( configFileID, "conversion.factor" ) );
-    
-    ConfigParser.UnloadFile( configFileID );
-  }
-  else
-  {
-    loadError = true;
-    DEBUG_PRINT( "configuration file for series elastic actuator %s not found", configFileName );
-  }
-  
-  if( loadError )
-  {
-    UnloadAxisSensorData( newSensor );
-    return NULL;
-  }
-}
-
-static void UnloadAxisSensorData( AxisSensor sensor )
-{
-  
 }
 
 #ifdef __cplusplus

@@ -11,6 +11,8 @@
 
 enum AxisVariables { AXIS_ENCODER, AXIS_RPS, AXIS_CURRENT, AXIS_ANALOG, AXIS_VARS_NUMBER };
 
+const int AXIS_INVALID_ID = -1;
+
 #define AXIS_INTERFACE_FUNCTIONS( interface, function_init ) \
         function_init( int, interface, Connect, unsigned int ) \
         function_init( void, interface, Disconnect, int ) \

@@ -2,26 +2,13 @@
   "aquisition_system": {
     "type": "signal_aquisition/NIDAQmx",
     "task": "EMGReadTask",
-    "channel": 0,
-    "input_gain": 909
+    "channel": 0
   },
-  "muscle_properties": {
-    "curves": {
-      "active_force": [
-        344.3169,
-        -6.4302,
-        0.1123,
-        0.0016
-      ],
-      "moment_arm": [
-        0.0479,
-        -0.0006
-      ],
-      "normalized_length": [
-        0.22,
-        -0.0061
-      ]
-    },
-    "penation_angle": 0.08726646
-  }
+  "processing": {
+    "input_gain": 909,
+    "rectified": true,
+    "filtered": true,
+    "normalized": true
+  },
+  "log_data": false
 }

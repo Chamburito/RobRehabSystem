@@ -25,8 +25,8 @@ typedef struct _AxisControllerData
   Thread controlThread;                                       // Processing thread handle
   double measuresList[ CONTROL_VARS_NUMBER ];
   SimpleKalmanFilter* positionFilter;
-  double parametersList[ CONTROL_PARAMS_NUMBER ];
-  Splined3Curve parameterCurvesList[ CONTROL_PARAMS_NUMBER ];
+  double parametersList[ CONTROL_VARS_NUMBER ];
+  Splined3Curve parameterCurvesList[ CONTROL_VARS_NUMBER ];
   double setpoint;
   enum ControlVariables controlMode;
   bool isRunning;                                                   // Is control thread running ?
@@ -59,7 +59,7 @@ static inline void UnloadControllerData( AxisController );
                 
 static void* AsyncControl( void* );
 static inline void UpdateControlMeasures( AxisController );
-static inline void UpdateControlParameters( AxisController );
+static inline void UpdateControlSetpoints( AxisController );
 static inline void RunControl( AxisController );
 
 AxisController AxisControl_InitController( const char* configFileName )
@@ -134,7 +134,7 @@ void AxisControl_EndController( /*int controllerID*/AxisController controller )
   DEBUG_PRINT( "discarding filter %p", controller->positionFilter );
   SimpleKalman_DiscardFilter( controller->positionFilter );
 
-  for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+  for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
   {
     DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parameterCurvesList[ parameterIndex ] );
     Spline3Interp.UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
@@ -238,19 +238,19 @@ inline void AxisControl_SetImpedance( AxisController controller, double referenc
   Spline3Interp.SetOffset( controller->parameterCurvesList[ CONTROL_DAMPING ], ( referenceDamping > 0.0 ) ? referenceDamping : 0.0 );
 }
 
-const enum ActuatorVariables AXIS_OPERATION_MODES[ CONTROL_SETPOINTS_NUMBER ] = { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE };
+const enum ActuatorVariables AXIS_OPERATION_MODES[ CONTROL_VARS_NUMBER ] = { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE };
 inline void AxisControl_SetControlMode( AxisController controller, enum ControlVariables mode )
 {
   if( controller == NULL ) return;
   
-  if( mode < 0 || mode >= CONTROL_SETPOINTS_NUMBER ) return;
+  if( mode < 0 || mode >= CONTROL_VARS_NUMBER ) return;
     
   controller->actuator.interface->SetOperationMode( controller->actuator.ID, AXIS_OPERATION_MODES[ mode ] );
   controller->controlMode = mode;
 }
 
 
-const char* PARAMETER_NAMES[ CONTROL_PARAMS_NUMBER ] = { "reference", "stiffness", "damping" };
+const char* PARAMETER_NAMES[ CONTROL_VARS_NUMBER ] = { "reference", "stiffness", "damping" };
 static inline AxisController LoadControllerData( const char* configFileName )
 {
   //static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
@@ -272,7 +272,7 @@ static inline AxisController LoadControllerData( const char* configFileName )
     
     if( (newController->ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( configFileID, "control.function" ) )) == NULL ) loadError = true;
     
-    for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+    for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
     {
       sprintf( searchPath, "control.parameters.%s.normalized_curve", PARAMETER_NAMES[ parameterIndex ] );
       newController->parametersList[ parameterIndex ].normalizedCurve = Spline3Interp.LoadCurve( parser.GetStringValue( configFileID, searchPath ) );
@@ -338,7 +338,7 @@ static inline void UnloadControllerData( AxisController controller )
     DEBUG_PRINT( "discarding filter %p", controller->positionFilter );
     SimpleKalman_DiscardFilter( controller->positionFilter );
       
-    for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+    for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
     {
       DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parameterCurvesList[ parameterIndex ] );
       Spline3Interp.UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
@@ -375,7 +375,7 @@ static void* AsyncControl( void* args )
     
     UpdateControlMeasures( controller );
     
-    UpdateControlParameters( controller );
+    UpdateControlSetpoints( controller );
     
     RunControl( controller );
     
@@ -410,9 +410,9 @@ static inline void UpdateControlMeasures( AxisController controller )
   }
 }
 
-static inline void UpdateControlParameters( AxisController controller )
+static inline void UpdateControlSetpoints( AxisController controller )
 {
-  for( size_t parameterIndex = 0; parameterIndex < CONTROL_PARAMS_NUMBER; parameterIndex++ )
+  for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
   {
     DEBUG_UPDATE( "get parameter %u at point %g", parameterIndex, controller->setpoint );
     controller->parametersList[ parameterIndex ] = Spline3Interp.GetValue( controller->parameterCurvesList[ parameterIndex ], controller->setpoint );

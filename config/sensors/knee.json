@@ -5,7 +5,7 @@
     "channel": 0
   },
   "conversion": {
-    "factor": -2000
+    "factor": -0.0005
   },
-  "is_absolute": true
+  "absolute": true
 }

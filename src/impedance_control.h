@@ -6,16 +6,16 @@
 #include "debug/async_debug.h"
 
 // Control used values enumerations
-enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_SETPOINTS_NUMBER, 
-                        CONTROL_ACCELERATION = CONTROL_SETPOINTS_NUMBER, CONTROL_ERROR, CONTROL_VARS_NUMBER };
-enum ControlParameters { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_PARAMS_NUMBER };
+enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_VARS_NUMBER, 
+                        CONTROL_ACCELERATION = CONTROL_VARS_NUMBER, CONTROL_ERROR, CONTROL_VARS_NUMBER };
+enum ControlSetpoints { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_VARS_NUMBER };
 
-typedef double* (*ImpedanceControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
+typedef double* (*ImpedanceControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double );
 
 // Control algorhitms
-static double* RunDefaultControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
-static double* RunForcePIControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
-static double* RunVelocityControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_PARAMS_NUMBER ], double );
+static double* RunDefaultControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double );
+static double* RunForcePIControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double );
+static double* RunVelocityControl( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double );
 
 // Available precompiled control methods
 struct IndexedFunction
@@ -70,7 +70,7 @@ const int HIPS_CONTROL_SAMPLING_NUMBER = 6;
 /////                         HIPS CONTROL FUNCTION                         /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double* RunVelocityControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
+static double* RunVelocityControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_VARS_NUMBER ], double deltaTime )
 {
   /*static double sensorTension_0, sensorPosition_0;
 
@@ -161,13 +161,13 @@ const double d3 = 0.0015;
 /////                          KNEE CONTROL FUNCTION                        /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double* RunForcePIControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
+static double* RunForcePIControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_VARS_NUMBER ], double deltaTime )
 {
   static double position, positionSetpoint, positionError, positionErrorSum, positionSetpointSum;
   static double velocity[3], velocityFiltered[3], velocitySetpoint[3];
   static double force[3], forceFiltered[3], forceError[3];
   
-  static double setpointsList[ CONTROL_SETPOINTS_NUMBER ];
+  static double setpointsList[ CONTROL_VARS_NUMBER ];
   
   static double error;
   
@@ -225,9 +225,9 @@ static double* RunForcePIControl( double measuresList[ CONTROL_VARS_NUMBER ], do
 /////                        DEFAULT CONTROL FUNCTION                       /////
 /////////////////////////////////////////////////////////////////////////////////
 
-static double* RunDefaultControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_PARAMS_NUMBER ], double deltaTime )
+static double* RunDefaultControl( double measuresList[ CONTROL_VARS_NUMBER ], double parametersList[ CONTROL_VARS_NUMBER ], double deltaTime )
 {
-  static double setpointsList[ CONTROL_SETPOINTS_NUMBER ];
+  static double setpointsList[ CONTROL_VARS_NUMBER ];
   
   DEBUG_PRINT( "returning %g", parametersList[ CONTROL_REFERENCE ] );
   

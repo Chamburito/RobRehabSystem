@@ -1,13 +1,9 @@
 {
-  "muscle_groups": {
-    "agonist": [
-      "emg_sensors/rectus_femoris",
-      "emg_sensors/vastus_medialis",
-      "emg_sensors/vastus_laterais"
-    ],
-    "antagonist": [
-      "emg_sensors/bisceps_femoris",
-      "emg_sensors/semitendinoso"
-    ]
-  }
+  "muscles": [
+    "emg_sensors/rectus_femoris",
+    "emg_sensors/vastus_medialis",
+    "emg_sensors/vastus_laterais",
+    "emg_sensors/bisceps_femoris",
+    "emg_sensors/semitendinoso"
+  ]
 }

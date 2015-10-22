@@ -56,41 +56,49 @@ AxisMotor AxisMotors_Init( const char* configFileName )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Motor %s", configFileName );
   
-  /*if( motorsList == NULL ) motorsList = kh_init( MotorInt );
-  
-  int configKey = (int) kh_str_hash_func( configFileName );
-  
-  int insertionStatus;
-  khint_t newMotorID = kh_put( MotorInt, motorsList, configKey, &insertionStatus );
-  if( insertionStatus > 0 )
-  {
-    kh_value( motorsList, newMotorID ) = LoadMotorData( configFileName );
-    if( kh_value( motorsList, newMotorID ) == NULL )
-    {
-      AxisMotors_End( (int) newMotorID );
-      return -1;
-    }
-  }
-  
-  DEBUG_EVENT( 0, "Axis Motor %s initialized (iterator: %d)", configFileName, (int) newMotorID );
-  
-  return (int) newMotorID;*/
-  
   AxisMotor newMotor = (AxisMotor) malloc( sizeof(AxisMotorData) );
   
-  // File Parsing
+  bool loadError = false;
   
+  AxisSensor newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
+  memset( newSensor, 0, sizeof(AxisSensorData) );
   
-  newMotor->interface = &AxisCANEPOSOperations;
-  newMotor->axisID = newMotor->interface->Connect( 1 );
+  int configFileID = ConfigParser.LoadFile( configFileName );
+  if( configFileID != INVALID_FILE_ID )
+  {
+    bool pluginLoaded;
+    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
+    if( pluginLoaded )
+    {
+      newSensor->axisID = AXIS_INVALID_ID;
+      if( ConfigParser.HasKey( configFileID, "interface.id" ) )
+        newSensor->axisID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
+      
+      if( newSensor->axisID == AXIS_INVALID_ID ) loadError = true;
+    }
+    else loadError = true;
+    
+    unsigned int encoderResolution = (unsigned int) ConfigParser.GetIntegerValue( configFileID, "encoder_resolution" ); //4096;
+    double currentToForceRatio = ConfigParser.GetRealValue( configFileID, "force_constant" );//151.8; // 0.0302;
+    double gearReduction = ConfigParser.GetRealValue( configFileID, "gear_reduction" );//150.0 / ( 2 * M_PI ); // 0.0025 / ( 2 * 2 * M_PI );
   
-  unsigned int encoderResolution = 4096;
-  double currentToForceRatio = 151.8; // 0.0302;
-  double gearReduction = 150.0 / ( 2 * M_PI ); // 0.0025 / ( 2 * 2 * M_PI );
+    newMotor->measureGainsList[ AXIS_POSITION ] = 1.0 / ( encoderResolution * gearReduction );
+    newMotor->measureGainsList[ AXIS_VELOCITY ] = 1.0 / gearReduction;
+    newMotor->measureGainsList[ AXIS_FORCE ] = currentToForceRatio * gearReduction;
+    
+    ConfigParser.UnloadFile( configFileID );
+  }
+  else
+  {
+    loadError = true;
+    DEBUG_PRINT( "configuration file for axis sensor %s not found", configFileName );
+  }
   
-  newMotor->measureGainsList[ AXIS_POSITION ] = 1.0 / ( encoderResolution * gearReduction );
-  newMotor->measureGainsList[ AXIS_VELOCITY ] = 1.0 / gearReduction;
-  newMotor->measureGainsList[ AXIS_FORCE ] = currentToForceRatio * gearReduction;
+  if( loadError )
+  {
+    AxisSensors_End( newSensor );
+    return NULL;
+  }
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Axis Motor %s initialized", configFileName );
   

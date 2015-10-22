@@ -1,6 +1,7 @@
 #ifndef EMG_JOINT_CONTROL_H
 #define EMG_JOINT_CONTROL_H
 
+#include "signal_processing.h"
 #include "emg_processing.h"
 
 #include "config_parser.h"
@@ -9,13 +10,15 @@
 
 #include "debug/async_debug.h"
 
-enum MuscleGroups { MUSCLE_AGONIST, MUSCLE_ANTAGONIST, MUSCLE_GROUPS_NUMBER };
+enum MuscleGroups { MUSCLE_AGONIST, MUSCLE_ANTAGONIST, MUSCLE_GROUPS_NUMBER, MUSCLE_GROUPS_ALL };
 
 enum { JOINT_TORQUE, JOINT_STIFFNESS, JOINT_MEASURES_NUMBER };
 
 typedef struct _EMGJointData
 {
-  int* muscleIDsTable[ MUSCLE_GROUPS_NUMBER ];
+  EMGMuscleParameters muscleParametersList;
+  EMGMuscleParameters muscleParametersTable[ MUSCLE_GROUPS_NUMBER ];
+  int* sensorIDsTable[ MUSCLE_GROUPS_NUMBER ];
   size_t muscleGroupsSizesList[ MUSCLE_GROUPS_NUMBER ];
 }
 EMGJointData;
@@ -28,10 +31,9 @@ static khash_t( JointInt )* jointsList = NULL;
 #define EMG_JOINT_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, InitJoint, const char* ) \
         function_init( void, namespace, EndJoint, int ) \
-        function_init( double, namespace, GetTorque, int, double ) \
-        function_init( double, namespace, GetStiffness, int, double ) \
-        function_init( int*, namespace, GetMusclesList, int, enum MuscleGroups, size_t* ) \
-        function_init( void, namespace, ChangeState, int, enum MuscleGroups, enum EMGProcessPhase )
+        function_init( double, namespace, GetJointTorque, int, double ) \
+        function_init( double, namespace, GetJointStiffness, int, double ) \
+        function_init( EMGMuscleParameters, namespace, GetJointMusclesList, int, enum MuscleGroups, size_t* )
 
 INIT_NAMESPACE_INTERFACE( EMGJointControl, EMG_JOINT_CONTROL_FUNCTIONS )
 
@@ -81,7 +83,7 @@ void EMGJointControl_EndJoint( int jointID )
   }
 }
 
-double EMGJointControl_GetTorque( int jointID, double jointAngle )
+double EMGJointControl_GetJointTorque( int jointID, double jointAngle )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return 0.0;
@@ -90,16 +92,24 @@ double EMGJointControl_GetTorque( int jointID, double jointAngle )
   
   double jointTorque = 0.0;
   
+  EMGMuscleParameters muscleParameters = joint->muscleParametersList;
+  
   for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ MUSCLE_AGONIST ]; muscleIndex++ )
-    jointTorque += fabs( EMGProcessing.GetMuscleTorque( joint->muscleIDsTable[ MUSCLE_AGONIST ][ muscleIndex ], jointAngle ) );
+  {
+    double normalizedSignal = SignalProcessing.GetProcessedSignal( joint->sensorIDsTable[ MUSCLE_AGONIST ][ muscleIndex ] );
+    jointTorque += fabs( EMGProcessing.GetMuscleTorque( joint->muscleParametersTable[ MUSCLE_AGONIST ][ muscleIndex ], normalizedSignal, jointAngle ) );
+  }
   
   for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ]; muscleIndex++ )
-    jointTorque -= fabs( EMGProcessing.GetMuscleTorque( joint->muscleIDsTable[ MUSCLE_ANTAGONIST ][ muscleIndex ], jointAngle ) );
+  {
+    double normalizedSignal = SignalProcessing.GetProcessedSignal( joint->sensorIDsTable[ MUSCLE_ANTAGONIST ][ muscleIndex ] );
+    jointTorque -= fabs( EMGProcessing.GetMuscleTorque( joint->muscleParametersTable[ MUSCLE_ANTAGONIST ][ muscleIndex ], normalizedSignal, jointAngle ) );
+  }
   
   return jointTorque;
 }
 
-double EMGJointControl_GetStiffness( int jointID, double jointAngle )
+double EMGJointControl_GetJointStiffness( int jointID, double jointAngle )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return 0.0;
@@ -111,7 +121,10 @@ double EMGJointControl_GetStiffness( int jointID, double jointAngle )
   for( size_t muscleGroupID = 0; muscleGroupID < MUSCLE_GROUPS_NUMBER; muscleGroupID++ )
   {
     for( size_t muscleIndex = 0; muscleIndex < joint->muscleGroupsSizesList[ muscleGroupID ]; muscleIndex++ )
-      jointStiffness += fabs( EMGProcessing.GetMuscleTorque( joint->muscleIDsTable[ muscleGroupID ][ muscleIndex ], jointAngle ) );
+    {
+      double normalizedSignal = SignalProcessing.GetProcessedSignal( joint->sensorIDsTable[ muscleGroupID ][ muscleIndex ] );
+      jointStiffness += fabs( EMGProcessing.GetMuscleTorque( joint->muscleParametersTable[ muscleGroupID ][ muscleIndex ], normalizedSignal, jointAngle ) );
+    }
   }
   
   //DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );
@@ -121,19 +134,25 @@ double EMGJointControl_GetStiffness( int jointID, double jointAngle )
   return jointStiffness;
 }
 
-int* EMGJointControl_GetMusclesList( int jointID, enum MuscleGroups muscleGroupID, size_t* ref_musclesCount )
+EMGMuscleParameters EMGJointControl_GetJointMusclesList( int jointID, enum MuscleGroups muscleGroupID, size_t* ref_musclesCount )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return NULL;
   
   EMGJoint joint = kh_value( jointsList, jointIndex );
   
-  if( ref_musclesCount != NULL ) *ref_musclesCount = joint->muscleGroupsSizesList[ muscleGroupID ];
+  if( muscleGroupID >= 0 && muscleGroupID < MUSCLE_GROUPS_NUMBER )
+  {
+    if( ref_musclesCount != NULL ) *ref_musclesCount = joint->muscleGroupsSizesList[ muscleGroupID ];
+    return joint->muscleIDsTable[ muscleGroupID ];
+  }
   
-  return joint->muscleIDsTable[ muscleGroupID ];
+  if( ref_musclesCount != NULL ) *ref_musclesCount = joint->muscleGroupsSizesList[ MUSCLE_AGONIST ] + joint->muscleGroupsSizesList[ MUSCLE_ANTAGONIST ];
+  
+  return joint->muscleParametersList;
 }
 
-void EMGJointControl_ChangeState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessPhase emgProcessingPhase )
+void EMGJointControl_ChangeJointState( int jointID, enum MuscleGroups muscleGroupID, enum EMGProcessPhase emgProcessingPhase )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return;
