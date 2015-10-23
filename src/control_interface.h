@@ -9,6 +9,7 @@
 #include <math.h>
 
 // Control used values enumerations
+
 enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_ACCELERATION, CONTROL_VARS_NUMBER };
 
 typedef double* (*ControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double, double* );

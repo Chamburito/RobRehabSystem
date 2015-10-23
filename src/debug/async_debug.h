@@ -16,9 +16,7 @@
   #include "time/timing_unix.h"
 #endif
 
-/*#ifdef _CVI_
-  #include "threads/threads_realtime.h"
-#elif*/#ifdef WIN32
+#ifdef WIN32
   #include "threads/threads_windows.h"
 #else
   #include "threads/threads_unix.h"
@@ -32,7 +30,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
   
 #if defined SIMPLE_DEBUG || defined DEEP_DEBUG
 
-  const size_t EVENT_NAME_LENGTH = 8;
+/*  const size_t EVENT_NAME_LENGTH = 8;
   const size_t SOURCE_NAME_LENGTH = 64;
   
   const size_t MAX_DEBUG_MESSAGES = 1000;
@@ -148,7 +146,7 @@ const size_t DEBUG_MESSAGE_LENGTH = 256;
     }
     
     va_end( printArgs );
-  }
+  }*/
 
   #define DEBUG_EVENT( key, format, ... ) AsyncDebug_SetEvent( (uint8_t) key, __func__, "event", format, __VA_ARGS__ )
   #define ERROR_EVENT( format, ... ) AsyncDebug_SetEvent( (uint8_t) errno, __func__, "error", format ": %s", __VA_ARGS__, strerror( errno ) ) 

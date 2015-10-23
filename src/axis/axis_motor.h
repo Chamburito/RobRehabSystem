@@ -5,16 +5,13 @@
     extern "C" {
 #endif
 
-#include "interface.h"
-      
-#include "axis/axis_types.h"
+#include "axis/axis_interface.h"
 
-#include "file_parsing/json_parser.h"
-
-#include "klib/khash.h"
+#include "config_parser.h"
+#include "plugin_loader.h"
       
 #include "debug/async_debug.h"
-
+      
 enum AxisMotorVariables { AXIS_POSITION = AXIS_ENCODER, AXIS_VELOCITY = AXIS_RPS, AXIS_FORCE = AXIS_CURRENT };
       
 typedef struct _AxisMotorData
@@ -25,9 +22,6 @@ typedef struct _AxisMotorData
   double measureGainsList[ AXIS_VARS_NUMBER ];
   double measureOffsetsList[ AXIS_VARS_NUMBER ];
   enum AxisMotorVariables operationMode;
-  unsigned int encoderResolution;
-  double currentToForceRatio;
-  double gearReduction;
 }
 AxisMotorData;
 
@@ -45,7 +39,7 @@ typedef AxisMotorData* AxisMotor;
         function_init( bool, namespace, HasError, AxisMotor ) \
         function_init( double*, namespace, ReadMeasures, AxisMotor ) \
         function_init( void, namespace, WriteControl, AxisMotor, double ) \
-        function_init( void, namespace, SetOperationMode, AxisMotor, enum AxisVariables )
+        function_init( void, namespace, SetOperationMode, AxisMotor, enum AxisMotorVariables )
 
 INIT_NAMESPACE_INTERFACE( AxisMotors, AXIS_MOTOR_FUNCTIONS )
 
@@ -56,25 +50,23 @@ AxisMotor AxisMotors_Init( const char* configFileName )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Motor %s", configFileName );
   
-  AxisMotor newMotor = (AxisMotor) malloc( sizeof(AxisMotorData) );
-  
   bool loadError = false;
   
-  AxisSensor newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
-  memset( newSensor, 0, sizeof(AxisSensorData) );
+  AxisMotor newMotor = (AxisMotor) malloc( sizeof(AxisMotorData) );
+  memset( newMotor, 0, sizeof(AxisMotorData) );
   
   int configFileID = ConfigParser.LoadFile( configFileName );
   if( configFileID != INVALID_FILE_ID )
   {
     bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
+    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newMotor->interface, pluginLoaded );
     if( pluginLoaded )
     {
-      newSensor->axisID = AXIS_INVALID_ID;
+      newMotor->axisID = AXIS_INVALID_ID;
       if( ConfigParser.HasKey( configFileID, "interface.id" ) )
-        newSensor->axisID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
+        newMotor->axisID = newMotor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
       
-      if( newSensor->axisID == AXIS_INVALID_ID ) loadError = true;
+      if( newMotor->axisID == AXIS_INVALID_ID ) loadError = true;
     }
     else loadError = true;
     
@@ -96,7 +88,7 @@ AxisMotor AxisMotors_Init( const char* configFileName )
   
   if( loadError )
   {
-    AxisSensors_End( newSensor );
+    AxisMotors_End( newMotor );
     return NULL;
   }
   
@@ -109,7 +101,7 @@ inline void AxisMotors_End( AxisMotor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface->Disconnect( motor->axisID );
+  motor->interface.Disconnect( motor->axisID );
   
   free( motor );
 }
@@ -118,21 +110,21 @@ inline void AxisMotors_Enable( AxisMotor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface->Enable( motor->axisID );
+  motor->interface.Enable( motor->axisID );
 }
 
 inline void AxisMotors_Disable( AxisMotor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface->Disable( motor->axisID );
+  motor->interface.Disable( motor->axisID );
 }
 
 inline void AxisMotors_Reset( AxisMotor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface->Reset( motor->axisID );
+  motor->interface.Reset( motor->axisID );
 }
 
 inline void AxisMotors_SetOffset( AxisMotor motor )
@@ -141,7 +133,7 @@ inline void AxisMotors_SetOffset( AxisMotor motor )
   
   if( motor == NULL ) return;
   
-  motor->interface->ReadMeasures( motor->axisID, rawMeasuresList );
+  motor->interface.ReadMeasures( motor->axisID, rawMeasuresList );
   
   for( size_t measureIndex = 0; measureIndex < AXIS_VARS_NUMBER; measureIndex++ )
     motor->measureOffsetsList[ measureIndex ] = rawMeasuresList[ measureIndex ] * motor->measureGainsList[ measureIndex ];
@@ -151,14 +143,14 @@ inline bool AxisMotors_IsEnabled( AxisMotor motor )
 {
   if( motor == NULL ) return false;
   
-  return motor->interface->IsEnabled( motor->axisID );
+  return motor->interface.IsEnabled( motor->axisID );
 }
 
 inline bool AxisMotors_HasError( AxisMotor motor )
 {
   if( motor == NULL ) return false;
   
-  return motor->interface->HasError( motor->axisID );
+  return motor->interface.HasError( motor->axisID );
 }
 
 double* AxisMotors_ReadMeasures( AxisMotor motor )
@@ -168,7 +160,7 @@ double* AxisMotors_ReadMeasures( AxisMotor motor )
   if( motor == NULL ) return NULL;
   
   DEBUG_UPDATE( "motor %p reading from interface %d", motor, motor->axisID );
-  motor->interface->ReadMeasures( motor->axisID, rawMeasuresList );
+  motor->interface.ReadMeasures( motor->axisID, rawMeasuresList );
   
   for( size_t measureIndex = 0; measureIndex < AXIS_VARS_NUMBER; measureIndex++ )
   {
@@ -187,16 +179,16 @@ void AxisMotors_WriteControl( AxisMotor motor, double setpoint )
   
   double axisSetpoint = ( setpoint + motor->measureOffsetsList[ motor->operationMode ] ) / motor->measureGainsList[ motor->operationMode ];
   
-  motor->interface->WriteSetpoint( motor->axisID, axisSetpoint );
+  motor->interface.WriteSetpoint( motor->axisID, axisSetpoint );
 }
 
-void AxisMotors_SetOperationMode( AxisMotor motor, enum AxisVariables mode )
+void AxisMotors_SetOperationMode( AxisMotor motor, enum AxisMotorVariables mode )
 {
   if( motor == NULL ) return;
   
-  if( mode < 0 || mode >= AXIS_VARS_NUMBER ) return;
+  if( mode < 0 || mode >= (enum AxisMotorVariables) AXIS_VARS_NUMBER ) return;
   
-  motor->interface->SetOperationMode( motor->axisID, mode );
+  motor->interface.SetOperationMode( motor->axisID, (enum AxisVariables) mode );
   
   motor->operationMode = mode;
 }

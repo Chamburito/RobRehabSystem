@@ -27,7 +27,7 @@ double* Run( double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ C
   if( *ref_error == 0.0 )
   {
     /*error = ( positionSetpointSum > 0.0 ) ? positionErrorSum / positionSetpointSum : 1.0;
-    if( error > 1.0 )*/ *ref_error = 1.0;
+    if( error > 1.0 )*/ error = 1.0;
     
     positionErrorSum = 0.0;
     positionSetpointSum = 0.0;
@@ -47,7 +47,7 @@ double* Run( double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ C
   *ref_error = positionError / positionSetpoint;
   
   //double forceSetpoint = -setpointsList[ CONTROL_STIFFNESS ] * positionError - setpointsList[ CONTROL_DAMPING ] * velocityFiltered[0];
-  double forceSetpoint = setpointsList[ CONTROL_FORCE ];
+  double forceSetpoint = error * setpointsList[ CONTROL_FORCE ];
   outputsList[ CONTROL_FORCE ] = forceSetpoint;
 
   force[0] = measuresList[ CONTROL_FORCE ];

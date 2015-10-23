@@ -1,6 +1,12 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
 
+#include <stdbool.h>
+#include <stdint.h>
+#ifdef __unix__
+  #include <unistd.h>
+#endif
+
 #ifdef __cplusplus
     extern "C" {
 #endif

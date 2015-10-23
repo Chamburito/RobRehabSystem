@@ -1,114 +1,142 @@
 #ifndef FILTERS_H
 #define FILTERS_H
 
-#include <math.h>
+#include "interface.h"
 
 #include "debug/async_debug.h"
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                       GENERIC FILTER  									                    /////
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
+#include <math.h>
+#include <stdlib.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                    SIMPLIFIED KALMAN FILTER	      			                    /////
+/////                                       GENERIC FILTER                                        /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum { KALMAN_VALUE, KALMAN_DERIVATIVE, KALMAN_DERIVATIVE_2, KALMAN_MEASURES_NUMBER };
 
-typedef struct _SimpleKalmanFilter
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                    SIMPLIFIED KALMAN FILTER                                 /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef struct _KalmanFilterData
 {
-  double state[ KALMAN_MEASURES_NUMBER ];
-  double covarianceMatrix[ KALMAN_MEASURES_NUMBER ][ KALMAN_MEASURES_NUMBER ];
+  double* state;
+  double* gains;
+  double** covarianceMatrix;
+  double** covarianceAux;
+  size_t dimensionsNumber;
 }
-SimpleKalmanFilter;
+KalmanFilterData;
 
-SimpleKalmanFilter* SimpleKalman_CreateFilter( double initialValue )
+typedef KalmanFilterData* KalmanFilter;
+
+
+#define SIMPLE_KALMAN_FUNCTIONS( namespace, function_init ) \
+        function_init( KalmanFilter, namespace, CreateFilter, size_t, double ) \
+        function_init( void, namespace, DiscardFilter, KalmanFilter ) \
+        function_init( double*, namespace, Update, KalmanFilter, double, double )
+
+INIT_NAMESPACE_INTERFACE( SimpleKalman, SIMPLE_KALMAN_FUNCTIONS )
+
+
+KalmanFilter SimpleKalman_CreateFilter( size_t dimensionsNumber, double initialValue )
 {
-  SimpleKalmanFilter* newFilter = (SimpleKalmanFilter*) malloc( sizeof(SimpleKalmanFilter) );
+  KalmanFilter newFilter = (KalmanFilter) malloc( sizeof(KalmanFilterData) );
   
-  for( size_t dimensionIndex = 0; dimensionIndex < KALMAN_MEASURES_NUMBER; dimensionIndex++ )
+  newFilter->state = (double*) calloc( dimensionsNumber, sizeof(double) );
+  newFilter->gains = (double*) calloc( dimensionsNumber, sizeof(double) );
+  newFilter->covarianceMatrix = (double**) calloc( dimensionsNumber, sizeof(double*) );
+  newFilter->covarianceAux = (double**) calloc( dimensionsNumber, sizeof(double*) );
+  for( size_t dimensionIndex = 0; dimensionIndex < dimensionsNumber; dimensionIndex++ )
   {
-    newFilter->state[ dimensionIndex ] = ( dimensionIndex == KALMAN_VALUE ) ? initialValue : 0.0;
+    newFilter->state[ dimensionIndex ] = ( dimensionIndex == 0 ) ? initialValue : 0.0;
     
-    for( size_t i = 0; i < KALMAN_MEASURES_NUMBER; i++ )
+    newFilter->covarianceMatrix[ dimensionIndex ] = (double*) calloc( dimensionsNumber, sizeof(double) );
+    newFilter->covarianceAux[ dimensionIndex ] = (double*) calloc( dimensionsNumber, sizeof(double) );
+    for( size_t i = 0; i < dimensionsNumber; i++ )
       newFilter->covarianceMatrix[ dimensionIndex ][ i ] = ( i == dimensionIndex ) ? 1.0 : 0.0;
   }
+  
+  newFilter->dimensionsNumber = dimensionsNumber;
   
   return newFilter;
 }
 
-void SimpleKalman_DiscardFilter( SimpleKalmanFilter* filter )
+void SimpleKalman_DiscardFilter( KalmanFilter filter )
 {
-  if( filter != NULL ) free( filter );
+  if( filter == NULL ) return;
+    
+  free( filter->state );
+  free( filter->gains );
+  for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
+  {
+    free( filter->covarianceAux[ dimensionIndex ] );
+    free( filter->covarianceMatrix[ dimensionIndex ] );
+  }
+  free( filter->covarianceAux );
+  free( filter->covarianceMatrix );
+  
+  free( filter );
 }
 
-double* SimpleKalman_Update( SimpleKalmanFilter* filter, double newValue, double timeStamp )
+double* SimpleKalman_Update( KalmanFilter filter, double newValue, double timeStamp )
 {
-  static double error, covarianceResidual;
-  static double gains[ KALMAN_MEASURES_NUMBER ];
+  if( filter == NULL ) return NULL;
   
-  static double covarianceAux[ KALMAN_MEASURES_NUMBER ][ KALMAN_MEASURES_NUMBER ]; 
+  double error, covarianceResidual;
   
   if( timeStamp > 0.0 )
   {
-    error = newValue - filter->state[ KALMAN_VALUE ];
+    error = newValue - filter->state[ 0 ];
     
-    for( size_t dimensionIndex = 0; dimensionIndex < KALMAN_MEASURES_NUMBER; dimensionIndex++ )
+    for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
     {
-      for( size_t i = dimensionIndex + 1; i < KALMAN_MEASURES_NUMBER; i++ )
+      for( size_t i = dimensionIndex + 1; i < filter->dimensionsNumber; i++ )
         filter->state[ dimensionIndex ] += filter->state[ i ] * pow( timeStamp, i - dimensionIndex ) / ( i - dimensionIndex );
     }
   
-    for( size_t column = 0; column < KALMAN_MEASURES_NUMBER; column++ )
+    for( size_t column = 0; column < filter->dimensionsNumber; column++ )
     {
-      covarianceAux[ 0 ][ column ] = filter->covarianceMatrix[ 0 ][ column ] + filter->covarianceMatrix[ 1 ][ column ] * timeStamp + filter->covarianceMatrix[ 2 ][ column ] * timeStamp * timeStamp / 2;
-      covarianceAux[ 1 ][ column ] = filter->covarianceMatrix[ 1 ][ column ] + filter->covarianceMatrix[ 2 ][ column ] * timeStamp;
-      covarianceAux[ 2 ][ column ] = filter->covarianceMatrix[ 2 ][ column ];
-      /*for( size_t line = 0; line < KALMAN_MEASURES_NUMBER; line++ )
+      for( size_t line = 0; line < filter->dimensionsNumber; line++ )
       {
-        covarianceAux[ line ][ column ] = filter->covarianceMatrix[ line ][ column ];
-        for( size_t i = line + 1; i < KALMAN_MEASURES_NUMBER; i++ )
-          covarianceAux[ line ][ column ] += filter->covarianceMatrix[ i ][ column ] * pow( timeStamp, i - line ) / ( i - line );
-      }*/
+        filter->covarianceAux[ line ][ column ] = filter->covarianceMatrix[ line ][ column ];
+        for( size_t i = line + 1; i < filter->dimensionsNumber; i++ )
+          filter->covarianceAux[ line ][ column ] += filter->covarianceMatrix[ i ][ column ] * pow( timeStamp, i - line ) / ( i - line );
+      }
     }
   
-    for( size_t line = 0; line < KALMAN_MEASURES_NUMBER; line++ )
+    for( size_t line = 0; line < filter->dimensionsNumber; line++ )
     {
-      filter->covarianceMatrix[ line ][ 0 ] = covarianceAux[ line ][ 0 ] + covarianceAux[ line ][ 1 ] * timeStamp + covarianceAux[ line ][ 2 ] * timeStamp * timeStamp / 2;
-      filter->covarianceMatrix[ line ][ 1 ] = covarianceAux[ line ][ 1 ] + covarianceAux[ line ][ 2 ] * timeStamp;
-      filter->covarianceMatrix[ line ][ 2 ] = covarianceAux[ line ][ 2 ];
-      /*for( size_t column = 0; column < KALMAN_MEASURES_NUMBER; column++ )
+      for( size_t column = 0; column < filter->dimensionsNumber; column++ )
       {
-        filter->covarianceMatrix[ line ][ column ] = covarianceAux[ line ][ column ];
-        for( size_t i = column + 1; i < KALMAN_MEASURES_NUMBER; i++ )
-          filter->covarianceMatrix[ line ][ column ] += covarianceAux[ line ][ i ] * pow( timeStamp, i - column ) / ( i - column );
-      }*/
+        filter->covarianceMatrix[ line ][ column ] = filter->covarianceAux[ line ][ column ];
+        for( size_t i = column + 1; i < filter->dimensionsNumber; i++ )
+          filter->covarianceMatrix[ line ][ column ] += filter->covarianceAux[ line ][ i ] * pow( timeStamp, i - column ) / ( i - column );
+      }
     }
   
-    for( size_t dimensionIndex = 0; dimensionIndex < KALMAN_MEASURES_NUMBER; dimensionIndex++ )
+    for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
       filter->covarianceMatrix[ dimensionIndex ][ dimensionIndex ] += 1.0;
   
     covarianceResidual = filter->covarianceMatrix[ 0 ][ 0 ] + 1.0;
   
     if( covarianceResidual != 0.0 )
     {
-      for( size_t dimensionIndex = 0; dimensionIndex < KALMAN_MEASURES_NUMBER; dimensionIndex++ )
+      for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
       {
-        gains[ dimensionIndex ] = filter->covarianceMatrix[ dimensionIndex ][ 0 ] / covarianceResidual;
-        filter->state[ dimensionIndex ] += error * gains[ dimensionIndex ];
+        filter->gains[ dimensionIndex ] = filter->covarianceMatrix[ dimensionIndex ][ 0 ] / covarianceResidual;
+        filter->state[ dimensionIndex ] += error * filter->gains[ dimensionIndex ];
       }
     }
   
-    for( int line = KALMAN_MEASURES_NUMBER - 1; line >= 0 ; line-- )
+    for( int line = filter->dimensionsNumber - 1; line >= 0 ; line-- )
     {
-      for( size_t column = 0; column < KALMAN_MEASURES_NUMBER; column++ )
-        filter->covarianceMatrix[ line ][ column ] -= gains[ line ] * filter->covarianceMatrix[ 0 ][ column ];
+      for( size_t column = 0; column < filter->dimensionsNumber; column++ )
+        filter->covarianceMatrix[ line ][ column ] -= filter->gains[ line ] * filter->covarianceMatrix[ 0 ][ column ];
     }
   }
   
-  return (double*) filter->state;
+  return filter->state;
 }
 
 #endif  // FILTERS_H

@@ -1,15 +1,15 @@
 #ifndef ROBOT_CONTROL_H
 #define ROBOT_CONTROL_H
 
-#include "actuator/actuator_types.h"
+#include "actuator_control.h"
 
 #include "impedance_control.h"
 #include "spline3_interpolation.h"
 
-#include "file_parsing/json_parser.h"
-#include "klib/khash.h"
+#include "config_parser.h"
+#include "plugin_loader.h"
 
-#include "filters.h"
+#include "klib/khash.h"
 
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
@@ -18,16 +18,26 @@
 /////                            CONTROL DEVICE                             /////
 /////////////////////////////////////////////////////////////////////////////////
 
+typedef struct _JointData
+{
+  double measuresList[ CONTROL_VARS_NUMBER ];
+  double parametersList[ CONTROL_VARS_NUMBER ];
+}
+JointData;
+
+typedef JointData* Joint;
+
 typedef struct _RobotControllerData
 {
   RobotMechanicsInterface mechanism;
-  double measuresList[ CONTROL_VARS_NUMBER ];
-  double parametersList[ CONTROL_VARS_NUMBER ];
+  Joint jointsList
 }
 RobotControllerData;
 
 typedef RobotControllerData* RobotController;
 
+KHASH_MAP_INIT_INT( RobotInt, RobotController )
+khash_t( RobotInt )* robotsList = NULL;
 
 #define ROBOT_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( RobotController, namespace, InitController, const char* ) \
@@ -48,11 +58,6 @@ INIT_NAMESPACE_INTERFACE( RobotControl, ROBOT_CONTROL_FUNCTIONS )
 
 static inline RobotController LoadControllerData( const char* );
 static inline void UnloadControllerData( RobotController );
-                
-static void* AsyncControl( void* );
-static inline void UpdateControlMeasures( RobotController );
-static inline void UpdateControlSetpoints( RobotController );
-static inline void RunControl( RobotController );
 
 RobotController RobotControl_InitController( const char* configFileName )
 {

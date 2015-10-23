@@ -14,16 +14,14 @@
 #include <errno.h>
 #include <malloc.h>
 
-#include "klib/khash.h"
-
-#include "debug.h"
+#include "debug/debug.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const int INVALID_THREAD_HANDLE = -1;
-#define INFINITE 0xffffffff
+const pthread_t* INVALID_THREAD_HANDLE = NULL;
+#define INFINITE 0xFFFFFFFF
   
 // Returns unique identifier of the calling thread
 #define THREAD_ID pthread_self()
@@ -41,63 +39,32 @@ typedef struct _Controller
 } Controller;
 
 // Aliases for platform abstraction
-typedef int Thread_Handle;
+typedef pthread_t* Thread;
 
-// Number of running threads
-KHASH_MAP_INIT_INT( Thread, pthread_t )
-static khash_t( Thread )* threadsList = NULL;
+typedef void* (*AsyncFunction)( void* );
+
+#define THREAD_FUNCTIONS( namespace, function_init ) \
+        function_init( Thread, namespace, StartThread, AsyncFunction, void*, int ) \
+        function_init( uint32_t, namespace, WaitExit, Thread, unsigned int )
+
+INIT_NAMESPACE_INTERFACE( Threading, THREAD_FUNCTIONS )
 
 // Setup new thread to run the given method asyncronously
-Thread_Handle Thread_Start( void* (*function)( void* ), void* args, int mode )
+Thread Threading_StartThread( void* (*function)( void* ), void* args, int mode )
 {
-  pthread_t handle;
+  pthread_t* handle = (pthread_t*) malloc( sizeof(pthread_t) );
   
-  if( pthread_create( &handle, NULL, function, args ) != 0 )
+  if( pthread_create( handle, NULL, function, args ) != 0 )
   {
     ERROR_PRINT( "pthread_create: failed creating new thread with function %p", function );
     return INVALID_THREAD_HANDLE;
   }
+  
+  DEBUG_PRINT( "created thread %p successfully", handle );
+  
+  if( mode == THREAD_DETACHED ) pthread_detach( *handle );
 
-  if( threadsList == NULL ) threadsList = kh_init( Thread );
-  
-  int insertionStatus;
-  khint_t threadID = kh_put( Thread, threadsList, *((int*) &handle), &insertionStatus );
-  if( insertionStatus != 0 ) return INVALID_THREAD_HANDLE;
-  
-  DEBUG_PRINT( "created thread %d successfully\n", threadID );
-  
-  if( mode == THREAD_DETACHED ) pthread_detach( handle );
-  
-  kh_value( threadsList, threadID ) = handle;
-
-  return (int) threadID;
-}
-
-// Exit the calling thread, returning the given value
-void Thread_Exit( uint32_t exit_code )
-{
-  static uint32_t exit_code_storage;
-  exit_code_storage = exit_code;
-  
-  for( khint_t threadID = kh_begin( threadsList ); threadID != kh_end( threadsList ); threadID++ )
-  {
-    if( pthread_equal( pthread_self(), kh_value( threadsList, threadID ) ) )
-    {
-      kh_del( Thread, threadsList, threadID );
-      
-      DEBUG_PRINT( "thread %d exiting with code: %u", (int) threadID, exit_code );
-      
-      if( kh_size( threadsList ) == 0 )
-      {
-        kh_destroy( Thread, threadsList );
-        threadsList = NULL;
-      }
-      
-      break;
-    }
-  }
-
-  pthread_exit( &exit_code_storage );
+  return handle;
 }
 
 // Waiter function to be called asyncronously
@@ -115,11 +82,11 @@ static void* Waiter( void *args )
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
-uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
+uint32_t Threading_WaitExit( Thread handle, unsigned int milisseconds )
 {
   static struct timespec timeout;
   pthread_t controlHandle;
-  Controller controlArgs = { handle };
+  Controller controlArgs = { *handle };
   int controlResult;
 
   if( handle != INVALID_THREAD_HANDLE )
@@ -142,7 +109,7 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
       return 0;
     }
   
-    DEBUG_PRINT( "waiting thread %x exit", handle );
+    DEBUG_PRINT( "waiting thread %p exit", handle );
   
     do controlResult = pthread_cond_timedwait( &(controlArgs.condition), &(controlArgs.lock), &timeout );
     while( controlArgs.result != NULL && controlResult != ETIMEDOUT );
@@ -153,25 +120,21 @@ uint32_t Thread_WaitExit( Thread_Handle handle, unsigned int milisseconds )
     pthread_cond_destroy( &(controlArgs.condition) );
     pthread_mutex_destroy( &(controlArgs.lock) );
   
-    DEBUG_PRINT( "waiter for thread %x exited", handle );
+    DEBUG_PRINT( "waiter for thread %p exited", handle );
   
     if( controlArgs.result != NULL )
     {
-      DEBUG_PRINT( "thread %x exit code: %u", handle, *((uint32_t*) (controlArgs.result)) );
+      DEBUG_PRINT( "thread %p exit code: %u", handle, *((uint32_t*) (controlArgs.result)) );
     
       return *((uint32_t*) (controlArgs.result));
     }
     else 
-      DEBUG_PRINT( "waiting for thread %x timed out", handle );
+      DEBUG_PRINT( "waiting for thread %p timed out", handle );
+    
+    free( handle );
   }
 
   return 0;
-}
-
-// Returns number of running threads (method for encapsulation purposes)
-size_t Thread_GetActiveThreadsNumber()
-{
-  return kh_size( threadsList );
 }
 
 
@@ -181,23 +144,31 @@ size_t Thread_GetActiveThreadsNumber()
 
 typedef pthread_mutex_t* ThreadLock;
 
+#define THREAD_LOCK_FUNCTIONS( namespace, function_init ) \
+        function_init( ThreadLock, namespace, Create, void ) \
+        function_init( void, namespace, Discard, ThreadLock ) \
+        function_init( void, namespace, Aquire, ThreadLock ) \
+        function_init( void, namespace, Release, ThreadLock )
+
+INIT_NAMESPACE_INTERFACE( ThreadLocks, THREAD_LOCK_FUNCTIONS )
+
 // Request new unique mutex for using in thread syncronization
-ThreadLock ThreadLock_Create()
+ThreadLock ThreadLocks_Create()
 {
   pthread_mutex_t* newLock = (pthread_mutex_t*) malloc( sizeof(pthread_mutex_t) );
   pthread_mutex_init( newLock, NULL );
   return newLock;
 }
 
-extern inline void ThreadLock_Discard( pthread_mutex_t* lock )
+extern inline void ThreadLocks_Discard( pthread_mutex_t* lock )
 {
   pthread_mutex_destroy( lock );
   free( lock );
 }
 
 // Mutex aquisition and release
-extern inline void ThreadLock_Aquire( pthread_mutex_t* lock ) { pthread_mutex_lock( lock ); }
-extern inline void ThreadLock_Release( pthread_mutex_t* lock ) { pthread_mutex_unlock( lock ); }
+extern inline void ThreadLocks_Aquire( pthread_mutex_t* lock ) { pthread_mutex_lock( lock ); }
+extern inline void ThreadLocks_Release( pthread_mutex_t* lock ) { pthread_mutex_unlock( lock ); }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,43 +179,77 @@ typedef struct
 {
   sem_t upCounter;
   sem_t downCounter;
+  size_t maxCount;
 }
-Semaphore;
+SemaphoreData;
 
-Semaphore* Semaphore_Create( size_t start_count, size_t max_count )
+typedef SemaphoreData* Semaphore;
+
+#define SEMAPHORE_FUNCTIONS( namespace, function_init ) \
+        function_init( Semaphore, namespace, Create, size_t, size_t ) \
+        function_init( void, namespace, Discard, Semaphore ) \
+        function_init( void, namespace, Increment, Semaphore ) \
+        function_init( void, namespace, Decrement, Semaphore ) \
+        function_init( size_t, namespace, GetCount, Semaphore ) \
+        function_init( void, namespace, SetCount, Semaphore, size_t )
+
+INIT_NAMESPACE_INTERFACE( Semaphores, SEMAPHORE_FUNCTIONS )
+
+Semaphore Semaphores_Create( size_t startCount, size_t maxCount )
 {
-  Semaphore* sem = (Semaphore*) malloc( sizeof(Semaphore) );
-  sem_init( &(sem->upCounter), 0, max_count - start_count );
-  sem_init( &(sem->downCounter), 0, start_count );
+  Semaphore sem = (Semaphore) malloc( sizeof(SemaphoreData) );
+  sem_init( &(sem->upCounter), 0, maxCount - startCount );
+  sem_init( &(sem->downCounter), 0, startCount );
+  
+  sem->maxCount = maxCount;
   
   return sem;
 }
 
-extern inline void Semaphore_Discard( Semaphore* sem )
+inline void Semaphores_Discard( Semaphore sem )
 {
   sem_destroy( &(sem->upCounter) );
   sem_destroy( &(sem->downCounter) );
   free( sem );
 }
 
-extern inline void Semaphore_Increment( Semaphore* sem )
+inline void Semaphores_Increment( Semaphore sem )
 {
   sem_wait( &(sem->upCounter) );
   sem_post( &(sem->downCounter) );  
 }
 
-extern inline void Semaphore_Decrement( Semaphore* sem )
+inline void Semaphores_Decrement( Semaphore sem )
 {
   sem_wait( &(sem->downCounter) );
   sem_post( &(sem->upCounter) ); 
 }
 
-extern inline size_t Semaphore_GetValue( Semaphore* sem )
+inline size_t Semaphores_GetCount( Semaphore sem )
 {
   int countValue;
   sem_getvalue( &(sem->downCounter), &countValue );
   
   return (size_t) countValue;
+}
+
+inline void Semaphores_SetCount( Semaphore sem, size_t count )
+{
+  if( count <= sem->maxCount )
+  {
+    size_t currentCount = Semaphores_GetCount( sem );
+    
+    if( currentCount > count )
+    {
+      for( size_t i = count; i < currentCount; i++ )
+        Semaphores_Decrement( sem );
+    }
+    else if( currentCount < count )
+    {
+      for( size_t i = currentCount; i < count; i++ )
+        Semaphores_Increment( sem );
+    }
+  }
 }
 
 

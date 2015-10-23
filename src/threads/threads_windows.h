@@ -178,7 +178,7 @@ inline size_t Semaphores_GetCount( Semaphore sem )
 
 inline void Semaphores_SetCount( Semaphore sem, size_t count )
 {
-  if( count >= 0 && count <= sem->maxCount )
+  if( count <= sem->maxCount )
     sem->count = count;
 }
 

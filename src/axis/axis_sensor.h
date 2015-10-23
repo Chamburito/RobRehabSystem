@@ -5,7 +5,7 @@
     extern "C" {
 #endif
 
-#include "axis/axis_types.h"
+#include "axis/axis_interface.h"
 #include "spline3_interpolation.h"
       
 #include "config_parser.h"
@@ -15,12 +15,12 @@
       
 typedef struct _AxisSensorData
 {
-  int axisID;
+  int interfaceID;
   AxisInterface interface;
   size_t measureIndex;
   Splined3Curve measureConversionCurve;
   double inputOffset;
-  bool absolute;
+  bool isAbsolute;
 }
 AxisSensorData;
 
@@ -33,12 +33,9 @@ typedef AxisSensorData* AxisSensor;
         function_init( void, namespace, Reset, AxisSensor ) \
         function_init( void, namespace, SetOffset, AxisSensor ) \
         function_init( bool, namespace, HasError, AxisSensor ) \
-        function_init( double, namespace, Read, AxisSensor, double[ AXIS_VARS_NUMBER ] )
+        function_init( double, namespace, Read, AxisSensor, double* )
 
 INIT_NAMESPACE_INTERFACE( AxisSensors, AXIS_SENSOR_FUNCTIONS )
-
-static AxisSensor LoadAxisSensorData( const char* );
-static void UnloadAxisSensorData( AxisSensor );
 
 //static inline void ReadRawMeasures( AxisSensor sensor );
 
@@ -58,15 +55,15 @@ AxisSensor AxisSensors_Init( const char* configFileName )
     GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
     if( pluginLoaded )
     {
-      newSensor->axisID = AXIS_INVALID_ID;
+      newSensor->interfaceID = AXIS_INVALID_ID;
       if( ConfigParser.HasKey( configFileID, "interface.id" ) )
-        newSensor->axisID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
+        newSensor->interfaceID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
       
-      if( newSensor->axisID == AXIS_INVALID_ID ) loadError = true;
+      if( newSensor->interfaceID == AXIS_INVALID_ID ) loadError = true;
     }
     else loadError = true;
     
-    newSensor->absolute = ConfigParser.GetBooleanValue( configFileID, "absolute" );
+    newSensor->isAbsolute = ConfigParser.GetBooleanValue( configFileID, "isAbsolute" );
     
     if( ConfigParser.HasKey( configFileID, "conversion.curve" ) )
       newSensor->measureConversionCurve = Spline3Interp.LoadCurve( ConfigParser.GetStringValue( configFileID, "conversion.curve" ) );
@@ -99,7 +96,7 @@ inline void AxisSensors_End( AxisSensor sensor )
 {
   if( sensor == NULL ) return;
   
-  sensor->interface->Disconnect( sensor->axisID );
+  sensor->interface.Disconnect( sensor->interfaceID );
   
   Spline3Interp.UnloadCurve( sensor->measureConversionCurve );
   
@@ -110,7 +107,7 @@ inline void AxisSensors_Reset( AxisSensor sensor )
 {
   if( sensor == NULL ) return;
   
-  sensor->interface->Reset( sensor->axisID );
+  sensor->interface.Reset( sensor->interfaceID );
 }
 
 void AxisSensors_SetOffset( AxisSensor sensor )
@@ -119,9 +116,9 @@ void AxisSensors_SetOffset( AxisSensor sensor )
   
   if( sensor == NULL ) return;
   
-  if( sensor->absolute )
+  if( sensor->isAbsolute )
   {
-    sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
+    sensor->interface.ReadMeasures( sensor->interfaceID, rawMeasuresList );
     sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
   }
 }
@@ -130,7 +127,7 @@ inline static bool AxisSensors_HasError( AxisSensor sensor )
 {
   if( sensor == NULL ) return false;
   
-  return sensor->interface->HasError( sensor->axisID );
+  return sensor->interface.HasError( sensor->interfaceID );
 }
 
 const double p1 = -5.6853e-024;
@@ -141,16 +138,16 @@ const double p5 = -2.0475e-009;
 const double p6 = 9.3491e-007;
 const double p7 = 0.0021429;
 const double p8 = 2.0556;
-double AxisSensors_Read( AxisSensor sensor, double referencesList[ AXIS_VARS_NUMBER ] )
+double AxisSensors_Read( AxisSensor sensor, double* referencesList )
 {
   static double rawMeasuresList[ AXIS_VARS_NUMBER ];
   
   if( sensor == NULL ) return 0.0;
   
-  sensor->interface->ReadMeasures( sensor->axisID, rawMeasuresList );
+  sensor->interface.ReadMeasures( sensor->interfaceID, rawMeasuresList );
   
   double input = rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset;
-  if( sensor->absolute ) input -= referencesList[ sensor->measureIndex ];
+  if( sensor->isAbsolute && referencesList != NULL ) input -= referencesList[ sensor->measureIndex ];
   
   double measure = - 2 * M_PI * input / 2000.0;//Spline3Interp.GetValue( sensor->measureConversionCurve, input );
   
