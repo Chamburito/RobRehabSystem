@@ -6,9 +6,7 @@
 #include "debug/async_debug.h"
 
 // Control used values enumerations
-enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_VARS_NUMBER, 
-                        CONTROL_ACCELERATION = CONTROL_VARS_NUMBER, CONTROL_ERROR, CONTROL_VARS_NUMBER };
-enum ControlSetpoints { CONTROL_REFERENCE, CONTROL_STIFFNESS, CONTROL_DAMPING, CONTROL_VARS_NUMBER };
+enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTROL_ACCELERATION, CONTROL_VARS_NUMBER };
 
 typedef double* (*ImpedanceControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double );
 

@@ -14,7 +14,7 @@ typedef struct _FileData
 {
   kson_t* nodeTree;
   kson_node_t* currentNode;
-  char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
 }
 FileData;
                                                 
@@ -96,7 +96,7 @@ static inline const kson_node_t* GetPathNode( int fileID, const char* path )
   const kson_node_t* currentNode = kh_value( jsonFilesList, fileIndex ).currentNode;
   char* searchPath = kh_value( jsonFilesList, fileIndex ).searchPath;
   
-  strncpy( searchPath, path, FILE_PARSER_MAX_PATH_LENGTH );
+  strncpy( searchPath, path, PARSER_MAX_KEY_PATH_LENGTH );
   
   DEBUG_PRINT( "Search path: %s", searchPath );
   

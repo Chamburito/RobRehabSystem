@@ -55,7 +55,7 @@ Actuator ActuatorControl_Init( const char* configFileName )
 {
   DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
   
-  static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  static char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
   
   bool loadError = false;
   

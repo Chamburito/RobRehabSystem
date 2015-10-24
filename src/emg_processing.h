@@ -236,7 +236,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load joint %s EMG data", configFileName );
   
-  static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  static char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
   
   bool loadError = false;
   

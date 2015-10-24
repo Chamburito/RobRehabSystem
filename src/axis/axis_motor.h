@@ -56,7 +56,7 @@ AxisMotor AxisMotors_Init( const char* configFileName )
   memset( newMotor, 0, sizeof(AxisMotorData) );
   
   int configFileID = ConfigParser.LoadFile( configFileName );
-  if( configFileID != INVALID_FILE_ID )
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
     bool pluginLoaded;
     GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newMotor->interface, pluginLoaded );

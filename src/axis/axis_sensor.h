@@ -49,7 +49,7 @@ AxisSensor AxisSensors_Init( const char* configFileName )
   memset( newSensor, 0, sizeof(AxisSensorData) );
   
   int configFileID = ConfigParser.LoadFile( configFileName );
-  if( configFileID != INVALID_FILE_ID )
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
     bool pluginLoaded;
     GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newSensor->interface, pluginLoaded );
@@ -63,7 +63,7 @@ AxisSensor AxisSensors_Init( const char* configFileName )
     }
     else loadError = true;
     
-    newSensor->isAbsolute = ConfigParser.GetBooleanValue( configFileID, "isAbsolute" );
+    newSensor->isAbsolute = ConfigParser.GetBooleanValue( configFileID, "absolute" );
     
     if( ConfigParser.HasKey( configFileID, "conversion.curve" ) )
       newSensor->measureConversionCurve = Spline3Interp.LoadCurve( ConfigParser.GetStringValue( configFileID, "conversion.curve" ) );
@@ -149,7 +149,7 @@ double AxisSensors_Read( AxisSensor sensor, double* referencesList )
   double input = rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset;
   if( sensor->isAbsolute && referencesList != NULL ) input -= referencesList[ sensor->measureIndex ];
   
-  double measure = - 2 * M_PI * input / 2000.0;//Spline3Interp.GetValue( sensor->measureConversionCurve, input );
+  double measure = Spline3Interp.GetValue( sensor->measureConversionCurve, input );
   
   //DEBUG_PRINT( "sensor input: raw: %.5f - gain: %.5f", input, measure );
   

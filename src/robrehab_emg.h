@@ -60,7 +60,7 @@ int RobRehabEMG_Init( void )
 {
   kv_init( sharedJointsList );
   
-  char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
   
   if( ConfigParser.Init( "JSON" ) )
   {

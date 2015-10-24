@@ -1,0 +1,11 @@
+{
+  "interface": {
+    "type": "axis_interfaces/NICANEPOS",
+    "id": 2,
+    "channel": 0
+  },
+  "conversion": {
+    "factor": -0.0005
+  },
+  "absolute": false
+}

@@ -34,8 +34,8 @@ typedef ActuatorData* Actuator;
 
 
 #define ACTUATOR_FUNCTIONS( namespace, function_init ) \
-        function_init( Actuator, namespace, Init, const char* ) \
-        function_init( void, namespace, End, Actuator ) \
+        function_init( Actuator, namespace, InitController, const char* ) \
+        function_init( void, namespace, EndController, Actuator ) \
         function_init( void, namespace, Enable, Actuator ) \
         function_init( void, namespace, Disable, Actuator ) \
         function_init( void, namespace, Reset, Actuator ) \
@@ -44,13 +44,14 @@ typedef ActuatorData* Actuator;
         function_init( bool, namespace, HasError, Actuator ) \
         function_init( double*, namespace, GetMeasuresList, Actuator ) \
         function_init( double*, namespace, GetSetpointsList, Actuator ) \
-        function_init( void, namespace, SetOperationMode, Actuator, enum ControlVariabless )
+        function_init( void, namespace, SetOperationMode, Actuator, enum ControlVariables )
 
 INIT_NAMESPACE_INTERFACE( ActuatorControl, ACTUATOR_FUNCTIONS )
 
+
 static void* AsyncControl( void* );
 
-Actuator ActuatorControl_Init( const char* configFileName )
+Actuator ActuatorControl_InitController( const char* configFileName )
 {
   DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
   
@@ -84,16 +85,16 @@ Actuator ActuatorControl_Init( const char* configFileName )
   
   if( loadError )
   {
-    ActuatorControl_End( newActuator );
+    ActuatorControl_EndController( newActuator );
     return NULL;
   }
   
-  DEBUG_PRINT( "created series elastic actuator %s (iterator: %u)", configFileName, newActuatorID );
+  DEBUG_PRINT( "created series elastic actuator %s", configFileName );
   
   return newActuator;
 }
 
-void ActuatorControl_End( Actuator actuator )
+void ActuatorControl_EndController( Actuator actuator )
 {
   DEBUG_PRINT( "ending actuator %p", actuator );
   

@@ -92,7 +92,7 @@ int RobRehabNetwork_Init()
       
         DEBUG_PRINT( "data message length: %u", dataMessageLength );
       
-        char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+        char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
         for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
         {
           sprintf( searchPath, "axes.%u", sharedAxisDataIndex );

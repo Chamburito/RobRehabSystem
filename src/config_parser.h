@@ -1,7 +1,7 @@
 #ifndef CONFIG_PARSER_H
 #define CONFIG_PARSER_H
 
-#include "file_parsing/file_parser_interface.h"
+#include "parsing/parser_interface.h"
 #include "plugin_loader.h"
 
 #include "debug/async_debug.h"
@@ -10,7 +10,7 @@
 
 static FileParserInterface parser;
 static bool pluginLoaded = false;
-static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+static char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
 
 #define CONFIG_PARSER_FUNCTIONS( namespace, function_init ) \
         function_init( bool, namespace, Init, const char* ) \
@@ -20,7 +20,7 @@ INIT_NAMESPACE_INTERFACE( ConfigParser, CONFIG_PARSER_FUNCTIONS )
 
 bool ConfigParser_Init( const char* pluginPath )
 {
-  snprintf( searchPath, FILE_PARSER_MAX_PATH_LENGTH, "file_parsing/%s", pluginPath );
+  snprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, "file_parsing/%s", pluginPath );
   
   GET_PLUGIN_INTERFACE( FILE_PARSER_FUNCTIONS, searchPath, parser, pluginLoaded );
   
@@ -29,9 +29,9 @@ bool ConfigParser_Init( const char* pluginPath )
 
 int ConfigParser_LoadFile( const char* filePath )
 {
-  if( !pluginLoaded ) return INVALID_FILE_ID;
+  if( !pluginLoaded ) return PARSED_DATA_INVALID_ID;
   
-  snprintf( searchPath, FILE_PARSER_MAX_PATH_LENGTH, "config/%s", filePath );
+  snprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, "config/%s", filePath );
 
   return parser.LoadFile( searchPath );
 }

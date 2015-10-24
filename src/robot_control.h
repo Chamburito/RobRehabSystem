@@ -4,7 +4,6 @@
 #include "actuator_control.h"
 #include "robot_mechanics_interface.h"
 
-#include "impedance_control.h"
 #include "spline3_interpolation.h"
 
 #include "config_parser.h"
@@ -21,8 +20,10 @@
 
 typedef struct _DoFData
 {
+  char name[ 32 ];
   double measuresList[ CONTROL_VARS_NUMBER ];
-  double parametersList[ CONTROL_VARS_NUMBER ];
+  double setpointsList[ CONTROL_VARS_NUMBER ];
+  double stiffness, damping;
 }
 DoFData;
 
@@ -31,9 +32,11 @@ typedef DoFData* DoF;
 typedef struct _RobotControllerData
 {
   RobotMechanicsInterface mechanism;
-  Actuator jointsList;
-  DoF axesList;
-  size_t axesNumber;
+  Actuator* jointsList;
+  double** jointMeasuresTable;
+  double** jointSetpointsTable;
+  DoF dofsList;
+  size_t dofsNumber;
 }
 RobotControllerData;
 
@@ -42,20 +45,22 @@ typedef RobotControllerData* RobotController;
 KHASH_MAP_INIT_INT( RobotControlInt, RobotController )
 khash_t( RobotControlInt )* controllersList = NULL;
 
+
 #define ROBOT_CONTROL_FUNCTIONS( namespace, function_init ) \
-        function_init( RobotController, namespace, InitController, const char* ) \
-        function_init( void, namespace, EndController, RobotController ) \
-        function_init( void, namespace, Enable, RobotController ) \
-        function_init( void, namespace, Disable, RobotController ) \
-        function_init( void, namespace, Reset, RobotController ) \
-        function_init( void, namespace, Calibrate, RobotController ) \
-        function_init( bool, namespace, IsEnabled, RobotController ) \
-        function_init( bool, namespace, HasError, RobotController ) \
-        function_init( bool, namespace, Update, RobotController ) \
-        function_init( double*, namespace, GetDoFMeasuresList, RobotController, size_t ) \
-        function_init( double*, namespace, GetDoFSetpointsList, RobotController, size_t ) \
-        function_init( size_t, namespace, GetDoFsNumber, RobotController ) \
-        function_init( const char*, namespace, GetDoFName, RobotController, size_t )
+        function_init( int, namespace, InitController, const char* ) \
+        function_init( void, namespace, EndController, int ) \
+        function_init( void, namespace, Enable, int ) \
+        function_init( void, namespace, Disable, int ) \
+        function_init( void, namespace, Reset, int ) \
+        function_init( void, namespace, Calibrate, int ) \
+        function_init( bool, namespace, IsEnabled, int ) \
+        function_init( bool, namespace, HasError, int ) \
+        function_init( bool, namespace, Update, int ) \
+        function_init( double*, namespace, GetDoFMeasuresList, int, size_t ) \
+        function_init( double*, namespace, GetDoFSetpointsList, int, size_t ) \
+        function_init( void, namespace, SetDoFImpedance, int, size_t, double, double ) \
+        function_init( size_t, namespace, GetDoFsNumber, int ) \
+        function_init( const char*, namespace, GetDoFName, int, size_t )
 
 INIT_NAMESPACE_INTERFACE( RobotControl, ROBOT_CONTROL_FUNCTIONS )
 
@@ -65,7 +70,7 @@ static inline void UnloadControllerData( RobotController );
 
 const int ROBOT_CONTROLLER_INVALID_ID = -1;
 
-RobotController RobotControl_InitController( const char* configFileName )
+int RobotControl_InitController( const char* configFileName )
 {
   DEBUG_EVENT( 0, "Initializing Axis Controller %s on thread %x", configFileName, THREAD_ID );
   
@@ -75,14 +80,13 @@ RobotController RobotControl_InitController( const char* configFileName )
   
   int insertionStatus;
   khint_t newControllerIndex = kh_put( RobotControlInt, controllersList, configKey, &insertionStatus );
-  if( insertionStatus > 0 )
+  if( insertionStatus <= 0 ) return ROBOT_CONTROLLER_INVALID_ID;
+
+  kh_value( controllersList, newControllerIndex ) = LoadControllerData( configFileName );
+  if( kh_value( controllersList, newControllerIndex ) == NULL )
   {
-    kh_value( controllersList, newControllerIndex ) = LoadControllerData( configFileName );
-    if( kh_value( controllersList, newControllerIndex ) == NULL )
-    {
-      RobotControl_EndController( (int) newControllerIndex );
-      return ROBOT_CONTROLLER_INVALID_ID;
-    }
+    RobotControl_EndController( (int) newControllerIndex );
+    return ROBOT_CONTROLLER_INVALID_ID;
   }
   
   DEBUG_PRINT( "robot controller %s created (iterator %u)", configFileName, newControllerIndex );
@@ -116,9 +120,9 @@ inline void RobotControl_Enable( int controllerID )
   
   RobotController controller = kh_value( controllersList, controllerIndex );
   
-  for( size_t jointIndex = 0; jointIndex < controller->axesNumber; jointIndex++ )
+  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
   {
-    Actuator joint = controller->jointsList + jointIndex;
+    Actuator joint = controller->jointsList[ jointIndex ];
     
     ActuatorControl.Reset( joint );
   
@@ -137,9 +141,9 @@ inline void RobotControl_Disable( int controllerID )
   
   RobotController controller = kh_value( controllersList, controllerIndex );
   
-  for( size_t jointIndex = 0; jointIndex < controller->axesNumber; jointIndex++ )
+  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
   {
-    Actuator joint = controller->jointsList + jointIndex;
+    Actuator joint = controller->jointsList[ jointIndex ];
   
     if( ActuatorControl.IsEnabled( joint ) )
     {
@@ -156,86 +160,159 @@ inline void RobotControl_Reset( int controllerID )
   
   RobotController controller = kh_value( controllersList, controllerIndex );
   
-  for( size_t jointIndex = 0; jointIndex < controller->axesNumber; jointIndex++ )
+  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
   {
-    Actuator joint = controller->jointsList + jointIndex;
+    Actuator joint = controller->jointsList[ jointIndex ];
     
     DEBUG_PRINT( "reseting controller joint %p", joint );
     ActuatorControl.Reset( joint );
   }
 }
 
-inline bool RobotControl_IsEnabled( RobotController controller )
+inline bool RobotControl_IsEnabled( int controllerID )
 {
-  if( controller == NULL ) return false;
-    
-  return controller->actuator.interface->IsEnabled( controller->actuator.ID );
-}
-
-inline bool RobotControl_HasError( RobotController controller )
-{
-  if( controller == NULL ) return false;
-    
-  return controller->actuator.interface->HasError( controller->actuator.ID );
-}
-
-inline void RobotControl_Calibrate( RobotController controller )
-{
-  if( controller == NULL ) return;
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return false;
   
-  DEBUG_PRINT( "calibrating controller %p", controller );
-
-  controller->actuator.interface->Calibrate( controller->actuator.ID );
-}
-
-inline double* RobotControl_GetMeasuresList( RobotController controller )
-{
-  if( controller == NULL ) return NULL;
-    
-  return (double*) controller->measuresList;
-}
-
-inline double* RobotControl_GetSetpointsList( RobotController controller )
-{
-  if( controller == NULL ) return NULL;
-    
-  return (double*) controller->parametersList;
-}
-
-inline void RobotControl_SetSetpoint( RobotController controller, double setpoint )
-{
-  if( controller == NULL ) return;
-    
-  controller->setpoint = setpoint;
-}
-
-inline void RobotControl_SetImpedance( RobotController controller, double referenceStiffness, double referenceDamping )
-{
-  if( controller == NULL ) return;
-
-  //Spline3Interp.SetScale( controller->parameterCurvesList[ CONTROL_STIFFNESS ], ( referenceStiffness > 0.0 ) ? referenceStiffness : 0.0 );
-  //Spline3Interp.SetScale( controller->parameterCurvesList[ CONTROL_DAMPING ], ( referenceDamping > 0.0 ) ? referenceDamping : 0.0 );
+  RobotController controller = kh_value( controllersList, controllerIndex );
   
-  Spline3Interp.SetOffset( controller->parameterCurvesList[ CONTROL_STIFFNESS ], ( referenceStiffness > 0.0 ) ? referenceStiffness : 0.0 );
-  Spline3Interp.SetOffset( controller->parameterCurvesList[ CONTROL_DAMPING ], ( referenceDamping > 0.0 ) ? referenceDamping : 0.0 );
+  bool isEnabled = true;
+  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
+  {
+    Actuator joint = controller->jointsList[ jointIndex ];
+    if( !( ActuatorControl.IsEnabled( joint ) ) ) isEnabled = false;
+  }
+  
+  return isEnabled;
 }
 
-const enum ActuatorVariables AXIS_OPERATION_MODES[ CONTROL_VARS_NUMBER ] = { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE };
-inline void RobotControl_SetControlMode( RobotController controller, enum ControlVariables mode )
+inline bool RobotControl_HasError( int controllerID )
 {
-  if( controller == NULL ) return;
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return false;
   
-  if( mode < 0 || mode >= CONTROL_VARS_NUMBER ) return;
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  bool hasError = false;
+  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
+  {
+    Actuator joint = controller->jointsList[ jointIndex ];
+    if( !( ActuatorControl.HasError( joint ) ) ) hasError = true;
+  }
+  
+  return hasError;
+}
+
+inline void RobotControl_Calibrate( int controllerID )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
+  {
+    Actuator joint = controller->jointsList[ jointIndex ];
     
-  controller->actuator.interface->SetOperationMode( controller->actuator.ID, AXIS_OPERATION_MODES[ mode ] );
-  controller->controlMode = mode;
+    DEBUG_PRINT( "calibrating controller joint %p", joint );
+    ActuatorControl.Calibrate( joint );
+  }
+}
+
+inline bool RobotControl_Update( int controllerID )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return false;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  controller->dofsList[ 0 ].measuresList[ CONTROL_POSITION ] = controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
+  controller->dofsList[ 0 ].measuresList[ CONTROL_VELOCITY ] = controller->jointMeasuresTable[ 0 ][ CONTROL_VELOCITY ];
+  controller->dofsList[ 0 ].measuresList[ CONTROL_ACCELERATION ] = controller->jointMeasuresTable[ 0 ][ CONTROL_ACCELERATION ];
+  controller->dofsList[ 0 ].measuresList[ CONTROL_FORCE ] = controller->jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
+  
+  controller->jointSetpointsTable[ 0 ][ CONTROL_POSITION ] = controller->dofsList[ 0 ].setpointsList[ CONTROL_POSITION ];
+  controller->jointSetpointsTable[ 0 ][ CONTROL_VELOCITY ] = controller->dofsList[ 0 ].setpointsList[ CONTROL_VELOCITY ];
+  controller->jointSetpointsTable[ 0 ][ CONTROL_ACCELERATION ] = controller->dofsList[ 0 ].setpointsList[ CONTROL_ACCELERATION ];
+  
+  double positionError = controller->jointSetpointsTable[ 0 ][ CONTROL_POSITION ] - controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
+  controller->jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = controller->dofsList[ 0 ].stiffness * positionError;
+  
+  /*for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
+  {
+    Actuator joint = controller->jointsList + jointIndex;
+    
+    DEBUG_PRINT( "calibrating controller joint %p", joint );
+    ActuatorControl.Calibrate( joint );
+  }*/
+  
+  return true;
+}
+
+inline double* RobotControl_GetDoFMeasuresList( int controllerID, size_t dofIndex )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return NULL;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( dofIndex >= controller->dofsNumber ) return NULL;
+    
+  return (double*) controller->dofsList[ dofIndex ].measuresList;
+}
+
+inline double* RobotControl_GetDoFSetpointsList( int controllerID, size_t dofIndex )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return NULL;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( dofIndex >= controller->dofsNumber ) return NULL;
+    
+  return (double*) controller->dofsList[ dofIndex ].setpointsList;
+}
+
+inline void RobotControl_SetDoFImpedance( int controllerID, size_t dofIndex, double stiffness, double damping )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( dofIndex >= controller->dofsNumber ) return;
+  
+  controller->dofsList[ dofIndex ].stiffness = ( stiffness > 0.0 ) ? stiffness : 0.0;
+  controller->dofsList[ dofIndex ].damping = ( damping > 0.0 ) ? damping : 0.0;
+}
+
+inline const char* RobotControl_GetDoFName( int controllerID, size_t dofIndex )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return NULL;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( dofIndex >= controller->dofsNumber ) return NULL;
+  
+  return (const char*) controller->dofsList[ dofIndex ].name;
+}
+
+inline size_t RobotControl_GetDoFsNumber( int controllerID )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return 0;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  return controller->dofsNumber;
 }
 
 
 const char* PARAMETER_NAMES[ CONTROL_VARS_NUMBER ] = { "reference", "stiffness", "damping" };
 static inline RobotController LoadControllerData( const char* configFileName )
 {
-  //static char searchPath[ FILE_PARSER_MAX_PATH_LENGTH ];
+  //static char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
   
   //bool loadError = false;
   
@@ -276,145 +353,44 @@ static inline RobotController LoadControllerData( const char* configFileName )
     return NULL;
   }*/
   
-  DEBUG_PRINT( "Trying to create axis controller %s", configFileName ); 
+  DEBUG_PRINT( "Trying to create robot controller %s", configFileName ); 
   
-  newController->actuator.interface = &SEActuatorOperations;
-  newController->actuator.ID = newController->actuator.interface->Init( "SEA Teste" );
-  newController->positionFilter = SimpleKalman_CreateFilter( 0.0 );
-  newController->controlMode = CONTROL_VELOCITY;
-  newController->actuator.interface->SetOperationMode( newController->actuator.ID, AXIS_VELOCITY );
+  newController->dofsNumber = 1;
   
-  newController->parameterCurvesList[ CONTROL_REFERENCE ] = Spline3Interp.LoadCurve( "spline3_curves/knee_walk_position" );
-  newController->parameterCurvesList[ CONTROL_STIFFNESS ] = Spline3Interp.LoadCurve( NULL );
-  newController->parameterCurvesList[ CONTROL_DAMPING ] = Spline3Interp.LoadCurve( NULL );
+  newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
+  newController->dofsList = (DoF) calloc( newController->dofsNumber, sizeof(DoFData) );
+  newController->jointMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+  newController->jointSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+  for( size_t jointIndex = 0; jointIndex < newController->dofsNumber; jointIndex++ )
+  {
+    newController->jointMeasuresTable[ jointIndex ] = ActuatorControl.GetMeasuresList( newController->jointsList[ jointIndex ] );
+    newController->jointSetpointsTable[ jointIndex ] = ActuatorControl.GetSetpointsList( newController->jointsList[ jointIndex ] );
+  }
   
-  newController->isRunning = true;
-  newController->ref_RunControl = RunForcePIControl;
-  newController->controlThread = Threading.StartThread( AsyncControl, newController, THREAD_JOINABLE );
+  newController->jointsList[ 0 ] = ActuatorControl.InitController( "actuators/knee" );
   
-  DEBUG_PRINT( "axis controller %s created", configFileName );
+  memset( &(newController->dofsList[ 0 ]), 0, sizeof(DoFData) );
+  sprintf( newController->dofsList[ 0 ].name, "Theta" );
   
-  Timing_Delay( 1000 );
-  
-  newController->actuator.interface->Enable( newController->actuator.ID );
+  DEBUG_PRINT( "robot controller %s created", configFileName );
   
   return newController;
 }
 
 static inline void UnloadControllerData( RobotController controller )
 {
-  if( controller != NULL )
-  {
-    Timing_Delay( 2000 );
+  if( controller == NULL ) return;
     
-    // Destroy axis data structures
-    controller->isRunning = false;
-    
-    if( controller->controlThread != -1 )
-      Threading.WaitExit( controller->controlThread, 5000 );
-    
-    DEBUG_PRINT( "ending actuator %d", controller->actuator.ID );
-    
-    controller->actuator.interface->End( controller->actuator.ID );
-    
-    DEBUG_PRINT( "discarding filter %p", controller->positionFilter );
-    SimpleKalman_DiscardFilter( controller->positionFilter );
-      
-    for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
-    {
-      DEBUG_PRINT( "discarding curve %u: %p", parameterIndex, controller->parameterCurvesList[ parameterIndex ] );
-      Spline3Interp.UnloadCurve( controller->parameterCurvesList[ parameterIndex ] );
-    }
-  }
-}
+  DEBUG_PRINT( "ending robot controller %p", controller );
 
-
-/////////////////////////////////////////////////////////////////////////////////
-/////                         ASYNCRONOUS CONTROL                           /////
-/////////////////////////////////////////////////////////////////////////////////
-
-const double CONTROL_SAMPLING_INTERVAL = 0.005;           // Sampling interval
-
-// Method that runs the control functions asyncronously
-static void* AsyncControl( void* args )
-{
-  RobotController controller = (RobotController) args;
-  
-  // Try to correct errors
-  controller->actuator.interface->Reset( controller->actuator.ID );
-  
-  unsigned long execTime, elapsedTime;
-  
-  controller->isRunning = true;
-  
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "starting to run control for actuator %d on thread %x", controller->actuator.ID, THREAD_ID );
-  
-  while( controller->isRunning )
-  {
-    DEBUG_UPDATE( "running control for actuator %d", controller->actuator.ID );
+  free( controller->jointsList );
+  free( controller->dofsList );
+  free( controller->jointMeasuresTable );
+  free( controller->jointSetpointsTable );
     
-    execTime = Timing_GetExecTimeMilliseconds();
-    
-    UpdateControlMeasures( controller );
-    
-    UpdateControlSetpoints( controller );
-    
-    RunControl( controller );
-    
-    elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
-    DEBUG_UPDATE( "control pass for actuator %d (before delay): elapsed time: %u ms", controller->actuator.ID, elapsedTime );
-    if( elapsedTime < (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_SAMPLING_INTERVAL - elapsedTime );
-    DEBUG_UPDATE( "control pass for actuator %d (after delay): elapsed time: %u ms", controller->actuator.ID, Timing_GetExecTimeMilliseconds() - execTime );
-  }
-  
-  DEBUG_PRINT( "ending control thread %x", THREAD_ID );
-   
-  return NULL;
-}
+  free( controller );
 
-static inline void UpdateControlMeasures( RobotController controller )
-{
-  DEBUG_UPDATE( "reading axes from actuator %d", controller->actuator.ID );
-  double* measuresList = controller->actuator.interface->ReadAxes( controller->actuator.ID );
-  if( measuresList != NULL )
-  {
-    DEBUG_UPDATE( "filtering measures from actuator %d", controller->actuator.ID );
-    double* filteredMeasures = SimpleKalman_Update( controller->positionFilter, measuresList[ AXIS_POSITION ], CONTROL_SAMPLING_INTERVAL );
-
-    controller->measuresList[ CONTROL_POSITION ] = filteredMeasures[ KALMAN_VALUE ];
-    controller->measuresList[ CONTROL_VELOCITY ] = filteredMeasures[ KALMAN_DERIVATIVE ];
-    controller->measuresList[ CONTROL_ACCELERATION ] = filteredMeasures[ KALMAN_DERIVATIVE_2 ];
-
-    controller->measuresList[ CONTROL_FORCE ] = measuresList[ AXIS_FORCE ];
-  
-    //DEBUG_PRINT( "measures p: %.3f - v: %.3f - a: %.3f - f: %.3f", controller->measuresList[ CONTROL_POSITION ], controller->measuresList[ CONTROL_VELOCITY ], 
-    //                                                               controller->measuresList[ CONTROL_ACCELERATION ], controller->measuresList[ CONTROL_FORCE ] );
-  }
-}
-
-static inline void UpdateControlSetpoints( RobotController controller )
-{
-  for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
-  {
-    DEBUG_UPDATE( "get parameter %u at point %g", parameterIndex, controller->setpoint );
-    controller->parametersList[ parameterIndex ] = Spline3Interp.GetValue( controller->parameterCurvesList[ parameterIndex ], controller->setpoint );
-    DEBUG_UPDATE( "got parameter %u: %g", parameterIndex, controller->parametersList[ parameterIndex ] );
-  }
-  
-  DEBUG_PRINT( "got parameters: %.5f %.5f", controller->parametersList[ CONTROL_REFERENCE ], controller->parametersList[ CONTROL_STIFFNESS ] );
-}
-
-static inline void RunControl( RobotController controller )
-{
-  // If the motor is being actually controlled, call control pass algorhitm
-  
-  if( controller->actuator.interface->IsEnabled( controller->actuator.ID ) )
-  {
-    double* controlOutputsList = controller->ref_RunControl( controller->measuresList, controller->parametersList, CONTROL_SAMPLING_INTERVAL );
-    //DEBUG_PRINT( "force: %.3f - control: %.3f", controller->measuresList[ CONTROL_FORCE ], controlOutputsList[ controller->controlMode ] );
-    
-    controller->actuator.interface->SetSetpoint( controller->actuator.ID, controlOutputsList[ controller->controlMode ] );
-  }
+  DEBUG_PRINT( "robot controller %p discarded", controller );
 }
 
 #endif /* ROBOT_CONTROL_H */ 
