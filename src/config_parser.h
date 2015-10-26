@@ -8,39 +8,47 @@
 
 #include <string.h>
 
-static FileParserInterface parser;
+static ParserInterface parser;
 static bool pluginLoaded = false;
-static char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
 
 #define CONFIG_PARSER_FUNCTIONS( namespace, function_init ) \
         function_init( bool, namespace, Init, const char* ) \
-        FILE_PARSER_FUNCTIONS( namespace, function_init )
+        PARSER_FUNCTIONS( namespace, function_init )
 
 INIT_NAMESPACE_INTERFACE( ConfigParser, CONFIG_PARSER_FUNCTIONS )
 
 bool ConfigParser_Init( const char* pluginPath )
 {
-  snprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, "file_parsing/%s", pluginPath );
+  char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
+  snprintf( searchPath, PARSER_MAX_FILE_PATH_LENGTH, "parsing/%s", pluginPath );
   
-  GET_PLUGIN_INTERFACE( FILE_PARSER_FUNCTIONS, searchPath, parser, pluginLoaded );
+  GET_PLUGIN_INTERFACE( PARSER_FUNCTIONS, searchPath, parser, pluginLoaded );
   
   return pluginLoaded;
 }
 
-int ConfigParser_LoadFile( const char* filePath )
+int ConfigParser_LoadFileData( const char* filePath )
 {
   if( !pluginLoaded ) return PARSED_DATA_INVALID_ID;
   
-  snprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, "config/%s", filePath );
+  char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
+  snprintf( searchPath, PARSER_MAX_FILE_PATH_LENGTH, "config/%s", filePath );
 
-  return parser.LoadFile( searchPath );
+  return parser.LoadFileData( searchPath );
 }
 
-void ConfigParser_UnloadFile( int fileID )
+int ConfigParser_LoadStringData( const char* configString )
+{
+  if( !pluginLoaded ) return PARSED_DATA_INVALID_ID;
+
+  return parser.LoadStringData( configString );
+}
+
+void ConfigParser_UnloadData( int fileID )
 {
   if( !pluginLoaded ) return;
 
-  parser.UnloadFile( fileID );
+  parser.UnloadData( fileID );
 }
 
 void ConfigParser_SetBaseKey( int fileID, const char* searchPath )
@@ -50,32 +58,32 @@ void ConfigParser_SetBaseKey( int fileID, const char* searchPath )
   parser.SetBaseKey( fileID, searchPath );
 }
 
-char* ConfigParser_GetStringValue( int fileID, const char* searchPath )
+char* ConfigParser_GetStringValue( int fileID, const char* searchPath, char* defaultValue )
 {
   if( !pluginLoaded ) return NULL;
 
-  return parser.GetStringValue( fileID, searchPath );
+  return parser.GetStringValue( fileID, searchPath, defaultValue );
 }
 
-long ConfigParser_GetIntegerValue( int fileID, const char* searchPath )
+long ConfigParser_GetIntegerValue( int fileID, const char* searchPath, long defaultValue )
 {
   if( !pluginLoaded ) return 0;
 
-  return parser.GetIntegerValue( fileID, searchPath );
+  return parser.GetIntegerValue( fileID, searchPath, defaultValue );
 }
 
-double ConfigParser_GetRealValue( int fileID, const char* searchPath )
+double ConfigParser_GetRealValue( int fileID, const char* searchPath, double defaultValue )
 {
   if( !pluginLoaded ) return 0.0;
 
-  return parser.GetRealValue( fileID, searchPath );
+  return parser.GetRealValue( fileID, searchPath, defaultValue );
 }
 
-bool ConfigParser_GetBooleanValue( int fileID, const char* searchPath )
+bool ConfigParser_GetBooleanValue( int fileID, const char* searchPath, bool defaultValue )
 {
   if( !pluginLoaded ) return false;
 
-  return parser.GetBooleanValue( fileID, searchPath );
+  return parser.GetBooleanValue( fileID, searchPath, defaultValue );
 }
 
 size_t ConfigParser_GetListSize( int fileID, const char* searchPath )

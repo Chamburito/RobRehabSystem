@@ -25,10 +25,10 @@ const int PARSED_DATA_INVALID_ID = -1;
         function_init( int, interface, LoadStringData, const char* ) \
         function_init( void, interface, UnloadData, int ) \
         function_init( void, interface, SetBaseKey, int, const char* ) \
-        function_init( long, interface, GetIntegerValue, int, const char* ) \
-        function_init( double, interface, GetRealValue, int, const char* ) \
-        function_init( char*, interface, GetStringValue, int, const char* ) \
-        function_init( bool, interface, GetBooleanValue, int, const char* ) \
+        function_init( long, interface, GetIntegerValue, int, const char*, long ) \
+        function_init( double, interface, GetRealValue, int, const char*, double ) \
+        function_init( char*, interface, GetStringValue, int, const char*, char* ) \
+        function_init( bool, interface, GetBooleanValue, int, const char*, bool ) \
         function_init( size_t, interface, GetListSize, int, const char* ) \
         function_init( bool, interface, HasKey, int, const char* )
 

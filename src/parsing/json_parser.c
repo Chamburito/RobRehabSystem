@@ -123,55 +123,55 @@ void SetBaseKey( int dataID, const char* path )
   DEBUG_PRINT( "setting base key to \"%s\"", path );
 }
 
-char* GetStringValue( int dataID, const char* path )
+char* GetStringValue( int dataID, const char* path, char* defaultValue  )
 {
   const kson_node_t* valueNode = GetPathNode( dataID, path );
   
-  if( valueNode == NULL ) return NULL;
+  if( valueNode == NULL ) return defaultValue;
   
   if( valueNode->type != KSON_TYPE_SGL_QUOTE && valueNode->type != KSON_TYPE_DBL_QUOTE )
     return NULL;
   
-  if( valueNode->v.str == NULL ) return "";
+  if( valueNode->v.str == NULL ) return defaultValue;
   
   DEBUG_PRINT( "Found value: %s", valueNode->v.str );
   
   return valueNode->v.str;
 }
 
-long GetIntegerValue( int dataID, const char* path )
+long GetIntegerValue( int dataID, const char* path, long defaultValue )
 {
   const kson_node_t* valueNode = GetPathNode( dataID, path );
   
-  if( valueNode == NULL ) return 0L;
+  if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return 0L;
+  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
   
   DEBUG_PRINT( "Found value: %ld", strtol( valueNode->v.str, NULL, 0 ) );
   
   return strtol( valueNode->v.str, NULL, 0 );
 }
 
-double GetRealValue( int dataID, const char* path )
+double GetRealValue( int dataID, const char* path, double defaultValue )
 {
   const kson_node_t* valueNode = GetPathNode( dataID, path );
   
-  if( valueNode == NULL ) return strtod( "NaN", NULL );
+  if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return strtod( "NaN", NULL );
+  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
   
   DEBUG_PRINT( "Found value: %g", strtod( valueNode->v.str, NULL ) );
   
   return strtod( valueNode->v.str, NULL );
 }
 
-bool GetBooleanValue( int dataID, const char* path )
+bool GetBooleanValue( int dataID, const char* path, bool defaultValue )
 {
   const kson_node_t* valueNode = GetPathNode( dataID, path );
   
-  if( valueNode == NULL ) return false;
+  if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return false;
+  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
   
   if( strcmp( valueNode->v.str, "true" ) == 0 ) return true;
 
