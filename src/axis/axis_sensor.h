@@ -17,9 +17,10 @@ typedef struct _AxisSensorData
 {
   int interfaceID;
   AxisInterface interface;
+  double rawMeasuresList[ AXIS_VARS_NUMBER ];
   size_t measureIndex;
   Curve measureConversionCurve;
-  double inputOffset;
+  double inputGain, inputOffset;
   bool isAbsolute;
 }
 AxisSensorData;
@@ -63,9 +64,10 @@ AxisSensor AxisSensors_Init( const char* configFileName )
     
     newSensor->isAbsolute = ConfigParser.GetBooleanValue( configFileID, "absolute", true );
     
-    newSensor->measureConversionCurve = CurveInterpolation.LoadCurveString( ConfigParser.GetStringValue( configFileID, "conversion.curve", NULL ) );
+    newSensor->inputGain = ConfigParser.GetRealValue( configFileID, "input_gain.multiplier", 1.0 );
+    newSensor->inputGain /= ConfigParser.GetRealValue( configFileID, "input_gain.divisor", 1.0 );
     
-    CurveInterpolation.SetScale( newSensor->measureConversionCurve, ConfigParser.GetRealValue( configFileID, "conversion.factor", 1.0 ) );
+    newSensor->measureConversionCurve = CurveInterpolation.LoadCurveFile( ConfigParser.GetStringValue( configFileID, "conversion_curve", NULL ) );
     
     ConfigParser.UnloadData( configFileID );
   }
@@ -106,15 +108,10 @@ inline void AxisSensors_Reset( AxisSensor sensor )
 
 void AxisSensors_SetOffset( AxisSensor sensor )
 {
-  static double rawMeasuresList[ AXIS_VARS_NUMBER ];
-  
   if( sensor == NULL ) return;
   
-  if( sensor->isAbsolute )
-  {
-    sensor->interface.ReadMeasures( sensor->interfaceID, rawMeasuresList );
-    sensor->inputOffset = rawMeasuresList[ sensor->measureIndex ];
-  }
+  sensor->interface.ReadMeasures( sensor->interfaceID, sensor->rawMeasuresList );
+  sensor->inputOffset = sensor->rawMeasuresList[ sensor->measureIndex ];
 }
 
 inline static bool AxisSensors_HasError( AxisSensor sensor )
@@ -134,13 +131,11 @@ const double p7 = 0.0021429;
 const double p8 = 2.0556;
 double AxisSensors_Read( AxisSensor sensor, double* referencesList )
 {
-  static double rawMeasuresList[ AXIS_VARS_NUMBER ];
-  
   if( sensor == NULL ) return 0.0;
   
-  sensor->interface.ReadMeasures( sensor->interfaceID, rawMeasuresList );
+  sensor->interface.ReadMeasures( sensor->interfaceID, sensor->rawMeasuresList );
   
-  double input = rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset;
+  double input = ( sensor->rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset ) * sensor->inputGain;
   if( sensor->isAbsolute && referencesList != NULL ) input -= referencesList[ sensor->measureIndex ];
   
   double measure = CurveInterpolation.GetValue( sensor->measureConversionCurve, input, 0.0 );

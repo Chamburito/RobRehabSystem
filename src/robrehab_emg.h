@@ -65,7 +65,7 @@ int RobRehabEMG_Init( void )
   if( ConfigParser.Init( "JSON" ) )
   {
     sprintf( searchPath, "shared_%s", CONFIG_KEY );
-    int configFileID = ConfigParser.LoadFile( searchPath );
+    int configFileID = ConfigParser.LoadFileData( searchPath );
     if( configFileID != -1 )
     {
       if( ConfigParser.HasKey( configFileID, CONFIG_KEY ) )
@@ -77,7 +77,7 @@ int RobRehabEMG_Init( void )
         for( size_t sharedJointIndex = 0; sharedJointIndex < sharedJointsNumber; sharedJointIndex++ )
         {
           sprintf( searchPath, "%s.%u", CONFIG_KEY, sharedJointIndex );
-          char* jointName = ConfigParser.GetStringValue( configFileID, searchPath );
+          char* jointName = ConfigParser.GetStringValue( configFileID, searchPath, "" );
 
           DEBUG_PRINT( "found joint %s", jointName );
 
@@ -111,7 +111,7 @@ int RobRehabEMG_Init( void )
         }
       }
     
-      ConfigParser.UnloadFile( configFileID );
+      ConfigParser.UnloadData( configFileID );
     }
   }
   

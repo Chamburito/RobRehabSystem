@@ -1,0 +1,9 @@
+{
+  "interface": {
+    "type": "axis_interfaces/NICANEPOS",
+    "id": 2,
+    "channel": 3
+  },
+  "conversion_curve": "{ "segments" : [ { "type" : "polynomial", "coeffs" : [ -5.6853e-024, 9.5074e-020, -5.9028e-016, 1.6529e-012, -2.0475e-009, 9.3491e-007, 0.0021429, 0 ] } ] }",
+  "absolute": false
+}

@@ -243,7 +243,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
   EMGJoint newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );
   memset( newJoint, 0, sizeof(EMGJointData) );
   
-  int configFileID = ConfigParser.LoadFile( configFileName );
+  int configFileID = ConfigParser.LoadFileData( configFileName );
   if( configFileID != -1 )
   {
     if( (newJoint->musclesListLength = (size_t) ConfigParser.GetListSize( configFileID, MUSCLE_LIST_NAME )) > 0 )
@@ -256,13 +256,13 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
       for( size_t muscleIndex = 0; muscleIndex < newJoint->musclesListLength; muscleIndex++ )
       {
         sprintf( searchPath, "%s.%u", MUSCLE_LIST_NAME, muscleIndex );
-        newJoint->sensorIDsList[ muscleIndex ] = SignalProcessing.InitSensor( ConfigParser.GetStringValue( configFileID, searchPath ) );
+        newJoint->sensorIDsList[ muscleIndex ] = SignalProcessing.InitSensor( ConfigParser.GetStringValue( configFileID, searchPath, "" ) );
         if( newJoint->sensorIDsList[ muscleIndex ] == SENSOR_INVALID_ID ) loadError = true;
       }
     }
     else loadError = true;
 
-    ConfigParser.UnloadFile( configFileID );
+    ConfigParser.UnloadData( configFileID );
   }
   else
   {

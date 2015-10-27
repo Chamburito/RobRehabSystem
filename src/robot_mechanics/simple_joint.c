@@ -1,15 +1,39 @@
 #include "robot_mechanics_interface.h"
 
-size_t GetMaxDOFs( void )
+const size_t DOFS_NUMBER = 1;
+const char* DOF_NAMES_LIST[ DOFS_NUMBER ] = { "Theta" };
+
+const char** GetDoFsList( size_t* ref_dofsCount )
 {
-  return 1;
+  if( ref_dofsCount != NULL ) *ref_dofsCount = DOFS_NUMBER;
+  
+  return (const char**) DOF_NAMES_LIST;
 }
 
-double* GetForwardKinematics( double** jointValuesTable, size_t dofsNumber )
+void GetForwardKinematics( const double** jointValuesTable, double** dofValuesTable )
 {
-  return jointValuesTable[ 0 ];
+  dofValuesTable[ 0 ][ ROBOT_POSITION ] = jointValuesTable[ 0 ][ ROBOT_POSITION ];
+  dofValuesTable[ 0 ][ ROBOT_VELOCITY ] = jointValuesTable[ 0 ][ ROBOT_VELOCITY ];
+  dofValuesTable[ 0 ][ ROBOT_ACCELERATION ] = jointValuesTable[ 0 ][ ROBOT_ACCELERATION ];
 }
 
-        function_init( double*, interface, GetInverseKinematics, double*, size_t ) \
-        function_init( double*, interface, GetForwardDynamics, double*, size_t ) \
-        function_init( double*, interface, GetInverseDynamics, double*, size_t )
+void GetInverseKinematics( const double** dofValuesTable, double** jointValuesTable )
+{
+  jointValuesTable[ 0 ][ ROBOT_POSITION ] = dofValuesTable[ 0 ][ ROBOT_POSITION ];
+  jointValuesTable[ 0 ][ ROBOT_VELOCITY ] = dofValuesTable[ 0 ][ ROBOT_VELOCITY ];
+  jointValuesTable[ 0 ][ ROBOT_ACCELERATION ] = dofValuesTable[ 0 ][ ROBOT_ACCELERATION ];
+}
+
+void GetForwardDynamics( const double** jointValuesTable, double** dofValuesTable )
+{
+  dofValuesTable[ 0 ][ ROBOT_POSITION ] = jointValuesTable[ 0 ][ ROBOT_POSITION ];
+  dofValuesTable[ 0 ][ ROBOT_VELOCITY ] = jointValuesTable[ 0 ][ ROBOT_VELOCITY ];
+  dofValuesTable[ 0 ][ ROBOT_FORCE ] = jointValuesTable[ 0 ][ ROBOT_FORCE ];
+}
+
+void GetInverseDynamics( const double** dofValuesTable, double** jointValuesTable )
+{
+  jointValuesTable[ 0 ][ ROBOT_POSITION ] = dofValuesTable[ 0 ][ ROBOT_POSITION ];
+  jointValuesTable[ 0 ][ ROBOT_VELOCITY ] = dofValuesTable[ 0 ][ ROBOT_VELOCITY ];
+  jointValuesTable[ 0 ][ ROBOT_FORCE ] = dofValuesTable[ 0 ][ ROBOT_FORCE ];
+}

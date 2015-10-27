@@ -4,8 +4,6 @@
 #include "actuator_control.h"
 #include "robot_mechanics_interface.h"
 
-#include "spline3_interpolation.h"
-
 #include "config_parser.h"
 #include "plugin_loader.h"
 
@@ -20,7 +18,7 @@
 
 typedef struct _DoFData
 {
-  char name[ 32 ];
+  char name[ DOF_MAX_NAME_LENGTH ];
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double stiffness, damping;
@@ -36,6 +34,8 @@ typedef struct _RobotControllerData
   double** jointMeasuresTable;
   double** jointSetpointsTable;
   DoF dofsList;
+  double** dofMeasuresTable;
+  double** dofSetpointsTable;
   size_t dofsNumber;
 }
 RobotControllerData;
@@ -226,25 +226,13 @@ inline bool RobotControl_Update( int controllerID )
   
   RobotController controller = kh_value( controllersList, controllerIndex );
   
-  controller->dofsList[ 0 ].measuresList[ CONTROL_POSITION ] = controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
-  controller->dofsList[ 0 ].measuresList[ CONTROL_VELOCITY ] = controller->jointMeasuresTable[ 0 ][ CONTROL_VELOCITY ];
-  controller->dofsList[ 0 ].measuresList[ CONTROL_ACCELERATION ] = controller->jointMeasuresTable[ 0 ][ CONTROL_ACCELERATION ];
-  controller->dofsList[ 0 ].measuresList[ CONTROL_FORCE ] = controller->jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
-  
-  controller->jointSetpointsTable[ 0 ][ CONTROL_POSITION ] = controller->dofsList[ 0 ].setpointsList[ CONTROL_POSITION ];
-  controller->jointSetpointsTable[ 0 ][ CONTROL_VELOCITY ] = controller->dofsList[ 0 ].setpointsList[ CONTROL_VELOCITY ];
-  controller->jointSetpointsTable[ 0 ][ CONTROL_ACCELERATION ] = controller->dofsList[ 0 ].setpointsList[ CONTROL_ACCELERATION ];
-  
-  double positionError = controller->jointSetpointsTable[ 0 ][ CONTROL_POSITION ] - controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
-  controller->jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = controller->dofsList[ 0 ].stiffness * positionError;
-  
-  /*for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
+  controller->mechanism.GetForwardDynamics( controller->jointMeasuresTable, controller->dofMeasuresTable );
+  for( size_t dofIndex = 0; dofIndex < controller->dofsNumber; dofIndex++ )
   {
-    Actuator joint = controller->jointsList + jointIndex;
-    
-    DEBUG_PRINT( "calibrating controller joint %p", joint );
-    ActuatorControl.Calibrate( joint );
-  }*/
+    double positionError = controller->dofSetpointsTable[ dofIndex ][ CONTROL_POSITION ] - controller->dofMeasuresTable[ dofIndex ][ CONTROL_POSITION ];
+    controller->dofSetpointsTable[ dofIndex ][ CONTROL_FORCE ] = controller->dofsList[ dofIndex ].stiffness * positionError;
+  }
+  controller->mechanism.GetInverseDynamics( controller->dofSetpointsTable, controller->jointSetpointsTable );
   
   return true;
 }
@@ -309,37 +297,56 @@ inline size_t RobotControl_GetDoFsNumber( int controllerID )
 }
 
 
-const char* PARAMETER_NAMES[ CONTROL_VARS_NUMBER ] = { "reference", "stiffness", "damping" };
 static inline RobotController LoadControllerData( const char* configFileName )
 {
-  //static char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
+  static char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
   
-  //bool loadError = false;
+  bool loadError = false;
+  
+  DEBUG_PRINT( "Trying to create robot controller %s", configFileName );
   
   RobotController newController = (RobotController) malloc( sizeof(RobotControllerData) );
   memset( newController, 0, sizeof(RobotControllerData) );
   
-  /*FileParser parser = JSONParser;
-  int configFileID = parser.LoadFile( configFileName );
-  if( configFileID != -1 )
+  int configFileID = ConfigParser.LoadFileData( configFileName );
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
-    if( (newController->actuator.interface = GetActuatorInterface( parser.GetStringValue( configFileID, "actuator.type" ) )) != NULL )
+    bool pluginLoaded = false;
+    GET_PLUGIN_INTERFACE( ROBOT_MECHANICS_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "mechanics", "" ), newController->mechanism, pluginLoaded );
+    if( pluginLoaded )
     {
-      if( (newController->actuator.ID = newController->actuator.interface->InitController( parser.GetStringValue( configFileID, "actuator.name" ) )) == -1 ) loadError = true;
+      const char** DOF_NAMES_LIST = newController->mechanism.GetDoFsList( &(newController->dofsNumber) );
+      
+      newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
+      newController->dofsList = (DoF) calloc( newController->dofsNumber, sizeof(DoFData) );
+      newController->jointMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->jointSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->dofMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->dofSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      
+      for( size_t jointIndex = 0; jointIndex < newController->dofsNumber; jointIndex++ )
+      {
+        sprintf( searchPath, "joints.%lu", jointIndex );
+        newController->jointsList[ jointIndex ] = ActuatorControl.InitController( ConfigParser.GetStringValue( configFileID, searchPath, "" ) );
+        if( newController->jointsList[ jointIndex ] != NULL )
+        {
+          newController->jointMeasuresTable[ jointIndex ] = ActuatorControl.GetMeasuresList( newController->jointsList[ jointIndex ] );
+          newController->jointSetpointsTable[ jointIndex ] = ActuatorControl.GetSetpointsList( newController->jointsList[ jointIndex ] );
+        }
+        else loadError = true;
+      }
+      
+      for( size_t dofIndex = 0; dofIndex < newController->dofsNumber; dofIndex++ )
+      {
+        memset( &(newController->dofsList[ dofIndex ]), 0, sizeof(DoFData) );
+        sprintf( newController->dofsList[ dofIndex ].name, DOF_NAMES_LIST[ dofIndex ] );
+        newController->dofMeasuresTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].measuresList;
+        newController->dofSetpointsTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].setpointsList;
+      }
     }
     else loadError = true;
     
-    if( (newController->ref_RunControl = ImpedanceControl_GetFunction( parser.GetStringValue( configFileID, "control.function" ) )) == NULL ) loadError = true;
-    
-    for( size_t parameterIndex = 0; parameterIndex < CONTROL_VARS_NUMBER; parameterIndex++ )
-    {
-      sprintf( searchPath, "control.parameters.%s.normalized_curve", PARAMETER_NAMES[ parameterIndex ] );
-      newController->parametersList[ parameterIndex ].normalizedCurve = Spline3Interp.LoadCurve( parser.GetStringValue( configFileID, searchPath ) );
-      sprintf( searchPath, "control.parameters.%s.amplitude", PARAMETER_NAMES[ parameterIndex ] );
-      newController->parametersList[ parameterIndex ].amplitude = parser.GetRealValue( configFileID, searchPath );
-    }
-    
-    parser.UnloadFile( configFileID );
+    ConfigParser.UnloadData( configFileID );
   }
   else
   {
@@ -351,26 +358,7 @@ static inline RobotController LoadControllerData( const char* configFileName )
   {
     UnloadControllerData( newController );
     return NULL;
-  }*/
-  
-  DEBUG_PRINT( "Trying to create robot controller %s", configFileName ); 
-  
-  newController->dofsNumber = 1;
-  
-  newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
-  newController->dofsList = (DoF) calloc( newController->dofsNumber, sizeof(DoFData) );
-  newController->jointMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-  newController->jointSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-  for( size_t jointIndex = 0; jointIndex < newController->dofsNumber; jointIndex++ )
-  {
-    newController->jointMeasuresTable[ jointIndex ] = ActuatorControl.GetMeasuresList( newController->jointsList[ jointIndex ] );
-    newController->jointSetpointsTable[ jointIndex ] = ActuatorControl.GetSetpointsList( newController->jointsList[ jointIndex ] );
   }
-  
-  newController->jointsList[ 0 ] = ActuatorControl.InitController( "actuators/knee" );
-  
-  memset( &(newController->dofsList[ 0 ]), 0, sizeof(DoFData) );
-  sprintf( newController->dofsList[ 0 ].name, "Theta" );
   
   DEBUG_PRINT( "robot controller %s created", configFileName );
   
@@ -387,6 +375,8 @@ static inline void UnloadControllerData( RobotController controller )
   free( controller->dofsList );
   free( controller->jointMeasuresTable );
   free( controller->jointSetpointsTable );
+  free( controller->dofMeasuresTable );
+  free( controller->dofSetpointsTable );
     
   free( controller );
 

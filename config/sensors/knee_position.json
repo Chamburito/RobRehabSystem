@@ -4,8 +4,7 @@
     "id": 2,
     "channel": 0
   },
-  "conversion": {
-    "factor": -0.0005
-  },
+  "input_multiplier": -1,
+  "input_divisor": 2000,
   "absolute": false
 }

@@ -55,30 +55,27 @@ AxisMotor AxisMotors_Init( const char* configFileName )
   AxisMotor newMotor = (AxisMotor) malloc( sizeof(AxisMotorData) );
   memset( newMotor, 0, sizeof(AxisMotorData) );
   
-  int configFileID = ConfigParser.LoadFile( configFileName );
+  int configFileID = ConfigParser.LoadFileData( configFileName );
   if( configFileID != PARSED_DATA_INVALID_ID )
   {
     bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type" ), newMotor->interface, pluginLoaded );
+    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type", "" ), newMotor->interface, pluginLoaded );
     if( pluginLoaded )
     {
-      newMotor->axisID = AXIS_INVALID_ID;
-      if( ConfigParser.HasKey( configFileID, "interface.id" ) )
-        newMotor->axisID = newMotor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id" ) );
-      
+      newMotor->axisID = newMotor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id", AXIS_INVALID_ID ) );
       if( newMotor->axisID == AXIS_INVALID_ID ) loadError = true;
     }
     else loadError = true;
     
-    unsigned int encoderResolution = (unsigned int) ConfigParser.GetIntegerValue( configFileID, "encoder_resolution" ); //4096;
-    double currentToForceRatio = ConfigParser.GetRealValue( configFileID, "force_constant" );//151.8; // 0.0302;
-    double gearReduction = ConfigParser.GetRealValue( configFileID, "gear_reduction" );//150.0 / ( 2 * M_PI ); // 0.0025 / ( 2 * 2 * M_PI );
+    unsigned int encoderResolution = (unsigned int) ConfigParser.GetIntegerValue( configFileID, "encoder_resolution", 1 ); //4096;
+    double currentToForceRatio = ConfigParser.GetRealValue( configFileID, "force_constant", 1.0);//151.8; // 0.0302;
+    double gearReduction = ConfigParser.GetRealValue( configFileID, "gear_reduction", 1.0 );//150.0 / ( 2 * M_PI ); // 0.0025 / ( 2 * 2 * M_PI );
   
     newMotor->measureGainsList[ AXIS_POSITION ] = 1.0 / ( encoderResolution * gearReduction );
     newMotor->measureGainsList[ AXIS_VELOCITY ] = 1.0 / gearReduction;
     newMotor->measureGainsList[ AXIS_FORCE ] = currentToForceRatio * gearReduction;
     
-    ConfigParser.UnloadFile( configFileID );
+    ConfigParser.UnloadData( configFileID );
   }
   else
   {

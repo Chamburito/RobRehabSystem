@@ -4,8 +4,10 @@
     "id": 2,
     "channel": 0
   },
-  "conversion": {
-    "curve": "sensors/spring104_interaction_torque"
+  "input_gain": {
+    "multiplier": -1,
+    "divisor": 2000
   },
+  "conversion_curve": "sensors/spring104_interaction_torque",
   "absolute": true
 }

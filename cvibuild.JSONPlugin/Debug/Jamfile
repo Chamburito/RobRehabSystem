@@ -34,19 +34,6 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\pars
 	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
 	;
 include Jamfile_instr ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing\\json_parser.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\json_parser.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing\\file_parser_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\file_parser_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\actuator\\series_elastic_actuator\\actuator.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\actuator.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\axis_control.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\actuator\\dual_line_actuator\\actuator.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\actuator1.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robrehab_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\robrehab_control.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis\\axis_motor.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\axis_motor.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis\\axis_sensor.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\axis_sensor.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robrehab_emg.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\robrehab_emg.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing\\json_parser.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\json_parser.c" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\file_parsing\\file_parser_loader.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\file_parser_loader.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\config_parser.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\config_parser.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.JSONPlugin\\Debug\\UnsavedChanges\\robot_control.h" ;
 LOCATE on "json_parser.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\parsing" ;
 LOCATE on "kson.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib" ;
 LOCATE on "kson.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib" ;

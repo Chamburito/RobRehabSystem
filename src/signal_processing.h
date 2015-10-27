@@ -14,7 +14,7 @@
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
 
-enum SignalProcessingPhase { SIGNAL_PROCESSING_PHASE_MEASUREMENT, SIGNAL_PROCESSING_PHASE_CALIBRATION, SIGNAL_PROCESSING_PHASES_NUMBER };
+enum SignalProcessingPhase { SIGNAL_PROCESSING_PHASE_MEASUREMENT, SIGNAL_PROCESSING_PHASE_CALIBRATION, SIGNAL_PROCESSING_PHASE_OFFSET, SIGNAL_PROCESSING_PHASES_NUMBER };
 
 const size_t OLD_SAMPLES_BUFFER_LEN = 100;
 
@@ -26,11 +26,11 @@ const int FILTER_EXTRA_SAMPLES_NUMBER = FILTER_ORDER - 1;
 typedef struct _SignalData
 {
   double* samplesBuffer;
-  size_t samplesBufferLength, samplesBufferStartIndex;
-  double* filteredSamplesBuffer;
-  double* rectifiedSamplesBuffer;
-  size_t filteredSamplesBufferLength;
+  double* filteredSamplesBuffer;;
+  size_t samplesBufferLength;
   double calibrationMax, calibrationMin;
+  size_t recordedSamplesCount;
+  double samplesMean;
   double processingResult;
   enum SignalProcessingPhase processingPhase;
   bool isRectified, isFiltered, isNormalized;
@@ -43,7 +43,7 @@ typedef struct _SensorData
   int taskID;
   unsigned int channel;
   SignalData signalData;
-  double scalingFactor;
+  double scalingFactor, offset;
   int logID;
 }
 SensorData;
@@ -57,6 +57,7 @@ static bool isProcessing;
 Thread processingThreadID;
 ThreadLock processingLock;
 
+
 #define SIGNAL_PROCESSING_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, InitSensor, const char* ) \
         function_init( void, namespace, EndSensor, int ) \
@@ -64,6 +65,7 @@ ThreadLock processingLock;
         function_init( void, namespace, ChangePhase, int, enum SignalProcessingPhase )
 
 INIT_NAMESPACE_INTERFACE( SignalProcessing, SIGNAL_PROCESSING_FUNCTIONS )
+
 
 static void* AsyncUpdate( void* );
 
@@ -158,10 +160,21 @@ void SignalProcessing_ChangePhase( int sensorID, enum SignalProcessingPhase newP
   
   SignalData* data = &(sensor->signalData);
 
-  if( data->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+  if( data->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+  {
+    if( data->recordedSamplesCount > 0 ) 
+      sensor->offset = data->samplesMean / data->recordedSamplesCount;
+  }
+  
+  if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
   {
     data->calibrationMax = 0.0;
     data->calibrationMin = 0.0;
+  }
+  else if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+  {
+    data->samplesMean = 0.0;
+    data->recordedSamplesCount = 0;
   }
   
   data->processingPhase = newProcessingPhase;
@@ -174,52 +187,46 @@ static double ProcessSignal( Sensor sensor )
 {
   SignalData* data = &(sensor->signalData);
   size_t samplesBufferLength = data->samplesBufferLength;
-  size_t filteredSamplesBufferLength = data->filteredSamplesBufferLength;
   
   size_t aquiredSamplesCount;
-  double* newSamplesList = sensor->interface.Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
-  if( newSamplesList == NULL ) return 0.0;
+  double* rawSamplesList = sensor->interface.Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
+  if( rawSamplesList == NULL ) return 0.0;
 
-  size_t oldSamplesBufferStart = data->samplesBufferStartIndex;
-  size_t newSamplesBufferStart = oldSamplesBufferStart + OLD_SAMPLES_BUFFER_LEN;
-  for( int newSampleIndex = 0; newSampleIndex < aquiredSamplesCount; newSampleIndex++ )
-    data->samplesBuffer[ ( newSamplesBufferStart + newSampleIndex ) % samplesBufferLength ] = newSamplesList[ newSampleIndex ] / sensor->scalingFactor;
-
-  for( int sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
-  {
-    double previousSamplesMean = 0.0;
-    for( int previousSampleIndex = oldSamplesBufferStart + sampleIndex; previousSampleIndex < newSamplesBufferStart + sampleIndex; previousSampleIndex++ )
-      previousSamplesMean += data->samplesBuffer[ previousSampleIndex % samplesBufferLength ] / OLD_SAMPLES_BUFFER_LEN;
-
-    data->rectifiedSamplesBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] = data->samplesBuffer[ ( newSamplesBufferStart + sampleIndex ) % samplesBufferLength ] - previousSamplesMean;
-    if( data->isRectified ) data->rectifiedSamplesBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] = fabs( data->rectifiedSamplesBuffer[ FILTER_EXTRA_SAMPLES_NUMBER + sampleIndex ] );
-  }
+  long processedSamplesStartIndex = samplesBufferLength - aquiredSamplesCount;
+  double* processedSamplesList = data->samplesBuffer + processedSamplesStartIndex;
   
-  double* processedSamplesList = data->rectifiedSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER;
-
-  if( data->isFiltered )
+  for( int rawSampleIndex = 0; rawSampleIndex < aquiredSamplesCount; rawSampleIndex++ )
+    processedSamplesList[ rawSampleIndex ] = rawSamplesList[ rawSampleIndex ] * sensor->scalingFactor - sensor->offset;
+  
+  if( data->processingPhase != SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    for( int sampleIndex = FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex < filteredSamplesBufferLength; sampleIndex++ )
+    if( data->isRectified )
     {
-      data->filteredSamplesBuffer[ sampleIndex ] = 0.0;
-      for( int factorIndex = 0; factorIndex < FILTER_ORDER; factorIndex++ )
-      {
-        data->filteredSamplesBuffer[ sampleIndex ] -= filter_A[ factorIndex ] * data->filteredSamplesBuffer[ sampleIndex - factorIndex ];
-        data->filteredSamplesBuffer[ sampleIndex ] += filter_B[ factorIndex ] * data->rectifiedSamplesBuffer[ sampleIndex - factorIndex ];
-      }
-      if( data->filteredSamplesBuffer[ sampleIndex ] < 0.0 ) data->filteredSamplesBuffer[ sampleIndex ] = 0.0;
+      for( int sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
+        processedSamplesList[ sampleIndex ] = fabs( processedSamplesList[ sampleIndex ] );
     }
-    
-    processedSamplesList = data->filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER;
-  }
 
-  for( int sampleIndex = 0; sampleIndex < FILTER_EXTRA_SAMPLES_NUMBER; sampleIndex++ )
-  {
-    data->filteredSamplesBuffer[ sampleIndex ] = data->filteredSamplesBuffer[ aquiredSamplesCount + sampleIndex ];
-    data->rectifiedSamplesBuffer[ sampleIndex ] = data->rectifiedSamplesBuffer[ aquiredSamplesCount + sampleIndex ];
-  }
+    if( data->isFiltered )
+    {
+      for( int sampleIndex = (int) processedSamplesStartIndex; sampleIndex < samplesBufferLength; sampleIndex++ )
+      {
+        data->filteredSamplesBuffer[ sampleIndex ] = 0.0;
+        for( int factorIndex = 0; factorIndex < FILTER_ORDER; factorIndex++ )
+        {
+          data->filteredSamplesBuffer[ sampleIndex ] -= filter_A[ factorIndex ] * data->filteredSamplesBuffer[ sampleIndex - factorIndex ];
+          data->filteredSamplesBuffer[ sampleIndex ] += filter_B[ factorIndex ] * data->samplesBuffer[ sampleIndex - factorIndex ];
+        }
+      }
+      
+      processedSamplesList = data->filteredSamplesBuffer + processedSamplesStartIndex;
+    }
 
-  data->samplesBufferStartIndex += aquiredSamplesCount;
+    for( int sampleIndex = 0; sampleIndex < processedSamplesStartIndex; sampleIndex++ )
+    {
+      data->filteredSamplesBuffer[ sampleIndex ] = data->filteredSamplesBuffer[ aquiredSamplesCount + sampleIndex ];
+      data->samplesBuffer[ sampleIndex ] = data->samplesBuffer[ aquiredSamplesCount + sampleIndex ];
+    }
+  }
 
   double processedSamplesSum = 0.0;
   for( int sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
@@ -250,6 +257,11 @@ static void* AsyncUpdate( void* data )
         {
           if( processedSignal > data->calibrationMax ) data->calibrationMax = processedSignal;
           else if( processedSignal < data->calibrationMin ) data->calibrationMin = processedSignal;
+        }
+        else if( data->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+        {
+          data->samplesMean += processedSignal;
+          data->recordedSamplesCount++;
         }
         else if( data->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
         {
@@ -282,38 +294,37 @@ static Sensor LoadSensorData( const char* configFileName )
   Sensor newSensor = (Sensor) malloc( sizeof(SensorData) );
   memset( newSensor, 0, sizeof(SensorData) );
   
-  int configFileID = ConfigParser.LoadFile( configFileName );
+  int configFileID = ConfigParser.LoadFileData( configFileName );
   if( configFileID != -1 )
   {
     bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "aquisition_system.type" ), newSensor->interface, pluginLoaded );
+    GET_PLUGIN_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "aquisition_system.type", "" ), newSensor->interface, pluginLoaded );
     if( pluginLoaded )
     {
-      newSensor->taskID = newSensor->interface.InitTask( ConfigParser.GetStringValue( configFileID, "aquisition_system.task" ) );
+      newSensor->taskID = newSensor->interface.InitTask( ConfigParser.GetStringValue( configFileID, "aquisition_system.task", "" ) );
       if( newSensor->taskID != -1 )
       {
         size_t newSamplesBufferMaxLength = newSensor->interface.GetMaxSamplesNumber( newSensor->taskID );
         if( newSamplesBufferMaxLength > 0 )
         {
-          newSensor->signalData.samplesBufferLength = newSamplesBufferMaxLength + OLD_SAMPLES_BUFFER_LEN;
+          newSensor->signalData.samplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
           newSensor->signalData.samplesBuffer = (double*) calloc( newSensor->signalData.samplesBufferLength, sizeof(double) );
-          newSensor->signalData.filteredSamplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
-          newSensor->signalData.filteredSamplesBuffer = (double*) calloc( newSensor->signalData.filteredSamplesBufferLength, sizeof(double) );
-          newSensor->signalData.rectifiedSamplesBuffer = (double*) calloc( newSensor->signalData.filteredSamplesBufferLength, sizeof(double) );
+          newSensor->signalData.filteredSamplesBuffer = (double*) calloc( newSensor->signalData.samplesBufferLength, sizeof(double) );
         }
         else loadError = true;
 
-        newSensor->channel = (unsigned int) ConfigParser.GetIntegerValue( configFileID, "aquisition_system.channel" );
+        newSensor->channel = (unsigned int) ConfigParser.GetIntegerValue( configFileID, "aquisition_system.channel", -1 );
         if( !(newSensor->interface.AquireChannel( newSensor->taskID, newSensor->channel )) ) loadError = true;
         
-        newSensor->scalingFactor = ConfigParser.GetRealValue( configFileID, "processing.input_gain" );
-        newSensor->signalData.isRectified = ConfigParser.GetBooleanValue( configFileID, "processing.rectified" );
-        newSensor->signalData.isFiltered = ConfigParser.GetBooleanValue( configFileID, "processing.filtered" );
-        newSensor->signalData.isNormalized = ConfigParser.GetBooleanValue( configFileID, "processing.normalized" );
+        newSensor->scalingFactor = ConfigParser.GetRealValue( configFileID, "processing.input_multiplier", 1.0 );
+        newSensor->scalingFactor /= ConfigParser.GetRealValue( configFileID, "processing.input_divisor", 1.0 );
+        newSensor->signalData.isRectified = ConfigParser.GetBooleanValue( configFileID, "processing.rectified", false );
+        newSensor->signalData.isFiltered = ConfigParser.GetBooleanValue( configFileID, "processing.filtered", false );
+        newSensor->signalData.isNormalized = ConfigParser.GetBooleanValue( configFileID, "processing.normalized", false );
         
         DEBUG_PRINT( "measure properties: rect: %u - filter: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isFiltered, newSensor->signalData.isNormalized ); 
         
-        if( ConfigParser.GetBooleanValue( configFileID, "log_data" ) )
+        if( ConfigParser.GetBooleanValue( configFileID, "log_data", false ) )
         {
           newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
           DataLogging_SetDataPrecision( newSensor->logID, 4 );
@@ -323,7 +334,7 @@ static Sensor LoadSensorData( const char* configFileName )
     }
     else loadError = true;
 
-    ConfigParser.UnloadFile( configFileID );
+    ConfigParser.UnloadData( configFileID );
   }
   else
   {
@@ -346,7 +357,6 @@ void UnloadSensorData( Sensor sensor )
   
   free( sensor->signalData.samplesBuffer );
   free( sensor->signalData.filteredSamplesBuffer );
-  free( sensor->signalData.rectifiedSamplesBuffer );
   
   sensor->interface.ReleaseChannel( sensor->taskID, sensor->channel );
   sensor->interface.EndTask( sensor->taskID );

@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdio.h>
 #ifdef __unix__
   #include <unistd.h>
 #endif

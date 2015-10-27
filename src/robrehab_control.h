@@ -41,7 +41,7 @@ int RobRehabControl_Init()
   
   if( ConfigParser.Init( "JSON" ) )
   {
-    int configFileID = ConfigParser.LoadFile( "shared_robots" );
+    int configFileID = ConfigParser.LoadFileData( "shared_robots" );
     if( configFileID != -1 )
     {
       if( ConfigParser.HasKey( configFileID, "robots" ) )
@@ -54,7 +54,7 @@ int RobRehabControl_Init()
         for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
         {
           sprintf( searchPath, "robots.%u", sharedRobotIndex );
-          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath );
+          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath, NULL );
           if( deviceName != NULL )
           {
             int robotControllerID = RobotControl.InitController( deviceName );
@@ -77,7 +77,7 @@ int RobRehabControl_Init()
         }
       }
     
-      ConfigParser.UnloadFile( configFileID );
+      ConfigParser.UnloadData( configFileID );
     }
   }
   

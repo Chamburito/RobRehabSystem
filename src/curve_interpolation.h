@@ -36,7 +36,7 @@ typedef CurveData* Curve;
         function_init( Curve, namespace, LoadCurveFile, const char* ) \
         function_init( Curve, namespace, LoadCurveString, const char* ) \
         function_init( void, namespace, UnloadCurve, Curve ) \
-        function_init( void, namespace, AddSpline3Segment, Curve, double[ SPLINE3_COEFFS_NUMBER ], double[ 2 ] ) \
+        function_init( void, namespace, AddSpline3Segment, Curve, double*, double[ 2 ] ) \
         function_init( void, namespace, AddPolySegment, Curve, double*, size_t, double[ 2 ] ) \
         function_init( void, namespace, SetScale, Curve, double ) \
         function_init( void, namespace, SetOffset, Curve, double ) \
@@ -49,7 +49,7 @@ Curve LoadCurveData( int configDataID )
 {
   static char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
   
-  if( configDataID == -1 ) return NULL;
+  if( configDataID == PARSED_DATA_INVALID_ID ) return NULL;
   
   Curve newCurve = (Curve) malloc( sizeof(CurveData) );
   memset( newCurve, 0, sizeof(CurveData) );
@@ -69,31 +69,23 @@ Curve LoadCurveData( int configDataID )
       curveBounds[ 0 ] = ConfigParser.GetRealValue( configDataID, "bounds.0", 0.0 );
       curveBounds[ 1 ] = ConfigParser.GetRealValue( configDataID, "bounds.1", 1.0 );
       
+      int parametersNumber = (int) ConfigParser.GetListSize( configDataID, "parameters" );
+
+      double* curveParameters = (double*) calloc( parametersNumber, sizeof(double) );
+      for( int parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
+      {
+        sprintf( searchPath, "parameters.%d", parameterIndex );
+        curveParameters[ parametersNumber - parameterIndex - 1 ] = ConfigParser.GetRealValue( configDataID, searchPath, 0.0 );
+      }
+      
       char* curveType = ConfigParser.GetStringValue( configDataID, "type", NULL );
       if( strcmp( curveType, "cubic_spline" ) == 0  )
       {
-        double splineValues[ SPLINE3_COEFFS_NUMBER ];
-        splineValues[ 0 ] = ConfigParser.GetRealValue( configDataID, "begin.value", 0.0 );
-        splineValues[ 1 ] = ConfigParser.GetRealValue( configDataID, "begin.derivative", 0.0 );
-        splineValues[ 2 ] = ConfigParser.GetRealValue( configDataID, "end.value", 0.0 );
-        splineValues[ 3 ] = ConfigParser.GetRealValue( configDataID, "end.derivative", 0.0 );
-        
-        CurveInterpolation_AddSpline3Segment( newCurve, splineValues, curveBounds );
+        if( parametersNumber == SPLINE3_COEFFS_NUMBER ) CurveInterpolation_AddSpline3Segment( newCurve, curveParameters, curveBounds );
       }
-      else if( strcmp( curveType, "polynomial" ) == 0  )
-      {
-        int coeffsNumber = (int) ConfigParser.GetListSize( configDataID, "coeffs" );
-        
-        double* curveCoeffs = (double*) calloc( coeffsNumber, sizeof(double) );
-        for( int coeffIndex = 0; coeffIndex < coeffsNumber; coeffIndex++ )
-        {
-          sprintf( searchPath, "coeffs.%d", coeffIndex );
-          curveCoeffs[ coeffsNumber - coeffIndex - 1 ] = ConfigParser.GetRealValue( configDataID, searchPath, 0.0 ); 
-        }
-        free( curveCoeffs );
-        
-        CurveInterpolation_AddPolySegment( newCurve, curveCoeffs, coeffsNumber, curveBounds );
-      }
+      else if( strcmp( curveType, "polynomial" ) == 0  ) CurveInterpolation_AddPolySegment( newCurve, curveParameters, parametersNumber, curveBounds );
+      
+      free( curveParameters );
     }
   }
   
@@ -131,7 +123,7 @@ void CurveInterpolation_UnloadCurve( Curve curve )
   }
 }
 
-void CurveInterpolation_AddSpline3Segment( Curve curve, double splineValues[ SPLINE3_COEFFS_NUMBER ], double splineBounds[ 2 ] )
+void CurveInterpolation_AddSpline3Segment( Curve curve, double* splineValues, double splineBounds[ 2 ] )
 {
   double splineLength = splineBounds[ 1 ] - splineBounds[ 0 ];
   

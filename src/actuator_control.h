@@ -7,7 +7,6 @@
 #include "axis/axis_sensor.h"
 
 #include "control_interface.h"
-#include "spline3_interpolation.h"
 #include "filters.h"
 
 #include "config_parser.h"
@@ -60,22 +59,22 @@ Actuator ActuatorControl_InitController( const char* configFileName )
   Actuator newActuator = (Actuator) malloc( sizeof(ActuatorData) );
   memset( newActuator, 0, sizeof(ActuatorData) );
 
-  int configFileID = ConfigParser.LoadFile( configFileName );
+  int configFileID = ConfigParser.LoadFileData( configFileName );
   if( configFileID != -1 )
   {
-    if( (newActuator->motor = AxisMotors.Init( parser.GetStringValue( configFileID, "motor" ) )) == NULL ) loadError = true;
-    if( (newActuator->encoder = AxisSensors.Init( parser.GetStringValue( configFileID, "encoder" ) )) == NULL ) loadError = true;
-    if( (newActuator->forceSensor = AxisSensors.Init( parser.GetStringValue( configFileID, "force_sensor" ) )) == NULL ) loadError = true;
+    if( (newActuator->motor = AxisMotors.Init( parser.GetStringValue( configFileID, "motor", "" ) )) == NULL ) loadError = true;
+    if( (newActuator->encoder = AxisSensors.Init( parser.GetStringValue( configFileID, "encoder", "" ) )) == NULL ) loadError = true;
+    if( (newActuator->forceSensor = AxisSensors.Init( parser.GetStringValue( configFileID, "force_sensor", "" ) )) == NULL ) loadError = true;
     
     bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( CONTROL_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "control_function" ), newActuator->control, pluginLoaded );
+    GET_PLUGIN_INTERFACE( CONTROL_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "control_function", "" ), newActuator->control, pluginLoaded );
     if( pluginLoaded ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
     else loadError = true;
     
     newActuator->positionFilter = SimpleKalman.CreateFilter( 3, 0.0 );
     newActuator->forceFilter = SimpleKalman.CreateFilter( 1, 0.0 );
     
-    parser.UnloadFile( configFileID );
+    parser.UnloadData( configFileID );
   }
   else
   {
@@ -246,20 +245,19 @@ static inline void UpdateControlMeasures( Actuator actuator )
 
     actuator->measuresList[ CONTROL_POSITION ] = filteredMeasuresList[ 0 ];
     actuator->measuresList[ CONTROL_VELOCITY ] = filteredMeasuresList[ 1 ];
-    actuator->measuresList[ CONTROL_ACCELERATION ] = filteredMeasuresList[ 2 ];
+    //actuator->measuresList[ CONTROL_ACCELERATION ] = filteredMeasuresList[ 2 ];
 
     filteredMeasuresList = SimpleKalman.Update( actuator->positionFilter, forceMeasure, CONTROL_SAMPLING_INTERVAL );
     actuator->measuresList[ CONTROL_FORCE ] = filteredMeasuresList[ 0 ];
   
-    DEBUG_PRINT( "measures p: %.3f - v: %.3f - a: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], 
-                                                                   actuator->measuresList[ CONTROL_ACCELERATION ], actuator->measuresList[ CONTROL_FORCE ] );
+    DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
   }
 }
 
 static inline void UpdateControlSetpoints( Actuator actuator )
 {
-  actuator->setpointsList[ CONTROL_POSITION ] = actuator->setpointsList[ CONTROL_VELOCITY ] * CONTROL_SAMPLING_INTERVAL;
-  actuator->setpointsList[ CONTROL_VELOCITY ] = actuator->setpointsList[ CONTROL_ACCELERATION ] * CONTROL_SAMPLING_INTERVAL;
+  actuator->setpointsList[ CONTROL_POSITION ] += actuator->setpointsList[ CONTROL_VELOCITY ] * CONTROL_SAMPLING_INTERVAL;
+  //actuator->setpointsList[ CONTROL_VELOCITY ] += actuator->setpointsList[ CONTROL_ACCELERATION ] * CONTROL_SAMPLING_INTERVAL;
   
   DEBUG_PRINT( "got parameters: %.5f %.5f", actuator->setpointsList[ CONTROL_POSITION ], actuator->setpointsList[ CONTROL_VELOCITY ] );
 }
