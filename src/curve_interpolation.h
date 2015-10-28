@@ -49,7 +49,7 @@ Curve LoadCurveData( int configDataID )
 {
   static char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
   
-  if( configDataID == PARSED_DATA_INVALID_ID ) return NULL;
+  //if( configDataID == PARSED_DATA_INVALID_ID ) return NULL;
   
   Curve newCurve = (Curve) malloc( sizeof(CurveData) );
   memset( newCurve, 0, sizeof(CurveData) );
@@ -58,49 +58,51 @@ Curve LoadCurveData( int configDataID )
   
   newCurve->maxAbsoluteValue = ConfigParser.GetRealValue( configDataID, "max_value", -1.0 );
   
-  if( (newCurve->segmentsNumber = (size_t) ConfigParser.GetListSize( configDataID, "segments" )) > 0 )
+  size_t segmentsNumber = ConfigParser.GetListSize( configDataID, "segments" );
+  
+  for( size_t segmentIndex = 0; segmentIndex < segmentsNumber; segmentIndex++ )
   {
-    for( size_t segmentIndex = 0; segmentIndex < newCurve->segmentsNumber; segmentIndex++ )
-    {
-      sprintf( searchPath, "segments.%lu", segmentIndex );
-      ConfigParser.SetBaseKey( configDataID, searchPath );
-      
-      double curveBounds[ 2 ];
-      curveBounds[ 0 ] = ConfigParser.GetRealValue( configDataID, "bounds.0", 0.0 );
-      curveBounds[ 1 ] = ConfigParser.GetRealValue( configDataID, "bounds.1", 1.0 );
-      
-      int parametersNumber = (int) ConfigParser.GetListSize( configDataID, "parameters" );
+    double curveBounds[ 2 ];
+    sprintf( searchPath, "segments.%lu.bounds.0", segmentIndex );
+    curveBounds[ 0 ] = ConfigParser.GetRealValue( configDataID, searchPath, 0.0 );
+    sprintf( searchPath, "segments.%lu.bounds.1", segmentIndex );
+    curveBounds[ 1 ] = ConfigParser.GetRealValue( configDataID, searchPath, 1.0 );
 
-      double* curveParameters = (double*) calloc( parametersNumber, sizeof(double) );
-      for( int parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-      {
-        sprintf( searchPath, "parameters.%d", parameterIndex );
-        curveParameters[ parametersNumber - parameterIndex - 1 ] = ConfigParser.GetRealValue( configDataID, searchPath, 0.0 );
-      }
-      
-      char* curveType = ConfigParser.GetStringValue( configDataID, "type", NULL );
-      if( strcmp( curveType, "cubic_spline" ) == 0  )
-      {
-        if( parametersNumber == SPLINE3_COEFFS_NUMBER ) CurveInterpolation_AddSpline3Segment( newCurve, curveParameters, curveBounds );
-      }
-      else if( strcmp( curveType, "polynomial" ) == 0  ) CurveInterpolation_AddPolySegment( newCurve, curveParameters, parametersNumber, curveBounds );
-      
-      free( curveParameters );
+    sprintf( searchPath, "segments.%lu.parameters", segmentIndex );
+    int parametersNumber = (int) ConfigParser.GetListSize( configDataID, searchPath );
+
+    double* curveParameters = (double*) calloc( parametersNumber, sizeof(double) );
+    for( int parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
+    {
+      sprintf( searchPath, "segments.%lu.parameters.%d", segmentIndex, parameterIndex );
+      curveParameters[ parametersNumber - parameterIndex - 1 ] = ConfigParser.GetRealValue( configDataID, searchPath, 0.0 );
     }
+
+    sprintf( searchPath, "segments.%lu.type", segmentIndex );
+    char* curveType = ConfigParser.GetStringValue( configDataID, searchPath, NULL );
+    if( strcmp( curveType, "cubic_spline" ) == 0  )
+    {
+      if( parametersNumber == SPLINE3_COEFFS_NUMBER ) CurveInterpolation_AddSpline3Segment( newCurve, curveParameters, curveBounds );
+    }
+    else if( strcmp( curveType, "polynomial" ) == 0 ) CurveInterpolation_AddPolySegment( newCurve, curveParameters, parametersNumber, curveBounds );
+
+    free( curveParameters );
   }
+    
+  newCurve->segmentsNumber = segmentsNumber;
   
   ConfigParser.UnloadData( configDataID );
   
   return newCurve;
 }
 
-Curve CurveInterpolation_LoadCurveString( const char* curveName )
+Curve CurveInterpolation_LoadCurveFile( const char* curveName )
 {
   int configFileID = ConfigParser.LoadFileData( curveName );
   return LoadCurveData( configFileID );
 }
 
-Curve CurveInterpolation_LoadCurveFile( const char* curveString )
+Curve CurveInterpolation_LoadCurveString( const char* curveString )
 {
   int configDataID = ConfigParser.LoadStringData( curveString );
   return LoadCurveData( configDataID );

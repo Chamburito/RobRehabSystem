@@ -67,7 +67,8 @@ AxisSensor AxisSensors_Init( const char* configFileName )
     newSensor->inputGain = ConfigParser.GetRealValue( configFileID, "input_gain.multiplier", 1.0 );
     newSensor->inputGain /= ConfigParser.GetRealValue( configFileID, "input_gain.divisor", 1.0 );
     
-    newSensor->measureConversionCurve = CurveInterpolation.LoadCurveFile( ConfigParser.GetStringValue( configFileID, "conversion_curve", NULL ) );
+    if( ConfigParser.HasKey( configFileID, "conversion_curve" ) )
+      newSensor->measureConversionCurve = CurveInterpolation.LoadCurveFile( ConfigParser.GetStringValue( configFileID, "conversion_curve", NULL ) );
     
     ConfigParser.UnloadData( configFileID );
   }
@@ -135,10 +136,10 @@ double AxisSensors_Read( AxisSensor sensor, double* referencesList )
   
   sensor->interface.ReadMeasures( sensor->interfaceID, sensor->rawMeasuresList );
   
-  double input = ( sensor->rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset ) * sensor->inputGain;
-  if( sensor->isAbsolute && referencesList != NULL ) input -= referencesList[ sensor->measureIndex ];
+  double measure = ( sensor->rawMeasuresList[ sensor->measureIndex ] - sensor->inputOffset ) * sensor->inputGain;
+  if( sensor->isAbsolute && referencesList != NULL ) measure -= referencesList[ sensor->measureIndex ];
   
-  double measure = CurveInterpolation.GetValue( sensor->measureConversionCurve, input, 0.0 );
+  if( sensor->measureConversionCurve != NULL ) measure = CurveInterpolation.GetValue( sensor->measureConversionCurve, measure, measure );
   
   //DEBUG_PRINT( "sensor input: raw: %.5f - gain: %.5f", input, measure );
   

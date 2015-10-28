@@ -14,9 +14,9 @@ enum ControlVariables { CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_FORCE, CONTR
 
 typedef double* (*ControlFunction)( double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double, double* );
 
-#define CONTROL_INTERFACE_FUNCTIONS( interface, function_init ) \
+#define CONTROL_FUNCTIONS( interface, function_init ) \
         function_init( double*, interface, Run, double[ CONTROL_VARS_NUMBER ], double[ CONTROL_VARS_NUMBER ], double, double* )
 
-DEFINE_INTERFACE( Control, CONTROL_INTERFACE_FUNCTIONS )
+DEFINE_INTERFACE( Control, CONTROL_FUNCTIONS )
 
 #endif  // CONTROL_INTERFACE_H

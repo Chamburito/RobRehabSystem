@@ -67,7 +67,7 @@ Actuator ActuatorControl_InitController( const char* configFileName )
     if( (newActuator->forceSensor = AxisSensors.Init( parser.GetStringValue( configFileID, "force_sensor", "" ) )) == NULL ) loadError = true;
     
     bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( CONTROL_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "control_function", "" ), newActuator->control, pluginLoaded );
+    GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "control_function", "" ), newActuator->control, pluginLoaded );
     if( pluginLoaded ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
     else loadError = true;
     
@@ -89,6 +89,8 @@ Actuator ActuatorControl_InitController( const char* configFileName )
   }
   
   DEBUG_PRINT( "created series elastic actuator %s", configFileName );
+  
+  ActuatorControl_Enable( newActuator );
   
   return newActuator;
 }
@@ -250,7 +252,7 @@ static inline void UpdateControlMeasures( Actuator actuator )
     filteredMeasuresList = SimpleKalman.Update( actuator->positionFilter, forceMeasure, CONTROL_SAMPLING_INTERVAL );
     actuator->measuresList[ CONTROL_FORCE ] = filteredMeasuresList[ 0 ];
   
-    DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
+    //DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
   }
 }
 
@@ -259,7 +261,7 @@ static inline void UpdateControlSetpoints( Actuator actuator )
   actuator->setpointsList[ CONTROL_POSITION ] += actuator->setpointsList[ CONTROL_VELOCITY ] * CONTROL_SAMPLING_INTERVAL;
   //actuator->setpointsList[ CONTROL_VELOCITY ] += actuator->setpointsList[ CONTROL_ACCELERATION ] * CONTROL_SAMPLING_INTERVAL;
   
-  DEBUG_PRINT( "got parameters: %.5f %.5f", actuator->setpointsList[ CONTROL_POSITION ], actuator->setpointsList[ CONTROL_VELOCITY ] );
+  //DEBUG_PRINT( "got parameters: %.5f %.5f", actuator->setpointsList[ CONTROL_POSITION ], actuator->setpointsList[ CONTROL_VELOCITY ] );
 }
 
 static inline void RunControl( Actuator actuator )

@@ -30,7 +30,7 @@ SignalAquisitionTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalAquisitionTask* )
 static khash_t( TaskInt )* tasksList = NULL;
 
-IMPLEMENT_INTERFACE( SignalAquisition, SIGNAL_AQUISITION_FUNCTIONS ) 
+IMPLEMENT_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS ) 
 
 #ifdef _CVI_
 static void* AsyncReadBuffer( void* );

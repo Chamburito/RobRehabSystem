@@ -59,7 +59,7 @@ CANInterface;
 KHASH_MAP_INIT_INT( CANInt, CANInterface* )
 static khash_t( CANInt )* interfacesList = NULL;
 
-IMPLEMENT_INTERFACE( Axis, AXIS_INTERFACE_FUNCTIONS )
+IMPLEMENT_INTERFACE( AXIS_INTERFACE_FUNCTIONS )
 
 static inline CANInterface* LoadInterfaceData( unsigned int );
 static inline void UnloadInterfaceData( CANInterface* );

@@ -19,10 +19,12 @@ JSONData;
 KHASH_MAP_INIT_INT( JSONInt, JSONData )
 static khash_t( JSONInt )* jsonDataList = NULL;
 
-void UnloadData( int );
+IMPLEMENT_INTERFACE( PARSER_FUNCTIONS )
 
 int LoadStringData( const char* configString )
 {
+  if( configString == NULL ) return PARSED_DATA_INVALID_ID;
+  
   if( jsonDataList == NULL ) jsonDataList = kh_init( JSONInt );
   
   int dataKey = (int) kh_size( jsonDataList );
@@ -51,6 +53,8 @@ int LoadStringData( const char* configString )
 
 int LoadFileData( const char* filePath )
 {
+  if( filePath == NULL ) return PARSED_DATA_INVALID_ID;
+  
   char filePathExt[ PARSER_MAX_FILE_PATH_LENGTH ];
   sprintf( filePathExt, "%s.json", filePath );
   
@@ -70,7 +74,7 @@ int LoadFileData( const char* filePath )
 
   free( configString );
   
-  if( newDataID != PARSED_DATA_INVALID_ID ) DEBUG_PRINT( "file %s data inserted: %s", filePathExt );
+  if( newDataID != PARSED_DATA_INVALID_ID ) DEBUG_PRINT( "file %s data inserted", filePathExt );
 
   return newDataID;
 }
@@ -105,6 +109,8 @@ static inline const kson_node_t* GetPathNode( int dataID, const char* path )
   
   for( char* key = strtok( searchPath, "." ); key != NULL; key = strtok( NULL, "." ) )
   {
+    if( currentNode == NULL ) break;
+        
     if( currentNode->type == KSON_TYPE_BRACE )
       currentNode = kson_by_key( currentNode, key );
     else if( currentNode->type == KSON_TYPE_BRACKET )
@@ -119,7 +125,10 @@ void SetBaseKey( int dataID, const char* path )
   khint_t dataIndex = kh_get( JSONInt, jsonDataList, (khint_t) dataID );
   if( dataIndex == kh_end( jsonDataList ) ) return;
   
-  kh_value( jsonDataList, dataIndex ).currentNode = GetPathNode( dataID, path );
+  const kson_node_t* baseNode = GetPathNode( dataID, path );
+  if( baseNode == NULL ) return;
+  
+  kh_value( jsonDataList, dataIndex ).currentNode = baseNode;
   DEBUG_PRINT( "setting base key to \"%s\"", path );
 }
 
@@ -130,7 +139,7 @@ char* GetStringValue( int dataID, const char* path, char* defaultValue  )
   if( valueNode == NULL ) return defaultValue;
   
   if( valueNode->type != KSON_TYPE_SGL_QUOTE && valueNode->type != KSON_TYPE_DBL_QUOTE )
-    return NULL;
+    return defaultValue;
   
   if( valueNode->v.str == NULL ) return defaultValue;
   

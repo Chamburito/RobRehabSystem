@@ -380,9 +380,8 @@ Include Path 2 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src"
 [Create Executable]
 Executable File_Debug Is Rel = True
 Executable File_Debug Rel To = "Project"
-Executable File_Debug Rel Path = "plugins/file_parsing/JSON.dll"
-Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/file_parsing/JSO"
-Executable File_Debug Line0002 = "N.dll"
+Executable File_Debug Rel Path = "plugins/parsing/JSON.dll"
+Executable File_Debug = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/parsing/JSON.dll"
 Executable File_Release Is Rel = True
 Executable File_Release Rel To = "Project"
 Executable File_Release Rel Path = "JSONPlugin.dll"

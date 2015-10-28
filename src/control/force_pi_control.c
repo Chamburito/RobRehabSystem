@@ -1,5 +1,7 @@
 #include "control_interface.h"
 
+IMPLEMENT_INTERFACE( CONTROL_FUNCTIONS )
+
 // Torque Filter
 const double a2 = -0.9428;
 const double a3 = 0.3333;

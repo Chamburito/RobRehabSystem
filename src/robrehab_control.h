@@ -23,6 +23,7 @@ typedef struct _SharedAxis
 SharedAxisController;
 
 kvec_t( SharedAxisController ) sharedControllersList;
+kvec_t( int ) robotControllersList;
 
 
 #define SUBSYSTEM RobRehabControl
@@ -38,6 +39,7 @@ INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_CONTROL_FUNCTIONS )
 int RobRehabControl_Init()
 {
   kv_init( sharedControllersList );
+  kv_init( robotControllersList );
   
   if( ConfigParser.Init( "JSON" ) )
   {
@@ -60,11 +62,13 @@ int RobRehabControl_Init()
             int robotControllerID = RobotControl.InitController( deviceName );
             if( robotControllerID != ROBOT_CONTROLLER_INVALID_ID )
             {
+              kv_push( int, robotControllersList, robotControllerID );
               size_t controllersNumber = RobotControl.GetDoFsNumber( robotControllerID );
               
               for( size_t controllerIndex = 0; controllerIndex < controllersNumber; controllerIndex++ )
               {
-                const char* axisName = RobotControl.GetDoFName( robotControllerID, controllerIndex );
+                char axisName[ DOF_MAX_NAME_LENGTH ];
+                snprintf( axisName, DOF_MAX_NAME_LENGTH, "%s-%s", deviceName, RobotControl.GetDoFName( robotControllerID, controllerIndex ) );
                 SHMController sharedData = SHMControl.InitData( axisName, SHM_CONTROL_IN );
                 if( sharedData != NULL )
                 {
@@ -80,6 +84,8 @@ int RobRehabControl_Init()
       ConfigParser.UnloadData( configFileID );
     }
   }
+  else
+    DEBUG_PRINT( "couldn't load %s configuration loading plugin", "JSON" );
   
   return 0;
 }
@@ -112,22 +118,20 @@ void RobRehabControl_Update()
     int robotControllerID = sharedController->robotID;
     size_t axisControllerIndex = sharedController->controllerIndex;
    
-    /*uint8_t command = SHMControl.GetByteValue( sharedData, SHM_CONTROL_REMOVE );
-    if( command != SHM_CONTROL_NULL_BYTE )
+    uint8_t command = SHMControl.GetByteValue( sharedData, SHM_CONTROL_REMOVE );
+    if( command != SHM_CONTROL_BYTE_NULL )
     {
       //DEBUG_PRINT( "received command: %x", command );
       
-      if( command == SHM_COMMAND_ENABLE ) AxisControl.Enable( axisController );
-      else if( command == SHM_COMMAND_DISABLE ) AxisControl.Disable( axisController );
-      else if( command == SHM_COMMAND_RESET ) AxisControl.Reset( axisController );
-      else if( command == SHM_COMMAND_CALIBRATE ) AxisControl.Calibrate( axisController );
+      if( command == SHM_COMMAND_ENABLE ) RobotControl.Enable( robotControllerID );
+      else if( command == SHM_COMMAND_DISABLE ) RobotControl.Disable( robotControllerID );
+      else if( command == SHM_COMMAND_RESET ) RobotControl.Reset( robotControllerID );
+      else if( command == SHM_COMMAND_CALIBRATE ) RobotControl.Calibrate( robotControllerID );
       
-      sharedData->channelIn->byteValueUpdated = false;
-      
-      if( AxisControl.IsEnabled( axisController ) ) SHMControl.SetByteValue( sharedData, SHM_STATE_ENABLED );
+      if( RobotControl.IsEnabled( robotControllerID ) ) SHMControl.SetByteValue( sharedData, SHM_STATE_ENABLED );
     }
     
-    if( AxisControl.HasError( axisController ) ) SHMControl.SetByteValue( sharedData, SHM_STATE_ERROR );*/
+    if( RobotControl.HasError( robotControllerID ) ) SHMControl.SetByteValue( sharedData, SHM_STATE_ERROR );
 
     uint8_t dataMask = SHMControl.GetNumericValuesList( sharedData, controlValuesList, SHM_CONTROL_REMOVE );
     if( dataMask )
@@ -154,6 +158,9 @@ void RobRehabControl_Update()
       //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_FORCE ] );
     }
   }
+  
+  for( size_t robotIndex = 0; robotIndex < kv_size( robotControllersList ); robotIndex++ )
+    RobotControl.Update( kv_A( robotControllersList, robotIndex ) );
 }
 
 #endif // ROBREHAB_CONTROL_H

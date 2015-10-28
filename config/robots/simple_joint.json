@@ -1,0 +1,6 @@
+{
+  "mechanics": "robots/SimpleJoint",
+  "joints": [
+    "actuators/knee"
+  ]
+}

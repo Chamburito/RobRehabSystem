@@ -1,10 +1,10 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
 
+#include "debug/debug.h"
+
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdio.h>
 #ifdef __unix__
   #include <unistd.h>
 #endif
@@ -27,7 +27,7 @@
         } \
         interfaceName##Interface;
       
-#define IMPLEMENT_INTERFACE( interfaceName, interfaceFunctions ) interfaceFunctions( interfaceName, INIT_INTERFACE_FILE )
+#define IMPLEMENT_INTERFACE( interfaceFunctions ) interfaceFunctions( interfaceName, INIT_INTERFACE_FILE )
       
 #define INIT_NAMESPACE_INTERFACE( namespace, functions ) \
         functions( namespace, INIT_NAMESPACE_FILE ) \

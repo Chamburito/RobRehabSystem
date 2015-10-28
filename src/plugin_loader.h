@@ -42,8 +42,8 @@
   sprintf( interfaceFilePathExt, "plugins/%s.%s", interfaceFilePath, PLUGIN_EXTENSION ); \
   printf( "trying to load plugin %s\n", interfaceFilePathExt ); \
   PLUGIN_HANDLE pluginHandle = LOAD_PLUGIN( interfaceFilePathExt ); \
-  LOAD_PLUGIN_FUNCTIONS( interfaceFunctions, interfaceName ) \
-  success = (bool) pluginHandle; } while( 0 )
+  success = (bool) pluginHandle; \
+  LOAD_PLUGIN_FUNCTIONS( interfaceFunctions, interfaceName ) } while( 0 )
 
 #ifdef __cplusplus
     }
