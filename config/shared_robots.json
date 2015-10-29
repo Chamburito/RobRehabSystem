@@ -1,5 +1,13 @@
 {
   "robots": [
-    "robots/simple_joint"
+    {
+      "name": "simple_joint",
+      "dofs": [
+        "theta"
+      ],
+      "joints": [
+        "emg_joints/knee"
+      ]
+    }
   ]
 }

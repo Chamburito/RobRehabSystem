@@ -14,6 +14,7 @@
 #include "interface.h"
 
 #include "shm_axis_control.h"
+#include "shm_emg_control.h"
 
 #include "config_parser.h"
 
@@ -25,22 +26,26 @@ const unsigned long UPDATE_INTERVAL_MS = 5;
 
 static int infoServerConnectionID;
 static int dataServerConnectionID;
+static int emgServerConnectionID;
 
 static kvec_t( int ) infoClientsList;
 const size_t INFO_BLOCK_SIZE = 2;
 
 static kvec_t( int ) dataClientsList;
+static kvec_t( int ) emgClientsList;
 const size_t DATA_BLOCK_SIZE = 1 + SHM_CONTROL_FLOATS_NUMBER * sizeof(float);
 
 typedef struct _NetworkAxis
 {
-  int clientID;
-  SHMAxis sharedData;
-  //TrajectoryPlanner* trajectoryPlanner;
+  int axisClientID;
+  SHMController sharedAxis;
 } 
 NetworkAxis;
 
 static kvec_t( NetworkAxis ) networkAxesList;
+
+static kvec_t( SHMController ) networEMGsList;
+
 
 static char axesInfoString[ IP_MAX_MESSAGE_LENGTH ] = ""; // String containing used axes names
 
@@ -53,67 +58,79 @@ static char axesInfoString[ IP_MAX_MESSAGE_LENGTH ] = ""; // String containing u
 
 INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_NETWORK_FUNCTIONS )
 
+const char* CONFIG_KEY = "robots";
 int RobRehabNetwork_Init()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %x", THREAD_ID );
   if( (infoServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50000", TCP )) == -1 )
     return -1;
   if( (dataServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50001", UDP )) == -1 )
-  {
-    AsyncIPNetwork.CloseConnection( infoServerConnectionID );
     return -1;
-  }
+  if( (emgServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50002", UDP )) == -1 )
+    return -1;
   
-  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "Received server connection IDs: %d (Info) - %d (Data)", infoServerConnectionID, dataServerConnectionID );
+  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "Received server connection IDs: %d (Info) - %d (Data) - %d(EMG)", infoServerConnectionID, dataServerConnectionID, emgServerConnectionID );
   
   kv_init( infoClientsList );
   kv_init( dataClientsList );
+  kv_init( emgClientsList );
   
   kv_init( networkAxesList );
   
   if( ConfigParser.Init( "JSON" ) )
   {
-    int configFileID = ConfigParser.LoadFile( "shared_axes" );
-    if( configFileID != -1 )
+    char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
+    sprintf( searchPath, "shared_%s", CONFIG_KEY );
+    int configFileID = ConfigParser.LoadFileData( searchPath );
+    if( configFileID != PARSED_DATA_INVALID_ID )
     {
-      if( ConfigParser.HasKey( configFileID, "axes" ) )
+      if( ConfigParser.HasKey( configFileID, CONFIG_KEY ) )
       {
-        size_t sharedAxesNumber = ConfigParser.GetListSize( configFileID, "axes" );
+        size_t sharedRobotsNumber = ConfigParser.GetListSize( configFileID, CONFIG_KEY );
       
-        DEBUG_PRINT( "shared axes list size: %u", sharedAxesNumber );
+        DEBUG_PRINT( "shared objects list size: %lu", sharedRobotsNumber );
       
-        size_t infoMessageLength = 1 + sharedAxesNumber * INFO_BLOCK_SIZE; 
+        size_t infoMessageLength = 1 + sharedRobotsNumber * INFO_BLOCK_SIZE; 
         AsyncIPNetwork_SetMessageLength( infoServerConnectionID, infoMessageLength );
       
         DEBUG_PRINT( "info message length: %u", infoMessageLength );
       
-        size_t dataMessageLength = 1 + sharedAxesNumber * DATA_BLOCK_SIZE;
+        size_t dataMessageLength = 1 + sharedRobotsNumber * DATA_BLOCK_SIZE;
         AsyncIPNetwork_SetMessageLength( dataServerConnectionID, dataMessageLength );
+        AsyncIPNetwork_SetMessageLength( emgServerConnectionID, dataMessageLength );
       
         DEBUG_PRINT( "data message length: %u", dataMessageLength );
       
-        char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
-        for( size_t sharedAxisDataIndex = 0; sharedAxisDataIndex < sharedAxesNumber; sharedAxisDataIndex++ )
+        for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
         {
-          sprintf( searchPath, "axes.%u", sharedAxisDataIndex );
-          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath );
-        
+          sprintf( searchPath, "%s.%lu.name", CONFIG_KEY, sharedRobotIndex );
+          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath, NULL );
           if( deviceName != NULL )
           {
-            DEBUG_PRINT( "found shared axis %s", deviceName );
-          
-            SHMAxis sharedAxisData = SHMAxisControl.InitData( deviceName, SHM_CONTROL_OUT );
-            if( sharedAxisData != NULL )
+            DEBUG_PRINT( "found shared object %s", deviceName );
+            
+            sprintf( searchPath, "%s.%lu.dofs", CONFIG_KEY, sharedRobotIndex );
+            size_t sharedDoFsNumber = ConfigParser.GetListSize( robotConfigFileID, searchPath );
+            for( size_t dofIndex = 0; dofIndex < sharedDoFsNumber; dofIndex++ )
             {
-              NetworkAxis newAxis = { .sharedData = sharedAxisData, .clientID = -1 /*, .trajectoryPlanner = TrajectoryPlanner_Init()*/ };
+              NetworkAxis newNetworkAxis;
+              sprintf( searchPath, "%s.%lu.dofs.%lu", CONFIG_KEY, sharedRobotIndex, dofIndex );
+              sprintf( searchPath, "%s-%s", deviceName, ConfigParser.GetStringValue( configFileID, searchPath, "" ) );
+              newNetworkAxis.sharedAxis = SHMControl.InitData( searchPath, SHM_CONTROL_OUT );
+              if( sharedAxisData != NULL )
+              {
+                kv_push( NetworkAxis, networkAxesList, newNetworkAxis );
             
-              kv_push( NetworkAxis, networkAxesList, newAxis );
+                if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
+                snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkAxesList ) - 1, deviceName );
             
-              if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-              snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkAxesList ) - 1, deviceName );
-            
-              DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) - 1 );
+                DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) - 1 );
+              }
             }
+            
+          
+            SHMController sharedAxis = SHMAxisControl.InitData( deviceName, SHM_CONTROL_OUT );
+            
           }
         }
       }

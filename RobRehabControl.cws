@@ -16,9 +16,6 @@ Project 0001 Collapsed = True
 Project 0002 = "RobRehabControlRT.prj"
 Project 0003 = "RobRehabEMG.prj"
 Project 0004 = "RobRehabServerRT.prj"
-Project 0004 Collapsed = True
-Project 0004 Folder Include Files Collapsed = True
-Project 0004 FolderId 0 Collapsed = True
 Project 0005 = "NIDAQmxPlugin.prj"
 Project 0005 Collapsed = True
 Project 0006 = "JSONPlugin.prj"
@@ -135,12 +132,12 @@ Batch Build Debug = False
 [File 0001]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"
 File Type = "Include"
-Disk Date = 3528471657
+Disk Date = 3528989118
 In Projects = "4,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 28
-Source Window State = "1,94,94,94,25,52,52,0,0,85,0,125,0,0,0,25,82,4,94,25,349,723,1,15,"
+Window Z-Order = 1
+Source Window State = "1,121,121,121,55,62,55,0,0,202,0,125,0,0,0,49,90,0,121,69,349,723,1,15,"
 
 [File 0002]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/emg_processing.h"
@@ -149,7 +146,7 @@ Disk Date = 3528812035
 In Projects = "3,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 23
+Window Z-Order = 25
 Source Window State = "1,238,238,238,26,53,53,0,0,85,0,182,0,0,0,25,226,0,264,27,349,723,1,15,"
 
 [File 0003]
@@ -159,7 +156,7 @@ Disk Date = 3528441593
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 33
+Window Z-Order = 34
 Source Window State = "1,29,30,30,0,40,40,0,0,85,0,0,0,0,0,25,71,0,22,47,349,723,1,0,"
 
 [File 0004]
@@ -169,7 +166,7 @@ Disk Date = 3528449392
 In Projects = ""
 Window Top = 95
 Window Left = 42
-Window Z-Order = 31
+Window Z-Order = 32
 Source Window State = "1,9,9,9,68,102,102,0,0,85,0,0,0,0,0,25,0,0,8,5,349,723,1,0,"
 
 [File 0005]
@@ -191,7 +188,7 @@ Disk Date = 3527600330
 In Projects = "5,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 11
+Window Z-Order = 16
 Source Window State = "1,16,16,16,16,66,16,0,0,85,0,0,0,0,0,25,0,0,14,30,349,723,1,0,"
 
 [File 0007]
@@ -233,7 +230,7 @@ Disk Date = 3527786675
 In Projects = "2,3,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 30
+Window Z-Order = 31
 Source Window State = "1,9,9,9,135,151,151,0,0,85,0,0,0,0,0,25,0,0,3,2,349,723,1,0,"
 
 [File 0011]
@@ -276,7 +273,7 @@ Disk Date = 3528449454
 In Projects = ""
 Window Top = 95
 Window Left = 42
-Window Z-Order = 27
+Window Z-Order = 29
 Source Window State = "1,57,57,57,26,53,53,0,0,85,0,0,0,0,0,25,45,0,57,26,349,723,1,0,"
 
 [File 0015]
@@ -287,7 +284,7 @@ Disk Date = 3528375467
 In Projects = "7,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 12
+Window Z-Order = 17
 Source Window State = "1,18,19,19,5,56,56,0,0,85,0,0,0,0,0,25,1,0,23,52,349,723,1,0,"
 
 [File 0016]
@@ -331,7 +328,7 @@ Disk Date = 3526492471
 In Projects = ""
 Window Top = 250
 Window Left = 122
-Window Z-Order = 32
+Window Z-Order = 33
 Source Window State = "1,3,19,19,0,72,72,0,3,85,0,0,0,0,0,25,0,0,3,0,349,723,1,0,"
 
 [File 0020]
@@ -363,7 +360,7 @@ Disk Date = 3524740737
 In Projects = ""
 Window Top = 95
 Window Left = 42
-Window Z-Order = 26
+Window Z-Order = 28
 Source Window State = "1,204,204,204,26,53,53,0,0,85,0,0,0,0,0,25,192,0,204,26,349,723,1,0,"
 
 [File 0023]
@@ -415,7 +412,7 @@ Disk Date = 3523891494
 In Projects = "2,3,4,6,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 9
+Window Z-Order = 14
 Source Window State = "1,120,120,120,8,18,18,0,0,85,0,0,0,0,0,25,97,0,135,26,349,723,1,0,"
 
 [File 0028]
@@ -425,17 +422,17 @@ Disk Date = 3528901051
 In Projects = "2,"
 Window Top = 31
 Window Z-Order = 3
-Source Window State = "1,129,130,130,0,54,54,0,0,70,0,0,0,0,0,28,106,0,128,46,400,600,1,0,"
+Source Window State = "1,48,50,48,6,87,6,0,0,70,0,0,0,0,0,28,34,0,61,75,400,600,1,0,"
 
 [File 0029]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_system_rt.c"
 File Type = "CSource"
-Disk Date = 3527527609
+Disk Date = 3528989118
 In Projects = "2,3,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 21
-Source Window State = "1,58,58,58,0,12,12,0,0,85,0,0,0,0,0,25,40,0,42,0,349,723,1,0,"
+Window Z-Order = 6
+Source Window State = "1,72,77,77,2,4,4,0,0,85,0,0,0,0,0,25,40,0,78,3,349,723,1,0,"
 
 [File 0030]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/axis_motor.h"
@@ -444,7 +441,7 @@ Disk Date = 3528794444
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 25
+Window Z-Order = 27
 Source Window State = "1,64,66,66,6,8,8,0,0,85,0,0,0,0,0,25,46,0,64,149,349,723,1,0,"
 
 [File 0031]
@@ -454,7 +451,7 @@ Disk Date = 3528893595
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 8
+Window Z-Order = 13
 Source Window State = "1,141,141,141,127,130,127,0,0,85,0,0,0,0,0,25,30,0,61,52,349,723,1,0,"
 
 [File 0032]
@@ -475,7 +472,7 @@ Disk Date = 3528898936
 In Projects = "2,3,9,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 5
+Window Z-Order = 10
 Source Window State = "1,5,6,6,0,19,19,0,0,85,0,0,0,0,0,25,0,0,3,24,349,723,1,0,"
 
 [File 0034]
@@ -518,8 +515,8 @@ Disk Date = 3528812034
 In Projects = "3,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 22
-Source Window State = "1,62,62,62,19,46,46,0,0,85,0,0,0,0,0,25,89,0,105,56,349,723,1,0,"
+Window Z-Order = 4
+Source Window State = "1,66,66,66,4,51,4,0,3,85,0,0,0,0,0,25,53,0,66,51,349,723,1,0,"
 
 [File 0038]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/thread_safe_"
@@ -593,7 +590,7 @@ Disk Date = 3528880077
 In Projects = "3,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 14
+Window Z-Order = 19
 Source Window State = "1,35,36,36,178,120,120,0,0,85,0,0,0,0,0,25,6,0,30,108,349,723,1,0,"
 
 [File 0045]
@@ -603,7 +600,7 @@ Disk Date = 3523891495
 In Projects = "6,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 10
+Window Z-Order = 15
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,16,0,49,63,349,723,1,0,"
 
 [File 0046]
@@ -613,7 +610,7 @@ Disk Date = 3528714266
 In Projects = "3,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 13
+Window Z-Order = 18
 Source Window State = "1,3,3,3,18,23,23,0,0,85,0,0,0,0,0,25,9,0,32,69,349,723,1,0,"
 
 [File 0047]
@@ -624,18 +621,18 @@ Disk Date = 3527777121
 In Projects = "2,3,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 34
+Window Z-Order = 35
 Source Window State = "1,43,43,43,25,56,25,0,0,85,0,0,0,0,0,25,172,0,188,11,349,723,1,0,"
 
 [File 0048]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_emg_control.h"
 File Type = "Include"
 Disk Date = 3528285680
-In Projects = "3,"
+In Projects = "3,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 35
-Source Window State = "1,9,9,9,66,85,66,0,3,85,0,0,0,0,0,25,0,0,9,85,349,723,1,0,"
+Window Z-Order = 5
+Source Window State = "1,9,9,9,66,85,66,0,0,85,0,0,0,0,0,25,0,0,10,59,349,723,1,0,"
 
 [File 0049]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_control.h"
@@ -644,7 +641,7 @@ Disk Date = 3527775081
 In Projects = "2,3,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 29
+Window Z-Order = 30
 Source Window State = "1,24,24,24,20,29,29,0,0,85,0,0,0,0,0,25,0,0,67,60,349,723,1,0,"
 
 [File 0050]
@@ -654,7 +651,7 @@ Disk Date = 3528795207
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 4
+Window Z-Order = 9
 Source Window State = "1,377,377,377,20,25,25,0,0,85,0,0,0,0,0,25,3,0,324,52,349,723,1,0,"
 
 [File 0051]
@@ -665,7 +662,7 @@ Disk Date = 3528795537
 In Projects = "9,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 15
+Window Z-Order = 20
 Source Window State = "1,13,13,13,8,33,8,0,3,85,0,0,0,0,0,25,0,0,13,33,349,723,1,0,"
 
 [File 0052]
@@ -675,7 +672,7 @@ Disk Date = 3528878886
 In Projects = "2,8,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 16
+Window Z-Order = 21
 Source Window State = "1,16,16,16,16,25,25,0,0,85,0,0,0,0,0,25,0,0,16,15,349,723,1,0,"
 
 [File 0053]
@@ -686,7 +683,7 @@ Disk Date = 3528878872
 In Projects = "8,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 17
+Window Z-Order = 22
 Source Window State = "1,2,2,2,21,27,27,0,0,85,0,0,0,0,0,25,0,0,2,28,349,723,1,0,"
 
 [File 0054]
@@ -697,8 +694,8 @@ Disk Date = 3528902002
 In Projects = "9,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 1
-Source Window State = "1,47,47,47,41,75,41,0,0,202,0,0,0,0,0,49,1,0,12,80,349,723,1,0,"
+Window Z-Order = 7
+Source Window State = "1,47,47,47,41,75,41,0,0,85,0,0,0,0,0,25,1,0,37,53,349,723,1,0,"
 
 [File 0055]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/actuator_control.h"
@@ -707,7 +704,7 @@ Disk Date = 3528901337
 In Projects = "2,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 2
+Window Z-Order = 8
 Source Window State = "1,109,109,109,5,27,5,0,0,85,0,0,0,0,0,25,47,0,92,40,349,723,1,0,"
 
 [File 0056]
@@ -718,8 +715,8 @@ Disk Date = 3528714266
 In Projects = "6,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 20
-Source Window State = "1,34,34,34,16,44,16,0,3,85,0,0,0,0,0,25,0,0,34,44,349,723,1,0,"
+Window Z-Order = 2
+Source Window State = "1,20,20,20,10,32,10,0,3,85,0,0,0,0,0,25,0,0,20,32,349,723,1,0,"
 
 [File 0057]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/curve_interpolation."
@@ -729,7 +726,7 @@ Disk Date = 3528898744
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 6
+Window Z-Order = 11
 Source Window State = "1,89,90,90,0,68,68,0,0,85,0,0,0,0,0,25,56,0,80,78,349,723,1,0,"
 
 [File 0058]
@@ -739,10 +736,43 @@ Disk Date = 3528812035
 In Projects = "3,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 24
+Window Z-Order = 26
 Source Window State = "1,357,357,357,0,43,43,0,0,85,0,0,0,0,0,25,306,0,309,51,349,723,1,0,"
 
 [File 0059]
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/ni"
+Path Line0002 = "_daqmx/signal_aquisition.c"
+File Type = "CSource"
+Disk Date = 3528878781
+In Projects = "5,"
+Window Top = 188
+Window Left = 90
+Window Z-Order = 24
+Source Window State = "1,32,32,32,21,39,39,0,0,85,0,0,0,0,0,25,15,0,32,21,349,723,1,0,"
+
+[File 0060]
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/parsing/json_parser."
+Path Line0002 = "c"
+File Type = "CSource"
+Disk Date = 3528892579
+In Projects = "6,"
+Window Top = 157
+Window Left = 74
+Window Z-Order = 12
+Source Window State = "1,108,109,109,0,89,89,0,0,85,0,0,0,0,0,25,162,0,185,107,349,723,1,0,"
+
+[File 0061]
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/ni_can_epos_axi"
+Path Line0002 = "s/axis.c"
+File Type = "CSource"
+Disk Date = 3528878803
+In Projects = "7,"
+Window Top = 157
+Window Left = 74
+Window Z-Order = 23
+Source Window State = "1,61,61,61,21,27,27,0,0,85,0,0,0,0,0,25,44,0,61,21,349,723,1,0,"
+
+[File 0062]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/klib/khash.h"
 File Type = "Include"
 Disk Date = 3523891494
@@ -751,7 +781,7 @@ Window Top = 95
 Window Left = 42
 Source Window State = "1,482,482,482,8,14,14,0,0,0,0,0,0,0,0,0,385,0,545,61,349,723,1,0,"
 
-[File 0060]
+[File 0063]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/optimization.h"
 File Type = "Include"
 Disk Date = 3528372682
@@ -760,7 +790,7 @@ Window Top = 33
 Window Left = 10
 Source Window State = "1,25,25,25,9,30,9,0,0,0,0,0,0,0,0,0,19,0,20,45,349,723,1,0,"
 
-[File 0061]
+[File 0064]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
 Path Line0002 = "_memory_cvi.h"
 File Type = "Include"
@@ -770,29 +800,7 @@ Window Top = 33
 Window Left = 10
 Source Window State = "1,191,191,191,14,19,19,0,0,0,0,0,0,0,0,0,0,0,105,72,349,723,1,0,"
 
-[File 0062]
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_aquisition/ni"
-Path Line0002 = "_daqmx/signal_aquisition.c"
-File Type = "CSource"
-Disk Date = 3528878781
-In Projects = "5,"
-Window Top = 188
-Window Left = 90
-Window Z-Order = 19
-Source Window State = "1,32,32,32,21,39,39,0,0,85,0,0,0,0,0,25,15,0,32,21,349,723,1,0,"
-
-[File 0063]
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/parsing/json_parser."
-Path Line0002 = "c"
-File Type = "CSource"
-Disk Date = 3528892579
-In Projects = "6,"
-Window Top = 157
-Window Left = 74
-Window Z-Order = 7
-Source Window State = "1,108,109,109,0,89,89,0,0,85,0,0,0,0,0,25,162,0,185,107,349,723,1,0,"
-
-[File 0064]
+[File 0065]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/ni_can_epos_axi"
 Path Line0002 = "s/nixnet.h"
 File Type = "Include"
@@ -800,24 +808,13 @@ Disk Date = 3523889405
 In Projects = "7,"
 Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
 
-[File 0065]
+[File 0066]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/ni_can_epos_axi"
 Path Line0002 = "s/nixnet_stub.h"
 File Type = "Include"
 Disk Date = 3523889405
 In Projects = "7,"
 Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
-
-[File 0066]
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/axis/ni_can_epos_axi"
-Path Line0002 = "s/axis.c"
-File Type = "CSource"
-Disk Date = 3528878803
-In Projects = "7,"
-Window Top = 157
-Window Left = 74
-Window Z-Order = 18
-Source Window State = "1,61,61,61,21,27,27,0,0,85,0,0,0,0,0,25,44,0,61,21,349,723,1,0,"
 
 [Tab Order]
 Tab 0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"

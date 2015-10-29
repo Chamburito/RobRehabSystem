@@ -68,14 +68,15 @@ void CVIFUNC_C RTmain( void )
   
   SetDir( "C:\\ni-rt" );
   
-  SUBSYSTEM.Init();
-		
-	while( !RTIsShuttingDown() ) // Check for program termination conditions
-	{
-    SUBSYSTEM.Update();
+  if( SUBSYSTEM.Init() != -1 )
+  {
+  	while( !RTIsShuttingDown() ) // Check for program termination conditions
+  	{
+      SUBSYSTEM.Update();
     
-    SleepUntilNextMultipleUS( 1000 * UPDATE_INTERVAL_MS ); // Sleep to give the desired loop rate.
-	}
+      SleepUntilNextMultipleUS( 1000 * UPDATE_INTERVAL_MS ); // Sleep to give the desired loop rate.
+  	}
+  }
 
   SUBSYSTEM.End();
 
