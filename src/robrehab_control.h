@@ -14,7 +14,7 @@
 
 const unsigned long UPDATE_INTERVAL_MS = (unsigned long) CONTROL_SAMPLING_INTERVAL * 1000;
 
-typedef struct _SharedAxis
+typedef struct _SharedAxisController
 {
   int robotID;
   size_t controllerIndex;
@@ -22,7 +22,8 @@ typedef struct _SharedAxis
 }
 SharedAxisController;
 
-kvec_t( SharedAxisController ) sharedControllersList;
+kvec_t( SharedAxisController ) sharedDoFControllersList;
+kvec_t( SharedAxisController ) sharedJointControllersList;
 kvec_t( int ) robotControllersList;
 
 
@@ -31,15 +32,18 @@ kvec_t( int ) robotControllersList;
 #define ROBREHAB_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, Init, void ) \
         function_init( void, namespace, End, void ) \
-        function_init( void, namespace, Update, void ) \
+        function_init( void, namespace, Update, void )
 
 INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_CONTROL_FUNCTIONS )
 
 
 int RobRehabControl_Init()
 {
-  kv_init( sharedControllersList );
+  kv_init( sharedDoFControllersList );
+  kv_init( sharedJointControllersList );
   kv_init( robotControllersList );
+  
+  char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
   
   if( ConfigParser.Init( "JSON" ) )
   {
@@ -52,10 +56,9 @@ int RobRehabControl_Init()
         
         DEBUG_PRINT( "List size: %u", sharedRobotsNumber );
         
-        char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
         for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
         {
-          sprintf( searchPath, "robots.%u", sharedRobotIndex );
+          sprintf( searchPath, "robots.%lu", sharedRobotIndex );
           char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath, NULL );
           if( deviceName != NULL )
           {
@@ -63,18 +66,27 @@ int RobRehabControl_Init()
             if( robotControllerID != ROBOT_CONTROLLER_INVALID_ID )
             {
               kv_push( int, robotControllersList, robotControllerID );
-              size_t controllersNumber = RobotControl.GetDoFsNumber( robotControllerID );
               
-              for( size_t controllerIndex = 0; controllerIndex < controllersNumber; controllerIndex++ )
+              sprintf( searchPath, "robots.%lu.dofs", sharedRobotIndex );
+              size_t dofsNumber = ConfigParser.GetListSize( configFileID, searchPath );
+              for( size_t dofIndex = 0; dofIndex < dofsNumber; dofIndex++ )
               {
+                SharedAxisController newSharedDof = { .robotID = robotControllerID, .controllerIndex = dofIndex };
                 char axisName[ DOF_MAX_NAME_LENGTH ];
-                snprintf( axisName, DOF_MAX_NAME_LENGTH, "%s-%s", deviceName, RobotControl.GetDoFName( robotControllerID, controllerIndex ) );
-                SHMController sharedData = SHMControl.InitData( axisName, SHM_CONTROL_IN );
-                if( sharedData != NULL )
-                {
-                  SharedAxisController newAxis = { .sharedData = sharedData, .robotID = robotControllerID, .controllerIndex = controllerIndex };
-                  kv_push( SharedAxisController, sharedControllersList, newAxis );
-                }
+                sprintf( searchPath, "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
+                snprintf( axisName, DOF_MAX_NAME_LENGTH, "%s-%s", deviceName, ConfigParser.GetStringValue( configFileID, searchPath, "" ) );
+                newSharedDof.sharedData = SHMControl.InitData( axisName, SHM_CONTROL_IN );
+                if( newSharedDof.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newAxis );
+              }
+              
+              sprintf( searchPath, "robots.%lu.joints", sharedRobotIndex );
+              size_t jointsNumber = ConfigParser.GetListSize( configFileID, searchPath );
+              for( size_t jointIndex = 0; jointIndex < jointsNumber; jointIndex++ )
+              {
+                SharedAxisController newSharedJoint = { .robotID = robotControllerID, .controllerIndex = jointIndex };
+                sprintf( searchPath, "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
+                newSharedJoint.sharedData = SHMControl.InitData( ConfigParser.GetStringValue( configFileID, searchPath, "" ), SHM_CONTROL_IN );
+                if( newSharedJoint.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newAxis ); 
               }
             }
           }
@@ -94,13 +106,15 @@ void RobRehabControl_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %x", THREAD_ID );
   
-  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedControllersList ); controllerIndex++ )
+  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedDoFControllersList ); controllerIndex++ )
   {
-    RobotControl.EndController( kv_A( sharedControllersList, controllerIndex ).robotID );
-    SHMControl.EndData( kv_A( sharedControllersList, controllerIndex ).sharedData );
+    RobotControl.EndController( kv_A( sharedDoFControllersList, controllerIndex ).robotID );
+    SHMControl.EndData( kv_A( sharedDoFControllersList, controllerIndex ).sharedData );
   }
   
-  kv_destroy( sharedControllersList );
+  kv_destroy( sharedDoFControllersList );
+  kv_destroy( sharedJointControllersList );
+  kv_destroy( robotControllersList );
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Control ended on thread %x", THREAD_ID );
 }
@@ -109,11 +123,11 @@ void RobRehabControl_Update()
 {
   static float controlValuesList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
   
-  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedControllersList ); controllerIndex++ )
+  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedDoFControllersList ); controllerIndex++ )
   {
     DEBUG_UPDATE( "updating axis controller %u", controllerIndex );
     
-    SharedAxisController* sharedController = &(kv_A( sharedControllersList, controllerIndex ));
+    SharedAxisController* sharedController = &(kv_A( sharedDoFControllersList, controllerIndex ));
     SHMController sharedData = sharedController->sharedData;
     int robotControllerID = sharedController->robotID;
     size_t axisControllerIndex = sharedController->controllerIndex;
