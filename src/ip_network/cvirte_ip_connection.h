@@ -26,7 +26,7 @@
 
 #define IP_MAX_MESSAGE_LENGTH CMT_MAX_MESSAGE_BUF_SIZE  // 256
 
-const int INVALID_IP_CONNECTION_ID = -1;
+const int IP_CONNECTION_INVALID_ID = -1;
 
 const int QUEUE_MAX_ITEMS = 10;
 
@@ -272,13 +272,13 @@ int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t p
   if( portNumber < 49152 || portNumber > 65535 )
   {
     ERROR_EVENT( "invalid port number value: %s", port );
-    return INVALID_IP_CONNECTION_ID;
+    return IP_CONNECTION_INVALID_ID;
   }
 
   if( ( protocol != TCP ) && ( protocol != UDP ) )
   {
     ERROR_EVENT( "invalid protocol option: %x", protocol );
-    return INVALID_IP_CONNECTION_ID;
+    return IP_CONNECTION_INVALID_ID;
   }
   
   if( globalConnectionsList == NULL ) globalConnectionsList = kh_init( IPInt );
@@ -298,7 +298,7 @@ int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t p
     {
       newConnection->callbackThread = INVALID_THREAD_HANDLE;
       AsyncIPNetwork_CloseConnection( newConnectionIndex );
-      return INVALID_IP_CONNECTION_ID;
+      return IP_CONNECTION_INVALID_ID;
     }
 
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new %s %s connection opened: %s address: %s", ( newConnection->protocol == TCP ) ? "TCP" : "UDP",

@@ -45,7 +45,7 @@ int LoadStringData( const char* configString )
   
     kh_value( jsonDataList, newDataIndex ).currentNode = kh_value( jsonDataList, newDataIndex ).nodeTree->root;
 
-    DEBUG_PRINT( "Found %u keys in new JSON data", (size_t) kh_value( jsonDataList, newDataIndex ).nodeTree->root->n );
+    DEBUG_PRINT( "Found %lu keys in new JSON data", (size_t) kh_value( jsonDataList, newDataIndex ).nodeTree->root->n );
   }
   
   return (int) kh_key( jsonDataList, newDataIndex );
@@ -95,7 +95,7 @@ void UnloadData( int dataID )
   }
 }
 
-static inline const kson_node_t* GetPathNode( int dataID, const char* path )
+static inline const kson_node_t* GetPathNode( int dataID, const char* pathFormat, va_list pathArgs )
 {
   khint_t dataIndex = kh_get( JSONInt, jsonDataList, (khint_t) dataID );
   if( dataIndex == kh_end( jsonDataList ) ) return NULL;
@@ -103,7 +103,7 @@ static inline const kson_node_t* GetPathNode( int dataID, const char* path )
   const kson_node_t* currentNode = kh_value( jsonDataList, dataIndex ).currentNode;
   char* searchPath = kh_value( jsonDataList, dataIndex ).searchPath;
   
-  strncpy( searchPath, path, PARSER_MAX_KEY_PATH_LENGTH );
+  vsnprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, pathFormat, pathArgs );
   
   DEBUG_PRINT( "Search path: %s", searchPath );
   
@@ -120,22 +120,12 @@ static inline const kson_node_t* GetPathNode( int dataID, const char* path )
   return currentNode;
 }
 
-void SetBaseKey( int dataID, const char* path )
+char* GetStringValue( int dataID, char* defaultValue, const char* pathFormat, ... )
 {
-  khint_t dataIndex = kh_get( JSONInt, jsonDataList, (khint_t) dataID );
-  if( dataIndex == kh_end( jsonDataList ) ) return;
-  
-  const kson_node_t* baseNode = GetPathNode( dataID, path );
-  if( baseNode == NULL ) return;
-  
-  kh_value( jsonDataList, dataIndex ).currentNode = baseNode;
-  DEBUG_PRINT( "setting base key to \"%s\"", path );
-}
-
-char* GetStringValue( int dataID, const char* path, char* defaultValue  )
-{
-  const kson_node_t* valueNode = GetPathNode( dataID, path );
-  
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
   if( valueNode->type != KSON_TYPE_SGL_QUOTE && valueNode->type != KSON_TYPE_DBL_QUOTE )
@@ -148,10 +138,12 @@ char* GetStringValue( int dataID, const char* path, char* defaultValue  )
   return valueNode->v.str;
 }
 
-long GetIntegerValue( int dataID, const char* path, long defaultValue )
+long GetIntegerValue( int dataID, long defaultValue, const char* pathFormat, ... )
 {
-  const kson_node_t* valueNode = GetPathNode( dataID, path );
-  
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
@@ -161,10 +153,12 @@ long GetIntegerValue( int dataID, const char* path, long defaultValue )
   return strtol( valueNode->v.str, NULL, 0 );
 }
 
-double GetRealValue( int dataID, const char* path, double defaultValue )
+double GetRealValue( int dataID, double defaultValue, const char* pathFormat, ... )
 {
-  const kson_node_t* valueNode = GetPathNode( dataID, path );
-  
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
@@ -174,10 +168,12 @@ double GetRealValue( int dataID, const char* path, double defaultValue )
   return strtod( valueNode->v.str, NULL );
 }
 
-bool GetBooleanValue( int dataID, const char* path, bool defaultValue )
+bool GetBooleanValue( int dataID, bool defaultValue, const char* pathFormat, ... )
 {
-  const kson_node_t* valueNode = GetPathNode( dataID, path );
-  
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
@@ -187,10 +183,12 @@ bool GetBooleanValue( int dataID, const char* path, bool defaultValue )
   return false;
 }
 
-size_t GetListSize( int dataID, const char* path )
+size_t GetListSize( int dataID, const char* pathFormat, ... )
 {
-  const kson_node_t* listNode = GetPathNode( dataID, path );
-  
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  const kson_node_t* listNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );  
   if( listNode == NULL ) return 0;
   
   if( listNode->type != KSON_TYPE_BRACKET ) return 0;
@@ -200,11 +198,15 @@ size_t GetListSize( int dataID, const char* path )
   return (size_t) listNode->n;
 }
 
-bool HasKey( int dataID, const char* path )
+bool HasKey( int dataID, const char* pathFormat, ... )
 {
-  if( GetPathNode( dataID, path ) != NULL ) return true;
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  const kson_node_t* keyNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
+  if( keyNode == NULL ) return false;
   
-  return false;
+  return true;
 }
 
 #endif // JSON_PARSER_H

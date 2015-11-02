@@ -55,7 +55,6 @@ khash_t( RobotControlInt )* controllersList = NULL;
         function_init( bool, namespace, IsEnabled, int ) \
         function_init( bool, namespace, HasError, int ) \
         function_init( double*, namespace, GetJointMeasuresList, int, size_t ) \
-        //function_init( double*, namespace, GetJointSetpointsList, int, size_t ) \
         function_init( double*, namespace, GetDoFMeasuresList, int, size_t ) \
         function_init( double*, namespace, GetDoFSetpointsList, int, size_t ) \
         function_init( bool, namespace, SetDoFSetpoints, int, double* ) \

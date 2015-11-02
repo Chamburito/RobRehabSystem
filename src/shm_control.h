@@ -109,7 +109,7 @@ void SHMControl_EndData( SHMController controller )
   free( controller );
 }
 
-bool SHMControl_GetNumericValue( SHMController controller, size_t  valueIndex, float* ref_value, bool remove )
+bool SHMControl_GetNumericValue( SHMController controller, size_t valueIndex, float* ref_value, bool remove )
 {
   if( controller == NULL ) return false;
     

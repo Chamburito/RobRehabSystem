@@ -13,6 +13,7 @@
 
 #include "interface.h"
 
+#include "shm_control.h"
 #include "shm_axis_control.h"
 #include "shm_emg_control.h"
 
@@ -32,22 +33,22 @@ static kvec_t( int ) eventClientsList;
 const size_t INFO_BLOCK_SIZE = 2;
 
 static kvec_t( int ) axisClientsList;
+const size_t AXIS_DATA_BLOCK_SIZE = 1 + SHM_AXIS_FLOATS_NUMBER * sizeof(float);
 static kvec_t( int ) emgClientsList;
-const size_t DATA_BLOCK_SIZE = 1 + SHM_CONTROL_FLOATS_NUMBER * sizeof(float);
+const size_t EMG_DATA_BLOCK_SIZE = 1 + SHM_EMG_FLOATS_NUMBER * sizeof(float);
 
 typedef struct _NetworkAxis
 {
   int clientID;
-  SHMController sharedAxis;
+  SHMController sharedData;
 } 
 NetworkAxis;
 
 static kvec_t( NetworkAxis ) networkAxesList;
-
 static kvec_t( SHMController ) networkEMGJointsList;
 
-
 static char axesInfoString[ IP_MAX_MESSAGE_LENGTH ] = ""; // String containing used axes names
+static char emgInfoString[ IP_MAX_MESSAGE_LENGTH ] = ""; // String containing used EMG joint names
 
 #define SUBSYSTEM RobRehabNetwork
 
@@ -58,15 +59,14 @@ static char axesInfoString[ IP_MAX_MESSAGE_LENGTH ] = ""; // String containing u
 
 INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_NETWORK_FUNCTIONS )
 
-const char* CONFIG_KEY = "robots";
 int RobRehabNetwork_Init()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %x", THREAD_ID );
-  if( (eventServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50000", TCP )) == -1 )
+  if( (eventServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50000", TCP )) == IP_CONNECTION_INVALID_ID )
     return -1;
-  if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50001", UDP )) == -1 )
+  if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50001", UDP )) == IP_CONNECTION_INVALID_ID )
     return -1;
-  if( (emgServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50002", UDP )) == -1 )
+  if( (emgServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50002", UDP )) == IP_CONNECTION_INVALID_ID )
     return -1;
   
   /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "Received server connection IDs: %d (Info) - %d (Data) - %d(EMG)", eventServerConnectionID, axisServerConnectionID, emgServerConnectionID );
@@ -78,73 +78,68 @@ int RobRehabNetwork_Init()
   kv_init( networkAxesList );
   kv_init( networkEMGJointsList );
   
-  if( ConfigParser.Init( "JSON" ) )
+  if( ConfigParsing.Init( "JSON" ) )
   {
-    char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
-    sprintf( searchPath, "shared_%s", CONFIG_KEY );
-    int configFileID = ConfigParser.LoadFileData( searchPath );
+    ParserInterface parser = ConfigParsing.GetParser();
+    int configFileID = parser.LoadFileData( "shared_robots" );
     if( configFileID != PARSED_DATA_INVALID_ID )
     {
-      if( ConfigParser.HasKey( configFileID, CONFIG_KEY ) )
+      size_t sharedRobotsNumber = parser.GetListSize( configFileID, "robots" );
+      DEBUG_PRINT( "shared objects list size: %lu", sharedRobotsNumber );
+      
+      size_t axisDataMessageLength = 1, emgDataMessageLength = 1;
+      char robotVarName[ PARSER_MAX_KEY_PATH_LENGTH ];
+        
+      for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
       {
-        size_t sharedRobotsNumber = ConfigParser.GetListSize( configFileID, CONFIG_KEY );
-      
-        DEBUG_PRINT( "shared objects list size: %lu", sharedRobotsNumber );
-      
-        size_t infoMessageLength = 1 + sharedRobotsNumber * INFO_BLOCK_SIZE; 
-        AsyncIPNetwork_SetMessageLength( eventServerConnectionID, infoMessageLength );
-      
-        DEBUG_PRINT( "info message length: %u", infoMessageLength );
-      
-        size_t dataMessageLength = 1 + sharedRobotsNumber * DATA_BLOCK_SIZE;
-        AsyncIPNetwork_SetMessageLength( axisServerConnectionID, dataMessageLength );
-        AsyncIPNetwork_SetMessageLength( emgServerConnectionID, dataMessageLength );
-      
-        DEBUG_PRINT( "data message length: %u", dataMessageLength );
-      
-        for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
+        char* robotName = parser.GetStringValue( configFileID, NULL, "robots.%lu.name", sharedRobotIndex );
+        if( robotName != NULL )
         {
-          sprintf( searchPath, "%s.%lu.name", CONFIG_KEY, sharedRobotIndex );
-          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath, NULL );
-          if( deviceName != NULL )
+          DEBUG_PRINT( "found shared robot %lu: %s", sharedRobotIndex, robotName );
+          
+          size_t sharedDoFsNumber = parser.GetListSize( configFileID, "robots.%lu.dofs", sharedRobotIndex );
+          for( size_t dofIndex = 0; dofIndex < sharedDoFsNumber; dofIndex++ )
           {
-            DEBUG_PRINT( "found shared object %s", deviceName );
-            
-            sprintf( searchPath, "%s.%lu.dofs", CONFIG_KEY, sharedRobotIndex );
-            size_t sharedDoFsNumber = ConfigParser.GetListSize( configFileID, searchPath );
-            for( size_t dofIndex = 0; dofIndex < sharedDoFsNumber; dofIndex++ )
+            NetworkAxis newNetworkAxis = { .clientID = IP_CONNECTION_INVALID_ID };
+            char* dofName = parser.GetStringValue( configFileID, "", "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
+            sprintf( robotVarName, "%s-%s", robotName, dofName );
+            if( (newNetworkAxis.sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT )) != NULL )
             {
-              NetworkAxis newNetworkAxis;
-              sprintf( searchPath, "%s.%lu.dofs.%lu", CONFIG_KEY, sharedRobotIndex, dofIndex );
-              sprintf( searchPath, "%s-%s", deviceName, ConfigParser.GetStringValue( configFileID, searchPath, "" ) );
-              if( (newNetworkAxis.sharedAxis = SHMControl.InitData( searchPath, SHM_CONTROL_OUT )) != NULL )
-              {
-                kv_push( NetworkAxis, networkAxesList, newNetworkAxis );
-            
-                if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
-                snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkAxesList ) - 1, searchPath );
-            
-                DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) - 1 );
-              }
+              DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) );
+              
+              if( strlen( axesInfoString ) > 0 ) strcat( axesInfoString, "|" );
+              snprintf( &(axesInfoString[ strlen( axesInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkAxesList ), robotVarName );
+              
+              kv_push( NetworkAxis, networkAxesList, newNetworkAxis );
+              axisDataMessageLength += AXIS_DATA_BLOCK_SIZE;
             }
-            
-            sprintf( searchPath, "%s.%lu.joints", CONFIG_KEY, sharedRobotIndex );
-            size_t sharedJointsNumber = ConfigParser.GetListSize( configFileID, searchPath );
-            for( size_t jointIndex = 0; jointIndex < sharedJointsNumber; jointIndex++ )
+          }
+          
+          size_t sharedJointsNumber = parser.GetListSize( configFileID, "robots.%lu.joints", sharedRobotIndex );
+          for( size_t jointIndex = 0; jointIndex < sharedJointsNumber; jointIndex++ )
+          {
+            char* jointName = parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
+            sprintf( robotVarName, "%s-%s", robotName, jointName );
+            SHMController sharedJoint = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT );
+            if( sharedJoint != NULL )
             {
-              sprintf( searchPath, "%s.%lu.joints.%lu", CONFIG_KEY, sharedRobotIndex, jointIndex );
-              SHMController sharedJoint = SHMControl.InitData( ConfigParser.GetStringValue( configFileID, searchPath, "" ), SHM_CONTROL_OUT );
-              if( sharedJoint != NULL )
-              {
-                kv_push( SHMController, networkEMGJointsList, sharedJoint );
-                DEBUG_PRINT( "got network EMG joint %u", kv_size( networkEMGJointsList ) - 1 );
-              }
+              DEBUG_PRINT( "got network EMG joint %u", kv_size( networkEMGJointsList ) );
+              
+              if( strlen( emgInfoString ) > 0 ) strcat( emgInfoString, "|" );
+              snprintf( &(emgInfoString[ strlen( emgInfoString ) ]), IP_MAX_MESSAGE_LENGTH, "%u:%s", kv_size( networkEMGJointsList ), robotVarName );
+              
+              kv_push( SHMController, networkEMGJointsList, sharedJoint );
+              emgDataMessageLength += EMG_DATA_BLOCK_SIZE;
             }
           }
         }
       }
-    
-      ConfigParser.UnloadFile( configFileID );
+      
+      parser.UnloadData( configFileID );
+      
+      DEBUG_PRINT( "data message lengths: axis: %lu - EMG: %lu", axisDataMessageLength, emgDataMessageLength );
+      AsyncIPNetwork.SetMessageLength( axisServerConnectionID, axisDataMessageLength );
+      AsyncIPNetwork.SetMessageLength( emgServerConnectionID, emgDataMessageLength );
     }
   }
   
@@ -180,7 +175,7 @@ void RobRehabNetwork_End()
   DEBUG_EVENT( 8, "EMG clients list %d destroyed", emgClientsList );
   
   for( size_t networkAxisIndex = 0; networkAxisIndex < kv_size( networkAxesList ); networkAxisIndex++ )
-    SHMControl.EndData( kv_A( networkAxesList, networkAxisIndex ).sharedAxis );
+    SHMControl.EndData( kv_A( networkAxesList, networkAxisIndex ).sharedData );
   kv_destroy( networkAxesList );
   
   for( size_t networkJointIndex = 0; networkJointIndex < kv_size( networkEMGJointsList ); networkJointIndex++ )
@@ -199,22 +194,23 @@ void RobRehabNetwork_Update()
   DEBUG_UPDATE( "updating connections on thread %x", THREAD_ID );
   
   int newEventClientID = AsyncIPNetwork.GetClient( eventServerConnectionID );
-  if( newEventClientID != INVALID_IP_CONNECTION_ID )
+  if( newEventClientID != IP_CONNECTION_INVALID_ID )
   {
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new info client found: %d", newEventClientID );
     AsyncIPNetwork.WriteMessage( newEventClientID, axesInfoString );
+    AsyncIPNetwork.WriteMessage( newEventClientID, emgInfoString );
     kv_push( int, eventClientsList, newEventClientID );
   }
   
   int newAxisClientID = AsyncIPNetwork.GetClient( axisServerConnectionID );
-  if( newAxisClientID != INVALID_IP_CONNECTION_ID )
+  if( newAxisClientID != IP_CONNECTION_INVALID_ID )
   {
     /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "new data client found: %d", newAxisClientID );
     kv_push( int, axisClientsList, newAxisClientID );
   }
   
   int newEMGClientID = AsyncIPNetwork.GetClient( emgServerConnectionID );
-  if( newEMGClientID != INVALID_IP_CONNECTION_ID )
+  if( newEMGClientID != IP_CONNECTION_INVALID_ID )
   {
     /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "new EMG client found: %d", newEMGClientID );
     kv_push( int, emgClientsList, newEMGClientID );
@@ -254,11 +250,11 @@ static void UpdateClientEvent( int clientID )
       {
         if( controllerID < 0 || controllerID >= kv_size( networkAxesList ) ) continue;
         
-        SHMController sharedAxis = kv_A( networkAxesList, controllerID ).sharedAxis;
+        SHMController sharedAxis = kv_A( networkAxesList, controllerID ).sharedData;
         
-        SHMAxisControl.SetByteValue( networkAxis->sharedData, command );
+        SHMAxisControl.SetByteValue( sharedAxis, command );
       
-        uint8_t state = SHMAxisControl.GetByteValue( networkAxis->sharedData, SHM_CONTROL_REMOVE );
+        uint8_t state = SHMAxisControl.GetByteValue( sharedAxis, SHM_CONTROL_REMOVE );
         if( state != SHM_CONTROL_BYTE_NULL )
         {
           messageOut[ 0 ]++;
@@ -299,7 +295,7 @@ static void UpdateClientAxis( int clientID )
       
       NetworkAxis* networkAxis = &(kv_A( networkAxesList, controllerID ));
       
-      if( networkAxis->clientID == -1 )
+      if( networkAxis->clientID == IP_CONNECTION_INVALID_ID )
       {
         DEBUG_PRINT( "new client for axis %u: %d", controllerID, clientID );
         networkAxis->clientID = clientID;
@@ -313,7 +309,7 @@ static void UpdateClientAxis( int clientID )
       float* setpointsList = (float*) &(messageIn[ 2 ]);
       SHMAxisControl.SetNumericValuesList( networkAxis->sharedData, setpointsList, dataMask );
       
-      messageIn += DATA_BLOCK_SIZE;
+      messageIn += AXIS_DATA_BLOCK_SIZE;
     }
   }
   
@@ -321,13 +317,13 @@ static void UpdateClientAxis( int clientID )
   size_t measureByteIndex = 1;
   for( size_t networkAxisIndex = 0; networkAxisIndex < kv_size( networkAxesList ); networkAxisIndex++ )
   {
-    NetworkAxis* networkAxis = &(kv_A( networkAxesList, networkAxisIndex ));
+    SHMController sharedAxis = kv_A( networkAxesList, networkAxisIndex ).sharedData;
     
     messageOut[ 0 ]++;
-    messageOut[ measureByteIndex++ ] = (uint8_t) networkAxisIndex;
+    messageOut[ measureByteIndex ] = (uint8_t) networkAxisIndex;
     
-    SHMAxisControl.GetNumericValuesList( networkAxis->sharedAxis, (float*) ( messageOut + measureByteIndex ), SHM_CONTROL_PEEK );
-    measureByteIndex += sizeof(float) * SHM_AXIS_FLOATS_NUMBER;
+    SHMAxisControl.GetNumericValuesList( sharedAxis, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
+    measureByteIndex += AXIS_DATA_BLOCK_SIZE;
   }
   
   if( messageOut[ 0 ] > 0 ) 
@@ -348,10 +344,10 @@ static void UpdateClientEMG( int clientID )
     SHMController sharedEMGJoint = &(kv_A( networkEMGJointsList, networkJointIndex ));
     
     messageOut[ 0 ]++;
-    messageOut[ measureByteIndex++ ] = (uint8_t) networkJointIndex;
+    messageOut[ measureByteIndex ] = (uint8_t) networkJointIndex;
     
-    SHMAxisControl.GetNumericValuesList( sharedEMGJoint, (float*) ( messageOut + measureByteIndex ), SHM_CONTROL_PEEK );
-    measureByteIndex += sizeof(float) * SHM_EMG_FLOATS_NUMBER;
+    SHMAxisControl.GetNumericValuesList( sharedEMGJoint, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
+    measureByteIndex += EMG_DATA_BLOCK_SIZE;
   }
   
   if( messageOut[ 0 ] > 0 ) 

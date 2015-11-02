@@ -4,7 +4,7 @@ IMPLEMENT_INTERFACE( ROBOT_MECHANICS_FUNCTIONS )
 
 const size_t DOFS_NUMBER = 1;
 
-const size_t GetDoFsNumber()
+size_t GetDoFsNumber( void )
 {
   return DOFS_NUMBER;
 }

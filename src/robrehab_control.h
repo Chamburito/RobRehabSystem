@@ -3,6 +3,7 @@
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
+#include "shm_emg_control.h"
 #include "robot_control.h"
 
 #include "klib/kvec.h"
@@ -43,57 +44,53 @@ int RobRehabControl_Init()
   kv_init( sharedJointControllersList );
   kv_init( robotControllersList );
   
-  char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
-  
-  if( ConfigParser.Init( "JSON" ) )
+  if( ConfigParsing.Init( "JSON" ) )
   {
-    int configFileID = ConfigParser.LoadFileData( "shared_robots" );
+    ParserInterface parser = ConfigParsing.GetParser();
+    int configFileID = parser.LoadFileData( "shared_robots" );
     if( configFileID != -1 )
     {
-      if( ConfigParser.HasKey( configFileID, "robots" ) )
+      if( parser.HasKey( configFileID, "robots" ) )
       {
-        size_t sharedRobotsNumber = ConfigParser.GetListSize( configFileID, "robots" );
+        size_t sharedRobotsNumber = parser.GetListSize( configFileID, "robots" );
         
         DEBUG_PRINT( "List size: %u", sharedRobotsNumber );
         
         for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
         {
-          sprintf( searchPath, "robots.%lu", sharedRobotIndex );
-          char* deviceName = ConfigParser.GetStringValue( configFileID, searchPath, NULL );
-          if( deviceName != NULL )
+          char* robotName = parser.GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
+          if( robotName != NULL )
           {
-            int robotControllerID = RobotControl.InitController( deviceName );
+            int robotControllerID = RobotControl.InitController( robotName );
             if( robotControllerID != ROBOT_CONTROLLER_INVALID_ID )
             {
               kv_push( int, robotControllersList, robotControllerID );
               
-              sprintf( searchPath, "robots.%lu.dofs", sharedRobotIndex );
-              size_t dofsNumber = ConfigParser.GetListSize( configFileID, searchPath );
+              size_t dofsNumber = parser.GetListSize( configFileID, "robots.%lu.dofs", sharedRobotIndex );
               for( size_t dofIndex = 0; dofIndex < dofsNumber; dofIndex++ )
               {
-                SharedAxisController newSharedDof = { .robotID = robotControllerID, .controllerIndex = dofIndex };
-                char axisName[ DOF_MAX_NAME_LENGTH ];
-                sprintf( searchPath, "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
-                snprintf( axisName, DOF_MAX_NAME_LENGTH, "%s-%s", deviceName, ConfigParser.GetStringValue( configFileID, searchPath, "" ) );
-                newSharedDof.sharedData = SHMControl.InitData( axisName, SHM_CONTROL_IN );
-                if( newSharedDof.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newAxis );
+                char* dofName = parser.GetStringValue( configFileID, "", "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
+                SharedAxisController newSharedDoF = { .robotID = robotControllerID, .controllerIndex = dofIndex };
+                char robotDoFName[ PARSER_MAX_KEY_PATH_LENGTH ];
+                sprintf( robotDoFName, "%s-%s", robotName, dofName );
+                newSharedDof.sharedData = SHMControl.InitData( robotDoFName, SHM_CONTROL_IN );
+                if( newSharedDoF.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newSharedDoF );
               }
-              
-              sprintf( searchPath, "robots.%lu.joints", sharedRobotIndex );
-              size_t jointsNumber = ConfigParser.GetListSize( configFileID, searchPath );
+               
+              size_t jointsNumber = parser.GetListSize( configFileID, "robots.%lu.joints", sharedRobotIndex );
               for( size_t jointIndex = 0; jointIndex < jointsNumber; jointIndex++ )
               {
                 SharedAxisController newSharedJoint = { .robotID = robotControllerID, .controllerIndex = jointIndex };
-                sprintf( searchPath, "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
-                newSharedJoint.sharedData = SHMControl.InitData( ConfigParser.GetStringValue( configFileID, searchPath, "" ), SHM_CONTROL_IN );
-                if( newSharedJoint.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newAxis ); 
+                char* jointName = parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
+                newSharedJoint.sharedData = SHMControl.InitData( jointName, SHM_CONTROL_IN );
+                if( newSharedJoint.sharedData != NULL ) kv_push( SharedAxisController, sharedJointControllersList, newSharedJoint ); 
               }
             }
           }
         }
       }
     
-      ConfigParser.UnloadData( configFileID );
+      parser.UnloadData( configFileID );
     }
   }
   else
@@ -123,16 +120,16 @@ void RobRehabControl_Update()
 {
   static float controlValuesList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
   
-  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedDoFControllersList ); controllerIndex++ )
+  for( size_t dofControllerIndex = 0; dofControllerIndex < kv_size( sharedDoFControllersList ); dofControllerIndex++ )
   {
     DEBUG_UPDATE( "updating axis controller %u", controllerIndex );
     
-    SharedAxisController* sharedController = &(kv_A( sharedDoFControllersList, controllerIndex ));
-    SHMController sharedData = sharedController->sharedData;
+    SharedAxisController* sharedController = &(kv_A( sharedDoFControllersList, dofControllerIndex ));
+    SHMController sharedDoF = sharedController->sharedData;
     int robotControllerID = sharedController->robotID;
-    size_t axisControllerIndex = sharedController->controllerIndex;
+    size_t dofControllerIndex = sharedController->controllerIndex;
    
-    uint8_t command = SHMControl.GetByteValue( sharedData, SHM_CONTROL_REMOVE );
+    uint8_t command = SHMControl.GetByteValue( sharedDoF, SHM_CONTROL_REMOVE );
     if( command != SHM_CONTROL_BYTE_NULL )
     {
       //DEBUG_PRINT( "received command: %x", command );
@@ -142,39 +139,52 @@ void RobRehabControl_Update()
       else if( command == SHM_COMMAND_RESET ) RobotControl.Reset( robotControllerID );
       else if( command == SHM_COMMAND_CALIBRATE ) RobotControl.Calibrate( robotControllerID );
       
-      if( RobotControl.IsEnabled( robotControllerID ) ) SHMControl.SetByteValue( sharedData, SHM_STATE_ENABLED );
+      if( RobotControl.IsEnabled( robotControllerID ) ) SHMControl.SetByteValue( sharedDoF, SHM_STATE_ENABLED );
     }
     
-    if( RobotControl.HasError( robotControllerID ) ) SHMControl.SetByteValue( sharedData, SHM_STATE_ERROR );
+    if( RobotControl.HasError( robotControllerID ) ) SHMControl.SetByteValue( sharedDoF, SHM_STATE_ERROR );
 
-    uint8_t dataMask = SHMControl.GetNumericValuesList( sharedData, controlValuesList, SHM_CONTROL_REMOVE );
+    uint8_t dataMask = SHMControl.GetNumericValuesList( sharedDoF, controlValuesList, SHM_CONTROL_REMOVE );
     if( dataMask )
     {
-      double* controlSetpointsList = RobotControl.GetDoFSetpointsList( robotControllerID, axisControllerIndex );
+      double* controlSetpointsList = RobotControl.GetDoFSetpointsList( robotControllerID, dofControllerIndex );
       //DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_STIFFNESS ] );
       
       if( (dataMask & SHM_CONTROL_BIT_INDEX( SHM_AXIS_POSITION )) ) controlSetpointsList[ CONTROL_POSITION ] = controlValuesList[ SHM_AXIS_POSITION ];
       if( (dataMask & SHM_CONTROL_BIT_INDEX( SHM_AXIS_VELOCITY )) ) controlSetpointsList[ CONTROL_VELOCITY ] = controlValuesList[ SHM_AXIS_VELOCITY ];
       
       if( (dataMask & SHM_CONTROL_BIT_INDEX( SHM_AXIS_STIFFNESS )) | (dataMask & SHM_CONTROL_BIT_INDEX( SHM_AXIS_DAMPING )) )
-        RobotControl.SetDoFImpedance( robotControllerID, axisControllerIndex, controlValuesList[ SHM_AXIS_STIFFNESS ], controlValuesList[ SHM_AXIS_DAMPING ] );
+        RobotControl.SetDoFImpedance( robotControllerID, dofControllerIndex, controlValuesList[ SHM_AXIS_STIFFNESS ], controlValuesList[ SHM_AXIS_DAMPING ] );
     }
     
-    double* controlMeasuresList = RobotControl.GetDoFMeasuresList( robotControllerID, axisControllerIndex );
+    double* controlMeasuresList = RobotControl.GetDoFMeasuresList( robotControllerID, dofControllerIndex );
     if( controlMeasuresList != NULL )
     {
       controlValuesList[ SHM_AXIS_POSITION ] = (float) controlMeasuresList[ CONTROL_POSITION ];
       controlValuesList[ SHM_AXIS_VELOCITY ] = (float) controlMeasuresList[ CONTROL_VELOCITY ];
       controlValuesList[ SHM_AXIS_ACCELERATION ] = (float) controlMeasuresList[ CONTROL_ACCELERATION ];
       controlValuesList[ SHM_AXIS_FORCE ] = (float) controlMeasuresList[ CONTROL_FORCE ];
-      SHMControl.SetNumericValuesList( sharedData, controlValuesList, 0xFF );
+      SHMControl.SetNumericValuesList( sharedDoF, controlValuesList, 0xFF );
       
       //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_FORCE ] );
     }
   }
   
-  for( size_t robotIndex = 0; robotIndex < kv_size( robotControllersList ); robotIndex++ )
-    RobotControl.Update( kv_A( robotControllersList, robotIndex ) );
+  for( size_t jointControllerIndex = 0; jointControllerIndex < kv_size( sharedJointControllersList ); jointControllerIndex++ )
+  {
+    SharedAxisController* sharedController = &(kv_A( sharedJointControllersList, jointControllerIndex ));
+    SHMController sharedJoint = sharedController->sharedData;
+    int robotControllerID = sharedController->robotID;
+    size_t jointControllerIndex = sharedController->controllerIndex;
+    
+    double* jointMeasuresList = RobotControl.GetJointMeasuresList( robotControllerID, jointControllerIndex );
+    if( jointMeasuresList != NULL )
+    {
+      controlValuesList[ SHM_EMG_JOINT_ANGLE ] = (float) jointMeasuresList[ CONTROL_POSITION ] ;
+      controlValuesList[ SHM_EMG_TORQUE ] = (float) jointMeasuresList[ CONTROL_FORCE ] ;
+      SHMControl.SetNumericValuesList( sharedJoint, controlValuesList, 0xFF );
+    }
+  }
 }
 
 #endif // ROBREHAB_CONTROL_H

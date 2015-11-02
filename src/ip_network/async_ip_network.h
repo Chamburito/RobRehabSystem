@@ -8,7 +8,7 @@
 #include <mutex>
 #include <chrono>
 
-#include "connection.h"
+#include "ip_connection.h"
 
 using std::string;
 

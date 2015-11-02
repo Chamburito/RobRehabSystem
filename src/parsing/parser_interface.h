@@ -15,6 +15,8 @@
   #define SET_PATH( dirPath ) chdir( dirPath );
 #endif
 
+#include <stdarg.h>
+
 #define PARSER_MAX_FILE_PATH_LENGTH 256
 #define PARSER_MAX_KEY_PATH_LENGTH 256
 
@@ -24,13 +26,12 @@ const int PARSED_DATA_INVALID_ID = -1;
         function_init( int, interface, LoadFileData, const char* ) \
         function_init( int, interface, LoadStringData, const char* ) \
         function_init( void, interface, UnloadData, int ) \
-        function_init( void, interface, SetBaseKey, int, const char* ) \
-        function_init( long, interface, GetIntegerValue, int, const char*, long ) \
-        function_init( double, interface, GetRealValue, int, const char*, double ) \
-        function_init( char*, interface, GetStringValue, int, const char*, char* ) \
-        function_init( bool, interface, GetBooleanValue, int, const char*, bool ) \
-        function_init( size_t, interface, GetListSize, int, const char* ) \
-        function_init( bool, interface, HasKey, int, const char* )
+        function_init( long, interface, GetIntegerValue, int, long, const char*, ... ) \
+        function_init( double, interface, GetRealValue, int, double, const char*, ... ) \
+        function_init( char*, interface, GetStringValue, int, char*, const char*, ... ) \
+        function_init( bool, interface, GetBooleanValue, int, bool, const char*, ... ) \
+        function_init( size_t, interface, GetListSize, int, const char*, ... ) \
+        function_init( bool, interface, HasKey, int, const char*, ... )
 
 DEFINE_INTERFACE( Parser, PARSER_FUNCTIONS )
 
