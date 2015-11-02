@@ -54,43 +54,47 @@ Actuator ActuatorControl_InitController( const char* configFileName )
 {
   DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
   
-  bool loadError = false;
+  Actuator newActuator = NULL;
   
-  Actuator newActuator = (Actuator) malloc( sizeof(ActuatorData) );
-  memset( newActuator, 0, sizeof(ActuatorData) );
-
-  int configFileID = ConfigParser.LoadFileData( configFileName );
-  if( configFileID != -1 )
+  if( ConfigParsing.IsAvailable() )
   {
-    if( (newActuator->motor = AxisMotors.Init( parser.GetStringValue( configFileID, "motor", "" ) )) == NULL ) loadError = true;
-    if( (newActuator->encoder = AxisSensors.Init( parser.GetStringValue( configFileID, "encoder", "" ) )) == NULL ) loadError = true;
-    if( (newActuator->forceSensor = AxisSensors.Init( parser.GetStringValue( configFileID, "force_sensor", "" ) )) == NULL ) loadError = true;
+    ParserInterface parser = ConfigParsing.GetParser();
+  
+    newActuator = (Actuator) malloc( sizeof(ActuatorData) );
+    memset( newActuator, 0, sizeof(ActuatorData) );
+
+    int configFileID = parser.LoadFileData( configFileName );
+    if( configFileID != PARSED_DATA_INVALID_ID )
+    {
+      bool loadSuccess = true;
+      
+      if( (newActuator->motor = AxisMotors.Init( parser.GetStringValue( configFileID, "", "motor" ) )) == NULL ) loadSuccess = false;
+      if( (newActuator->encoder = AxisSensors.Init( parser.GetStringValue( configFileID, "", "encoder" ) )) == NULL ) loadSuccess = false;
+      if( (newActuator->forceSensor = AxisSensors.Init( parser.GetStringValue( configFileID, "", "force_sensor" ) )) == NULL ) loadSuccess = false;
     
-    bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "control_function", "" ), newActuator->control, pluginLoaded );
-    if( pluginLoaded ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
-    else loadError = true;
+      GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, parser.GetStringValue( configFileID, "", "control_function" ), newActuator->control, loadSuccess );
+      if( loadSuccess ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
     
-    newActuator->positionFilter = SimpleKalman.CreateFilter( 3, 0.0 );
-    newActuator->forceFilter = SimpleKalman.CreateFilter( 1, 0.0 );
+      newActuator->positionFilter = SimpleKalman.CreateFilter( 3, 0.0 );
+      newActuator->forceFilter = SimpleKalman.CreateFilter( 1, 0.0 );
     
-    parser.UnloadData( configFileID );
+      parser.UnloadData( configFileID );
+      
+      if( !loadSuccess )
+      {
+        ActuatorControl_EndController( newActuator );
+        return NULL;
+      }
+
+      DEBUG_PRINT( "created series elastic actuator %s", configFileName );
+
+      ActuatorControl_Enable( newActuator );
+    }
+    else
+      DEBUG_PRINT( "configuration file for series elastic actuator %s not found", configFileName );
   }
   else
-  {
-    loadError = true;
-    DEBUG_PRINT( "configuration file for series elastic actuator %s not found", configFileName );
-  }
-  
-  if( loadError )
-  {
-    ActuatorControl_EndController( newActuator );
-    return NULL;
-  }
-  
-  DEBUG_PRINT( "created series elastic actuator %s", configFileName );
-  
-  ActuatorControl_Enable( newActuator );
+    DEBUG_PRINT( "configuration parser for series elastic actuator %s not available", configFileName );
   
   return newActuator;
 }

@@ -73,7 +73,7 @@ int RobRehabControl_Init()
                 SharedAxisController newSharedDoF = { .robotID = robotControllerID, .controllerIndex = dofIndex };
                 char robotDoFName[ PARSER_MAX_KEY_PATH_LENGTH ];
                 sprintf( robotDoFName, "%s-%s", robotName, dofName );
-                newSharedDof.sharedData = SHMControl.InitData( robotDoFName, SHM_CONTROL_IN );
+                newSharedDoF.sharedData = SHMControl.InitData( robotDoFName, SHM_CONTROL_IN );
                 if( newSharedDoF.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newSharedDoF );
               }
                
@@ -169,6 +169,9 @@ void RobRehabControl_Update()
       //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_FORCE ] );
     }
   }
+  
+  for( size_t robotIndex = 0; robotIndex < kv_size( robotControllersList ); robotIndex++ )
+    RobotControl.Update( kv_A( robotControllersList, robotIndex ) );
   
   for( size_t jointControllerIndex = 0; jointControllerIndex < kv_size( sharedJointControllersList ); jointControllerIndex++ )
   {

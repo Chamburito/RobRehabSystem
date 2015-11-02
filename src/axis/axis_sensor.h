@@ -44,47 +44,50 @@ AxisSensor AxisSensors_Init( const char* configFileName )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Sensor %s", configFileName );
   
-  bool loadError = false;
+  AxisSensor newSensor = NULL;
   
-  AxisSensor newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
-  memset( newSensor, 0, sizeof(AxisSensorData) );
-  
-  int configFileID = ConfigParser.LoadFileData( configFileName );
-  if( configFileID != PARSED_DATA_INVALID_ID )
+  if( ConfigParsing.IsAvailable() )
   {
-    bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "interface.type", NULL ), newSensor->interface, pluginLoaded );
-    if( pluginLoaded )
+    ParserInterface parser = ConfigParsing.GetParser();
+    
+    bool loadSuccess = true;
+  
+    newSensor = (AxisSensor) malloc( sizeof(AxisSensorData) );
+    memset( newSensor, 0, sizeof(AxisSensorData) );
+  
+    int configFileID = parser.LoadFileData( configFileName );
+    if( configFileID != PARSED_DATA_INVALID_ID )
     {
-      newSensor->interfaceID = newSensor->interface.Connect( (unsigned int) ConfigParser.GetIntegerValue( configFileID, "interface.id", AXIS_INVALID_ID ) );
+      GET_PLUGIN_INTERFACE( AXIS_INTERFACE_FUNCTIONS, parser.GetStringValue( configFileID, "", "interface.type" ), newSensor->interface, loadSuccess );
+      if( pluginLoaded )
+      {
+        newSensor->interfaceID = newSensor->interface.Connect( (unsigned int) parser.GetIntegerValue( configFileID, AXIS_INVALID_ID, "interface.id" ) );
+        if( newSensor->interfaceID == AXIS_INVALID_ID ) loadSuccess = false;
+      }
+    
+      newSensor->isAbsolute = parser.GetBooleanValue( configFileID, true, "absolute" );
+    
+      newSensor->inputGain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
+      newSensor->inputGain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
+    
+      if( parser.HasKey( configFileID, "conversion_curve" ) )
+        newSensor->measureConversionCurve = CurveInterpolation.LoadCurveFile( parser.GetStringValue( configFileID, "", "conversion_curve" ) );
+    
+      parser.UnloadData( configFileID );
       
-      if( newSensor->interfaceID == AXIS_INVALID_ID ) loadError = true;
+      if( !loadSuccess )
+      {
+        AxisSensors_End( newSensor );
+        return NULL;
+      }
+    
+      /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Axis Sensor %s initialized", configFileName );
     }
-    else loadError = true;
-    
-    newSensor->isAbsolute = ConfigParser.GetBooleanValue( configFileID, "absolute", true );
-    
-    newSensor->inputGain = ConfigParser.GetRealValue( configFileID, "input_gain.multiplier", 1.0 );
-    newSensor->inputGain /= ConfigParser.GetRealValue( configFileID, "input_gain.divisor", 1.0 );
-    
-    if( ConfigParser.HasKey( configFileID, "conversion_curve" ) )
-      newSensor->measureConversionCurve = CurveInterpolation.LoadCurveFile( ConfigParser.GetStringValue( configFileID, "conversion_curve", NULL ) );
-    
-    ConfigParser.UnloadData( configFileID );
+    else
+      DEBUG_PRINT( "configuration file for axis sensor %s not found", configFileName );
   }
   else
-  {
-    loadError = true;
-    DEBUG_PRINT( "configuration file for axis sensor %s not found", configFileName );
-  }
-  
-  if( loadError )
-  {
-    AxisSensors_End( newSensor );
-    return NULL;
-  }
-  
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Axis Sensor %s initialized", configFileName );
+    DEBUG_PRINT( "configuration parser for axis sensor %s not available", configFileName );
   
   return newSensor;
 }
