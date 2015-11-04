@@ -16,8 +16,8 @@
 #include "klib/khash.h"
 
 //CAN database addressing
-static char networkDatabaseName[ 256 ];
-static char networkClusterName[ 256 ];
+const char* CAN_DATABASE_NAME = "database";
+const char* CAN_CLUSTER_NAME = "NETCAN";
 
 // Network control frames
 static CANFrame* NMT = NULL;
@@ -28,65 +28,16 @@ static khash_t( FrameInt )* framesList = NULL;
 
 void CANNetwork_Reset();
 
-void CANNetwork_Start( const char* databaseName, const char* clusterName )
+void CANNetwork_Start()
 {
-  // Stores default database name and cluster name for initialized CAN network
-  strcpy( networkDatabaseName, databaseName );
-  strcpy( networkClusterName, clusterName );
-
   // Address and initialize NMT (Network Master) frame
-  NMT = CANFrame_Init( FRAME_OUT, "CAN2", networkDatabaseName, networkClusterName, "NMT" );
+  NMT = CANFrame_Init( FRAME_OUT, "CAN2", CAN_DATABASE_NAME, CAN_CLUSTER_NAME, "NMT" );
   // Address and initialize SYNC (Syncronization) frame
-  SYNC = CANFrame_Init( FRAME_OUT, "CAN2", networkDatabaseName, networkClusterName, "SYNC" );
+  SYNC = CANFrame_Init( FRAME_OUT, "CAN2", CAN_DATABASE_NAME, CAN_CLUSTER_NAME, "SYNC" );
   
   framesList = kh_init( FrameInt );
 
   CANNetwork_Reset();
-}
-
-void CANNetwork_InitNode( uint8_t nodeID )
-{
-  // Start PDOs sending Start payload to the network
-  u8 payload[8] = { 0x01, nodeID }; // Rest of the array as 0x0
-  CANFrame_Write( NMT, payload );
-}
-
-void CANNetwork_EndNode( uint8_t nodeID )
-{
-  // Stop PDOs sending Stop payload to the network
-  u8 payload[8] = { 0x80, nodeID }; // Rest of the array as 0x0
-  CANFrame_Write( NMT, payload );
-}
-
-CANFrame* CANNetwork_InitFrame( enum FrameMode mode, const char* interfaceName, const char* frameName )
-{
-  int frameKey = kh_str_hash_func( interfaceName ) + kh_str_hash_func( frameName );
-  
-  int insertionStatus;
-  khint_t newFrameID = kh_put( FrameInt, framesList, frameKey, &insertionStatus );
-  if( insertionStatus > 0 )
-  {
-    kh_value( framesList, newFrameID ) = CANFrame_Init( mode, interfaceName, networkDatabaseName, networkClusterName, frameName );
-    if( kh_value( framesList, newFrameID ) == NULL )
-    {
-      kh_del( FrameInt, framesList, newFrameID );
-      return NULL;
-    }
-  }
-
-  return kh_value( framesList, newFrameID );
-}
-
-//extern inline void CANNetwork_EndFrame( CANFrame* frame )
-//{
-//  CANFrame_End( frame );
-//}
-
-void CANNetwork_Sync()
-{
-  // Build Sync payload (all 0x0) 
-  static u8 payload[8];
-  CANFrame_Write( SYNC, payload );
 }
 
 // Stop CAN network communications
@@ -96,14 +47,8 @@ void CANNetwork_Stop()
   u8 payload[8] = { 0x80 }; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );
 
-  for( khint_t frameID = 0; frameID != kh_end( framesList ); frameID++ )
-  {
-    if( !kh_exist( framesList, frameID ) ) continue;
-      
-    CANFrame_End( kh_value( framesList, frameID ) );
-    kh_del( FrameInt, framesList, frameID );
-  }
   kh_destroy( FrameInt, framesList );
+  framesList = NULL;
   
   CANFrame_End( NMT );
   CANFrame_End( SYNC );
@@ -120,10 +65,70 @@ void CANNetwork_Reset()
   CANFrame_Write( NMT, payload );
 }
 
+void CANNetwork_InitNode( uint8_t nodeID )
+{
+  // Start PDOs sending Start payload to the network
+  u8 payload[8] = { 0x01, nodeID }; // Rest of the array as 0x0
+  CANFrame_Write( NMT, payload );
+}
+
+void CANNetwork_EndNode( uint8_t nodeID )
+{
+  // Stop PDOs sending Stop payload to the network
+  u8 payload[8] = { 0x80, nodeID }; // Rest of the array as 0x0
+  CANFrame_Write( NMT, payload );
+}
+
 void CANNetwork_ResetNodes()
 {
   u8 payload[8] = { 0x821 }; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );
+}
+
+CANFrame* CANNetwork_InitFrame( enum FrameMode mode, const char* interfaceName, const char* frameName )
+{
+  int frameKey = kh_str_hash_func( interfaceName ) + kh_str_hash_func( frameName );
+  
+  if( framesList == NULL ) CANNetwork_Start();
+  
+  int insertionStatus;
+  khint_t newFrameID = kh_put( FrameInt, framesList, frameKey, &insertionStatus );
+  if( insertionStatus > 0 )
+  {
+    kh_value( framesList, newFrameID ) = CANFrame_Init( mode, interfaceName, CAN_DATABASE_NAME, CAN_CLUSTER_NAME, frameName );
+    if( kh_value( framesList, newFrameID ) == NULL )
+    {
+      kh_del( FrameInt, framesList, newFrameID );
+      return NULL;
+    }
+  }
+
+  return kh_value( framesList, newFrameID );
+}
+
+void CANNetwork_EndFrame( CANFrame* frame )
+{
+  for( khint_t frameID = 0; frameID != kh_end( framesList ); frameID++ )
+  {
+    if( !kh_exist( framesList, frameID ) ) continue;
+    
+    if( kh_value( framesList, frameID ) == frame )
+    {
+      CANFrame_End( frame );
+      kh_del( FrameInt, framesList, frameID );
+      
+      if( kh_size( framesList ) == 0 ) CANNetwork_Stop();
+      
+      break;
+    }
+  }
+}
+
+void CANNetwork_Sync()
+{
+  // Build Sync payload (all 0x0) 
+  static u8 payload[8];
+  CANFrame_Write( SYNC, payload );
 }
 
 #endif	/* CAN_NETWORK_H */

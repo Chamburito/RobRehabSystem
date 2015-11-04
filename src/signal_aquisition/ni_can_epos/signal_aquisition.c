@@ -1,26 +1,34 @@
-#ifdef _CVI_
-  #include <NIDAQmx.h>
-#endif
+enum { AXIS_ENCODER, AXIS_RPS, AXIS_CURRENT, AXIS_ANALOG, AXIS_CHANNELS_NUMBER };
+
+enum States { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAULT = 8, VOLTAGE_ENABLED = 16, 
+              QUICK_STOPPED = 32, SWITCH_ON_DISABLE = 64, REMOTE_NMT = 512, TARGET_REACHED = 1024, SETPOINT_ACK = 4096 };
+
+enum Controls { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, 
+                NEW_SETPOINT = 16, CHANGE_IMMEDIATEDLY = 32, ABS_REL = 64, FAULT_RESET = 128, HALT = 256 };
+
+enum FrameTypes { SDO, PDO01, PDO02, AXIS_FRAME_TYPES_NUMBER };
+
+IMPLEMENT_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS )
 
 #include "signal_aquisition/signal_aquisition_interface.h"
+#include "ni_can_epos_axis/can_network.h"
 
 #include "klib/khash.h"
 
 #include "debug/async_debug.h"
 
-static const size_t AQUISITION_BUFFER_LENGTH = 10;
+static const size_t AQUISITION_BUFFER_LENGTH = 1;
 
 typedef struct _SignalAquisitionTask
 {
-  TaskHandle handle;
+  CANFrame* readFramesList[ 2 ];
+  CANFrame* controlFramesList[ 2 ];
+  uint16_t statusWord, controlWord;
   Thread threadID;
   ThreadLock threadLock;
   bool isReading;
-  bool* channelUsedList;
-  uInt32 channelsNumber;
-  float64* samplesList;
-  float64** samplesTable;
-  int32* aquiredSamplesCountList;
+  unsigned int channelUsesList[ AXIS_CHANNELS_NUMBER ];
+  double measuresList[ AXIS_CHANNELS_NUMBER ];
 }
 SignalAquisitionTask;
 
@@ -29,23 +37,20 @@ static khash_t( TaskInt )* tasksList = NULL;
 
 IMPLEMENT_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS ) 
 
-#ifdef _CVI_
-static void* AsyncReadBuffer( void* );
-
 static SignalAquisitionTask* LoadTaskData( const char* );
 static void UnloadTaskData( SignalAquisitionTask* );
 
-int InitTask( const char* taskName )
+int InitTask( const char* taskConfig )
 {
   if( tasksList == NULL ) tasksList = kh_init( TaskInt );
   
-  int taskKey = (int) kh_str_hash_func( taskName );
+  int taskKey = (int) kh_str_hash_func( taskConfig );
   
   int insertionStatus;
   khint_t newTaskIndex = kh_put( TaskInt, tasksList, taskKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( tasksList, newTaskIndex ) = LoadTaskData( taskName );
+    kh_value( tasksList, newTaskIndex ) = LoadTaskData( taskConfig );
     if( kh_value( tasksList, newTaskIndex ) == NULL )
     {
       DEBUG_PRINT( "loading task %s failed", taskName );
@@ -85,17 +90,14 @@ double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount 
   
   SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
-  if( channel >= task->channelsNumber ) return NULL;
+  if( channel >= AXIS_CHANNELS_NUMBER ) return NULL;
   
   if( !task->isReading ) return NULL;
  
   ThreadLocks.Aquire( task->threadLock );
     
   double* aquiredSamplesList = (double*) task->samplesTable[ channel ];
-  task->samplesTable[ channel ] = NULL;
-  
-  *ref_aquiredSamplesCount = (size_t) task->aquiredSamplesCountList[ channel ];
-  task->aquiredSamplesCountList[ channel ] = 0;
+  *ref_aquiredSamplesCount = 1;
     
   ThreadLocks.Release( task->threadLock );
   
@@ -111,11 +113,9 @@ bool AquireChannel( int taskID, unsigned int channel )
   
   SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
-  if( channel > task->channelsNumber ) return false;
+  if( channel >= AXIS_CHANNELS_NUMBER ) return false;
   
-  if( task->channelUsedList[ channel ] ) return false;
-  
-  task->channelUsedList[ channel ] = true;
+  task->channelUsesList[ channel ]++;
   
   return true;
 }
@@ -127,9 +127,9 @@ void ReleaseChannel( int taskID, unsigned int channel )
   
   SignalAquisitionTask* task = kh_value( tasksList, taskIndex );
   
-  if( channel > task->channelsNumber ) return;
+  if( channel >= AXIS_CHANNELS_NUMBER ) return;
   
-  task->channelUsedList[ channel ] = false;
+  task->channelUsesList[ channel ]--;
 }
 
 static size_t GetMaxSamplesNumber( int taskID )
@@ -137,7 +137,7 @@ static size_t GetMaxSamplesNumber( int taskID )
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
   if( taskIndex == kh_end( tasksList ) ) return 0;
   
-  return AQUISITION_BUFFER_LENGTH;
+  return 1;
 }
 
 
@@ -151,21 +151,7 @@ static void* AsyncReadBuffer( void* callbackData )
   {
     ThreadLocks.Aquire( task->threadLock ); // Trying to make Read call blocking
     
-    int errorCode = DAQmxReadAnalogF64( task->handle, AQUISITION_BUFFER_LENGTH, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
-                                        task->samplesList, task->channelsNumber * AQUISITION_BUFFER_LENGTH, &aquiredSamplesCount, NULL );
 
-    if( errorCode < 0 )
-    {
-      static char errorMessage[ DEBUG_MESSAGE_LENGTH ];
-      DAQmxGetErrorString( errorCode, errorMessage, DEBUG_MESSAGE_LENGTH );
-      DEBUG_PRINT( "error aquiring analog signal: %s", errorMessage );
-    }
-    
-    for( size_t channel = 0; channel < task->channelsNumber; channel++ )
-    {
-      task->samplesTable[ channel ] = task->samplesList + channel * aquiredSamplesCount;
-      task->aquiredSamplesCountList[ channel ] = aquiredSamplesCount;
-    }
     
     ThreadLocks.Release( task->threadLock );
   }
@@ -234,11 +220,11 @@ void UnloadTaskData( SignalAquisitionTask* task )
   if( task == NULL ) return;
   
   bool stillUsed = false;
-  if( task->channelUsedList != NULL )
+  if( task->channelUsesList != NULL )
   {
     for( size_t channel = 0; channel < task->channelsNumber; channel++ )
     {
-      if( task->channelUsedList[ channel ] )
+      if( task->channelUsesList[ channel ] > 0 )
       {
         stillUsed = true;
         break;
@@ -267,5 +253,3 @@ void UnloadTaskData( SignalAquisitionTask* task )
   
   free( task );
 }
-
-#endif

@@ -193,7 +193,7 @@ size_t GetListSize( int dataID, const char* pathFormat, ... )
   
   if( listNode->type != KSON_TYPE_BRACKET ) return 0;
   
-  DEBUG_PRINT( "List %s size: %u", path, (size_t) listNode->n );
+  DEBUG_PRINT( "List %s size: %u", pathFormat, (size_t) listNode->n );
   
   return (size_t) listNode->n;
 }

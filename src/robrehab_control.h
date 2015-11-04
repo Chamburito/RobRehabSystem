@@ -183,6 +183,7 @@ void RobRehabControl_Update()
     double* jointMeasuresList = RobotControl.GetJointMeasuresList( robotControllerID, jointControllerIndex );
     if( jointMeasuresList != NULL )
     {
+      SHMControl.GetNumericValuesList( sharedJoint, controlValuesList, SHM_CONTROL_PEEK );
       controlValuesList[ SHM_JOINT_ANGLE ] = (float) jointMeasuresList[ CONTROL_POSITION ] ;
       controlValuesList[ SHM_JOINT_ID_TORQUE ] = (float) jointMeasuresList[ CONTROL_FORCE ] ;
       SHMControl.SetNumericValuesList( sharedJoint, controlValuesList, 0xFF );

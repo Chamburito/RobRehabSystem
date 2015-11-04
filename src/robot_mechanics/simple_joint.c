@@ -9,7 +9,7 @@ size_t GetDoFsNumber( void )
   return DOFS_NUMBER;
 }
 
-void GetForwardKinematics( const double** jointValuesTable, double* dofValuesList, size_t dofIndex )
+void GetForwardKinematics( double** jointValuesTable, double* dofValuesList, size_t dofIndex )
 {
   DEBUG_PRINT( "calculating forward kinematics for dof %lu", dofIndex );
   
@@ -18,7 +18,7 @@ void GetForwardKinematics( const double** jointValuesTable, double* dofValuesLis
   dofValuesList[ ROBOT_ACCELERATION ] = jointValuesTable[ 0 ][ ROBOT_ACCELERATION ];
 }
 
-void GetInverseKinematics( const double** dofValuesTable, double* jointValuesList, size_t jointIndex )
+void GetInverseKinematics( double** dofValuesTable, double* jointValuesList, size_t jointIndex )
 {
   DEBUG_PRINT( "calculating inverse kinematics for joint %lu", jointIndex );
   
@@ -27,7 +27,7 @@ void GetInverseKinematics( const double** dofValuesTable, double* jointValuesLis
   jointValuesList[ ROBOT_ACCELERATION ] = dofValuesTable[ 0 ][ ROBOT_ACCELERATION ];
 }
 
-void GetForwardDynamics( const double** jointValuesTable, double* dofValuesList, size_t dofIndex )
+void GetForwardDynamics( double** jointValuesTable, double* dofValuesList, size_t dofIndex )
 {
   DEBUG_PRINT( "calculating forward dynamics for dof %lu", dofIndex );
   
@@ -36,7 +36,7 @@ void GetForwardDynamics( const double** jointValuesTable, double* dofValuesList,
   dofValuesList[ ROBOT_FORCE ] = jointValuesTable[ 0 ][ ROBOT_FORCE ];
 }
 
-void GetInverseDynamics( const double** dofValuesTable, double* jointValuesList, size_t jointIndex )
+void GetInverseDynamics( double** dofValuesTable, double* jointValuesList, size_t jointIndex )
 {
   DEBUG_PRINT( "calculating inverse dynamics for joint %lu", jointIndex );
   

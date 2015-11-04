@@ -218,7 +218,7 @@ static IPConnection AddConnection( int socketFD, struct sockaddr* address, uint8
   connection->protocol = type & PROTOCOL_MASK;
   connection->networkRole = type & NETWORK_ROLE_MASK;
 
-  DEBUG_EVENT( 0, "socket: %d - type: %x\n", connection->socketFD, ( connection->protocol | connection->networkRole ) );
+  DEBUG_EVENT( 0, "socket: %d - type: %x", connection->socketFD, ( connection->protocol | connection->networkRole ) );
   
   connection->address = (struct sockaddr_in6*) malloc( sizeof(struct sockaddr_in6) );
   *(connection->address) = *((struct sockaddr_in6*) address);
@@ -328,7 +328,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
   #ifndef _CVI_DLL_
   if( (rw = getaddrinfo( host, port, &hints, &hostsInfoList )) != 0 )
   {
-    ERROR_EVENT( "getaddrinfo: error reading host info: %s\n", gai_strerror( rw ) );
+    ERROR_EVENT( "getaddrinfo: error reading host info: %s", gai_strerror( rw ) );
     return NULL;
   }
   #else
@@ -529,7 +529,7 @@ static int SendTCPMessage( IPConnection connection, const char* message )
     return 0;
   }
   
-  DEBUG_UPDATE( "connection socket %d sending message: %s\n", connection->socketFD, message );
+  DEBUG_UPDATE( "connection socket %d sending message: %s", connection->socketFD, message );
   
   if( send( connection->socketFD, message, IP_CONNECTION_MSG_LEN, 0 ) == SOCKET_ERROR )
   {
@@ -584,7 +584,7 @@ static int SendUDPMessage( IPConnection connection, const char* message )
     return 0;
   }
   
-  DEBUG_UPDATE( "connection socket %d sending message: %s\n", connection->socketFD, message );
+  DEBUG_UPDATE( "connection socket %d sending message: %s", connection->socketFD, message );
   
   if( sendto( connection->socketFD, message, IP_CONNECTION_MSG_LEN, 0, (struct sockaddr *) connection->address, sizeof(struct sockaddr_in6) ) == SOCKET_ERROR )
   {

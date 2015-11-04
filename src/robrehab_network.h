@@ -35,7 +35,7 @@ const size_t INFO_BLOCK_SIZE = 2;
 static kvec_t( int ) axisClientsList;
 const size_t AXIS_DATA_BLOCK_SIZE = 1 + SHM_AXIS_FLOATS_NUMBER * sizeof(float);
 static kvec_t( int ) emgClientsList;
-const size_t EMG_DATA_BLOCK_SIZE = 1 + SHM_EMG_FLOATS_NUMBER * sizeof(float);
+const size_t EMG_DATA_BLOCK_SIZE = 1 + SHM_JOINT_FLOATS_NUMBER * sizeof(float);
 
 typedef struct _NetworkAxis
 {
@@ -80,10 +80,11 @@ int RobRehabNetwork_Init()
   
   if( ConfigParsing.Init( "JSON" ) )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
-    int configFileID = parser.LoadFileData( "shared_robots" );
+    int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
     if( configFileID != PARSED_DATA_INVALID_ID )
     {
+      ParserInterface parser = ConfigParsing.GetParser();
+      
       size_t sharedRobotsNumber = parser.GetListSize( configFileID, "robots" );
       DEBUG_PRINT( "shared objects list size: %lu", sharedRobotsNumber );
       
@@ -137,6 +138,7 @@ int RobRehabNetwork_Init()
       
       parser.UnloadData( configFileID );
       
+      DEBUG_PRINT( "info strings: axis: %s - EMG: %s", axesInfoString, emgInfoString );
       DEBUG_PRINT( "data message lengths: axis: %lu - EMG: %lu", axisDataMessageLength, emgDataMessageLength );
       AsyncIPNetwork.SetMessageLength( axisServerConnectionID, axisDataMessageLength );
       AsyncIPNetwork.SetMessageLength( emgServerConnectionID, emgDataMessageLength );
@@ -155,17 +157,17 @@ void RobRehabNetwork_End()
   for( size_t eventClientIndex = 0; eventClientIndex < kv_size( eventClientsList ); eventClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( eventClientsList, eventClientIndex ) );
   AsyncIPNetwork.CloseConnection( eventServerConnectionID );
-  /*DEBUG_EVENT( 1,*/ "info server %d closed", eventServerConnectionID );
+  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "info server %d closed", eventServerConnectionID );
   
   for( size_t axisClientIndex = 0; axisClientIndex < kv_size( axisClientsList ); axisClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( axisClientsList, axisClientIndex ) );
   AsyncIPNetwork.CloseConnection( axisServerConnectionID );
-  /*DEBUG_EVENT( 2,*/ "data server %d closed", axisServerConnectionID );
+  /*DEBUG_EVENT( 2,*/DEBUG_PRINT( "data server %d closed", axisServerConnectionID );
   
   for( size_t emgClientIndex = 0; emgClientIndex < kv_size( emgClientsList ); emgClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( emgClientsList, emgClientIndex ) );
   AsyncIPNetwork.CloseConnection( emgServerConnectionID );
-  /*DEBUG_EVENT( 3,*/ "EMG server %d closed", emgServerConnectionID );
+  /*DEBUG_EVENT( 3,*/DEBUG_PRINT( "EMG server %d closed", emgServerConnectionID );
   
   kv_destroy( eventClientsList );
   DEBUG_EVENT( 6, "info clients list %p destroyed", eventClientsList );
@@ -231,7 +233,6 @@ static void UpdateClientEvent( int clientID )
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   
   char* messageIn = AsyncIPNetwork_ReadMessage( clientID );
-  
   if( messageIn != NULL ) 
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
@@ -244,28 +245,30 @@ static void UpdateClientEvent( int clientID )
     {
       uint8_t controllerID = (uint8_t) *(messageIn++);
       uint8_t command = (uint8_t) *(messageIn++);
-      DEBUG_UPDATE( "received controller %u command: %u", controllerID, command );
+      DEBUG_PRINT( "received controller %u command: %u", controllerID, command );
       
+      SHMController sharedController = NULL;
       if( command > SHM_CONTROL_BYTE_NULL && command < SHM_AXIS_BYTE_END )
       {
         if( controllerID < 0 || controllerID >= kv_size( networkAxesList ) ) continue;
+        sharedController = kv_A( networkAxesList, controllerID ).sharedData;
         
-        SHMController sharedAxis = kv_A( networkAxesList, controllerID ).sharedData;
-        
-        SHMAxisControl.SetByteValue( sharedAxis, command );
-      
-        uint8_t state = SHMAxisControl.GetByteValue( sharedAxis, SHM_CONTROL_REMOVE );
-        if( state != SHM_CONTROL_BYTE_NULL )
-        {
-          messageOut[ 0 ]++;
-          messageOut[ stateByteIndex++ ] = (char) controllerID;
-          messageOut[ stateByteIndex++ ] = (char) state;
-        }
+        if( command == SHM_COMMAND_RESET ) kv_A( networkAxesList, controllerID ).clientID = IP_CONNECTION_INVALID_ID;
       }
       else if( command < SHM_EMG_BYTE_END )
       {
-        SHMController sharedEMGJoint = &(kv_A( networkEMGJointsList, controllerID ));
-        SHMAxisControl.SetByteValue( sharedEMGJoint, command );
+        if( controllerID < 0 || controllerID >= kv_size( networkEMGJointsList ) ) continue;
+        sharedController = kv_A( networkEMGJointsList, controllerID );
+      }
+      
+      SHMControl.SetByteValue( sharedController, command );
+
+      uint8_t state = SHMControl.GetByteValue( sharedController, SHM_CONTROL_REMOVE );
+      if( state != SHM_CONTROL_BYTE_NULL )
+      {
+        messageOut[ 0 ]++;
+        messageOut[ stateByteIndex++ ] = (char) controllerID;
+        messageOut[ stateByteIndex++ ] = (char) state;
       }
     }
   
@@ -282,7 +285,6 @@ static void UpdateClientAxis( int clientID )
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   
   char* messageIn = AsyncIPNetwork_ReadMessage( clientID );
-  
   if( messageIn != NULL ) 
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
@@ -307,7 +309,7 @@ static void UpdateClientAxis( int clientID )
       DEBUG_UPDATE( "receiving axis %u setpoints (mask: %x)", controllerID, dataMask );
       
       float* setpointsList = (float*) &(messageIn[ 2 ]);
-      SHMAxisControl.SetNumericValuesList( networkAxis->sharedData, setpointsList, dataMask );
+      SHMControl.SetNumericValuesList( networkAxis->sharedData, setpointsList, dataMask );
       
       messageIn += AXIS_DATA_BLOCK_SIZE;
     }
@@ -322,7 +324,7 @@ static void UpdateClientAxis( int clientID )
     messageOut[ 0 ]++;
     messageOut[ measureByteIndex ] = (uint8_t) networkAxisIndex;
     
-    SHMAxisControl.GetNumericValuesList( sharedAxis, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
+    SHMControl.GetNumericValuesList( sharedAxis, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
     measureByteIndex += AXIS_DATA_BLOCK_SIZE;
   }
   
@@ -341,12 +343,12 @@ static void UpdateClientEMG( int clientID )
   size_t measureByteIndex = 1;
   for( size_t networkJointIndex = 0; networkJointIndex < kv_size( networkAxesList ); networkJointIndex++ )
   {
-    SHMController sharedEMGJoint = &(kv_A( networkEMGJointsList, networkJointIndex ));
+    SHMController sharedEMGJoint = kv_A( networkEMGJointsList, networkJointIndex );
     
     messageOut[ 0 ]++;
     messageOut[ measureByteIndex ] = (uint8_t) networkJointIndex;
     
-    SHMAxisControl.GetNumericValuesList( sharedEMGJoint, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
+    SHMControl.GetNumericValuesList( sharedEMGJoint, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
     measureByteIndex += EMG_DATA_BLOCK_SIZE;
   }
   

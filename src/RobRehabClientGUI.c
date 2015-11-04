@@ -40,16 +40,13 @@
 #include <cvirte.h>		
 #include <userint.h>
 
+#include "shm_axis_control.h"
+#include "shm_emg_control.h"
+
 #include "ip_network/cvirte_ip_connection.h"
 #include "RobRehabClientGUI.h"
 
 #define NUM_POINTS			400
-
-enum SHMControlFloats { SHM_CONTROL_POSITION, SHM_CONTROL_VELOCITY, SHM_CONTROL_FORCE, SHM_CONTROL_STIFFNESS = SHM_CONTROL_FORCE,
-                        SHM_CONTROL_ACCELERATION, SHM_CONTROL_DAMPING = SHM_CONTROL_ACCELERATION, SHM_CONTROL_TIME, SHM_CONTROL_FLOATS_NUMBER };
-
-enum SHMControlBytes { SHM_CONTROL_NULL_BYTE, SHM_COMMAND_DISABLE, SHM_STATE_DISABLED = SHM_COMMAND_DISABLE, SHM_COMMAND_ENABLE, 
-                       SHM_STATE_ENABLED = SHM_COMMAND_ENABLE, SHM_COMMAND_RESET, SHM_STATE_ERROR = SHM_COMMAND_RESET, SHM_COMMAND_CALIBRATE };
 
 /* Global variables */
 static int panel;
@@ -95,19 +92,16 @@ int main( int argc, char *argv[] )
   char* infoMessage = NULL;
   while( infoMessage == NULL )
     infoMessage = AsyncIPNetwork.ReadMessage( infoClientID );
-  
+  fprintf( stderr, "received info message: %s\n", infoMessage );
+  infoMessage = NULL;
+  while( infoMessage == NULL )
+    infoMessage = AsyncIPNetwork_ReadMessage( infoClientID );
   fprintf( stderr, "received info message: %s\n", infoMessage );
   
   char resetMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0, SHM_COMMAND_RESET };
   AsyncIPNetwork_WriteMessage( infoClientID, resetMessage );
   
-  //infoMessage = NULL;
-  //while( infoMessage == NULL )
-  //  infoMessage = AsyncIPNetwork_ReadMessage( infoClientID );
-  
-  //fprintf( stderr, "received info message: %s\n", infoMessage );
-  
-  dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
+  //dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
   
 	if( (panel = LoadPanel( 0, "RobRehabClientGUI.uir", PANEL )) < 0 )
 		return -1;
@@ -117,7 +111,7 @@ int main( int argc, char *argv[] )
 	RunUserInterface();
 	
   isDataUpdateRunning = false;
-  Threading.WaitExit( dataConnectionThreadID, 5000 );
+  //Threading.WaitExit( dataConnectionThreadID, 5000 );
   
 	AsyncIPNetwork.WriteMessage( infoClientID, resetMessage );
   
@@ -135,9 +129,9 @@ static void* UpdateData( void* callbackData )
   const size_t WAIT_SAMPLES = 10;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
-  float measuresList[ SHM_CONTROL_FLOATS_NUMBER ], setpointsList[ SHM_CONTROL_FLOATS_NUMBER ];
+  float measuresList[ SHM_AXIS_FLOATS_NUMBER ], setpointsList[ SHM_AXIS_FLOATS_NUMBER ];
   
-  double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], accelerationValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ];
+  double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ];
   size_t measureIndex = 0;
   
   char dataMessageOut[ IP_MAX_MESSAGE_LENGTH ];
@@ -168,19 +162,17 @@ static void* UpdateData( void* callbackData )
     {
       if( messageIn[ 0 ] == 1 && messageIn[ 1 ] == 0 )
       {
-        memcpy( measuresList, messageIn + 2, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
+        memcpy( measuresList, messageIn + 2, sizeof(float) * SHM_AXIS_FLOATS_NUMBER );
         
-        positionValues[ measureIndex ] = measuresList[ SHM_CONTROL_POSITION ];
-        velocityValues[ measureIndex ] = measuresList[ SHM_CONTROL_VELOCITY ];
-        accelerationValues[ measureIndex ] = measuresList[ SHM_CONTROL_ACCELERATION ];
-        torqueValues[ measureIndex ] = measuresList[ SHM_CONTROL_FORCE ];
+        positionValues[ measureIndex ] = measuresList[ SHM_AXIS_POSITION ];
+        velocityValues[ measureIndex ] = measuresList[ SHM_AXIS_VELOCITY ];
+        torqueValues[ measureIndex ] = measuresList[ SHM_AXIS_FORCE ];
         
         if( ++measureIndex >= NUM_POINTS )
         {
           DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
           PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
           PlotY( panel, PANEL_GRAPH_1, velocityValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
-          PlotY( panel, PANEL_GRAPH_1, accelerationValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_BLUE );
           
           DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
           PlotY( panel, PANEL_GRAPH_2, torqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
@@ -192,16 +184,16 @@ static void* UpdateData( void* callbackData )
     
     if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      setpointsList[ SHM_CONTROL_POSITION ] = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
-      setpointsList[ SHM_CONTROL_VELOCITY ] = 1.0 / TOTAL_CURVE_INTERVAL;
-      setpointsList[ SHM_CONTROL_STIFFNESS ] = maxStiffness;
-      setpointsList[ SHM_CONTROL_TIME ] = SETPOINT_UPDATE_INTERVAL;
+      setpointsList[ SHM_AXIS_POSITION ] = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
+      setpointsList[ SHM_AXIS_VELOCITY ] = 1.0 / TOTAL_CURVE_INTERVAL;
+      setpointsList[ SHM_AXIS_STIFFNESS ] = maxStiffness;
+      setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
       
       for( size_t i = 0; i < WAIT_SAMPLES; i++ )
-        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointsList[ SHM_CONTROL_POSITION ];
+        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointsList[ SHM_AXIS_POSITION ];
       setpointIndex += WAIT_SAMPLES;
     
-      memcpy( dataMessageOut + 3, setpointsList, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
+      memcpy( dataMessageOut + 3, setpointsList, sizeof(float) * SHM_AXIS_FLOATS_NUMBER );
     
       deltaTime = 0.0;
       
@@ -209,7 +201,7 @@ static void* UpdateData( void* callbackData )
     }
   }
   
-  memset( dataMessageOut + 3, 0, sizeof(float) * SHM_CONTROL_FLOATS_NUMBER );
+  memset( dataMessageOut + 3, 0, sizeof(float) * SHM_AXIS_FLOATS_NUMBER );
   AsyncIPNetwork.WriteMessage( dataClientID, dataMessageOut ); 
   
   AsyncIPNetwork.CloseConnection( dataClientID );
@@ -233,7 +225,7 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
   
 	if( event == EVENT_COMMIT )
 	{
-    commandMessage[ 2 ] = SHM_CONTROL_NULL_BYTE;
+    commandMessage[ 2 ] = 0;
     
     // Write the new value to the appropriate network variable.
     if( control == PANEL_MOTOR_TOGGLE )
