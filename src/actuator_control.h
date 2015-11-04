@@ -232,7 +232,7 @@ static void* AsyncControl( void* data )
     DEBUG_UPDATE( "control pass for actuator %p (after delay): elapsed time: %u ms", actuator, Timing_GetExecTimeMilliseconds() - execTime );
   }
   
-  DEBUG_PRINT( "ending control thread %x", THREAD_ID );
+  DEBUG_PRINT( "ending control thread %lx", THREAD_ID );
    
   return NULL;
 }
