@@ -15,6 +15,8 @@
 
 #include "klib/khash.h"
 
+enum CANFrameTypes { SDO, PDO01, PDO02, CAN_FRAME_TYPES_NUMBER };
+
 //CAN database addressing
 const char* CAN_DATABASE_NAME = "database";
 const char* CAN_CLUSTER_NAME = "NETCAN";
@@ -85,9 +87,20 @@ void CANNetwork_ResetNodes()
   CANFrame_Write( NMT, payload );
 }
 
-CANFrame* CANNetwork_InitFrame( enum FrameMode mode, const char* interfaceName, const char* frameName )
+const size_t ADDRESS_MAX_LENGTH = 16;
+const char* CAN_FRAME_NAMES[ CAN_FRAME_TYPES_NUMBER ] = { "SDO", "PDO01", "PDO02" };
+CANFrame* CANNetwork_InitFrame( enum CANFrameType type, enum CANFrameMode mode, unsigned int nodeID )
 {
-  int frameKey = kh_str_hash_func( interfaceName ) + kh_str_hash_func( frameName );
+  char frameAddress[ ADDRESS_MAX_LENGTH ];
+  
+  if( type < 0 || type >= CAN_FRAME_TYPES_NUMBER ) return NULL;
+  
+  const char* interfaceName = ( mode == FRAME_IN ) ? "CAN1" : "CAN2";
+  const char* modeName = ( mode == FRAME_IN ) ? "RX" : "TX";
+  
+  int frameKey = kh_str_hash_func( interfaceName ) + kh_str_hash_func( CAN_FRAME_NAMES[ type ] );
+  
+  snprintf( frameAddress, ADDRESS_MAX_LENGTH, "%s_%s_%02u", CAN_FRAME_NAMES[ type ], modeName, nodeID );
   
   if( framesList == NULL ) CANNetwork_Start();
   
@@ -95,9 +108,10 @@ CANFrame* CANNetwork_InitFrame( enum FrameMode mode, const char* interfaceName, 
   khint_t newFrameID = kh_put( FrameInt, framesList, frameKey, &insertionStatus );
   if( insertionStatus > 0 )
   {
-    kh_value( framesList, newFrameID ) = CANFrame_Init( mode, interfaceName, CAN_DATABASE_NAME, CAN_CLUSTER_NAME, frameName );
+    kh_value( framesList, newFrameID ) = CANFrame_Init( mode, interfaceName, CAN_DATABASE_NAME, CAN_CLUSTER_NAME, frameAddress );
     if( kh_value( framesList, newFrameID ) == NULL )
     {
+      DEBUG_PRINT( "error creating frame %s for CAN interface %s", frameAddress, interfaceName );
       kh_del( FrameInt, framesList, newFrameID );
       return NULL;
     }

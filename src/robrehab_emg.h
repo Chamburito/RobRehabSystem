@@ -130,16 +130,22 @@ void RobRehabEMG_Update( void )
     SHMJoint sharedJoint = &(kv_A( sharedJointsList, sharedJointID ));
     
     uint8_t jointPhase = SHMControl.GetByteValue( sharedJoint->controller, SHM_CONTROL_REMOVE );
-    if( jointPhase == SHM_EMG_CALIBRATION )
+    if( jointPhase == SHM_EMG_OFFSET )
+    {
+      DEBUG_PRINT( "starting offset phase for joint %d", sharedJoint->jointID );
+      EMGProcessing.SetProcessingPhase( sharedJoint->jointID, SIGNAL_PROCESSING_PHASE_OFFSET );
+      sharedJoint->lastJointPhase = SHM_EMG_OFFSET;
+    }
+    else if( jointPhase == SHM_EMG_CALIBRATION )
     {
       DEBUG_PRINT( "starting calibration for joint %d", sharedJoint->jointID );
-      EMGProcessing.SetJointCalibration( sharedJoint->jointID, true );
+      EMGProcessing.SetProcessingPhase( sharedJoint->jointID, SIGNAL_PROCESSING_PHASE_CALIBRATION );
       sharedJoint->lastJointPhase = SHM_EMG_CALIBRATION;
     }
     else if( jointPhase == SHM_EMG_SAMPLING )
     {
       DEBUG_PRINT( "reseting sampling count for joint %d", sharedJoint->jointID );
-      EMGProcessing.SetJointCalibration( sharedJoint->jointID, false );
+      EMGProcessing.SetProcessingPhase( sharedJoint->jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
       sharedJoint->samplingData.samplesCount = 0;
       sharedJoint->lastJointPhase = SHM_EMG_SAMPLING;
     }
@@ -159,8 +165,6 @@ void RobRehabEMG_Update( void )
       }
       sharedJoint->lastJointPhase = SHM_EMG_MEASUREMENT;
     }
-
-    float seed = ( (float) ( rand() % 2001 - 1000 ) ) / 1000.0;
     
     float jointAngle, jointIDTorque;
     if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ANGLE, &jointAngle, SHM_CONTROL_PEEK ) )

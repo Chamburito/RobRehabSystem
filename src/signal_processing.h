@@ -289,19 +289,21 @@ static Sensor LoadSensorData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load sensor %s data", configFileName );
   
-  bool loadError = false;
+  Sensor newSensor = NULL;
   
-  Sensor newSensor = (Sensor) malloc( sizeof(SensorData) );
-  memset( newSensor, 0, sizeof(SensorData) );
-  
-  int configFileID = ConfigParser.LoadFileData( configFileName );
-  if( configFileID != -1 )
+  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
-    bool pluginLoaded;
-    GET_PLUGIN_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS, ConfigParser.GetStringValue( configFileID, "aquisition_system.type", "" ), newSensor->interface, pluginLoaded );
-    if( pluginLoaded )
+    ParserInterface parser = ConfigParsing.GetParser();
+    
+    newSensor = (Sensor) malloc( sizeof(SensorData) );
+    memset( newSensor, 0, sizeof(SensorData) );
+    
+    bool loadSuccess;
+    GET_PLUGIN_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS, parser.GetStringValue( configFileID, "", "aquisition_system.type" ), newSensor->interface, loadSuccess );
+    if( loadSuccess )
     {
-      newSensor->taskID = newSensor->interface.InitTask( ConfigParser.GetStringValue( configFileID, "aquisition_system.task", "" ) );
+      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "aquisition_system.task" ) );
       if( newSensor->taskID != -1 )
       {
         size_t newSamplesBufferMaxLength = newSensor->interface.GetMaxSamplesNumber( newSensor->taskID );
@@ -311,42 +313,39 @@ static Sensor LoadSensorData( const char* configFileName )
           newSensor->signalData.samplesBuffer = (double*) calloc( newSensor->signalData.samplesBufferLength, sizeof(double) );
           newSensor->signalData.filteredSamplesBuffer = (double*) calloc( newSensor->signalData.samplesBufferLength, sizeof(double) );
         }
-        else loadError = true;
+        else loadSuccess = false;
 
-        newSensor->channel = (unsigned int) ConfigParser.GetIntegerValue( configFileID, "aquisition_system.channel", -1 );
-        if( !(newSensor->interface.AquireChannel( newSensor->taskID, newSensor->channel )) ) loadError = true;
+        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "aquisition_system.channel" );
+        newSensor->interface.AquireChannel( newSensor->taskID, newSensor->channel );
         
-        newSensor->scalingFactor = ConfigParser.GetRealValue( configFileID, "processing.input_multiplier", 1.0 );
-        newSensor->scalingFactor /= ConfigParser.GetRealValue( configFileID, "processing.input_divisor", 1.0 );
-        newSensor->signalData.isRectified = ConfigParser.GetBooleanValue( configFileID, "processing.rectified", false );
-        newSensor->signalData.isFiltered = ConfigParser.GetBooleanValue( configFileID, "processing.filtered", false );
-        newSensor->signalData.isNormalized = ConfigParser.GetBooleanValue( configFileID, "processing.normalized", false );
+        newSensor->scalingFactor = parser.GetRealValue( configFileID, 1.0, "processing.input_multiplier" );
+        newSensor->scalingFactor /= parser.GetRealValue( configFileID, 1.0, "processing.input_divisor" );
+        newSensor->signalData.isRectified = parser.GetBooleanValue( configFileID, false, "processing.rectified" );
+        newSensor->signalData.isFiltered = parser.GetBooleanValue( configFileID, false, "processing.filtered" );
+        newSensor->signalData.isNormalized = parser.GetBooleanValue( configFileID, false, "processing.normalized" );
         
         DEBUG_PRINT( "measure properties: rect: %u - filter: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isFiltered, newSensor->signalData.isNormalized ); 
         
-        if( ConfigParser.GetBooleanValue( configFileID, "log_data", false ) )
+        if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
         {
           newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
           DataLogging_SetDataPrecision( newSensor->logID, 4 );
         }
       }
-      else loadError = true;
+      else loadSuccess = false;
     }
-    else loadError = true;
+    else loadSuccess = false;
 
-    ConfigParser.UnloadData( configFileID );
+    parser.UnloadData( configFileID );
+    
+    if( !loadSuccess )
+    {
+      UnloadSensorData( newSensor );
+      return NULL;
+    }
   }
   else
-  {
     DEBUG_PRINT( "configuration for sensor %s not found", configFileName );
-    loadError = true;
-  }
-    
-  if( loadError )
-  {
-    UnloadSensorData( newSensor );
-    return NULL;
-  }
   
   return newSensor;
 }

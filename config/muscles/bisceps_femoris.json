@@ -1,0 +1,21 @@
+{
+  "emg_sensor": "emg_sensors/bisceps_femoris",
+  "limits": {
+    "force": {
+      "min": 448,
+      "max": 1344
+    },
+    "length": {
+      "min": 0.092936,
+      "max": 0.139404
+    },
+    "penation_angle": {
+      "min": 0.013962,
+      "max": 0.020943
+    },
+    "moment_arm": {
+      "min": -0.05,
+      "max": 0.05
+    }
+  }
+}

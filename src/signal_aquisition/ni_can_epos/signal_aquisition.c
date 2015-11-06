@@ -6,7 +6,8 @@ enum States { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAU
 enum Controls { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, 
                 NEW_SETPOINT = 16, CHANGE_IMMEDIATEDLY = 32, ABS_REL = 64, FAULT_RESET = 128, HALT = 256 };
 
-enum FrameTypes { SDO, PDO01, PDO02, AXIS_FRAME_TYPES_NUMBER };
+enum { SDO_RX, SDO_TX };
+enum { PDO01, PDO02 };
 
 IMPLEMENT_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS )
 
@@ -29,6 +30,7 @@ typedef struct _SignalAquisitionTask
   bool isReading;
   unsigned int channelUsesList[ AXIS_CHANNELS_NUMBER ];
   double measuresList[ AXIS_CHANNELS_NUMBER ];
+  uint8_t payload[ 8 ];
 }
 SignalAquisitionTask;
 
@@ -151,7 +153,25 @@ static void* AsyncReadBuffer( void* callbackData )
   {
     ThreadLocks.Aquire( task->threadLock ); // Trying to make Read call blocking
     
-
+    CANNetwork_Sync();
+  
+    // Read values from PDO01 (Position, Current and Status Word) to buffer
+    CANFrame_Read( task->readFramesList[ PDO01 ], task->payload );  
+    // Update values from PDO01
+    taks->measuresList[ AXIS_ENCODER ] = task->payload[ 3 ] * 0x1000000 + task->payload[ 2 ] * 0x10000 + task->payload[ 1 ] * 0x100 + task->payload[ 0 ];
+    int currentHEX = task->payload[ 5 ] * 0x100 + task->payload[ 4 ];
+    double currentMA = currentHEX - ( ( currentHEX >= 0x8000 ) ? 0xFFFF : 0 );
+    task->measuresList[ AXIS_CURRENT ] = currentMA / 1000.0;
+  
+    //interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
+  
+    // Read values from PDO02 (Velocity and Tension) to buffer
+    CANFrame_Read( task->readFramesList[ PDO02 ], task->payload );  
+    // Update values from PDO02
+    double velocityRPM = task->payload[ 3 ] * 0x1000000 + task->payload[ 2 ] * 0x10000 + task->payload[ 1 ] * 0x100 + task->payload[ 0 ];
+    task->measuresList[ AXIS_RPS ] = velocityRPM * 60.0;
+    double analog = task->payload[ 5 ] * 0x100 + task->payload[ 4 ];
+    task->measuresList[ AXIS_ANALOG ] = analog;
     
     ThreadLocks.Release( task->threadLock );
   }
@@ -162,12 +182,31 @@ static void* AsyncReadBuffer( void* callbackData )
 }
 
 
-SignalAquisitionTask* LoadTaskData( const char* taskName )
+
+SignalAquisitionTask* LoadTaskData( const char* taskConfig )
 {
   bool loadError = false;
   
   SignalAquisitionTask* newTask = (SignalAquisitionTask*) malloc( sizeof(SignalAquisitionTask) );
   memset( newTask, 0, sizeof(SignalAquisitionTask) );
+  
+  unsigned int nodeID = (unsigned int) strtoul( taskConfig, NULL, 0 );
+  
+  DEBUG_PRINT( "trying to load CAN interface for node %u", nodeID );
+  
+  if( (newInterface->readFramesList[ frameID ] = CANNetwork_InitFrame( SDO, FRAME_OUT, nodeID )) == NULL ) loadError = true;
+  if( (newInterface->readFramesList[ frameID ] = CANNetwork_InitFrame( SDO, FRAME_IN, nodeID )) == NULL ) loadError = true;
+  if( (newInterface->readFramesList[ frameID ] = CANNetwork_InitFrame( SDO, FRAME_IN, nodeID )) == NULL ) loadError = true;
+  if( (newInterface->readFramesList[ frameID ] = CANNetwork_InitFrame( SDO, FRAME_IN, nodeID )) == NULL ) loadError = true;
+    
+    sprintf( networkAddress, "%s_TX_%02u", CAN_FRAME_NAMES[ frameID ], nodeID );
+    newInterface->writeFramesList[ frameID ] = CANNetwork_InitFrame( FRAME_OUT, "CAN2", networkAddress );
+    
+    if( newInterface->writeFramesList[ frameID ] == NULL )
+      DEBUG_PRINT( "error creating frame %s for CAN interface %u", networkAddress, nodeID );
+  }
+
+  DEBUG_PRINT( "loaded CAN interface for node %u", nodeID );
   
   if( DAQmxLoadTask( taskName, &(newTask->handle) ) >= 0 )
   {

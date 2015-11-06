@@ -1,0 +1,21 @@
+{
+  "emg_sensor": "emg_sensors/vastus_medialis",
+  "limits": {
+    "force": {
+      "min": 647.5,
+      "max": 1942.5
+    },
+    "length": {
+      "min": 0.075778,
+      "max": 0.113666
+    },
+    "penation_angle": {
+      "min": 0.069813,
+      "max": 0.10472
+    },
+    "moment_arm": {
+      "min": -0.05,
+      "max": 0.05
+    }
+  }
+}

@@ -25,7 +25,7 @@
 
 #include "debug/async_debug.h"
 
-enum FrameMode { FRAME_IN = nxMode_FrameInSinglePoint, FRAME_OUT = nxMode_FrameOutSinglePoint };
+enum CANFrameMode { FRAME_IN = nxMode_FrameInSinglePoint, FRAME_OUT = nxMode_FrameOutSinglePoint };
 
 // CAN Frame data structure
 typedef struct _CANFrame
@@ -48,7 +48,7 @@ static void PrintFrameStatus( nxStatus_t statusCode, const char* frameName, cons
 }
 
 // CAN Frame initializer
-CANFrame* CANFrame_Init( enum FrameMode mode, const char* interfaceName, const char* databaseName, const char* clusterName, const char* frameName )
+CANFrame* CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, const char* databaseName, const char* clusterName, const char* frameName )
 {
   CANFrame* frame = (CANFrame*) malloc( sizeof(CANFrame) );
 

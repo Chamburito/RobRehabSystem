@@ -1,0 +1,21 @@
+{
+  "emg_sensor": "emg_sensors/rectus_femoris",
+  "limits": {
+    "force": {
+      "min": 598,
+      "max": 1794
+    },
+    "length": {
+      "min": 0.096568,
+      "max": 0.144852
+    },
+    "penation_angle": {
+      "min": 0.06981,
+      "max": 0.10472
+    },
+    "moment_arm": {
+      "min": -0.05,
+      "max": 0.05
+    }
+  }
+}
