@@ -14,9 +14,9 @@ typedef struct _SignalAquisitionTask
 {
   TaskHandle handle;
   Thread threadID;
-  ThreadLock threadLock;
   bool isReading;
-  bool* channelUsedList;
+  unsigned int* channelUsesList;
+  Semaphore* channelLocksList;
   uInt32 channelsNumber;
   float64* samplesList;
   float64** samplesTable;
@@ -89,15 +89,13 @@ double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount 
   
   if( !task->isReading ) return NULL;
  
-  ThreadLocks.Aquire( task->threadLock );
+  Semaphores.Decrement( task->channelLocksList[ channel ] );
     
   double* aquiredSamplesList = (double*) task->samplesTable[ channel ];
   task->samplesTable[ channel ] = NULL;
   
   *ref_aquiredSamplesCount = (size_t) task->aquiredSamplesCountList[ channel ];
   task->aquiredSamplesCountList[ channel ] = 0;
-    
-  ThreadLocks.Release( task->threadLock );
   
   return aquiredSamplesList;
 }
@@ -113,9 +111,9 @@ bool AquireChannel( int taskID, unsigned int channel )
   
   if( channel > task->channelsNumber ) return false;
   
-  if( task->channelUsedList[ channel ] ) return false;
+  if( task->channelUsesList[ channel ] >= SIGNAL_AQUISITION_CHANNEL_MAX_USES ) return false;
   
-  task->channelUsedList[ channel ] = true;
+  task->channelUsesList[ channel ]++;
   
   return true;
 }
@@ -129,7 +127,7 @@ void ReleaseChannel( int taskID, unsigned int channel )
   
   if( channel > task->channelsNumber ) return;
   
-  task->channelUsedList[ channel ] = false;
+  if( task->channelUsesList[ channel ] > 0 ) task->channelUsesList[ channel ]--;
 }
 
 static size_t GetMaxSamplesNumber( int taskID )

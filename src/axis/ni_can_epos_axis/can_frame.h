@@ -28,7 +28,7 @@
 enum CANFrameMode { FRAME_IN = nxMode_FrameInSinglePoint, FRAME_OUT = nxMode_FrameOutSinglePoint };
 
 // CAN Frame data structure
-typedef struct _CANFrame
+typedef struct _CANFrameData
 {
   nxSessionRef_t ref_session;
   char* name;
@@ -36,7 +36,9 @@ typedef struct _CANFrame
   u8 type;
   u8 buffer[ sizeof(nxFrameVar_t) ];
 } 
-CANFrame;
+CANFrameData;
+
+typedef CANFrameData* CANFrame;
 
 // Display CAN error string based on status code
 static void PrintFrameStatus( nxStatus_t statusCode, const char* frameName, const char* source )
@@ -48,9 +50,9 @@ static void PrintFrameStatus( nxStatus_t statusCode, const char* frameName, cons
 }
 
 // CAN Frame initializer
-CANFrame* CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, const char* databaseName, const char* clusterName, const char* frameName )
+CANFrame CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, const char* databaseName, const char* clusterName, const char* frameName )
 {
-  CANFrame* frame = (CANFrame*) malloc( sizeof(CANFrame) );
+  CANFrame frame = (CANFrame) malloc( sizeof(CANFrameData) );
 
   frame->flags = 0;
   frame->type = nxFrameType_CAN_Data;	//MACRO
@@ -72,7 +74,7 @@ CANFrame* CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, cons
   return frame;
 }
 
-void CANFrame_End( CANFrame* frame )
+void CANFrame_End( CANFrame frame )
 {
   if( frame != NULL )
   {
@@ -84,7 +86,7 @@ void CANFrame_End( CANFrame* frame )
 }
 
 // Read data from CAN frame to array
-void CANFrame_Read( CANFrame* frame, u8 payload[8] )
+void CANFrame_Read( CANFrame frame, u8 payload[8] )
 {
   nxFrameVar_t* ptr_frame = (nxFrameVar_t*) frame->buffer;
 
@@ -98,7 +100,7 @@ void CANFrame_Read( CANFrame* frame, u8 payload[8] )
 }
 
 // Write data from payload to CAN frame
-void CANFrame_Write( CANFrame* frame, u8 payload[8] )
+void CANFrame_Write( CANFrame frame, u8 payload[8] )
 {
   nxFrameVar_t* ptr_frame = (nxFrameVar_t*) frame->buffer;
   

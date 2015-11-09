@@ -3,6 +3,8 @@
 
 #include "interface.h"
 
+#define SIGNAL_AQUISITION_CHANNEL_MAX_USES 5
+
 #define SIGNAL_AQUISITION_FUNCTIONS( interface, function_init ) \
         function_init( int, interface, InitTask, const char* ) \
         function_init( void, interface, EndTask, int ) \
