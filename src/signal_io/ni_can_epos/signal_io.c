@@ -1,0 +1,393 @@
+#include "signal_io/interface.h"
+#include "signal_io/ni_can_epos/can_network.h"
+
+#include "klib/khash.h"
+
+#include "debug/async_debug.h"
+
+enum { INPUT_POSITION, INPUT_VELOCITY, INPUT_CURRENT, INPUT_ANALOG, INPUT_CHANNELS_NUMBER };
+enum { OUTPUT_POSITION, OUTPUT_VELOCITY, OUTPUT_CURRENT, OUTPUT_CHANNELS_NUMBER ];
+
+enum States { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAULT = 8, VOLTAGE_ENABLED = 16, 
+              QUICK_STOPPED = 32, SWITCH_ON_DISABLE = 64, REMOTE_NMT = 512, TARGET_REACHED = 1024, SETPOINT_ACK = 4096 };
+
+enum Controls { SWITCH_ON = 1, ENABLE_VOLTAGE = 2, QUICK_STOP = 4, ENABLE_OPERATION = 8, 
+                NEW_SETPOINT = 16, CHANGE_IMMEDIATEDLY = 32, ABS_REL = 64, FAULT_RESET = 128, HALT = 256 };
+
+static const size_t AQUISITION_BUFFER_LENGTH = 1;
+
+typedef struct _SignalIOTaskData
+{
+  CANFrame readFramesList[ CAN_FRAME_TYPES_NUMBER ];
+  CANFrame writeFramesList[ CAN_FRAME_TYPES_NUMBER ];
+  uint16_t statusWord, controlWord;
+  Thread threadID;
+  bool isReading;
+  unsigned int inputChannelUsesList[ INPUT_CHANNELS_NUMBER ];
+  Semaphore inputChannelLocksList[ INPUT_CHANNELS_NUMBER ];
+  double measuresList[ INPUT_CHANNELS_NUMBER ];
+  bool outputChannelUsedList[ OUTPUT_CHANNELS_NUMBER ]; 
+  uint8_t readPayload[ 8 ], writePayload[ 8 ];
+}
+SignalIOTaskData;
+
+typedef SignalIOTaskData* SignalIOTask;
+
+KHASH_MAP_INIT_INT( TaskInt, SignalIOTask )
+static khash_t( TaskInt )* tasksList = NULL;
+
+IMPLEMENT_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS ) 
+
+static SignalIOTask LoadTaskData( const char* );
+static void UnloadTaskData( SignalIOTask );
+
+static void* AsyncReadBuffer( void* );
+static inline bool IsTaskStillUsed( SignalIOTask );
+
+int InitTask( const char* taskConfig )
+{
+  if( tasksList == NULL ) tasksList = kh_init( TaskInt );
+  
+  int taskKey = (int) kh_str_hash_func( taskConfig );
+  
+  int insertionStatus;
+  khint_t newTaskIndex = kh_put( TaskInt, tasksList, taskKey, &insertionStatus );
+  if( insertionStatus > 0 )
+  {
+    kh_value( tasksList, newTaskIndex ) = LoadTaskData( taskConfig );
+    if( kh_value( tasksList, newTaskIndex ) == NULL )
+    {
+      DEBUG_PRINT( "loading task %s failed", taskName );
+      EndTask( taskKey ); 
+      return -1;
+    }
+        
+    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( tasksList, newTaskIndex ), newTaskIndex, kh_size( tasksList ) );
+  }
+  else if( insertionStatus == 0 ) { DEBUG_PRINT( "task key %d already exists (iterator %u)", taskKey, newTaskIndex ); }
+  
+  return (int) kh_key( tasksList, newTaskIndex );
+}
+
+void EndTask( int taskID )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  UnloadTaskData( task );
+  
+  kh_del( TaskInt, tasksList, (khint_t) taskID );
+  
+  if( kh_size( tasksList ) == 0 )
+  {
+    kh_destroy( TaskInt, tasksList );
+    tasksList = NULL;
+  }
+}
+
+double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return NULL;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( channel >= INPUT_CHANNELS_NUMBER ) return NULL;
+  
+  if( !task->isReading ) return NULL;
+ 
+  Semaphores.Decrement( task->inputChannelLocksList[ channel ] );
+    
+  double* aquiredSamplesList = &(task->measuresList[ channel ]);
+  *ref_aquiredSamplesCount = 1;
+  
+  return aquiredSamplesList;
+}
+
+bool HasError( int taskID )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return false;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( !task->isReading )
+    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0xFFFF, 0xFF );
+
+  return (bool) ( statusWord & FAULT );
+}
+
+void Reset( int taskID )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  task->controlWord |= FAULT_RESET;
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0xFFFF, 0xFF, FAULT_RESET );
+  
+  Timing_Delay( 200 );
+  
+  task->controlWord &= (~FAULT_RESET);
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0xFFFF, 0xFF, FAULT_RESET );
+}
+
+bool AquireInputChannel( int taskID, unsigned int channel )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return false;
+  
+  //DEBUG_PRINT( "aquiring channel %u from task %d", channel, taskID );
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( channel >= INPUT_CHANNELS_NUMBER ) return false;
+  
+  if( !task->isReading ) task->threadID = Threading.StartThread( AsyncReadBuffer, task, THREAD_JOINABLE );
+  
+  if( task->inputChannelUsesList[ channel ] >= SIGNAL_INPUT_CHANNEL_MAX_USES ) return false;
+  
+  task->inputChannelUsesList[ channel ]++;
+  
+  return true;
+}
+
+void ReleaseInputChannel( int taskID, unsigned int channel )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( channel >= INPUT_CHANNELS_NUMBER ) return;
+  
+  if( task->inputChannelUsesList[ channel ] > 0 ) task->inputChannelUsesList[ channel ]--;
+  
+  if( IsTaskStillUsed( task ) )
+  {
+    if( task->isReading )
+    {
+      task->isReading = false;
+      Threading.WaitExit( task->threadID, 5000 );
+    }
+    else
+      EndTask( taskID );
+  }
+}
+
+size_t GetMaxInputSamplesNumber( int taskID )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return 0;
+  
+  return 1;
+}
+
+bool IsOutputEnabled( int taskID )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return false;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( !task->isReading )
+    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->controlFramesList[ 1 ], task->controlFramesList[ 0 ], 0xFFFF, 0xFF );
+
+  return (bool) ( task->statusWord & ( SWITCHED_ON | OPERATION_ENABLED ) ) ;
+}
+
+bool Write( int taskID, unsigned int channel, double value )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return false;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  int encoderSetpoint = (int) value;
+  int16_t currentSetpointHEX = (int16_t) value + ( ( value < 0.0 ) ? 0xFFFF : 0 );
+  
+  // Set values for PDO01 (Position Setpoint and Control Word)
+  task->writePayload[ 0 ] = (uint8_t) ( encoderSetpoint & 0x000000FF );
+  task->writePayload[ 1 ] = (uint8_t) ( ( encoderSetpoint & 0x0000FF00 ) / 0x100 );
+  task->writePayload[ 2 ] = (uint8_t) ( ( encoderSetpoint & 0x00FF0000 ) / 0x10000 );
+  task->writePayload[ 3 ] = (uint8_t) ( ( encoderSetpoint & 0xFF000000 ) / 0x1000000 );
+  task->writePayload[ 4 ] = (uint8_t) ( currentSetpointHEX & 0x000000FF );
+  task->writePayload[ 5 ] = (uint8_t) ( ( currentSetpointHEX & 0x0000FF00 ) / 0x100 ); 
+  task->writePayload[ 6 ] = (uint8_t) ( interface->controlWord & 0x000000FF );
+  task->writePayload[ 7 ] = (uint8_t) ( ( interface->controlWord & 0x0000FF00 ) / 0x100 ); 
+  
+  // Write values from buffer to PDO01 
+  CANFrame_Write( task->writeFramesList[ PDO01 ], task->writePayload );
+  
+  int velocitySetpointRPM = (int) value;
+  int16_t digitalOutput = (int16_t) value;
+  
+  //DEBUG_PRINT( "velocity setpoint: %d", rawVelocitySetpoint );
+  
+  // Set values for PDO02 (Velocity Setpoint and Digital Output)
+  task->writePayload[ 0 ] = (uint8_t) ( velocitySetpointRPM & 0x000000FF );
+  task->writePayload[ 1 ] = (uint8_t) ( ( velocitySetpointRPM & 0x0000FF00 ) / 0x100 );
+  task->writePayload[ 2 ] = (uint8_t) ( ( velocitySetpointRPM & 0x00FF0000 ) / 0x10000 );
+  task->writePayload[ 3 ] = (uint8_t) ( ( velocitySetpointRPM & 0xFF000000 ) / 0x1000000 );
+  task->writePayload[ 4 ] = (uint8_t) ( digitalOutput & 0x000000FF );
+  task->writePayload[ 5 ] = (uint8_t) ( ( digitalOutput & 0x0000FF00 ) / 0x100 ); 
+  task->writePayload[ 6 ] = ( 0 & 0x000000FF );
+  task->writePayload[ 7 ] = ( 0 & 0x0000FF00 ) / 0x100; 
+  
+  // Write values from buffer to PDO01
+  CANFrame_Write( task->writeFramesList[ PDO02 ], task->writePayload );
+  
+  CANNetwork_Sync();
+  
+  return true;
+}
+
+bool AquireOuputChannel( int taskID, unsigned int channel )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return false;
+  
+  //DEBUG_PRINT( "aquiring channel %u from task %d", channel, taskID );
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( channel >= OUTPUT_CHANNELS_NUMBER ) return false;
+  
+  if( task->outputChannelUsedList[ channel ] ) return false;
+  
+  task->outputChannelUsedList[ channel ] = true;
+  
+  return true;
+}
+
+void ReleaseOutputChannel( int taskID, unsigned int channel )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( channel >= OUTPUT_CHANNELS_NUMBER ) return;
+  
+  task->outputChannelUsedList[ channel ] = false;
+  
+  if( !IsTaskStillUsed( task ) ) EndTask( taskID );
+}
+
+
+static void* AsyncReadBuffer( void* callbackData )
+{
+  SignalIOTask task = (SignalIOTask) callbackData;
+  
+  task->isReading = true;
+  
+  while( task->isReading )
+  { 
+    CANNetwork_Sync();
+  
+    // Read values from PDO01 (Position, Current and Status Word) to buffer
+    CANFrame_Read( task->readFramesList[ 0 ], task->readPayload );  
+    // Update values from PDO01
+    task->measuresList[ INPUT_POSITION ] = task->readPayload[ 3 ] * 0x1000000 + task->readPayload[ 2 ] * 0x10000 + task->readPayload[ 1 ] * 0x100 + task->readPayload[ 0 ];
+    int currentHEX = task->readPayload[ 5 ] * 0x100 + task->readPayload[ 4 ];
+    double currentMA = currentHEX - ( ( currentHEX >= 0x8000 ) ? 0xFFFF : 0 );
+    task->measuresList[ INPUT_CURRENT ] = currentMA / 1000.0;
+  
+    //interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
+  
+    // Read values from PDO02 (Velocity and Tension) to buffer
+    CANFrame_Read( task->readFramesList[ 1 ], task->readPayload );  
+    // Update values from PDO02
+    task->measuresList[ INPUT_VELOCITY ] = task->readPayload[ 3 ] * 0x1000000 + task->readPayload[ 2 ] * 0x10000 + task->readPayload[ 1 ] * 0x100 + task->readPayload[ 0 ];
+    task->measuresList[ INPUT_ANALOG ] = task->readPayload[ 5 ] * 0x100 + task->readPayload[ 4 ];
+    
+    for( unsigned int channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
+      Semaphores.SetCount( task->inputChannelLocksList[ channel ], task->inputChannelUsesList[ channel ] );
+  }
+  
+  DEBUG_PRINT( "ending aquisition thread %lx", THREAD_ID );
+  
+  return NULL;
+}
+
+bool IsTaskStillUsed( SignalIOTask task )
+{
+  bool isStillUsed = false;
+  if( task->inputChannelUsesList != NULL )
+  {
+    for( size_t channel = 0; channel < task->channelsNumber; channel++ )
+    {
+      if( task->inputChannelUsesList[ channel ] > 0 )
+      {
+        isStillUsed = true;
+        break;
+      }
+    }
+    for( size_t channel = 0; channel < task->channelsNumber; channel++ )
+    {
+      if( task->outputChannelUsedList[ channel ] )
+      {
+        isStillUsed = true;
+        break;
+      }
+    }
+  }
+  
+  return isStillUsed;
+}
+
+SignalIOTask LoadTaskData( const char* taskConfig )
+{
+  bool loadError = false;
+  
+  SignalIOTask newTask = (SignalIOTask) malloc( sizeof(SignalIOTaskData) );
+  memset( newTask, 0, sizeof(SignalIOTaskData) );
+  
+  unsigned int nodeID = (unsigned int) strtoul( taskConfig, NULL, 0 );
+  
+  DEBUG_PRINT( "trying to load CAN interface for node %u", nodeID );
+  
+  for( size_t frameID = 0; frameID < CAN_FRAME_TYPES_NUMBER; frameID++ )
+  {
+    if( (newTask->readFramesList[ frameID ] = CANNetwork_InitFrame( frameID, FRAME_IN, nodeID )) == NULL ) loadError = true; 
+    if( (newTask->writeFramesList[ frameID ] = CANNetwork_InitFrame( frameID, FRAME_OUT, nodeID )) == NULL ) loadError = true;
+  }
+  
+  for( unsigned int channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
+    newTask->inputChannelLocksList[ channel ] = Semaphores.Create( 0, SIGNAL_INPUT_CHANNEL_MAX_USES );
+  
+  if( loadError )
+  {
+    UnloadTaskData( newTask );
+    return NULL;
+  }
+  
+  return newTask;
+}
+
+void UnloadTaskData( SignalIOTask task )
+{
+  if( task == NULL ) return;
+  
+  DEBUG_PRINT( "ending task %p", task );
+  
+  if( task->isReading )
+  {
+    task->isReading = false;
+    Threading.WaitExit( task->threadID, 5000 );
+  }
+  
+  for( unsigned int channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
+    Semaphores.Discard( task->inputChannelLocksList[ channel ] );
+  
+  for( size_t frameID = 0; frameID < CAN_FRAME_TYPES_NUMBER; frameID++ )
+  {
+    CANNetwork_EndFrame( newTask->readFramesList[ frameID ] ); 
+    CANNetwork_EndFrame( newTask->writeFramesList[ frameID ] );
+  }
+  
+  free( task );
+}
