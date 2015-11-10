@@ -15,8 +15,8 @@
 
 #ifdef _CVI_
   #include <nixnet.h>
-//#elif NIXNET
-//  #include "nixnet.h"
+#elif NIXNET
+  #include "nixnet.h"
 #else
   #include "nixnet_stub.h"
 #endif

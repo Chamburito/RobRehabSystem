@@ -1,21 +1,9 @@
 {
-  "emg_sensor": "emg_sensors/vastus_medialis",
-  "limits": {
-    "force": {
-      "min": 647.5,
-      "max": 1942.5
-    },
-    "length": {
-      "min": 0.075778,
-      "max": 0.113666
-    },
-    "penation_angle": {
-      "min": 0.069813,
-      "max": 0.10472
-    },
-    "moment_arm": {
-      "min": -0.05,
-      "max": 0.05
-    }
+  "curves": {
+    "active_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0102, 0.5996] } ] }",
+    "passive_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0001e-3, -0.0100e-3, -0.1498e-3, 0.5890e-3] } ] }",
+    "normalized_length": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0082, 0.4933] } ] }",
+    "moment_arm": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0005, 0.0450] } ] }",
+    "penation_angle": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [0.087266] } ] }"
   }
 }

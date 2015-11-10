@@ -1,21 +1,9 @@
 {
-  "emg_sensor": "emg_sensors/vastus_laterais",
-  "limits": {
-    "force": {
-      "min": 935.5,
-      "max": 2806.5
-    },
-    "length": {
-      "min": 0.0715,
-      "max": 0.10725
-    },
-    "penation_angle": {
-      "min": 0.069813,
-      "max": 0.10472
-    },
-    "moment_arm": {
-      "min": -0.05,
-      "max": 0.05
-    }
+  "curves": {
+    "active_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0101, 0.5809] } ] }",
+    "passive_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0002e-3, -0.0137e-3, -0.1892e-3,  0.8096e-3] } ] }",
+    "normalized_length": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0080, 0.4777] } ] }",
+    "moment_arm": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0009, 0.0414] } ] }",
+    "penation_angle": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [0.087266] } ] }"
   }
 }

@@ -1,21 +1,9 @@
 {
-  "emg_sensor": "emg_sensors/rectus_femoris",
-  "limits": {
-    "force": {
-      "min": 598,
-      "max": 1794
-    },
-    "length": {
-      "min": 0.096568,
-      "max": 0.144852
-    },
-    "penation_angle": {
-      "min": 0.06981,
-      "max": 0.10472
-    },
-    "moment_arm": {
-      "min": -0.05,
-      "max": 0.05
-    }
+  "curves": {
+    "active_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [0.0001, -0.0054, 0.2879] } ] }",
+    "passive_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [0] } ] }",
+    "normalized_length": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0061, 0.2200] } ] }",
+    "moment_arm": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0006, 0.0479] } ] }",
+    "penation_angle": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [0.087266] } ] }"
   }
 }

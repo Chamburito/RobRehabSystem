@@ -85,7 +85,7 @@ int RobRehabEMG_Init( void )
           {
             if( (newSharedJoint.controller = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT )) != NULL )
             {           
-              (void) EMGProcessing.GetJointMusclesList( newSharedJoint.jointID, &(newSharedJoint.samplingData.musclesCount) );
+              newSharedJoint.samplingData.musclesCount = EMGProcessing.GetJointMusclesCount( newSharedJoint.jointID );
               newSharedJoint.samplingData.muscleSignalsList = (SamplingBuffer*) calloc( newSharedJoint.samplingData.musclesCount, sizeof(SamplingBuffer) );
               
               kv_push( SHMJointData, sharedJointsList, newSharedJoint );
@@ -151,17 +151,24 @@ void RobRehabEMG_Update( void )
     }
     else if( jointPhase == SHM_EMG_MEASUREMENT )
     {
-      size_t parametersNumber = sharedJoint->samplingData.musclesCount * ( sizeof(EMGMuscleData) / sizeof(double) );
+      size_t parametersNumber = sharedJoint->samplingData.musclesCount * MUSCLE_PARAMETERS_NUMBER + 1;
       if( sharedJoint->lastJointPhase == SHM_EMG_SAMPLING && parametersNumber > 0 )
       {
         DEBUG_PRINT( "starting optimization for shared joint %d", sharedJoint->jointID );
-        double* parametersList = (double*) EMGProcessing.GetJointMusclesList( sharedJoint->jointID, NULL );
         
-        // hack
-        for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-          parametersList[ parameterIndex ] = ( (double) ( rand() % 10 ) ) / 100.0;
+        double* parametersList = (double*) calloc( parametersNumber, sizeof(double) );
+        for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
+        {
+          for( size_t parameterIndex = 0; parameterIndex < MUSCLE_PARAMETERS_NUMBER; parameterIndex++ )
+          {
+            initialValue = EMGProcessing.GetJointMuscleParameter( sharedJoint->jointID, muscleIndex, parameterIndex );
+            parametersList[ muscleIndex * MUSCLE_PARAMETERS_NUMBER + parameterIndex ] = initialValue;
+          }
+        }
         
         Optimization.Run( parametersList, parametersNumber, CalculateMuscleParametersError, &(sharedJoint->samplingData), OPTIMIZATION_MINIMIZE, 100 );
+        
+        free( parametersList );
       }
       sharedJoint->lastJointPhase = SHM_EMG_MEASUREMENT;
     }
