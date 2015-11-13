@@ -34,7 +34,8 @@ typedef KalmanFilterData* KalmanFilter;
 #define SIMPLE_KALMAN_FUNCTIONS( namespace, function_init ) \
         function_init( KalmanFilter, namespace, CreateFilter, size_t, double ) \
         function_init( void, namespace, DiscardFilter, KalmanFilter ) \
-        function_init( double*, namespace, Update, KalmanFilter, double, double )
+        function_init( double*, namespace, Update, KalmanFilter, double, double ) \
+        function_init( void, namespace, Reset, KalmanFilter, double )
 
 INIT_NAMESPACE_INTERFACE( SimpleKalman, SIMPLE_KALMAN_FUNCTIONS )
 
@@ -49,15 +50,13 @@ KalmanFilter SimpleKalman_CreateFilter( size_t dimensionsNumber, double initialV
   newFilter->covarianceAux = (double**) calloc( dimensionsNumber, sizeof(double*) );
   for( size_t dimensionIndex = 0; dimensionIndex < dimensionsNumber; dimensionIndex++ )
   {
-    newFilter->state[ dimensionIndex ] = ( dimensionIndex == 0 ) ? initialValue : 0.0;
-    
     newFilter->covarianceMatrix[ dimensionIndex ] = (double*) calloc( dimensionsNumber, sizeof(double) );
     newFilter->covarianceAux[ dimensionIndex ] = (double*) calloc( dimensionsNumber, sizeof(double) );
-    for( size_t i = 0; i < dimensionsNumber; i++ )
-      newFilter->covarianceMatrix[ dimensionIndex ][ i ] = ( i == dimensionIndex ) ? 1.0 : 0.0;
   }
   
   newFilter->dimensionsNumber = dimensionsNumber;
+  
+  SimpleKalman_Reset( newFilter, initialValue );
   
   return newFilter;
 }
@@ -137,6 +136,19 @@ double* SimpleKalman_Update( KalmanFilter filter, double newValue, double timeSt
   }
   
   return filter->state;
+}
+
+void SimpleKalman_Reset( KalmanFilter filter, double initialValue )
+{
+  if( filter == NULL ) return;
+  
+  for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
+  {
+    filter->state[ dimensionIndex ] = ( dimensionIndex == 0 ) ? initialValue : 0.0;
+    
+    for( size_t i = 0; i < filter->dimensionsNumber; i++ )
+      filter->covarianceMatrix[ dimensionIndex ][ i ] = ( i == dimensionIndex ) ? 1.0 : 0.0;
+  }
 }
 
 #endif  // FILTERS_H

@@ -6,7 +6,7 @@
 #include "debug/async_debug.h"
 
 enum { INPUT_POSITION, INPUT_VELOCITY, INPUT_CURRENT, INPUT_ANALOG, INPUT_CHANNELS_NUMBER };
-enum { OUTPUT_POSITION, OUTPUT_VELOCITY, OUTPUT_CURRENT, OUTPUT_CHANNELS_NUMBER ];
+enum { OUTPUT_POSITION, OUTPUT_VELOCITY, OUTPUT_CURRENT, OUTPUT_CHANNELS_NUMBER };
 
 enum States { READY_2_SWITCH_ON = 1, SWITCHED_ON = 2, OPERATION_ENABLED = 4, FAULT = 8, VOLTAGE_ENABLED = 16, 
               QUICK_STOPPED = 32, SWITCH_ON_DISABLE = 64, REMOTE_NMT = 512, TARGET_REACHED = 1024, SETPOINT_ACK = 4096 };
@@ -36,7 +36,7 @@ typedef SignalIOTaskData* SignalIOTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalIOTask )
 static khash_t( TaskInt )* tasksList = NULL;
 
-IMPLEMENT_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS ) 
+IMPLEMENT_INTERFACE( SIGNAL_IO_FUNCTIONS ) 
 
 static SignalIOTask LoadTaskData( const char* );
 static void UnloadTaskData( SignalIOTask );
@@ -57,7 +57,7 @@ int InitTask( const char* taskConfig )
     kh_value( tasksList, newTaskIndex ) = LoadTaskData( taskConfig );
     if( kh_value( tasksList, newTaskIndex ) == NULL )
     {
-      DEBUG_PRINT( "loading task %s failed", taskName );
+      DEBUG_PRINT( "loading task %s failed", taskConfig );
       EndTask( taskKey ); 
       return -1;
     }
@@ -87,23 +87,22 @@ void EndTask( int taskID )
   }
 }
 
-double* Read( int taskID, unsigned int channel, size_t* ref_aquiredSamplesCount )
+bool Read( int taskID, unsigned int channel, double* ref_value )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
-  if( taskIndex == kh_end( tasksList ) ) return NULL;
+  if( taskIndex == kh_end( tasksList ) ) return false;
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
-  if( channel >= INPUT_CHANNELS_NUMBER ) return NULL;
+  if( channel >= INPUT_CHANNELS_NUMBER ) return false;
   
-  if( !task->isReading ) return NULL;
- 
+  if( !task->isReading ) return false;
+  
   Semaphores.Decrement( task->inputChannelLocksList[ channel ] );
     
-  double* aquiredSamplesList = &(task->measuresList[ channel ]);
-  *ref_aquiredSamplesCount = 1;
+  *ref_value = task->measuresList[ channel ];
   
-  return aquiredSamplesList;
+  return true;
 }
 
 bool HasError( int taskID )
@@ -116,7 +115,7 @@ bool HasError( int taskID )
   if( !task->isReading )
     task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0xFFFF, 0xFF );
 
-  return (bool) ( statusWord & FAULT );
+  return (bool) ( task->statusWord & FAULT );
 }
 
 void Reset( int taskID )
@@ -178,14 +177,6 @@ void ReleaseInputChannel( int taskID, unsigned int channel )
   }
 }
 
-size_t GetMaxInputSamplesNumber( int taskID )
-{
-  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
-  if( taskIndex == kh_end( tasksList ) ) return 0;
-  
-  return 1;
-}
-
 bool IsOutputEnabled( int taskID )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
@@ -194,7 +185,7 @@ bool IsOutputEnabled( int taskID )
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
   if( !task->isReading )
-    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->controlFramesList[ 1 ], task->controlFramesList[ 0 ], 0xFFFF, 0xFF );
+    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0xFFFF, 0xFF );
 
   return (bool) ( task->statusWord & ( SWITCHED_ON | OPERATION_ENABLED ) ) ;
 }
@@ -216,8 +207,8 @@ bool Write( int taskID, unsigned int channel, double value )
   task->writePayload[ 3 ] = (uint8_t) ( ( encoderSetpoint & 0xFF000000 ) / 0x1000000 );
   task->writePayload[ 4 ] = (uint8_t) ( currentSetpointHEX & 0x000000FF );
   task->writePayload[ 5 ] = (uint8_t) ( ( currentSetpointHEX & 0x0000FF00 ) / 0x100 ); 
-  task->writePayload[ 6 ] = (uint8_t) ( interface->controlWord & 0x000000FF );
-  task->writePayload[ 7 ] = (uint8_t) ( ( interface->controlWord & 0x0000FF00 ) / 0x100 ); 
+  task->writePayload[ 6 ] = (uint8_t) ( task->controlWord & 0x000000FF );
+  task->writePayload[ 7 ] = (uint8_t) ( ( task->controlWord & 0x0000FF00 ) / 0x100 ); 
   
   // Write values from buffer to PDO01 
   CANFrame_Write( task->writeFramesList[ PDO01 ], task->writePayload );
@@ -296,7 +287,7 @@ static void* AsyncReadBuffer( void* callbackData )
     double currentMA = currentHEX - ( ( currentHEX >= 0x8000 ) ? 0xFFFF : 0 );
     task->measuresList[ INPUT_CURRENT ] = currentMA / 1000.0;
   
-    //interface->statusWord = payload[ 7 ] * 0x100 + payload[ 6 ];
+    task->statusWord = task->readPayload[ 7 ] * 0x100 + task->readPayload[ 6 ];
   
     // Read values from PDO02 (Velocity and Tension) to buffer
     CANFrame_Read( task->readFramesList[ 1 ], task->readPayload );  
@@ -318,7 +309,7 @@ bool IsTaskStillUsed( SignalIOTask task )
   bool isStillUsed = false;
   if( task->inputChannelUsesList != NULL )
   {
-    for( size_t channel = 0; channel < task->channelsNumber; channel++ )
+    for( size_t channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
     {
       if( task->inputChannelUsesList[ channel ] > 0 )
       {
@@ -326,7 +317,7 @@ bool IsTaskStillUsed( SignalIOTask task )
         break;
       }
     }
-    for( size_t channel = 0; channel < task->channelsNumber; channel++ )
+    for( size_t channel = 0; channel < OUTPUT_CHANNELS_NUMBER; channel++ )
     {
       if( task->outputChannelUsedList[ channel ] )
       {
@@ -385,8 +376,8 @@ void UnloadTaskData( SignalIOTask task )
   
   for( size_t frameID = 0; frameID < CAN_FRAME_TYPES_NUMBER; frameID++ )
   {
-    CANNetwork_EndFrame( newTask->readFramesList[ frameID ] ); 
-    CANNetwork_EndFrame( newTask->writeFramesList[ frameID ] );
+    CANNetwork_EndFrame( task->readFramesList[ frameID ] ); 
+    CANNetwork_EndFrame( task->writeFramesList[ frameID ] );
   }
   
   free( task );

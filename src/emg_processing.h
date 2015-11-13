@@ -15,12 +15,19 @@
 #include <stdbool.h>
 
 enum { MUSCLE_ACTIVE_FORCE, MUSCLE_PASSIVE_FORCE, MUSCLE_MOMENT_ARM, MUSCLE_NORM_LENGTH, MUSCLE_PENATION_ANGLE, MUSCLE_CURVES_NUMBER };
-enum EMGMuscleParameters{ MUSCLE_ACTIVATION, MUSCLE_OPTIMAL_LENGTH, MUSCLE_OPTIMAL_ARM, MUSCLE_PENATION, MUSCLE_MAX_FORCE, MUSCLE_PARAMETERS_NUMBER };
+enum EMGMuscleGains{ MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
+
+const double JOINT_MIN_GAIN = 0.1;
+const double JOINT_MAX_GAIN = 2.0;
+
+const double MUSCLE_MAX_GAINS[ MUSCLE_GAINS_NUMBER ] = { -0.1, 1.2, 1.2, 1.2, 1.5 };
+const double MUSCLE_MIN_GAINS[ MUSCLE_GAINS_NUMBER ] = { -3.0, 0.8, 0.8, 0.8, 0.5 };
 
 typedef struct _EMGMuscleData
 {
+  Sensor emgSensor;
   Curve curvesList[ MUSCLE_CURVES_NUMBER ];
-  double parametersList[ MUSCLE_PARAMETERS_NUMBER ];
+  double gainsList[ MUSCLE_GAINS_NUMBER ];
 }
 EMGMuscleData;
 
@@ -28,9 +35,9 @@ typedef EMGMuscleData* EMGMuscle;
 
 typedef struct _EMGJointData
 {
-  EMGMuscle musclesList;
-  int* sensorIDsList;
+  EMGMuscle* musclesList;
   size_t musclesListLength;
+  double scaleFactor;
 }
 EMGJointData;
 
@@ -45,12 +52,11 @@ static khash_t( JointInt )* jointsList = NULL;
         function_init( double, namespace, GetJointMuscleSignal, int, size_t ) \
         function_init( double, namespace, GetJointTorque, int, double ) \
         function_init( double, namespace, GetJointStiffness, int, double ) \
+        function_init( double, namespace, SetJointGain, int, double ) \
         function_init( void, namespace, SetProcessingPhase, int, enum SignalProcessingPhase ) \
         function_init( size_t, namespace, GetJointMusclesCount, int ) \
-        function_init( double, namespace, GetJointMuscleParameter, int, size_t, enum EMGMuscleParameters ) \
-        function_init( double, namespace, SetJointMuscleParameter, int, size_t, enum EMGMuscleParameters, double ) \
-        function_init( double, namespace, GetMuscleActivation, EMGMuscle, double ) \
-        function_init( double, namespace, GetMuscleTorque, EMGMuscle, double, double )
+        function_init( double, namespace, SetJointMuscleGain, int, size_t, enum EMGMuscleGains, double ) \
+        function_init( double, namespace, GetJointMuscleTorque, int, size_t, double, double )
 
 INIT_NAMESPACE_INTERFACE( EMGProcessing, EMG_PROCESSING_FUNCTIONS )
 
@@ -109,7 +115,44 @@ double EMGProcessing_GetJointMuscleSignal( int jointID, size_t muscleIndex )
   
   if( muscleIndex >= joint->musclesListLength ) return 0.0;
   
-  return SignalProcessing.GetProcessedSignal( joint->sensorIDsList[ muscleIndex ] );
+  DEBUG_PRINT( "updating sensor %d-%lu (%p)", jointID, muscleIndex, joint->musclesList[ muscleIndex ]->emgSensor );
+  
+  double* normalizedSignal = SignalProcessing.UpdateSensor( joint->musclesList[ muscleIndex ]->emgSensor );
+  
+  if( normalizedSignal == NULL ) return 0.0;
+  
+  return normalizedSignal[ 0 ];
+}
+
+double GetMuscleTorque( EMGMuscle muscle, double normalizedSignal, double jointAngle )
+{
+  if( muscle == NULL ) return 0.0;
+  
+  double activationFactor = muscle->gainsList[ MUSCLE_GAIN_ACTIVATION ];
+  double activation = ( exp( activationFactor * normalizedSignal ) - 1 ) / ( exp( activationFactor ) - 1 );
+  
+  /*if( activation != 0.0 )
+  {
+    size_t newSamplesBufferStart = emgSensor->emgData.samplesBufferStartIndex % emgSensor->emgData.samplesBufferLength;
+    size_t newSamplesBufferMaxLength = emgSensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
+    DataLogging_RegisterList( emgSensor->logID, newSamplesBufferMaxLength, emgSensor->emgData.samplesBuffer + newSamplesBufferStart );
+    DataLogging_RegisterList( emgSensor->logID, newSamplesBufferMaxLength, emgSensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
+    DataLogging_RegisterValues( emgSensor->logID, 3, emgSensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
+  }*/
+  
+  double activeForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_ACTIVE_FORCE ], jointAngle, 0.0 );
+  double passiveForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_PASSIVE_FORCE ], jointAngle, 0.0 );
+  
+  double normalizedLength = muscle->gainsList[ MUSCLE_GAIN_LENGTH ] * CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_NORM_LENGTH ], jointAngle, 0.0 );
+  double momentArm = muscle->gainsList[ MUSCLE_GAIN_ARM ] * CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_MOMENT_ARM ], jointAngle, 0.0 );
+  
+  double initialPenationAngle = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_PENATION_ANGLE ], jointAngle, 0.0 );
+  double penationAngle = muscle->gainsList[ MUSCLE_GAIN_PENATION ] * asin( sin( initialPenationAngle ) / normalizedLength );
+  
+  double normalizedForce = activeForce * activation + passiveForce;
+  double resultingForce = muscle->gainsList[ MUSCLE_GAIN_FORCE ] * cos( penationAngle ) * normalizedForce;
+  
+  return resultingForce * momentArm;
 }
 
 double EMGProcessing_GetJointTorque( int jointID, double jointAngle )
@@ -123,8 +166,9 @@ double EMGProcessing_GetJointTorque( int jointID, double jointAngle )
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
   {
-    double normalizedSignal = SignalProcessing.GetProcessedSignal( joint->sensorIDsList[ muscleIndex ] );
-    jointTorque += EMGProcessing_GetMuscleTorque( joint->musclesList + muscleIndex, normalizedSignal, jointAngle );
+    double* normalizedSignal = SignalProcessing.UpdateSensor( joint->musclesList[ muscleIndex ]->emgSensor );
+    if( normalizedSignal != NULL )
+      jointTorque += GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal[ 0 ], jointAngle );
   }
   
   return jointTorque;
@@ -141,13 +185,29 @@ double EMGProcessing_GetJointStiffness( int jointID, double jointAngle )
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
   {
-    double normalizedSignal = SignalProcessing.GetProcessedSignal( joint->sensorIDsList[ muscleIndex ] );
-    jointStiffness += fabs( EMGProcessing_GetMuscleTorque( joint->musclesList + muscleIndex, normalizedSignal, jointAngle ) );
+    double* normalizedSignal = SignalProcessing.UpdateSensor( joint->musclesList[ muscleIndex ]->emgSensor );
+    if( normalizedSignal != NULL )
+      jointStiffness += fabs( GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal[ 0 ], jointAngle ) );
   }
   
   //DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );
   
   return jointStiffness;
+}
+
+double EMGProcessing_SetJointGain( int jointID, double value )
+{
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return 0.0;
+  
+  EMGJoint joint = kh_value( jointsList, jointIndex );
+  
+  if( value > JOINT_MAX_GAIN ) value = JOINT_MAX_GAIN;
+  else if( value < JOINT_MIN_GAIN ) value = JOINT_MIN_GAIN;
+  
+  joint->scaleFactor = value;
+  
+  return joint->scaleFactor;
 }
 
 void EMGProcessing_SetProcessingPhase( int jointID, enum SignalProcessingPhase processingPhase )
@@ -158,7 +218,7 @@ void EMGProcessing_SetProcessingPhase( int jointID, enum SignalProcessingPhase p
   EMGJoint joint = kh_value( jointsList, jointIndex );
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
-    SignalProcessing.ChangePhase( joint->sensorIDsList[ muscleIndex ], processingPhase );
+    SignalProcessing.SetSensorState( joint->musclesList[ muscleIndex ]->emgSensor, processingPhase );
 }
 
 size_t EMGProcessing_GetJointMusclesCount( int jointID )
@@ -171,104 +231,66 @@ size_t EMGProcessing_GetJointMusclesCount( int jointID )
   return joint->musclesListLength;
 }
 
-double EMGProcessing_GetJointMuscleParameter( int jointID, size_t muscleIndex, enum EMGMuscleParameters parameterIndex )
+double EMGProcessing_SetJointMuscleGain( int jointID, size_t muscleIndex, enum EMGMuscleGains gainIndex, double value )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return 0.0;
   
-  EMGMuscle joint = kh_value( jointsList, jointIndex );
+  EMGJoint joint = kh_value( jointsList, jointIndex );
   
   if( muscleIndex >= joint->musclesListLength ) return 0.0;
   
-  if( parameterIndex < 0 && parameterIndex >= MUSCLE_PARAMETERS_NUMBER ) return 0.0;
+  if( gainIndex < 0 && gainIndex >= MUSCLE_GAINS_NUMBER ) return 0.0;
   
-  return joint->musclesList[ muscleIndex ].parametersList[ parameterIndex ];
-}
-
-const double PARAMETER_LIMITS[ MUSCLE_PARAMETERS_NUMBER ][ 2 ] = { { -3.0, -0.1 }, { 0.8, 1.2 }, { 0.8, 1.2 }, { 0.8, 1.2 }, { 0.5, 1.5 } };
-double EMGProcessing_SetJointMuscleParameter( int jointID, size_t muscleIndex, enum EMGMuscleParameters parameterIndex, double value )
-{
-  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
-  if( jointIndex == kh_end( jointsList ) ) return 0.0;
+  EMGMuscle muscle = joint->musclesList[ muscleIndex ];
+  if( value < MUSCLE_MIN_GAINS[ gainIndex ] ) value = MUSCLE_MIN_GAINS[ gainIndex ];
+  else if( value > MUSCLE_MAX_GAINS[ gainIndex ] ) value = MUSCLE_MAX_GAINS[ gainIndex ];
   
-  EMGMuscle joint = kh_value( jointsList, jointIndex );
+  muscle->gainsList[ gainIndex ] = value;
   
-  if( muscleIndex >= joint->musclesListLength ) return 0.0;
-  
-  if( parameterIndex < 0 && parameterIndex >= MUSCLE_PARAMETERS_NUMBER ) return 0.0;
-  
-  EMGMuscle muscle = joint->musclesList + muscleIndex;
-  if( value < PARAMETER_LIMITS[ parameterIndex ][ 0 ] ) value = PARAMETER_LIMITS[ parameterIndex ][ 0 ];
-  else if( value > PARAMETER_LIMITS[ parameterIndex ][ 1 ] ) value = PARAMETER_LIMITS[ parameterIndex ][ 1 ];
-  
-  muscle->parametersList[ parameterIndex ] = value;
-  
-  return muscle->parametersList[ parameterIndex ];
+  return muscle->gainsList[ gainIndex ];
 }
 
 //const double ACTIVE_FORCE_COEFFS[] = { 0.581359097121952, -1.023853722108468, -1.988129364006696, 4.208590538437200, -1.222906314763417, 0.443815500946629 };
 //const double PASSIVE_FORCE_COEFFS[] = { -1.746618652817642,  8.266939015253374, -14.364808017099560, 11.877489584777614, -4.933453643876041, 0.973170918828070, -0.071230938136188 };
-double EMGProcessing_GetMuscleActivation( EMGMuscle muscle, double normalizedSignal )
+double EMGProcessing_GetJointMuscleTorque( int jointID, size_t muscleIndex, double normalizedSignal, double jointAngle )
 {
-  if( muscle == NULL ) return 0.0;
+  khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
+  if( jointIndex == kh_end( jointsList ) ) return 0.0;
   
-  double activationFactor = muscle->parametersList[ MUSCLE_ACTIVATION ];
+  EMGJoint joint = kh_value( jointsList, jointIndex );
   
-  return ( exp( activationFactor * normalizedSignal ) - 1 ) / ( exp( activationFactor ) - 1 );
-}
-
-double EMGProcessing_GetMuscleTorque( EMGMuscle muscle, double normalizedSignal, double jointAngle )
-{
-  if( muscle == NULL ) return 0.0;
+  if( muscleIndex >= joint->musclesListLength ) return 0.0;
   
-  double activation = EMGProcessing_GetMuscleActivation( muscle, normalizedSignal );
-  
-  /*if( activation != 0.0 )
-  {
-    size_t newSamplesBufferStart = sensor->emgData.samplesBufferStartIndex % sensor->emgData.samplesBufferLength;
-    size_t newSamplesBufferMaxLength = sensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
-    DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.samplesBuffer + newSamplesBufferStart );
-    DataLogging_RegisterList( sensor->logID, newSamplesBufferMaxLength, sensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
-    DataLogging_RegisterValues( sensor->logID, 3, sensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
-  }*/
-  
-  double activeForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_ACTIVE_FORCE ], jointAngle, 0.0 );
-  double passiveForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_PASSIVE_FORCE ], jointAngle, 0.0 );
-  
-  double normalizedLength = muscle->parametersList[ MUSCLE_OPTIMAL_LENGTH ] * CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_NORM_LENGTH ], jointAngle, 0.0 );
-  double momentArm = muscle->parametersList[ MUSCLE_OPTIMAL_ARM ] * CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_MOMENT_ARM ], jointAngle, 0.0 );
-  
-  double initialPenationAngle = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_PENATION_ANGLE ], jointAngle, 0.0 );
-  double penationAngle = muscle->parametersList[ MUSCLE_PENATION ] * asin( sin( initialPenationAngle ) / normalizedLength );
-  
-  double normalizedForce = activeForce * activation + passiveForce;
-  double resultingForce = muscle->parametersList[ MUSCLE_MAX_FORCE ] * cos( penationAngle ) * normalizedForce;
-  
-  return resultingForce * momentArm;
+  return GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal, jointAngle );
 }
 
 
-const char* MUSCLE_CURVE_NAMES[ MUSCLE_CURVES_NUMBER ] = { "active_force", "passive_force", "moment_arm", "normalized_length" };
-static bool LoadEMGMuscleData( const char* configFileName, EMGMuscle newMuscle )
+const char* MUSCLE_CURVE_NAMES[ MUSCLE_CURVES_NUMBER ] = { "active_force", "passive_force", "moment_arm", "normalized_length", "penation_angle" };
+static EMGMuscle LoadEMGMuscleData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load muscle %s EMG data", configFileName );
+  
+  EMGMuscle newMuscle = NULL;
   
   int configFileID = ConfigParsing.LoadConfigFile( configFileName );
   if( configFileID != PARSED_DATA_INVALID_ID )
   {
+    newMuscle = (EMGMuscle) malloc( sizeof(EMGMuscleData) );
+    
     ParserInterface parser = ConfigParsing.GetParser();
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
     {
-      char* curveString = parser.GetStringValue( configFileID, NULL, "muscles.%u.%s", muscleIndex, MUSCLE_CURVE_NAMES[ curveIndex ] );
+      char* curveString = parser.GetStringValue( configFileID, NULL, "curves.%s", MUSCLE_CURVE_NAMES[ curveIndex ] );
       newMuscle->curvesList[ curveIndex ] = CurveInterpolation.LoadCurveString( curveString );
     }
 
-    newMuscle->parametersList[ MUSCLE_ACTIVATION ] = -2.0;
-    newMuscle->parametersList[ MUSCLE_OPTIMAL_LENGTH ] = 1.0;
-    newMuscle->parametersList[ MUSCLE_OPTIMAL_ARM ] = 1.0;
-    newMuscle->parametersList[ MUSCLE_PENATION_ANGLE ] = 1.0;
-    newMuscle->parametersList[ MUSCLE_MAX_FORCE ] = 1.0;
+    newMuscle->gainsList[ MUSCLE_GAIN_ACTIVATION ] = -2.0;
+    newMuscle->gainsList[ MUSCLE_GAIN_LENGTH ] = 1.0;
+    newMuscle->gainsList[ MUSCLE_GAIN_ARM ] = 1.0;
+    newMuscle->gainsList[ MUSCLE_GAIN_PENATION ] = 1.0;
+    newMuscle->gainsList[ MUSCLE_GAIN_FORCE ] = 1.0;
 
     parser.UnloadData( configFileID );
   }
@@ -278,7 +300,7 @@ static bool LoadEMGMuscleData( const char* configFileName, EMGMuscle newMuscle )
     return false;
   }
   
-  return true;
+  return newMuscle;
 }
 
 static EMGJoint LoadEMGJointData( const char* configFileName )
@@ -301,14 +323,16 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
     {
       DEBUG_PRINT( "%u muscles found for joint %s", newJoint->musclesListLength, configFileName );
       
-      newJoint->musclesList = (EMGMuscle) calloc( newJoint->musclesListLength , sizeof(EMGMuscleData) );
-      newJoint->sensorIDsList = (int*) calloc( newJoint->musclesListLength, sizeof(int) );
+      newJoint->musclesList = (EMGMuscle*) calloc( newJoint->musclesListLength , sizeof(EMGMuscle) );
       for( size_t muscleIndex = 0; muscleIndex < newJoint->musclesListLength; muscleIndex++ )
       {
-        newJoint->sensorIDsList[ muscleIndex ] = SignalProcessing.InitSensor( parser.GetStringValue( configFileID, "", "muscles.%u.sensor", muscleIndex ) );
-        if( newJoint->sensorIDsList[ muscleIndex ] == SENSOR_INVALID_ID ) loadError = true;
-        
-        if( !LoadEMGMuscleData( parser.GetStringValue( configFileID, "", "muscles.%u.properties", muscleIndex ), newJoint->musclesList + muscleIndex ) ) loadError = true;
+        newJoint->musclesList[ muscleIndex ] = LoadEMGMuscleData( parser.GetStringValue( configFileID, "", "muscles.%u.properties", muscleIndex ) );
+        if( newJoint->musclesList[ muscleIndex ] != NULL )
+        {
+          newJoint->musclesList[ muscleIndex ]->emgSensor = SignalProcessing.InitSensor( parser.GetStringValue( configFileID, "", "muscles.%u.sensor", muscleIndex ) );
+          if( newJoint->musclesList[ muscleIndex ]->emgSensor == NULL ) loadError = true;
+        }
+        else loadError = true;
       }
     }
     else loadError = true;
@@ -333,12 +357,11 @@ static void UnloadEMGJointData( EMGJoint joint )
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
   {
-    SignalProcessing.EndSensor( joint->sensorIDsList[ muscleIndex ] );
+    SignalProcessing.EndSensor( joint->musclesList[ muscleIndex ]->emgSensor );
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
-      CurveInterpolation.UnloadCurve( joint->musclesList[ muscleIndex ].curvesList[ curveIndex ] );
+      CurveInterpolation.UnloadCurve( joint->musclesList[ muscleIndex ]->curvesList[ curveIndex ] );
   }
   
-  free( joint->sensorIDsList );
   free( joint->musclesList );
   
   free( joint );

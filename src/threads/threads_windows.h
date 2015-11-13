@@ -173,13 +173,28 @@ inline void Semaphores_Decrement( Semaphore sem )
 
 inline size_t Semaphores_GetCount( Semaphore sem )
 {
+  if( sem == NULL ) return 0;
+  
   return sem->count;
 }
 
 inline void Semaphores_SetCount( Semaphore sem, size_t count )
 {
-  if( count <= sem->maxCount )
-    sem->count = count;
+  if( sem == NULL ) return;
+  
+  if( count > sem->maxCount ) count = sem->maxCount;
+
+  size_t countDelta = (size_t) abs( (int) count - (int) sem->count );
+  if( count > sem->count )
+  {
+    for( size_t i = 0; i < countDelta; i++ )
+      Semaphores_Increment( sem );
+  }  
+  else if( count < sem->count )
+  {
+    for( size_t i = 0; i < countDelta; i++ )
+      Semaphores_Decrement( sem ); 
+  }
 }
 
 

@@ -9,10 +9,6 @@
   #include <unistd.h>
 #endif
 
-//#ifdef __cplusplus
-//    extern "C" {
-//#endif
-
 #define INIT_INTERFACE_FILE( rtype, interface, func, ... ) extern __declspec(dllexport) rtype func( __VA_ARGS__ );
 #define INIT_INTERFACE_POINTER( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
 #define INIT_INTERFACE_STRUCT( rtype, interface, func, ... ) .func = func,
@@ -35,9 +31,5 @@
           functions( namespace, INIT_NAMESPACE_POINTER ) \
         } \
         namespace = { functions( namespace, INIT_NAMESPACE_STRUCT ) };
-
-//#ifdef __cplusplus
-//    }
-//#endif
 
 #endif  // INTERFACES_H

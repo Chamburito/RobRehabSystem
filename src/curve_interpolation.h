@@ -86,24 +86,14 @@ Curve LoadCurveData( int configDataID )
 
 Curve CurveInterpolation_LoadCurveFile( const char* curveName )
 {
-  if( ConfigParsing.IsAvailable() )
-  {
-    int configFileID = ConfigParsing.GetParser().LoadFileData( curveName );
-    return LoadCurveData( configFileID );
-  }
-  else
-    return LoadCurveData( PARSED_DATA_INVALID_ID );
+  int configFileID = ConfigParsing.LoadConfigFile( curveName );
+  return LoadCurveData( configFileID );
 }
 
 Curve CurveInterpolation_LoadCurveString( const char* curveString )
 {
-  if( ConfigParsing.IsAvailable() )
-  {
-    int configDataID = ConfigParsing.GetParser().LoadStringData( curveString );
-    return LoadCurveData( configDataID );
-  }
-  else
-    return LoadCurveData( PARSED_DATA_INVALID_ID );
+  int configDataID = ConfigParsing.LoadConfigString( curveString );
+  return LoadCurveData( configDataID );
 }
 
 void CurveInterpolation_UnloadCurve( Curve curve )

@@ -352,9 +352,9 @@ Include Path 1 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src"
 [Create Executable]
 Executable File_Debug Is Rel = True
 Executable File_Debug Rel To = "Project"
-Executable File_Debug Rel Path = "plugins/signal_aquisition/NIDAQmx.dll"
-Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/signal_aquisitio"
-Executable File_Debug Line0002 = "n/NIDAQmx.dll"
+Executable File_Debug Rel Path = "plugins/signal_io/NIDAQmx.dll"
+Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/signal_io/NIDAQm"
+Executable File_Debug Line0002 = "x.dll"
 Executable File_Release Is Rel = True
 Executable File_Release Rel To = "Project"
 Executable File_Release Rel Path = "NIDAQmxPlugin.dll"

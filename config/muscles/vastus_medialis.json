@@ -1,9 +1,9 @@
 {
   "curves": {
-    "active_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0102, 0.5996] } ] }",
-    "passive_force": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0001e-3, -0.0100e-3, -0.1498e-3, 0.5890e-3] } ] }",
-    "normalized_length": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0082, 0.4933] } ] }",
-    "moment_arm": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [-0.0005, 0.0450] } ] }",
-    "penation_angle": "{ \"segments\": [ { \"type\": \"polynomial\", \"bounds\": [-120, 10], \"parameters\": [0.087266] } ] }"
+    "active_force": "{ 'segments': [ { 'type': 'polynomial', 'bounds': [-120, 10], 'parameters': [-13.1988, 775.8824] } ] }",
+    "passive_force": "{ 'segments': [ { 'type': 'polynomial', 'bounds': [-120, 10], 'parameters': [-0.00013, -0.0129, -0.1938, 0.7622] } ] }",
+    "normalized_length": "{ 'segments': [ { 'type': 'polynomial', 'bounds': [-120, 10], 'parameters': [-0.0082, 0.4933] } ] }",
+    "moment_arm": "{ 'segments': [ { 'type': 'polynomial', 'bounds': [-120, 10], 'parameters': [-0.0005, 0.0450] } ] }",
+    "penation_angle": "{ 'segments': [ { 'type': 'polynomial', 'bounds': [-120, 10], 'parameters': [0.087266] } ] }"
   }
 }

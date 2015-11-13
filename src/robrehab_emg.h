@@ -23,6 +23,7 @@ typedef double SamplingBuffer[ MAX_SAMPLES_NUMBER ];
 
 typedef struct _SamplingData
 {
+  int jointID;
   SamplingBuffer* muscleSignalsList;
   SamplingBuffer jointAnglesList;
   SamplingBuffer jointIDTorquesList;
@@ -33,7 +34,6 @@ SamplingData;
 typedef struct _SHMJointData
 {
   SHMController controller;
-  int jointID;
   int lastJointPhase;
   SamplingData samplingData;
 }
@@ -61,10 +61,11 @@ int RobRehabEMG_Init( void )
   
   if( ConfigParsing.Init( "JSON" ) )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
-    int configFileID = parser.LoadFileData( "shared_robots" );
+    int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
     if( configFileID != -1 )
     {
+      ParserInterface parser = ConfigParsing.GetParser();
+      
       size_t sharedRobotsNumber = parser.GetListSize( configFileID, "robots" );
       
       DEBUG_PRINT( "List size: %u", sharedRobotsNumber );
@@ -81,18 +82,20 @@ int RobRehabEMG_Init( void )
           SHMJointData newSharedJoint = { .lastJointPhase = SHM_EMG_CALIBRATION };
           char* jointName = parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, sharedJointIndex );
           sprintf( robotVarName, "%s-%s", robotName, jointName );
-          if( (newSharedJoint.jointID = EMGProcessing.InitJoint( jointName )) != EMG_JOINT_INVALID_ID )
+          if( (newSharedJoint.samplingData.jointID = EMGProcessing.InitJoint( jointName )) != EMG_JOINT_INVALID_ID )
           {
             if( (newSharedJoint.controller = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT )) != NULL )
             {           
-              newSharedJoint.samplingData.musclesCount = EMGProcessing.GetJointMusclesCount( newSharedJoint.jointID );
+              newSharedJoint.samplingData.musclesCount = EMGProcessing.GetJointMusclesCount( newSharedJoint.samplingData.jointID );
               newSharedJoint.samplingData.muscleSignalsList = (SamplingBuffer*) calloc( newSharedJoint.samplingData.musclesCount, sizeof(SamplingBuffer) );
               
               kv_push( SHMJointData, sharedJointsList, newSharedJoint );
               
-              DEBUG_PRINT( "Got new shared joint with ID %d, %u muscles and axis %p (total: %u)", newSharedJoint.jointID, newSharedJoint.samplingData.musclesCount, newSharedJoint.controller, kv_size( sharedJointsList ) );
+              DEBUG_PRINT( "Got new shared joint with ID %d, %u muscles and axis %p (total: %u)", newSharedJoint.samplingData.jointID, 
+                                                                                                  newSharedJoint.samplingData.musclesCount, 
+                                                                                                  newSharedJoint.controller, kv_size( sharedJointsList ) );
             }
-            else EMGProcessing.EndJoint( newSharedJoint.jointID );
+            else EMGProcessing.EndJoint( newSharedJoint.samplingData.jointID );
           }
         }
       }
@@ -115,7 +118,7 @@ void RobRehabEMG_End( void )
     SHMJoint sharedJoint = &(kv_A( sharedJointsList, sharedJointID ));
       
     SHMControl.EndData( sharedJoint->controller );
-    EMGProcessing.EndJoint( sharedJoint->jointID );
+    EMGProcessing.EndJoint( sharedJoint->samplingData.jointID );
     
     free( sharedJoint->samplingData.muscleSignalsList );
   }
@@ -132,37 +135,37 @@ void RobRehabEMG_Update( void )
     uint8_t jointPhase = SHMControl.GetByteValue( sharedJoint->controller, SHM_CONTROL_REMOVE );
     if( jointPhase == SHM_EMG_OFFSET )
     {
-      DEBUG_PRINT( "starting offset phase for joint %d", sharedJoint->jointID );
-      EMGProcessing.SetProcessingPhase( sharedJoint->jointID, SIGNAL_PROCESSING_PHASE_OFFSET );
+      DEBUG_PRINT( "starting offset phase for joint %d", sharedJoint->samplingData.jointID );
+      EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_OFFSET );
       sharedJoint->lastJointPhase = SHM_EMG_OFFSET;
     }
     else if( jointPhase == SHM_EMG_CALIBRATION )
     {
-      DEBUG_PRINT( "starting calibration for joint %d", sharedJoint->jointID );
-      EMGProcessing.SetProcessingPhase( sharedJoint->jointID, SIGNAL_PROCESSING_PHASE_CALIBRATION );
+      DEBUG_PRINT( "starting calibration for joint %d", sharedJoint->samplingData.jointID );
+      EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_CALIBRATION );
       sharedJoint->lastJointPhase = SHM_EMG_CALIBRATION;
     }
     else if( jointPhase == SHM_EMG_SAMPLING )
     {
-      DEBUG_PRINT( "reseting sampling count for joint %d", sharedJoint->jointID );
-      EMGProcessing.SetProcessingPhase( sharedJoint->jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+      DEBUG_PRINT( "reseting sampling count for joint %d", sharedJoint->samplingData.jointID );
+      EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
       sharedJoint->samplingData.samplesCount = 0;
       sharedJoint->lastJointPhase = SHM_EMG_SAMPLING;
     }
     else if( jointPhase == SHM_EMG_MEASUREMENT )
     {
-      size_t parametersNumber = sharedJoint->samplingData.musclesCount * MUSCLE_PARAMETERS_NUMBER + 1;
+      size_t parametersNumber = sharedJoint->samplingData.musclesCount * MUSCLE_GAINS_NUMBER + 1;
       if( sharedJoint->lastJointPhase == SHM_EMG_SAMPLING && parametersNumber > 0 )
       {
-        DEBUG_PRINT( "starting optimization for shared joint %d", sharedJoint->jointID );
+        DEBUG_PRINT( "starting optimization for shared joint %d", sharedJoint->samplingData.jointID );
         
         double* parametersList = (double*) calloc( parametersNumber, sizeof(double) );
         for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
         {
-          for( size_t parameterIndex = 0; parameterIndex < MUSCLE_PARAMETERS_NUMBER; parameterIndex++ )
+          for( size_t parameterIndex = 0; parameterIndex < MUSCLE_GAINS_NUMBER; parameterIndex++ )
           {
-            initialValue = EMGProcessing.GetJointMuscleParameter( sharedJoint->jointID, muscleIndex, parameterIndex );
-            parametersList[ muscleIndex * MUSCLE_PARAMETERS_NUMBER + parameterIndex ] = initialValue;
+            double initialValue = ( MUSCLE_MIN_GAINS[ parameterIndex ] + MUSCLE_MAX_GAINS[ parameterIndex ] ) / 2.0;
+            parametersList[ muscleIndex * MUSCLE_GAINS_NUMBER + parameterIndex ] = initialValue;
           }
         }
         
@@ -173,19 +176,21 @@ void RobRehabEMG_Update( void )
       sharedJoint->lastJointPhase = SHM_EMG_MEASUREMENT;
     }
     
-    float jointAngle, jointIDTorque;
-    if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ANGLE, &jointAngle, SHM_CONTROL_PEEK ) )
+    DEBUG_PRINT( "updating joint %lu", sharedJointID );
+    
+    float jointAngle = 0.0, jointIDTorque = 0.0;
+    if( /*SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ANGLE, &jointAngle, SHM_CONTROL_PEEK )*/true )
     {
-      if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ID_TORQUE, &jointIDTorque, SHM_CONTROL_PEEK ) )
+      if( /*SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ID_TORQUE, &jointIDTorque, SHM_CONTROL_PEEK )*/true )
       {
-        if( sharedJoint->lastJointPhase == SHM_EMG_SAMPLING )
+        if( /*sharedJoint->lastJointPhase == SHM_EMG_SAMPLING*/true )
         {      
           if( sharedJoint->samplingData.samplesCount < MAX_SAMPLES_NUMBER )
           {
             for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
             {
-              double normalizedSignal = EMGProcessing.GetJointMuscleSignal( sharedJoint->jointID, muscleIndex );
-              sharedJoint->samplingData.muscleSignalsList[ muscleIndex ][ sharedJoint->samplingData.samplesCount ] = normalizedSignal;
+              double muscleSignal = EMGProcessing.GetJointMuscleSignal( sharedJoint->samplingData.jointID, muscleIndex );
+              sharedJoint->samplingData.muscleSignalsList[ muscleIndex ][ sharedJoint->samplingData.samplesCount ] = muscleSignal;
             }
             
             DEBUG_PRINT( "sample %u: %g - %g %g %g %g %g", sharedJoint->samplingData.samplesCount, jointIDTorque, 
@@ -203,8 +208,8 @@ void RobRehabEMG_Update( void )
         }  
         else
         {      
-          double jointEMGTorque = EMGProcessing_GetJointTorque( sharedJoint->jointID, jointAngle );
-          double jointEMGStiffness = EMGProcessing_GetJointStiffness( sharedJoint->jointID, jointAngle );
+          double jointEMGTorque = EMGProcessing_GetJointTorque( sharedJoint->samplingData.jointID, jointAngle );
+          double jointEMGStiffness = EMGProcessing_GetJointStiffness( sharedJoint->samplingData.jointID, jointAngle );
           
           //DEBUG_PRINT( "Joint position: %.3f - torque: %.3f - stiffness: %.3f", jointAngle, jointEMGTorque, jointEMGStiffness );
           
@@ -222,18 +227,28 @@ double CalculateMuscleParametersError( double* parametersList, size_t parameters
   SamplingData* samplingData = (SamplingData*) ref_samplingData;
   
   double squaredErrorSum = 0;
-  size_t musclesNumber = parametersNumber / ( sizeof(EMGMuscleData) / sizeof(double) );
+  size_t musclesNumber = parametersNumber / MUSCLE_GAINS_NUMBER;
+  
+  parametersList[ parametersNumber - 1 ] = EMGProcessing.SetJointGain( samplingData->jointID, parametersList[ parametersNumber - 1 ] );
+  
   for( size_t muscleIndex = 0; muscleIndex < musclesNumber; muscleIndex++ )
   {
-    EMGMuscle muscleParameters = ( (EMGMuscle) parametersList ) + muscleIndex;
+    for( size_t muscleParameterIndex = 0; muscleParameterIndex < MUSCLE_GAINS_NUMBER; muscleParameterIndex++ )
+    {
+      double currentValue = parametersList[ muscleIndex * MUSCLE_GAINS_NUMBER + muscleParameterIndex ];
+      currentValue = EMGProcessing.SetJointMuscleGain( samplingData->jointID, muscleIndex, muscleParameterIndex, currentValue );
+      parametersList[ muscleIndex * MUSCLE_GAINS_NUMBER + muscleParameterIndex ] = currentValue;
+    }
+    
     double* muscleSignalList = samplingData->muscleSignalsList[ muscleIndex ];
+    
     for( size_t sampleIndex = 0; sampleIndex < samplingData->samplesCount; sampleIndex++ )
     {
       double normalizedSample = muscleSignalList[ sampleIndex ];
       double jointAngle = samplingData->jointAnglesList[ sampleIndex ];
       double jointIDTorque = samplingData->jointIDTorquesList[ sampleIndex ];
     
-      double jointEMGTorque = EMGProcessing.GetMuscleTorque( muscleParameters, normalizedSample, jointAngle );
+      double jointEMGTorque = EMGProcessing.GetJointMuscleTorque( samplingData->jointID, muscleIndex, normalizedSample, jointAngle );
       
       double sampleError = jointEMGTorque - jointIDTorque;
       

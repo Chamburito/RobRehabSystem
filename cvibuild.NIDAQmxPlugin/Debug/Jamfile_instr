@@ -1,4 +1,4 @@
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_aquisition.obj" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_io.obj" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\advapi32_lvrt.lib" ;
 NoCare "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\advapi32_lvrt.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\NIDAQmx.dll" : "c:\\ProgramData\\National Instruments\\CVI2015\\bin\\msvc\\analysis.lib" ;

@@ -14,6 +14,7 @@ static bool pluginLoaded = false;
 #define CONFIG_PARSING_FUNCTIONS( namespace, function_init ) \
         function_init( bool, namespace, Init, const char* ) \
         function_init( int, namespace, LoadConfigFile, const char* ) \
+        function_init( int, namespace, LoadConfigString, const char* ) \
         function_init( ParserInterface, namespace, GetParser, void )
 
 INIT_NAMESPACE_INTERFACE( ConfigParsing, CONFIG_PARSING_FUNCTIONS )
@@ -36,6 +37,13 @@ inline int ConfigParsing_LoadConfigFile( const char* configFilePath )
   snprintf( filePath, PARSER_MAX_FILE_PATH_LENGTH, "config/%s", configFilePath );
   
   return parser.LoadFileData( filePath );
+}
+
+inline int ConfigParsing_LoadConfigString( const char* configString )
+{
+  if( !pluginLoaded ) return PARSED_DATA_INVALID_ID;
+  
+  return parser.LoadStringData( configString );
 }
 
 ParserInterface ConfigParsing_GetParser( void )

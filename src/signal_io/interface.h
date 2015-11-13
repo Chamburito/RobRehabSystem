@@ -1,7 +1,7 @@
 #ifndef SIGNAL_IO_INTERFACE_H
 #define SIGNAL_IO_INTERFACE_H
 
-#include "interface.h"
+#include "interfaces.h"
 
 #define SIGNAL_INPUT_CHANNEL_MAX_USES 5
 
@@ -10,12 +10,11 @@
         function_init( void, interface, EndTask, int ) \
         function_init( void, interface, Reset, int ) \
         function_init( bool, interface, HasError, int ) \
-        function_init( double*, interface, Read, int, unsigned int, size_t* ) \
+        function_init( bool, interface, Read, int, unsigned int, double* ) \
         function_init( bool, interface, AquireInputChannel, int, unsigned int ) \
         function_init( void, interface, ReleaseInputChannel, int, unsigned int ) \
-        function_init( size_t, interface, GetMaxInputSamplesNumber, int ) \
         function_init( bool, interface, IsOutputEnabled, int ) \
-        function_init( bool, interface, Write, int, unsigned int ) \
+        function_init( bool, interface, Write, int, unsigned int, double ) \
         function_init( bool, interface, AquireOutputChannel, int, unsigned int ) \
         function_init( void, interface, ReleaseOutputChannel, int, unsigned int ) 
 

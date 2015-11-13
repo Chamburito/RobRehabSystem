@@ -6,8 +6,9 @@
 
 #include "config_parser.h"
 
-#include "signal_aquisition/signal_aquisition_interface.h"
+#include "signal_io/interface.h"
 #include "plugin_loader.h"
+#include "filters.h"
 
 #include "klib/khash.h"
 
@@ -16,147 +17,174 @@
 
 enum SignalProcessingPhase { SIGNAL_PROCESSING_PHASE_MEASUREMENT, SIGNAL_PROCESSING_PHASE_CALIBRATION, SIGNAL_PROCESSING_PHASE_OFFSET, SIGNAL_PROCESSING_PHASES_NUMBER };
 
-const size_t OLD_SAMPLES_BUFFER_LEN = 100;
 
-const size_t FILTER_ORDER = 3;
-const double filter_A[ FILTER_ORDER ] = { 1.0, -1.9964, 0.9965 };
-const double filter_B[ FILTER_ORDER ] = { 1.576e-6, 3.153e-6, 1.576e-6 };
-const int FILTER_EXTRA_SAMPLES_NUMBER = FILTER_ORDER - 1;
 
 typedef struct _SignalData
 {
-  double* samplesBuffer;
-  double* filteredSamplesBuffer;;
-  size_t samplesBufferLength;
+  double samplingTime;
   double calibrationMax, calibrationMin;
   size_t recordedSamplesCount;
   double samplesMean;
   double processingResult;
   enum SignalProcessingPhase processingPhase;
-  bool isRectified, isFiltered, isNormalized;
+  bool isRectified, isNormalized;
 }
 SignalData;
 
 typedef struct _SensorData
 {
-  SignalAquisitionInterface interface;
+  SignalIOInterface interface;
   int taskID;
   unsigned int channel;
   SignalData signalData;
-  double scalingFactor, offset;
+  KalmanFilter filter;
+  double gain, offset;
   int logID;
 }
 SensorData;
 
 typedef SensorData* Sensor;
 
-KHASH_MAP_INIT_INT( SensorInt, Sensor )
-static khash_t( SensorInt )* sensorsList = NULL;
-
-static bool isProcessing;
-Thread processingThreadID;
-ThreadLock processingLock;
-
 
 #define SIGNAL_PROCESSING_FUNCTIONS( namespace, function_init ) \
-        function_init( int, namespace, InitSensor, const char* ) \
-        function_init( void, namespace, EndSensor, int ) \
-        function_init( double, namespace, GetProcessedSignal, int ) \
-        function_init( void, namespace, ChangePhase, int, enum SignalProcessingPhase )
+        function_init( Sensor, namespace, InitSensor, const char* ) \
+        function_init( void, namespace, EndSensor, Sensor ) \
+        function_init( double*, namespace, UpdateSensor, Sensor ) \
+        function_init( void, namespace, SetSensorState, Sensor, enum SignalProcessingPhase )
 
 INIT_NAMESPACE_INTERFACE( SignalProcessing, SIGNAL_PROCESSING_FUNCTIONS )
 
 
-static void* AsyncUpdate( void* );
-
-static Sensor LoadSensorData( const char* );
-static void UnloadSensorData( Sensor );
-
-const int SENSOR_INVALID_ID = 0;
-
-int SignalProcessing_InitSensor( const char* configFileName )
+Sensor SignalProcessing_InitSensor( const char* configFileName )
 {
-  Sensor newSensor = LoadSensorData( configFileName );
-  if( newSensor == NULL )
+  DEBUG_PRINT( "Trying to load sensor %s data", configFileName );
+  
+  Sensor newSensor = NULL;
+  
+  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
-    DEBUG_PRINT( "sensor %s configuration failed", configFileName );
-    return SENSOR_INVALID_ID;
-  }
-  
-  if( sensorsList == NULL ) 
-  {
-    sensorsList = kh_init( SensorInt );
+    ParserInterface parser = ConfigParsing.GetParser();
     
-    processingLock = ThreadLocks.Create();
+    newSensor = (Sensor) malloc( sizeof(SensorData) );
+    memset( newSensor, 0, sizeof(SensorData) );
     
-    isProcessing = true;
-    processingThreadID = Threading.StartThread( AsyncUpdate, NULL, THREAD_JOINABLE );
-  }
-  
-  int configKey = (int) kh_str_hash_func( configFileName );
-  
-  int insertionStatus;
-  khint_t newSensorIndex = kh_put( SensorInt, sensorsList, configKey, &insertionStatus );
-  if( insertionStatus > 0 )
-  {
-    kh_value( sensorsList, newSensorIndex ) = newSensor;
-    
-    DEBUG_PRINT( "new key %d inserted (iterator: %u - total: %u)", kh_key( sensorsList, newSensorIndex ), newSensorIndex, kh_size( sensorsList ) );
-  }
-  
-  return (int) kh_key( sensorsList, newSensorIndex );
-}
-
-void SignalProcessing_EndSensor( int sensorID )
-{
-  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
-  if( sensorIndex == kh_end( sensorsList ) ) return;
-  
-  ThreadLocks.Aquire( processingLock );
-  
-  UnloadSensorData( kh_value( sensorsList, sensorIndex ) );
-  kh_del( SensorInt, sensorsList, sensorIndex );
-  
-  ThreadLocks.Release( processingLock );
-  
-  if( kh_size( sensorsList ) == 0 )
-  {
-    isProcessing = false;
-    (void) Threading.WaitExit( processingThreadID, 5000 );
-    
-    ThreadLocks.Discard( processingLock );
-    processingLock = NULL;
-    
-    if( sensorsList != NULL )
+    bool loadSuccess;
+    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, parser.GetStringValue( configFileID, "", "aquisition_system.type" ), newSensor->interface, loadSuccess );
+    if( loadSuccess )
     {
-      kh_destroy( SensorInt, sensorsList );
-      sensorsList = NULL;
+      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "aquisition_system.task" ) );
+      if( newSensor->taskID != -1 )
+      {
+        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "aquisition_system.channel" );
+        loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
+        
+        newSensor->gain = parser.GetRealValue( configFileID, 1.0, "processing.input_gain.multiplier" );
+        newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "processing.input_gain.divisor" );
+        newSensor->signalData.isRectified = parser.GetBooleanValue( configFileID, false, "processing.rectified" );
+        newSensor->signalData.isNormalized = parser.GetBooleanValue( configFileID, false, "processing.normalized" );
+        
+        DEBUG_PRINT( "measure properties: rect: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isNormalized ); 
+        
+        newSensor->filter = SimpleKalman.CreateFilter( 3, 0.0 );
+        
+        if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
+        {
+          newSensor->logID = DataLogging_InitLog( configFileName, 2 * 10 + 3, 1000 ); // ?
+          DataLogging_SetDataPrecision( newSensor->logID, 4 );
+        }
+      }
+      else loadSuccess = false;
+    }
+    else loadSuccess = false;
+
+    parser.UnloadData( configFileID );
+    
+    if( !loadSuccess )
+    {
+      SignalProcessing_EndSensor( newSensor );
+      return NULL;
     }
   }
+  else
+    DEBUG_PRINT( "configuration for sensor %s not found", configFileName );
+  
+  return newSensor;
 }
 
-double SignalProcessing_GetProcessedSignal( int sensorID )
+void SignalProcessing_EndSensor( Sensor sensor )
 {
-  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
-  if( sensorIndex == kh_end( sensorsList ) ) return 0.0;
+  if( sensor == NULL ) return;
+  
+  sensor->interface.ReleaseInputChannel( sensor->taskID, sensor->channel );
+  sensor->interface.EndTask( sensor->taskID );
+  
+  SimpleKalman.DiscardFilter( sensor->filter );
+  
+  if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
+  
+  free( sensor );
+}
 
-  Sensor sensor = kh_value( sensorsList, sensorIndex );
+double* SignalProcessing_UpdateSensor( Sensor sensor )
+{
+  if( sensor == NULL ) return NULL;
+  
+  SignalData* data = &(sensor->signalData);
+  
+  double* sensorOutput = NULL;
+  
+  DEBUG_PRINT( "updating sensor channel %d-%u", sensor->taskID, sensor->channel );
+  
+  double signal;
+  if( sensor->interface.Read( sensor->taskID, sensor->channel, &signal ) )
+  {
+    DEBUG_PRINT( "channel %u value: %g", sensor->channel, signal );
     
-  return sensor->signalData.processingResult;
+    signal *= sensor->gain;
+    
+    if( data->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+    {
+      data->samplesMean += signal;
+      data->recordedSamplesCount++;
+    }
+    else
+    {
+      signal -= sensor->offset;
+
+      if( data->isRectified ) signal = fabs( signal );
+
+      if( data->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+      {
+        if( signal > data->calibrationMax ) data->calibrationMax = signal;
+        else if( signal < data->calibrationMin ) data->calibrationMin = signal;
+      }
+      else if( data->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
+      {
+        if( data->isNormalized && ( data->calibrationMin != data->calibrationMax ) )
+        {
+          if( signal > data->calibrationMax ) signal = data->calibrationMax;
+          else if( signal < data->calibrationMin ) signal = data->calibrationMin;
+
+          signal = signal / ( data->calibrationMax - data->calibrationMin );
+        }
+
+        double deltaTime = Timing.GetExecTimeSeconds() - data->samplingTime;
+        sensorOutput = SimpleKalman.Update( sensor->filter, signal, deltaTime );
+      }
+    }
+  }
+  
+  data->samplingTime = Timing.GetExecTimeSeconds();
+    
+  return sensorOutput;
 }
 
-void SignalProcessing_ChangePhase( int sensorID, enum SignalProcessingPhase newProcessingPhase )
+void SignalProcessing_SetSensorState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )
 {
-  khint_t sensorIndex = kh_get( SensorInt, sensorsList, (khint_t) sensorID );
-  if( sensorIndex == kh_end( sensorsList ) ) return;
+  if( sensor == NULL ) return;
   
   if( newProcessingPhase < 0 || newProcessingPhase >= SIGNAL_PROCESSING_PHASES_NUMBER ) return;
-  
-  Sensor sensor = kh_value( sensorsList, sensorIndex );
-  
-  if( processingLock == NULL ) return;
-  
-  ThreadLocks.Aquire( processingLock );
   
   SignalData* data = &(sensor->signalData);
 
@@ -176,193 +204,11 @@ void SignalProcessing_ChangePhase( int sensorID, enum SignalProcessingPhase newP
     data->samplesMean = 0.0;
     data->recordedSamplesCount = 0;
   }
+
+  SimpleKalman.Reset( sensor->filter, 0.0 );
+  data->samplingTime = Timing.GetExecTimeSeconds();
   
   data->processingPhase = newProcessingPhase;
-  
-  ThreadLocks.Release( processingLock );
-}
-
-
-static double ProcessSignal( Sensor sensor )
-{
-  SignalData* data = &(sensor->signalData);
-  size_t samplesBufferLength = data->samplesBufferLength;
-  
-  size_t aquiredSamplesCount;
-  double* rawSamplesList = sensor->interface.Read( sensor->taskID, sensor->channel, &aquiredSamplesCount );
-  if( rawSamplesList == NULL ) return 0.0;
-
-  long processedSamplesStartIndex = samplesBufferLength - aquiredSamplesCount;
-  double* processedSamplesList = data->samplesBuffer + processedSamplesStartIndex;
-  
-  for( int rawSampleIndex = 0; rawSampleIndex < aquiredSamplesCount; rawSampleIndex++ )
-    processedSamplesList[ rawSampleIndex ] = rawSamplesList[ rawSampleIndex ] * sensor->scalingFactor - sensor->offset;
-  
-  if( data->processingPhase != SIGNAL_PROCESSING_PHASE_OFFSET )
-  {
-    if( data->isRectified )
-    {
-      for( int sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
-        processedSamplesList[ sampleIndex ] = fabs( processedSamplesList[ sampleIndex ] );
-    }
-
-    if( data->isFiltered )
-    {
-      for( int sampleIndex = (int) processedSamplesStartIndex; sampleIndex < samplesBufferLength; sampleIndex++ )
-      {
-        data->filteredSamplesBuffer[ sampleIndex ] = 0.0;
-        for( int factorIndex = 0; factorIndex < FILTER_ORDER; factorIndex++ )
-        {
-          data->filteredSamplesBuffer[ sampleIndex ] -= filter_A[ factorIndex ] * data->filteredSamplesBuffer[ sampleIndex - factorIndex ];
-          data->filteredSamplesBuffer[ sampleIndex ] += filter_B[ factorIndex ] * data->samplesBuffer[ sampleIndex - factorIndex ];
-        }
-      }
-      
-      processedSamplesList = data->filteredSamplesBuffer + processedSamplesStartIndex;
-    }
-
-    for( int sampleIndex = 0; sampleIndex < processedSamplesStartIndex; sampleIndex++ )
-    {
-      data->filteredSamplesBuffer[ sampleIndex ] = data->filteredSamplesBuffer[ aquiredSamplesCount + sampleIndex ];
-      data->samplesBuffer[ sampleIndex ] = data->samplesBuffer[ aquiredSamplesCount + sampleIndex ];
-    }
-  }
-
-  double processedSamplesSum = 0.0;
-  for( int sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
-    processedSamplesSum += processedSamplesList[ sampleIndex ];
-  
-  return processedSamplesSum / aquiredSamplesCount;
-}
-
-static void* AsyncUpdate( void* data )
-{
-  while( isProcessing )
-  {
-    ThreadLocks.Aquire( processingLock );
-    
-    for( khint_t sensorID = kh_begin( sensorsList ); sensorID != kh_end( sensorsList ); sensorID++ )
-    {
-      if( !kh_exist( sensorsList, sensorID ) ) continue;
-      
-      Sensor sensor = kh_value( sensorsList, sensorID );
-      SignalData* data = &(sensor->signalData);
-      
-      double processedSignal = ProcessSignal( sensor );
-      if( processedSignal != 0.0 )
-      {
-        //DEBUG_PRINT( "sensor %u read", sensorID );
-        
-        if( data->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
-        {
-          if( processedSignal > data->calibrationMax ) data->calibrationMax = processedSignal;
-          else if( processedSignal < data->calibrationMin ) data->calibrationMin = processedSignal;
-        }
-        else if( data->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
-        {
-          data->samplesMean += processedSignal;
-          data->recordedSamplesCount++;
-        }
-        else if( data->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
-        {
-          if( data->isNormalized && ( data->calibrationMin != data->calibrationMax ) )
-          {
-            processedSignal = ( processedSignal - data->calibrationMin ) / ( data->calibrationMax - data->calibrationMin );
-            if( !data->isRectified ) processedSignal = 2.0 * processedSignal - 1.0;
-          }
-
-          data->processingResult = processedSignal;
-        }
-      }
-    }
-    
-    ThreadLocks.Release( processingLock );
-  }
-  
-  DEBUG_PRINT( "ending processing thread %x", THREAD_ID );
-  
-  return NULL;
-}
-
-
-static Sensor LoadSensorData( const char* configFileName )
-{
-  DEBUG_PRINT( "Trying to load sensor %s data", configFileName );
-  
-  Sensor newSensor = NULL;
-  
-  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
-  if( configFileID != PARSED_DATA_INVALID_ID )
-  {
-    ParserInterface parser = ConfigParsing.GetParser();
-    
-    newSensor = (Sensor) malloc( sizeof(SensorData) );
-    memset( newSensor, 0, sizeof(SensorData) );
-    
-    bool loadSuccess;
-    GET_PLUGIN_INTERFACE( SIGNAL_AQUISITION_FUNCTIONS, parser.GetStringValue( configFileID, "", "aquisition_system.type" ), newSensor->interface, loadSuccess );
-    if( loadSuccess )
-    {
-      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "aquisition_system.task" ) );
-      if( newSensor->taskID != -1 )
-      {
-        size_t newSamplesBufferMaxLength = newSensor->interface.GetMaxSamplesNumber( newSensor->taskID );
-        if( newSamplesBufferMaxLength > 0 )
-        {
-          newSensor->signalData.samplesBufferLength = newSamplesBufferMaxLength + FILTER_EXTRA_SAMPLES_NUMBER;
-          newSensor->signalData.samplesBuffer = (double*) calloc( newSensor->signalData.samplesBufferLength, sizeof(double) );
-          newSensor->signalData.filteredSamplesBuffer = (double*) calloc( newSensor->signalData.samplesBufferLength, sizeof(double) );
-        }
-        else loadSuccess = false;
-
-        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "aquisition_system.channel" );
-        newSensor->interface.AquireChannel( newSensor->taskID, newSensor->channel );
-        
-        newSensor->scalingFactor = parser.GetRealValue( configFileID, 1.0, "processing.input_multiplier" );
-        newSensor->scalingFactor /= parser.GetRealValue( configFileID, 1.0, "processing.input_divisor" );
-        newSensor->signalData.isRectified = parser.GetBooleanValue( configFileID, false, "processing.rectified" );
-        newSensor->signalData.isFiltered = parser.GetBooleanValue( configFileID, false, "processing.filtered" );
-        newSensor->signalData.isNormalized = parser.GetBooleanValue( configFileID, false, "processing.normalized" );
-        
-        DEBUG_PRINT( "measure properties: rect: %u - filter: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isFiltered, newSensor->signalData.isNormalized ); 
-        
-        if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
-        {
-          newSensor->logID = DataLogging_InitLog( configFileName, 2 * newSamplesBufferMaxLength + 3, 1000 );
-          DataLogging_SetDataPrecision( newSensor->logID, 4 );
-        }
-      }
-      else loadSuccess = false;
-    }
-    else loadSuccess = false;
-
-    parser.UnloadData( configFileID );
-    
-    if( !loadSuccess )
-    {
-      UnloadSensorData( newSensor );
-      return NULL;
-    }
-  }
-  else
-    DEBUG_PRINT( "configuration for sensor %s not found", configFileName );
-  
-  return newSensor;
-}
-
-void UnloadSensorData( Sensor sensor )
-{
-  if( sensor == NULL ) return;
-  
-  free( sensor->signalData.samplesBuffer );
-  free( sensor->signalData.filteredSamplesBuffer );
-  
-  sensor->interface.ReleaseChannel( sensor->taskID, sensor->channel );
-  sensor->interface.EndTask( sensor->taskID );
-  
-  if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
-  
-  free( sensor );
 }
 
 
