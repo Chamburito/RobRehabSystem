@@ -5,6 +5,8 @@
 
 #define SIGNAL_INPUT_CHANNEL_MAX_USES 5
 
+const int SIGNAL_IO_TASK_INVALID_ID = -1;
+
 #define SIGNAL_IO_FUNCTIONS( interface, function_init ) \
         function_init( int, interface, InitTask, const char* ) \
         function_init( void, interface, EndTask, int ) \

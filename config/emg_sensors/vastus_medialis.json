@@ -4,7 +4,7 @@
     "task": "EMGReadTask",
     "channel": 3
   },
-  "processing": {
+  "signal_processing": {
     "input_gain": {
       "divisor": 909
     },

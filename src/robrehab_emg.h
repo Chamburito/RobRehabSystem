@@ -208,8 +208,8 @@ void RobRehabEMG_Update( void )
         }  
         else
         {      
-          double jointEMGTorque = EMGProcessing_GetJointTorque( sharedJoint->samplingData.jointID, jointAngle );
-          double jointEMGStiffness = EMGProcessing_GetJointStiffness( sharedJoint->samplingData.jointID, jointAngle );
+          double jointEMGTorque = EMGProcessing.GetJointTorque( sharedJoint->samplingData.jointID, jointAngle );
+          double jointEMGStiffness = EMGProcessing.GetJointStiffness( sharedJoint->samplingData.jointID, jointAngle );
           
           //DEBUG_PRINT( "Joint position: %.3f - torque: %.3f - stiffness: %.3f", jointAngle, jointEMGTorque, jointEMGStiffness );
           

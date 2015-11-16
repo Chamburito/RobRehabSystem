@@ -4,211 +4,155 @@
 #include <math.h>
 #include <stdbool.h>
 
-#include "config_parser.h"
-
-#include "signal_io/interface.h"
-#include "plugin_loader.h"
 #include "filters.h"
 
-#include "klib/khash.h"
-
 #include "debug/async_debug.h"
-#include "debug/data_logging.h"
 
 enum SignalProcessingPhase { SIGNAL_PROCESSING_PHASE_MEASUREMENT, SIGNAL_PROCESSING_PHASE_CALIBRATION, SIGNAL_PROCESSING_PHASE_OFFSET, SIGNAL_PROCESSING_PHASES_NUMBER };
 
-
+const uint8_t SIGNAL_PROCESSING_RECTIFIED = 0x0F, SIGNAL_PROCESSING_NORMALIZED = 0xF0;
 
 typedef struct _SignalData
 {
   double samplingTime;
   double calibrationMax, calibrationMin;
+  double samplesMean, offset;
   size_t recordedSamplesCount;
-  double samplesMean;
-  double processingResult;
   enum SignalProcessingPhase processingPhase;
   bool isRectified, isNormalized;
 }
 SignalData;
 
-typedef struct _SensorData
+typedef struct _SignalFilterData
 {
-  SignalIOInterface interface;
-  int taskID;
-  unsigned int channel;
   SignalData signalData;
-  KalmanFilter filter;
-  double gain, offset;
-  int logID;
+  KalmanFilter kalmanFilter;
 }
-SensorData;
+SignalFilterData;
 
-typedef SensorData* Sensor;
+typedef SignalFilterData* SignalFilter;
 
 
 #define SIGNAL_PROCESSING_FUNCTIONS( namespace, function_init ) \
-        function_init( Sensor, namespace, InitSensor, const char* ) \
-        function_init( void, namespace, EndSensor, Sensor ) \
-        function_init( double*, namespace, UpdateSensor, Sensor ) \
-        function_init( void, namespace, SetSensorState, Sensor, enum SignalProcessingPhase )
+        function_init( SignalFilter, namespace, CreateFilter, uint8_t ) \
+        function_init( void, namespace, DiscardFilter, SignalFilter ) \
+        function_init( double*, namespace, UpdateFilter, SignalFilter, double ) \
+        function_init( double, namespace, GetFilterOffset, SignalFilter ) \
+        function_init( void, namespace, SetFilterState, SignalFilter, enum SignalProcessingPhase ) 
 
 INIT_NAMESPACE_INTERFACE( SignalProcessing, SIGNAL_PROCESSING_FUNCTIONS )
 
 
-Sensor SignalProcessing_InitSensor( const char* configFileName )
+SignalFilter SignalProcessing_CreateFilter( uint8_t flags )
 {
-  DEBUG_PRINT( "Trying to load sensor %s data", configFileName );
+  DEBUG_PRINT( "Trying to create filter type %u", flags );
   
-  Sensor newSensor = NULL;
+  SignalFilter newSensor = (SignalFilter) malloc( sizeof(SignalFilterData) );
+  memset( newSensor, 0, sizeof(SignalFilterData) );
   
-  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
-  if( configFileID != PARSED_DATA_INVALID_ID )
-  {
-    ParserInterface parser = ConfigParsing.GetParser();
-    
-    newSensor = (Sensor) malloc( sizeof(SensorData) );
-    memset( newSensor, 0, sizeof(SensorData) );
-    
-    bool loadSuccess;
-    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, parser.GetStringValue( configFileID, "", "aquisition_system.type" ), newSensor->interface, loadSuccess );
-    if( loadSuccess )
-    {
-      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "aquisition_system.task" ) );
-      if( newSensor->taskID != -1 )
-      {
-        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "aquisition_system.channel" );
-        loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
+  newSensor->signalData.processingPhase = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
+  
+  newSensor->signalData.isRectified = (bool) ( flags & SIGNAL_PROCESSING_RECTIFIED );
+  newSensor->signalData.isNormalized = (bool) ( flags & SIGNAL_PROCESSING_NORMALIZED );
         
-        newSensor->gain = parser.GetRealValue( configFileID, 1.0, "processing.input_gain.multiplier" );
-        newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "processing.input_gain.divisor" );
-        newSensor->signalData.isRectified = parser.GetBooleanValue( configFileID, false, "processing.rectified" );
-        newSensor->signalData.isNormalized = parser.GetBooleanValue( configFileID, false, "processing.normalized" );
+  DEBUG_PRINT( "measure properties: rect: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isNormalized ); 
         
-        DEBUG_PRINT( "measure properties: rect: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isNormalized ); 
-        
-        newSensor->filter = SimpleKalman.CreateFilter( 3, 0.0 );
-        
-        if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
-        {
-          newSensor->logID = DataLogging_InitLog( configFileName, 2 * 10 + 3, 1000 ); // ?
-          DataLogging_SetDataPrecision( newSensor->logID, 4 );
-        }
-      }
-      else loadSuccess = false;
-    }
-    else loadSuccess = false;
-
-    parser.UnloadData( configFileID );
-    
-    if( !loadSuccess )
-    {
-      SignalProcessing_EndSensor( newSensor );
-      return NULL;
-    }
-  }
-  else
-    DEBUG_PRINT( "configuration for sensor %s not found", configFileName );
+  newSensor->kalmanFilter = SimpleKalman.CreateFilter( 3, 0.0 );
   
   return newSensor;
 }
 
-void SignalProcessing_EndSensor( Sensor sensor )
+void SignalProcessing_DiscardFilter( SignalFilter filter )
 {
-  if( sensor == NULL ) return;
+  if( filter == NULL ) return;
   
-  sensor->interface.ReleaseInputChannel( sensor->taskID, sensor->channel );
-  sensor->interface.EndTask( sensor->taskID );
+  SimpleKalman.DiscardFilter( filter->kalmanFilter );
   
-  SimpleKalman.DiscardFilter( sensor->filter );
-  
-  if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
-  
-  free( sensor );
+  free( filter );
 }
 
-double* SignalProcessing_UpdateSensor( Sensor sensor )
+double* SignalProcessing_UpdateFilter( SignalFilter filter, double newSignalValue )
 {
-  if( sensor == NULL ) return NULL;
+  if( filter == NULL ) return NULL;
   
-  SignalData* data = &(sensor->signalData);
+  SignalData* signal = &(filter->signalData);
   
-  double* sensorOutput = NULL;
+  double* filterOutput = NULL;
   
-  DEBUG_PRINT( "updating sensor channel %d-%u", sensor->taskID, sensor->channel );
-  
-  double signal;
-  if( sensor->interface.Read( sensor->taskID, sensor->channel, &signal ) )
+  DEBUG_PRINT( "updating filter %p", filter );
+    
+  if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    DEBUG_PRINT( "channel %u value: %g", sensor->channel, signal );
-    
-    signal *= sensor->gain;
-    
-    if( data->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+    signal->samplesMean += newSignalValue;
+    signal->recordedSamplesCount++;
+  }
+  else
+  {
+    newSignalValue -= signal->offset;
+
+    if( signal->isRectified ) newSignalValue = fabs( newSignalValue );
+
+    if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
     {
-      data->samplesMean += signal;
-      data->recordedSamplesCount++;
+      if( newSignalValue > signal->calibrationMax ) signal->calibrationMax = newSignalValue;
+      else if( newSignalValue < signal->calibrationMin ) signal->calibrationMin = newSignalValue;
     }
-    else
+    else if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
     {
-      signal -= sensor->offset;
-
-      if( data->isRectified ) signal = fabs( signal );
-
-      if( data->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+      if( signal->isNormalized && ( signal->calibrationMin != signal->calibrationMax ) )
       {
-        if( signal > data->calibrationMax ) data->calibrationMax = signal;
-        else if( signal < data->calibrationMin ) data->calibrationMin = signal;
-      }
-      else if( data->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
-      {
-        if( data->isNormalized && ( data->calibrationMin != data->calibrationMax ) )
-        {
-          if( signal > data->calibrationMax ) signal = data->calibrationMax;
-          else if( signal < data->calibrationMin ) signal = data->calibrationMin;
+        if( newSignalValue > signal->calibrationMax ) newSignalValue = signal->calibrationMax;
+        else if( newSignalValue < signal->calibrationMin ) newSignalValue = signal->calibrationMin;
 
-          signal = signal / ( data->calibrationMax - data->calibrationMin );
-        }
-
-        double deltaTime = Timing.GetExecTimeSeconds() - data->samplingTime;
-        sensorOutput = SimpleKalman.Update( sensor->filter, signal, deltaTime );
+        newSignalValue = newSignalValue / ( signal->calibrationMax - signal->calibrationMin );
       }
+
+      double deltaTime = Timing.GetExecTimeSeconds() - signal->samplingTime;
+      filterOutput = SimpleKalman.Update( filter->kalmanFilter, newSignalValue, deltaTime );
     }
   }
   
-  data->samplingTime = Timing.GetExecTimeSeconds();
+  signal->samplingTime = Timing.GetExecTimeSeconds();
     
-  return sensorOutput;
+  return filterOutput;
 }
 
-void SignalProcessing_SetSensorState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )
+double SignalProcessing_GetFilterOffset( SignalFilter filter )
 {
-  if( sensor == NULL ) return;
+  if( filter == NULL ) return 0.0;
+  
+  return filter->signalData.offset;
+}
+
+void SignalProcessing_SetFilterState( SignalFilter filter, enum SignalProcessingPhase newProcessingPhase )
+{
+  if( filter == NULL ) return;
   
   if( newProcessingPhase < 0 || newProcessingPhase >= SIGNAL_PROCESSING_PHASES_NUMBER ) return;
   
-  SignalData* data = &(sensor->signalData);
+  SignalData* signal = &(filter->signalData);
 
-  if( data->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+  if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    if( data->recordedSamplesCount > 0 ) 
-      sensor->offset = data->samplesMean / data->recordedSamplesCount;
+    if( signal->recordedSamplesCount > 0 ) 
+      signal->offset = signal->samplesMean / signal->recordedSamplesCount;
   }
   
   if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
   {
-    data->calibrationMax = 0.0;
-    data->calibrationMin = 0.0;
+    signal->calibrationMax = 0.0;
+    signal->calibrationMin = 0.0;
   }
   else if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    data->samplesMean = 0.0;
-    data->recordedSamplesCount = 0;
+    signal->samplesMean = 0.0;
+    signal->recordedSamplesCount = 0;
   }
 
-  SimpleKalman.Reset( sensor->filter, 0.0 );
-  data->samplingTime = Timing.GetExecTimeSeconds();
+  SimpleKalman.Reset( filter->kalmanFilter, 0.0 );
+  signal->samplingTime = Timing.GetExecTimeSeconds();
   
-  data->processingPhase = newProcessingPhase;
+  signal->processingPhase = newProcessingPhase;
 }
 
 
