@@ -10,7 +10,7 @@
 
 enum SignalProcessingPhase { SIGNAL_PROCESSING_PHASE_MEASUREMENT, SIGNAL_PROCESSING_PHASE_CALIBRATION, SIGNAL_PROCESSING_PHASE_OFFSET, SIGNAL_PROCESSING_PHASES_NUMBER };
 
-const uint8_t SIGNAL_PROCESSING_RECTIFIED = 0x0F, SIGNAL_PROCESSING_NORMALIZED = 0xF0;
+const uint8_t SIGNAL_PROCESSING_RECTIFY = 0x0F, SIGNAL_PROCESSING_NORMALIZE = 0xF0;
 
 typedef struct _SignalData
 {
@@ -52,8 +52,8 @@ SignalFilter SignalProcessing_CreateFilter( uint8_t flags )
   
   newSensor->signalData.processingPhase = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
   
-  newSensor->signalData.isRectified = (bool) ( flags & SIGNAL_PROCESSING_RECTIFIED );
-  newSensor->signalData.isNormalized = (bool) ( flags & SIGNAL_PROCESSING_NORMALIZED );
+  newSensor->signalData.isRectified = (bool) ( flags & SIGNAL_PROCESSING_RECTIFY );
+  newSensor->signalData.isNormalized = (bool) ( flags & SIGNAL_PROCESSING_NORMALIZE );
         
   DEBUG_PRINT( "measure properties: rect: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isNormalized ); 
         

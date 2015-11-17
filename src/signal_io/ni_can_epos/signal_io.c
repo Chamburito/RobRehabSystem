@@ -26,7 +26,7 @@ typedef struct _SignalIOTaskData
   unsigned int inputChannelUsesList[ INPUT_CHANNELS_NUMBER ];
   Semaphore inputChannelLocksList[ INPUT_CHANNELS_NUMBER ];
   double measuresList[ INPUT_CHANNELS_NUMBER ];
-  bool outputChannelUsedList[ OUTPUT_CHANNELS_NUMBER ]; 
+  bool isOutputChannelUsed; 
   uint8_t readPayload[ 8 ], writePayload[ 8 ];
 }
 SignalIOTaskData;
@@ -113,7 +113,7 @@ bool HasError( int taskID )
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
   if( !task->isReading )
-    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0xFFFF, 0xFF );
+    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0x6041, 0x00 );
 
   return (bool) ( task->statusWord & FAULT );
 }
@@ -126,12 +126,12 @@ void Reset( int taskID )
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
   task->controlWord |= FAULT_RESET;
-  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0xFFFF, 0xFF, FAULT_RESET );
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6040, 0x00, task->controlWord );
   
-  Timing_Delay( 200 );
+  Timing.Delay( 200 );
   
   task->controlWord &= (~FAULT_RESET);
-  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0xFFFF, 0xFF, FAULT_RESET );
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6040, 0x00, task->controlWord );
 }
 
 bool AquireInputChannel( int taskID, unsigned int channel )
@@ -177,6 +177,25 @@ void ReleaseInputChannel( int taskID, unsigned int channel )
   }
 }
 
+void EnableOutput( int taskID, bool enable )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return;
+  
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  task->controlWord |= SWITCH_ON;
+  task->controlWord &= (~ENABLE_OPERATION);
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6040, 0x00, task->controlWord );
+  
+  Timing.Delay( 200 );
+  
+  if( enable ) task->controlWord |= ENABLE_OPERATION;
+  else task->controlWord &= (~SWITCH_ON);
+    
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6040, 0x00, task->controlWord );
+}
+
 bool IsOutputEnabled( int taskID )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
@@ -185,7 +204,7 @@ bool IsOutputEnabled( int taskID )
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
   if( !task->isReading )
-    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0xFFFF, 0xFF );
+    task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0x6041, 0x00 );
 
   return (bool) ( task->statusWord & ( SWITCHED_ON | OPERATION_ENABLED ) ) ;
 }
@@ -236,6 +255,7 @@ bool Write( int taskID, unsigned int channel, double value )
   return true;
 }
 
+static const int OPERATION_MODES[ OUTPUT_CHANNELS_NUMBER ] = { 0xFF, 0xFE, 0xFD };
 bool AquireOuputChannel( int taskID, unsigned int channel )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
@@ -247,9 +267,11 @@ bool AquireOuputChannel( int taskID, unsigned int channel )
   
   if( channel >= OUTPUT_CHANNELS_NUMBER ) return false;
   
-  if( task->outputChannelUsedList[ channel ] ) return false;
+  if( task->isOutputChannelUsed ) return false;
   
-  task->outputChannelUsedList[ channel ] = true;
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6060, 0x00, OPERATION_MODES[ channel ] );
+  
+  task->isOutputChannelUsed = true;
   
   return true;
 }
@@ -263,7 +285,9 @@ void ReleaseOutputChannel( int taskID, unsigned int channel )
   
   if( channel >= OUTPUT_CHANNELS_NUMBER ) return;
   
-  task->outputChannelUsedList[ channel ] = false;
+  CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6060, 0x00, 0x00 );
+  
+  task->isOutputChannelUsed = false;
   
   if( !IsTaskStillUsed( task ) ) EndTask( taskID );
 }
@@ -317,15 +341,9 @@ bool IsTaskStillUsed( SignalIOTask task )
         break;
       }
     }
-    for( size_t channel = 0; channel < OUTPUT_CHANNELS_NUMBER; channel++ )
-    {
-      if( task->outputChannelUsedList[ channel ] )
-      {
-        isStillUsed = true;
-        break;
-      }
-    }
   }
+  
+  if( task->isOutputChannelUsed ) isStillUsed = true;
   
   return isStillUsed;
 }
@@ -349,6 +367,8 @@ SignalIOTask LoadTaskData( const char* taskConfig )
   
   for( unsigned int channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
     newTask->inputChannelLocksList[ channel ] = Semaphores.Create( 0, SIGNAL_INPUT_CHANNEL_MAX_USES );
+  
+  newTask->isOutputChannelUsed = false;
   
   if( loadError )
   {

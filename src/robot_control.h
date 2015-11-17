@@ -308,63 +308,58 @@ static inline RobotController LoadControllerData( const char* configFileName )
   
   RobotController newController = NULL;
   
-  if( ConfigParsing.IsAvailable() )
+  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
     ParserInterface parser = ConfigParsing.GetParser();
     
     newController = (RobotController) malloc( sizeof(RobotControllerData) );
     memset( newController, 0, sizeof(RobotControllerData) );
   
-    int configFileID = parser.LoadFileData( configFileName );
-    if( configFileID != PARSED_DATA_INVALID_ID )
+    bool loadSuccess = false;
+    GET_PLUGIN_INTERFACE( ROBOT_MECHANICS_FUNCTIONS, parser.GetStringValue( configFileID, "", "mechanics" ), newController->mechanism, loadSuccess );
+    if( loadSuccess )
     {
-      bool loadSuccess = false;
-      GET_PLUGIN_INTERFACE( ROBOT_MECHANICS_FUNCTIONS, parser.GetStringValue( configFileID, "", "mechanics" ), newController->mechanism, loadSuccess );
-      if( loadSuccess )
+      newController->dofsNumber = newController->mechanism.GetDoFsNumber();
+
+      newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
+      newController->dofsList = (DoF) calloc( newController->dofsNumber, sizeof(DoFData) );
+      newController->jointMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->jointSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->dofMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->dofSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+
+      for( size_t jointIndex = 0; jointIndex < newController->dofsNumber; jointIndex++ )
       {
-        newController->dofsNumber = newController->mechanism.GetDoFsNumber();
-      
-        newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
-        newController->dofsList = (DoF) calloc( newController->dofsNumber, sizeof(DoFData) );
-        newController->jointMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-        newController->jointSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-        newController->dofMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-        newController->dofSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-      
-        for( size_t jointIndex = 0; jointIndex < newController->dofsNumber; jointIndex++ )
+        newController->jointsList[ jointIndex ] = ActuatorControl.InitController( parser.GetStringValue( configFileID, "", "joints.%lu", jointIndex ) );
+        if( newController->jointsList[ jointIndex ] != NULL )
         {
-          newController->jointsList[ jointIndex ] = ActuatorControl.InitController( parser.GetStringValue( configFileID, "", "joints.%lu", jointIndex ) );
-          if( newController->jointsList[ jointIndex ] != NULL )
-          {
-            newController->jointMeasuresTable[ jointIndex ] = ActuatorControl.GetMeasuresList( newController->jointsList[ jointIndex ] );
-            newController->jointSetpointsTable[ jointIndex ] = ActuatorControl.GetSetpointsList( newController->jointsList[ jointIndex ] );
-          }
-          else loadSuccess = false;
+          newController->jointMeasuresTable[ jointIndex ] = ActuatorControl.GetMeasuresList( newController->jointsList[ jointIndex ] );
+          newController->jointSetpointsTable[ jointIndex ] = ActuatorControl.GetSetpointsList( newController->jointsList[ jointIndex ] );
         }
-      
-        for( size_t dofIndex = 0; dofIndex < newController->dofsNumber; dofIndex++ )
-        {
-          memset( &(newController->dofsList[ dofIndex ]), 0, sizeof(DoFData) );
-          newController->dofMeasuresTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].measuresList;
-          newController->dofSetpointsTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].setpointsList;
-        }
+        else loadSuccess = false;
       }
-    
-      parser.UnloadData( configFileID );
-      
-      if( !loadSuccess )
+
+      for( size_t dofIndex = 0; dofIndex < newController->dofsNumber; dofIndex++ )
       {
-        UnloadControllerData( newController );
-        return NULL;
+        memset( &(newController->dofsList[ dofIndex ]), 0, sizeof(DoFData) );
+        newController->dofMeasuresTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].measuresList;
+        newController->dofSetpointsTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].setpointsList;
       }
-      
-      DEBUG_PRINT( "robot controller %s created", configFileName );
     }
-    else
-      DEBUG_PRINT( "configuration file for controller %s not found", configFileName );
+
+    parser.UnloadData( configFileID );
+
+    if( !loadSuccess )
+    {
+      UnloadControllerData( newController );
+      return NULL;
+    }
+
+    DEBUG_PRINT( "robot controller %s created", configFileName );
   }
   else
-    DEBUG_PRINT( "configuration parser for controller %s not available", configFileName );
+    DEBUG_PRINT( "configuration for controller %s is not available", configFileName );
   
   return newController;
 }

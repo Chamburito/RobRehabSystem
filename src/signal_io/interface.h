@@ -15,6 +15,7 @@ const int SIGNAL_IO_TASK_INVALID_ID = -1;
         function_init( bool, interface, Read, int, unsigned int, double* ) \
         function_init( bool, interface, AquireInputChannel, int, unsigned int ) \
         function_init( void, interface, ReleaseInputChannel, int, unsigned int ) \
+        function_init( void, interface, EnableOutput, int, bool ) \
         function_init( bool, interface, IsOutputEnabled, int ) \
         function_init( bool, interface, Write, int, unsigned int, double ) \
         function_init( bool, interface, AquireOutputChannel, int, unsigned int ) \

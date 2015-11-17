@@ -3,22 +3,20 @@
 
 #include "interface.h"
 
-#include "axis/axis_motor.h"
-#include "axis/axis_sensor.h"
+#include "config_parser.h"
+
+#include "motors.h"
+#include "sensors.h"
 
 #include "control_interface.h"
-#include "filters.h"
-
-#include "config_parser.h"
 #include "plugin_loader.h"
 
 #include "debug/async_debug.h"
 
 typedef struct _ActuatorData
 {
-  AxisMotor motor;
-  AxisSensor encoder, forceSensor;
-  KalmanFilter positionFilter, forceFilter;
+  Motor motor;
+  Sensor encoder, forceSensor;
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double controlError;
@@ -50,51 +48,51 @@ INIT_NAMESPACE_INTERFACE( ActuatorControl, ACTUATOR_FUNCTIONS )
 
 static void* AsyncControl( void* );
 
+const char* CONTROL_MODE_NAMES[ CONTROL_VARS_NUMBER ] = { "POSITION", "VELOCITY", "FORCE" };
 Actuator ActuatorControl_InitController( const char* configFileName )
 {
   DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
   
   Actuator newActuator = NULL;
   
-  if( ConfigParsing.IsAvailable() )
+  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  if( configFileID != PARSED_DATA_INVALID_ID )
   {
     ParserInterface parser = ConfigParsing.GetParser();
   
     newActuator = (Actuator) malloc( sizeof(ActuatorData) );
     memset( newActuator, 0, sizeof(ActuatorData) );
 
-    int configFileID = parser.LoadFileData( configFileName );
-    if( configFileID != PARSED_DATA_INVALID_ID )
+    bool loadSuccess = true;
+
+    if( (newActuator->motor = Motors.Init( parser.GetStringValue( configFileID, "", "motor" ) )) == NULL ) loadSuccess = false;
+    if( (newActuator->encoder = Sensors.Init( parser.GetStringValue( configFileID, "", "encoder" ) )) == NULL ) loadSuccess = false;
+    if( (newActuator->forceSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "force_sensor" ) )) == NULL ) loadSuccess = false;
+
+    newActuator->controlMode = CONTROL_POSITION;
+    char* controlModeName = parser.GetStringValue( configFileID, CONTROL_MODE_NAMES[ CONTROL_POSITION ], "control.variable" );
+    for( int controlModeIndex = 0; controlModeIndex < CONTROL_VARS_NUMBER; controlModeIndex++ )
     {
-      bool loadSuccess = true;
-      
-      if( (newActuator->motor = AxisMotors.Init( parser.GetStringValue( configFileID, "", "motor" ) )) == NULL ) loadSuccess = false;
-      if( (newActuator->encoder = AxisSensors.Init( parser.GetStringValue( configFileID, "", "encoder" ) )) == NULL ) loadSuccess = false;
-      if( (newActuator->forceSensor = AxisSensors.Init( parser.GetStringValue( configFileID, "", "force_sensor" ) )) == NULL ) loadSuccess = false;
-    
-      GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, parser.GetStringValue( configFileID, "", "control_function" ), newActuator->control, loadSuccess );
-      if( loadSuccess ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
-    
-      newActuator->positionFilter = SimpleKalman.CreateFilter( 3, 0.0 );
-      newActuator->forceFilter = SimpleKalman.CreateFilter( 1, 0.0 );
-    
-      parser.UnloadData( configFileID );
-      
-      if( !loadSuccess )
-      {
-        ActuatorControl_EndController( newActuator );
-        return NULL;
-      }
-
-      DEBUG_PRINT( "created series elastic actuator %s", configFileName );
-
-      ActuatorControl_Enable( newActuator );
+      if( strcmp( controlModeName, CONTROL_MODE_NAMES[ controlModeIndex ] ) == 0 ) newActuator->controlMode = controlModeIndex;
     }
-    else
-      DEBUG_PRINT( "configuration file for series elastic actuator %s not found", configFileName );
+    
+    GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, parser.GetStringValue( configFileID, "", "control.function" ), newActuator->control, loadSuccess );
+    if( loadSuccess ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
+
+    parser.UnloadData( configFileID );
+
+    if( !loadSuccess )
+    {
+      ActuatorControl_EndController( newActuator );
+      return NULL;
+    }
+
+    DEBUG_PRINT( "created series elastic actuator %s", configFileName );
+
+    ActuatorControl_Enable( newActuator );
   }
   else
-    DEBUG_PRINT( "configuration parser for series elastic actuator %s not available", configFileName );
+    DEBUG_PRINT( "configuration for series elastic actuator %s is not available", configFileName );
   
   return newActuator;
 }
@@ -105,60 +103,57 @@ void ActuatorControl_EndController( Actuator actuator )
   
   if( actuator == NULL ) return;
   
-  AxisMotors.End( actuator->motor );
-  AxisSensors.End( actuator->encoder );
-  AxisSensors.End( actuator->forceSensor );
-  
-  SimpleKalman.DiscardFilter( actuator->positionFilter );
-  SimpleKalman.DiscardFilter( actuator->forceFilter );
+  Motors.End( actuator->motor );
+  Sensors.End( actuator->encoder );
+  Sensors.End( actuator->forceSensor );
 }
 
 void ActuatorControl_Enable( Actuator actuator )
 {
   if( actuator == NULL ) return;
     
-  AxisMotors.Enable( actuator->motor );
+  Motors.Enable( actuator->motor );
 }
 
 void ActuatorControl_Disable( Actuator actuator )
 {
   if( actuator == NULL ) return;
     
-  AxisMotors.Disable( actuator->motor );
+  Motors.Disable( actuator->motor );
 }
 
 void ActuatorControl_Reset( Actuator actuator )
 {
   if( actuator == NULL ) return;
     
-  AxisMotors.Reset( actuator->motor );
-  AxisSensors.Reset( actuator->encoder );
-  AxisSensors.Reset( actuator->forceSensor );
+  Motors.Reset( actuator->motor );
+  Sensors.Reset( actuator->encoder );
+  Sensors.Reset( actuator->forceSensor );
 }
 
 void ActuatorControl_Calibrate( Actuator actuator )
 {
   if( actuator == NULL ) return;
 
-  AxisMotors.SetOffset( actuator->motor );
-  AxisSensors.SetOffset( actuator->encoder );
-  AxisSensors.SetOffset( actuator->forceSensor );
+  Motors.SetOffset( actuator->motor );
+  Sensors.SetOffset( actuator->encoder );
+  Sensors.SetOffset( actuator->forceSensor );
 }
 
 bool ActuatorControl_IsEnabled( Actuator actuator )
 {
   if( actuator == NULL ) return false;
     
-  return AxisMotors.IsEnabled( actuator->motor );
+  return Motors.IsEnabled( actuator->motor );
 }
 
 bool ActuatorControl_HasError( Actuator actuator )
 {
   if( actuator == NULL ) return false;
     
-  if( AxisMotors.HasError( actuator->motor ) ) return true;
-  else if( AxisSensors.HasError( actuator->encoder ) ) return true;
-  else if( AxisSensors.HasError( actuator->forceSensor ) ) return true;
+  if( Motors.HasError( actuator->motor ) ) return true;
+  else if( Sensors.HasError( actuator->encoder ) ) return true;
+  else if( Sensors.HasError( actuator->forceSensor ) ) return true;
   
   return false;
 }
@@ -177,14 +172,12 @@ double* ActuatorControl_GetSetpointsList( Actuator actuator )
   return (double*) actuator->setpointsList;
 }
 
-const enum AxisMotorVariables MOTOR_OPERATION_MODES[ CONTROL_VARS_NUMBER ] = { AXIS_POSITION, AXIS_VELOCITY, AXIS_FORCE };
 void ActuatorControl_SetOperationMode( Actuator actuator, enum ControlVariables mode )
 {
   if( actuator == NULL ) return;
   
   if( mode < 0 || mode >= CONTROL_VARS_NUMBER ) return;
   
-  AxisMotors.SetOperationMode( actuator->motor, MOTOR_OPERATION_MODES[ mode ] );
   actuator->controlMode = mode;
 }
 
@@ -239,22 +232,16 @@ static void* AsyncControl( void* data )
 
 static inline void UpdateControlMeasures( Actuator actuator )
 {
-  DEBUG_UPDATE( "reading axes from actuator %p", actuator );
-  double* motorMeasuresList = AxisMotors.ReadMeasures( actuator->motor );
-  if( motorMeasuresList != NULL )
+  DEBUG_UPDATE( "reading measures from actuator %p", actuator );
+  double* filteredPositionSignal = Sensors.Update( actuator->encoder );
+  double* filteredForceSignal = Sensors.Update( actuator->forceSensor );
+  if( filteredPositionSignal != NULL && filteredForceSignal != NULL )
   {
-    double position = AxisSensors.Read( actuator->encoder, motorMeasuresList );
-    double forceMeasure = AxisSensors.Read( actuator->forceSensor, motorMeasuresList );
-    
-    DEBUG_UPDATE( "filtering measures from actuator %p", actuator );
-    double* filteredMeasuresList = SimpleKalman.Update( actuator->positionFilter, position, CONTROL_SAMPLING_INTERVAL );
-
-    actuator->measuresList[ CONTROL_POSITION ] = filteredMeasuresList[ 0 ];
-    actuator->measuresList[ CONTROL_VELOCITY ] = filteredMeasuresList[ 1 ];
+    actuator->measuresList[ CONTROL_POSITION ] = filteredPositionSignal[ 0 ];
+    actuator->measuresList[ CONTROL_VELOCITY ] = filteredPositionSignal[ 1 ];
     //actuator->measuresList[ CONTROL_ACCELERATION ] = filteredMeasuresList[ 2 ];
 
-    filteredMeasuresList = SimpleKalman.Update( actuator->positionFilter, forceMeasure, CONTROL_SAMPLING_INTERVAL );
-    actuator->measuresList[ CONTROL_FORCE ] = filteredMeasuresList[ 0 ];
+    actuator->measuresList[ CONTROL_FORCE ] = filteredForceSignal[ 0 ];
   
     //DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
   }
@@ -272,12 +259,12 @@ static inline void RunControl( Actuator actuator )
 {
   // If the motor is being actually controlled, call control pass algorhitm
   
-  if( AxisMotors.IsEnabled( actuator->motor ) )
+  if( Motors.IsEnabled( actuator->motor ) )
   {
     double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_SAMPLING_INTERVAL, &(actuator->controlError) );
     //DEBUG_PRINT( "force: %.3f - control: %.3f", actuator->measuresList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
     
-    AxisMotors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
+    Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
   }
 }
 

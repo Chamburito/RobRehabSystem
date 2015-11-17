@@ -84,6 +84,16 @@ void EndTask( int taskID )
   }
 }
 
+void Reset( int taskID )
+{
+  return;
+}
+
+bool HasError( int taskID )
+{
+  return false;
+}
+
 bool Read( int taskID, unsigned int channel, double* ref_value )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
@@ -99,7 +109,7 @@ bool Read( int taskID, unsigned int channel, double* ref_value )
  
   DEBUG_PRINT( "%lu reads left of %u", Semaphores.GetCount( task->channelLocksList[ channel ] ), task->channelUsesList[ channel ] );
   
-  //Semaphores.Decrement( task->channelLocksList[ channel ] );
+  Semaphores.Decrement( task->channelLocksList[ channel ] );
   
   DEBUG_PRINT( "%lu reads left of %u", Semaphores.GetCount( task->channelLocksList[ channel ] ), task->channelUsesList[ channel ] );
   
@@ -142,12 +152,20 @@ void ReleaseInputChannel( int taskID, unsigned int channel )
   (void) CheckTask( task );
 }
 
+void EnableOutput( int taskID, bool enable )
+{
+  return;
+}
+
+bool IsOutputEnabled( int taskID )
+{
+  return true;
+}
+
 bool Write( int taskID, unsigned int channel, double value )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
   if( taskIndex == kh_end( tasksList ) ) return false;
-  
-  //DEBUG_PRINT( "aquiring channel %u from task %d", channel, taskID );
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
@@ -214,6 +232,8 @@ static void* AsyncReadBuffer( void* callbackData )
   
   task->isRunning = true;
   
+  DEBUG_PRINT( "initializing read thread %lx", THREAD_ID );
+  
   while( task->isRunning )
   {
     int errorCode = DAQmxReadAnalogF64( task->handle, AQUISITION_BUFFER_LENGTH, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, 
@@ -223,7 +243,6 @@ static void* AsyncReadBuffer( void* callbackData )
     {
       static char errorMessage[ DEBUG_MESSAGE_LENGTH ];
       DAQmxGetErrorString( errorCode, errorMessage, DEBUG_MESSAGE_LENGTH );
-      DEBUG_PRINT( "error aquiring analog signal: %s", errorMessage );
     }
     else
     {
@@ -333,8 +352,9 @@ SignalIOTask LoadTaskData( const char* taskName )
           
           newTask->mode = WRITE;
         }
-                            
-        if( newTask->threadID == INVALID_THREAD_HANDLE ) loadError = true;
+        
+        newTask->isRunning = false;
+        newTask->threadID = INVALID_THREAD_HANDLE;
       }
       else
       {

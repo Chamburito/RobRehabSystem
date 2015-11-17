@@ -172,7 +172,7 @@ int CANNetwork_ReadSingleValue( CANFrame requestFrame, CANFrame readFrame, uint1
   return value;
 }
 
-int CANNetwork_WriteSingleValue( CANFrame writeFrame, uint16_t index, uint8_t subIndex, int value )
+void CANNetwork_WriteSingleValue( CANFrame writeFrame, uint16_t index, uint8_t subIndex, int value )
 {
   // Build read requisition buffer for defined value
   static u8 payload[ 8 ];
