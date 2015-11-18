@@ -78,8 +78,6 @@ double* SignalProcessing_UpdateFilter( SignalFilter filter, double newSignalValu
   SignalData* signal = &(filter->signalData);
   
   double* filterOutput = NULL;
-  
-  DEBUG_PRINT( "updating filter %p", filter );
     
   if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
@@ -108,6 +106,7 @@ double* SignalProcessing_UpdateFilter( SignalFilter filter, double newSignalValu
       }
 
       double deltaTime = Timing.GetExecTimeSeconds() - signal->samplingTime;
+      //DEBUG_PRINT( "filter %p delta time: %g", filter, deltaTime );
       filterOutput = SimpleKalman.Update( filter->kalmanFilter, newSignalValue, deltaTime );
     }
   }

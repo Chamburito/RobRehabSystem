@@ -1,9 +1,11 @@
 {
   "interface": {
-    "type": "axis_interfaces/NICANEPOS",
-    "id": 1
+    "type": "signal_io/NICANEPOS",
+    "name": "1",
+    "output_channel": 0
   },
-  "encoder_resolution": 4096,
-  "force_constant": 0.0302,
-  "gear_reduction": 150
+  "output_gain": {
+    "multiplier": 4096,
+    "divisor": 1
+  }
 }

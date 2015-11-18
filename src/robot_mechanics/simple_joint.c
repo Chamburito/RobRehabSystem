@@ -11,7 +11,7 @@ size_t GetDoFsNumber( void )
 
 void GetForwardKinematics( double** jointValuesTable, double* dofValuesList, size_t dofIndex )
 {
-  DEBUG_PRINT( "calculating forward kinematics for dof %lu", dofIndex );
+  //DEBUG_PRINT( "calculating forward kinematics for dof %lu", dofIndex );
   
   dofValuesList[ ROBOT_POSITION ] = jointValuesTable[ 0 ][ ROBOT_POSITION ];
   dofValuesList[ ROBOT_VELOCITY ] = jointValuesTable[ 0 ][ ROBOT_VELOCITY ];
@@ -20,7 +20,7 @@ void GetForwardKinematics( double** jointValuesTable, double* dofValuesList, siz
 
 void GetInverseKinematics( double** dofValuesTable, double* jointValuesList, size_t jointIndex )
 {
-  DEBUG_PRINT( "calculating inverse kinematics for joint %lu", jointIndex );
+  //DEBUG_PRINT( "calculating inverse kinematics for joint %lu", jointIndex );
   
   jointValuesList[ ROBOT_POSITION ] = dofValuesTable[ 0 ][ ROBOT_POSITION ];
   jointValuesList[ ROBOT_VELOCITY ] = dofValuesTable[ 0 ][ ROBOT_VELOCITY ];
@@ -29,7 +29,7 @@ void GetInverseKinematics( double** dofValuesTable, double* jointValuesList, siz
 
 void GetForwardDynamics( double** jointValuesTable, double* dofValuesList, size_t dofIndex )
 {
-  DEBUG_PRINT( "calculating forward dynamics for dof %lu", dofIndex );
+  //DEBUG_PRINT( "calculating forward dynamics for dof %lu", dofIndex );
   
   dofValuesList[ ROBOT_POSITION ] = jointValuesTable[ 0 ][ ROBOT_POSITION ];
   dofValuesList[ ROBOT_VELOCITY ] = jointValuesTable[ 0 ][ ROBOT_VELOCITY ];
@@ -38,7 +38,7 @@ void GetForwardDynamics( double** jointValuesTable, double* dofValuesList, size_
 
 void GetInverseDynamics( double** dofValuesTable, double* jointValuesList, size_t jointIndex )
 {
-  DEBUG_PRINT( "calculating inverse dynamics for joint %lu", jointIndex );
+  //DEBUG_PRINT( "calculating inverse dynamics for joint %lu", jointIndex );
   
   jointValuesList[ ROBOT_POSITION ] = dofValuesTable[ 0 ][ ROBOT_POSITION ];
   jointValuesList[ ROBOT_VELOCITY ] = dofValuesTable[ 0 ][ ROBOT_VELOCITY ];

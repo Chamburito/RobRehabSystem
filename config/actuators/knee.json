@@ -2,5 +2,8 @@
   "motor": "motors/knee",
   "encoder": "sensors/knee_position",
   "force_sensor": "sensors/knee_force",
-  "control_function": "control/ForcePIControl"
+  "control": {
+    "variable": "VELOCITY",
+    "function": "control/ForcePIControl"
+  }
 }

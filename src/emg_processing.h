@@ -251,8 +251,6 @@ double EMGProcessing_SetJointMuscleGain( int jointID, size_t muscleIndex, enum E
   return muscle->gainsList[ gainIndex ];
 }
 
-//const double ACTIVE_FORCE_COEFFS[] = { 0.581359097121952, -1.023853722108468, -1.988129364006696, 4.208590538437200, -1.222906314763417, 0.443815500946629 };
-//const double PASSIVE_FORCE_COEFFS[] = { -1.746618652817642,  8.266939015253374, -14.364808017099560, 11.877489584777614, -4.933453643876041, 0.973170918828070, -0.071230938136188 };
 double EMGProcessing_GetJointMuscleTorque( int jointID, size_t muscleIndex, double normalizedSignal, double jointAngle )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );

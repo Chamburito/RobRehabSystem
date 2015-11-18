@@ -1,13 +1,9 @@
 {
   "robots": [
     {
-      "name": "simple_joint",
-      "dofs": [
-        "theta"
-      ],
-      "joints": [
-        "emg_joints/knee"
-      ]
+      "name": "robots/simple_joint",
+      "dofs": [ "theta" ],
+      "joints": [ "emg_joints/knee" ]
     }
   ]
 }

@@ -56,13 +56,13 @@ Sensor Sensors_Init( const char* configFileName )
     memset( newSensor, 0, sizeof(SensorData) );
     
     bool loadSuccess;
-    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, parser.GetStringValue( configFileID, "", "aquisition_system.type" ), newSensor->interface, loadSuccess );
+    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, parser.GetStringValue( configFileID, "", "interface.type" ), newSensor->interface, loadSuccess );
     if( loadSuccess )
     {
-      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "aquisition_system.task" ) );
+      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "interface.name" ) );
       if( newSensor->taskID != SIGNAL_IO_TASK_INVALID_ID )
       {
-        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "aquisition_system.channel" );
+        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.input_channel" );
         loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
         
         newSensor->gain = parser.GetRealValue( configFileID, 1.0, "signal_processing.input_gain.multiplier" );
@@ -73,7 +73,7 @@ Sensor Sensors_Init( const char* configFileName )
         if( parser.GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) filterFlags |= SIGNAL_PROCESSING_NORMALIZE;
         newSensor->filter = SignalProcessing.CreateFilter( filterFlags );
         
-        newSensor->measurementCurve = CurveInterpolation.LoadCurveString( parser.GetStringValue( configFileID, NULL, "measurement_curve" ) );
+        newSensor->measurementCurve = CurveInterpolation.LoadCurveString( parser.GetStringValue( configFileID, NULL, "conversion_curve" ) );
         
         if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
         {
@@ -83,6 +83,8 @@ Sensor Sensors_Init( const char* configFileName )
         
         char* referenceName = parser.GetStringValue( configFileID, "", "relative_to" );
         if( strcmp( referenceName, configFileName ) != 0 && strcmp( referenceName, "" ) != 0 ) newSensor->reference = Sensors_Init( referenceName );
+        
+        newSensor->interface.Reset( newSensor->taskID );
       }
       else loadSuccess = false;
     }
@@ -124,13 +126,16 @@ double* Sensors_Update( Sensor sensor )
   
   double* sensorOutput = NULL;
   
-  DEBUG_PRINT( "updating sensor channel %d-%u", sensor->taskID, sensor->channel );
+  //DEBUG_PRINT( "updating sensor channel %d-%u", sensor->taskID, sensor->channel );
   
   double signal;
   if( sensor->interface.Read( sensor->taskID, sensor->channel, &signal ) )
   {
-    DEBUG_PRINT( "channel %u value: %g", sensor->channel, signal );
     sensorOutput = SignalProcessing.UpdateFilter( sensor->filter, signal * sensor->gain );
+    
+    //DEBUG_PRINT( "channel %u: value: %g - gain: %g - filtered: %g", sensor->channel, signal, sensor->gain, sensorOutput[ 0 ] );
+    
+    if( sensor->reference != NULL ) DEBUG_PRINT( "updating reference %d-%u", sensor->reference->taskID, sensor->reference->channel );
     
     double* referenceOutput = Sensors_Update( sensor->reference );
     if( referenceOutput != NULL ) sensorOutput[ 0 ] -= referenceOutput[ 0 ];
@@ -139,6 +144,20 @@ double* Sensors_Update( Sensor sensor )
   }
     
   return sensorOutput;
+}
+
+bool Sensors_HasError( Sensor sensor )
+{
+  if( sensor == NULL ) return false;
+  
+  return sensor->interface.HasError( sensor->taskID );
+}
+
+void Sensors_Reset( Sensor sensor )
+{
+  if( sensor == NULL ) return;
+  
+  sensor->interface.Reset( sensor->taskID );
 }
 
 void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )

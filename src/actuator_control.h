@@ -17,6 +17,7 @@ typedef struct _ActuatorData
 {
   Motor motor;
   Sensor encoder, forceSensor;
+  enum SignalProcessingPhase sensorState;
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double controlError;
@@ -36,12 +37,12 @@ typedef ActuatorData* Actuator;
         function_init( void, namespace, Enable, Actuator ) \
         function_init( void, namespace, Disable, Actuator ) \
         function_init( void, namespace, Reset, Actuator ) \
+        function_init( void, namespace, SetOffset, Actuator ) \
         function_init( void, namespace, Calibrate, Actuator ) \
         function_init( bool, namespace, IsEnabled, Actuator ) \
         function_init( bool, namespace, HasError, Actuator ) \
         function_init( double*, namespace, GetMeasuresList, Actuator ) \
-        function_init( double*, namespace, GetSetpointsList, Actuator ) \
-        function_init( void, namespace, SetOperationMode, Actuator, enum ControlVariables )
+        function_init( double*, namespace, GetSetpointsList, Actuator )
 
 INIT_NAMESPACE_INTERFACE( ActuatorControl, ACTUATOR_FUNCTIONS )
 
@@ -69,6 +70,8 @@ Actuator ActuatorControl_InitController( const char* configFileName )
     if( (newActuator->encoder = Sensors.Init( parser.GetStringValue( configFileID, "", "encoder" ) )) == NULL ) loadSuccess = false;
     if( (newActuator->forceSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "force_sensor" ) )) == NULL ) loadSuccess = false;
 
+    newActuator->sensorState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
+    
     newActuator->controlMode = CONTROL_POSITION;
     char* controlModeName = parser.GetStringValue( configFileID, CONTROL_MODE_NAMES[ CONTROL_POSITION ], "control.variable" );
     for( int controlModeIndex = 0; controlModeIndex < CONTROL_VARS_NUMBER; controlModeIndex++ )
@@ -131,13 +134,36 @@ void ActuatorControl_Reset( Actuator actuator )
   Sensors.Reset( actuator->forceSensor );
 }
 
+void ActuatorControl_SetOffset( Actuator actuator )
+{
+  if( actuator == NULL ) return;
+
+  if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_OFFSET )
+  {
+    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+    Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+  }
+  else
+  {
+    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_OFFSET );
+    Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_OFFSET );
+  }
+}
+
 void ActuatorControl_Calibrate( Actuator actuator )
 {
   if( actuator == NULL ) return;
 
-  Motors.SetOffset( actuator->motor );
-  Sensors.SetOffset( actuator->encoder );
-  Sensors.SetOffset( actuator->forceSensor );
+  if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+  {
+    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+    Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+  }
+  else
+  {  
+    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_CALIBRATION );
+    Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_CALIBRATION );
+  }
 }
 
 bool ActuatorControl_IsEnabled( Actuator actuator )
@@ -243,7 +269,7 @@ static inline void UpdateControlMeasures( Actuator actuator )
 
     actuator->measuresList[ CONTROL_FORCE ] = filteredForceSignal[ 0 ];
   
-    //DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
+    DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
   }
 }
 

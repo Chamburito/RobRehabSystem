@@ -58,6 +58,8 @@ CANFrame CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, const
   frame->name = (char*) calloc( strlen(frameName) + 1, sizeof(char) );
   strcpy( frame->name, frameName );
   
+  DEBUG_PRINT( "creating frame %s of type %d and mode %d", frame->name, frame->type, mode );
+  
   //Create an xnet session
   nxStatus_t statusCode = nxCreateSession( databaseName, clusterName, frameName, interfaceName, (u32) mode, &(frame->ref_session) );
   if( statusCode != nxSuccess )
@@ -67,7 +69,7 @@ CANFrame CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, const
     return NULL;
   }
   
-  DEBUG_EVENT( 1,  "created frame %s session %u", frameName, frame->ref_session );
+  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "created frame %s session %u", frameName, frame->ref_session );
 
   return frame;
 }

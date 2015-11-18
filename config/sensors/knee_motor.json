@@ -1,12 +1,12 @@
 {
   "interface": {
     "type": "signal_io/NICANEPOS",
-    "name": "2",
+    "name": "1",
     "input_channel": 0
   },
   "input_gain": {
-    "multiplier": -1,
-    "divisor": 2000
+    "multiplier": 1,
+    "divisor": 4096
   },
   "log_data": false
 }

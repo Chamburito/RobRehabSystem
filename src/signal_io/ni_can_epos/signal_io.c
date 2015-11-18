@@ -102,6 +102,8 @@ bool Read( int taskID, unsigned int channel, double* ref_value )
     
   *ref_value = task->measuresList[ channel ];
   
+  DEBUG_PRINT( "task %d and channel %u value: %g", taskID, channel, *ref_value );
+  
   return true;
 }
 
@@ -255,19 +257,20 @@ bool Write( int taskID, unsigned int channel, double value )
   return true;
 }
 
-static const int OPERATION_MODES[ OUTPUT_CHANNELS_NUMBER ] = { 0xFF, 0xFE, 0xFD };
 bool AquireOuputChannel( int taskID, unsigned int channel )
 {
+  const int OPERATION_MODES[ OUTPUT_CHANNELS_NUMBER ] = { 0xFF, 0xFE, 0xFD };
+  
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
   if( taskIndex == kh_end( tasksList ) ) return false;
-  
-  //DEBUG_PRINT( "aquiring channel %u from task %d", channel, taskID );
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
   if( channel >= OUTPUT_CHANNELS_NUMBER ) return false;
   
   if( task->isOutputChannelUsed ) return false;
+  
+  DEBUG_PRINT( "setting operation mode %X", OPERATION_MODES[ channel ] );
   
   CANNetwork_WriteSingleValue( task->writeFramesList[ SDO ], 0x6060, 0x00, OPERATION_MODES[ channel ] );
   
@@ -304,7 +307,7 @@ static void* AsyncReadBuffer( void* callbackData )
     CANNetwork_Sync();
   
     // Read values from PDO01 (Position, Current and Status Word) to buffer
-    CANFrame_Read( task->readFramesList[ 0 ], task->readPayload );  
+    CANFrame_Read( task->readFramesList[ PDO01 ], task->readPayload );  
     // Update values from PDO01
     task->measuresList[ INPUT_POSITION ] = task->readPayload[ 3 ] * 0x1000000 + task->readPayload[ 2 ] * 0x10000 + task->readPayload[ 1 ] * 0x100 + task->readPayload[ 0 ];
     int currentHEX = task->readPayload[ 5 ] * 0x100 + task->readPayload[ 4 ];
@@ -314,7 +317,7 @@ static void* AsyncReadBuffer( void* callbackData )
     task->statusWord = task->readPayload[ 7 ] * 0x100 + task->readPayload[ 6 ];
   
     // Read values from PDO02 (Velocity and Tension) to buffer
-    CANFrame_Read( task->readFramesList[ 1 ], task->readPayload );  
+    CANFrame_Read( task->readFramesList[ PDO02 ], task->readPayload );  
     // Update values from PDO02
     task->measuresList[ INPUT_VELOCITY ] = task->readPayload[ 3 ] * 0x1000000 + task->readPayload[ 2 ] * 0x10000 + task->readPayload[ 1 ] * 0x100 + task->readPayload[ 0 ];
     task->measuresList[ INPUT_ANALOG ] = task->readPayload[ 5 ] * 0x100 + task->readPayload[ 4 ];

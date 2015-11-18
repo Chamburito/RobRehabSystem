@@ -102,6 +102,8 @@ CANFrame CANNetwork_InitFrame( enum CANFrameTypes type, enum CANFrameMode mode, 
   
   snprintf( frameAddress, ADDRESS_MAX_LENGTH, "%s_%s_%02u", CAN_FRAME_NAMES[ type ], modeName, nodeID );
   
+  DEBUG_PRINT( "creating frame %s on mode %d", frameAddress, mode );
+  
   if( framesList == NULL ) CANNetwork_Start();
   
   int insertionStatus;

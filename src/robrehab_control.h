@@ -46,10 +46,11 @@ int RobRehabControl_Init()
 
   if( ConfigParsing.Init( "JSON" ) )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
-    int configFileID = parser.LoadFileData( "shared_robots" );
+    int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
     if( configFileID != -1 )
     {
+      ParserInterface parser = ConfigParsing.GetParser(); 
+      
       if( parser.HasKey( configFileID, "robots" ) )
       {
         size_t sharedRobotsNumber = parser.GetListSize( configFileID, "robots" );
@@ -59,7 +60,7 @@ int RobRehabControl_Init()
         char robotVarName[ PARSER_MAX_KEY_PATH_LENGTH ];
         for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
         {
-          char* robotName = parser.GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
+          char* robotName = parser.GetStringValue( configFileID, NULL, "robots.%lu.name", sharedRobotIndex );
           if( robotName != NULL )
           {
             int robotControllerID = RobotControl.InitController( robotName );
@@ -133,11 +134,12 @@ void RobRehabControl_Update()
     uint8_t command = SHMControl.GetByteValue( sharedDoF, SHM_CONTROL_REMOVE );
     if( command != SHM_CONTROL_BYTE_NULL )
     {
-      //DEBUG_PRINT( "received command: %x", command );
+      DEBUG_PRINT( "received command: %x", command );
 
       if( command == SHM_COMMAND_ENABLE ) RobotControl.Enable( robotControllerID );
       else if( command == SHM_COMMAND_DISABLE ) RobotControl.Disable( robotControllerID );
       else if( command == SHM_COMMAND_RESET ) RobotControl.Reset( robotControllerID );
+      else if( command == SHM_COMMAND_OFFSET ) RobotControl.SetOffset( robotControllerID );
       else if( command == SHM_COMMAND_CALIBRATE ) RobotControl.Calibrate( robotControllerID );
 
       if( RobotControl.IsEnabled( robotControllerID ) ) SHMControl.SetByteValue( sharedDoF, SHM_STATE_ENABLED );
@@ -184,8 +186,8 @@ void RobRehabControl_Update()
     if( jointMeasuresList != NULL )
     {
       SHMControl.GetNumericValuesList( sharedJoint, controlValuesList, SHM_CONTROL_PEEK );
-      controlValuesList[ SHM_JOINT_ANGLE ] = (float) jointMeasuresList[ CONTROL_POSITION ] ;
-      controlValuesList[ SHM_JOINT_ID_TORQUE ] = (float) jointMeasuresList[ CONTROL_FORCE ] ;
+      controlValuesList[ SHM_JOINT_ANGLE ] = (float) jointMeasuresList[ CONTROL_POSITION ];
+      controlValuesList[ SHM_JOINT_ID_TORQUE ] = (float) jointMeasuresList[ CONTROL_FORCE ];
       SHMControl.SetNumericValuesList( sharedJoint, controlValuesList, 0xFF );
     }
   }

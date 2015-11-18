@@ -62,7 +62,8 @@ Motor Motors_Init( const char* configFileName )
       if( newMotor->interfaceID != SIGNAL_IO_TASK_INVALID_ID ) 
       {
         newMotor->outputChannel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.output_channel" );
-        loadSuccess = newMotor->interface.AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
+        DEBUG_PRINT( "trying to aquire channel %u from interface %d", newMotor->outputChannel, newMotor->interfaceID );
+        //loadSuccess = newMotor->interface.AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
       }
       else loadSuccess = false;
     }
