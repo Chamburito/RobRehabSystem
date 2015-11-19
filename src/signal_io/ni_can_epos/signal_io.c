@@ -102,8 +102,6 @@ bool Read( int taskID, unsigned int channel, double* ref_value )
     
   *ref_value = task->measuresList[ channel ];
   
-  DEBUG_PRINT( "task %d and channel %u value: %g", taskID, channel, *ref_value );
-  
   return true;
 }
 
@@ -362,10 +360,10 @@ SignalIOTask LoadTaskData( const char* taskConfig )
   
   DEBUG_PRINT( "trying to load CAN interface for node %u", nodeID );
   
-  for( size_t frameID = 0; frameID < CAN_FRAME_TYPES_NUMBER; frameID++ )
+  for( size_t frameType = 0; frameType < CAN_FRAME_TYPES_NUMBER; frameType++ )
   {
-    if( (newTask->readFramesList[ frameID ] = CANNetwork_InitFrame( frameID, FRAME_IN, nodeID )) == NULL ) loadError = true; 
-    if( (newTask->writeFramesList[ frameID ] = CANNetwork_InitFrame( frameID, FRAME_OUT, nodeID )) == NULL ) loadError = true;
+    if( (newTask->readFramesList[ frameType ] = CANNetwork_InitFrame( frameType, FRAME_IN, nodeID )) == NULL ) loadError = true; 
+    if( (newTask->writeFramesList[ frameType ] = CANNetwork_InitFrame( frameType, FRAME_OUT, nodeID )) == NULL ) loadError = true;
   }
   
   for( unsigned int channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )

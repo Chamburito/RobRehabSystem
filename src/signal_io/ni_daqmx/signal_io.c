@@ -106,12 +106,8 @@ bool Read( int taskID, unsigned int channel, double* ref_value )
   if( !task->isRunning ) return false;
   
   if( task->mode == WRITE ) return false;
- 
-  DEBUG_PRINT( "%lu reads left of %u", Semaphores.GetCount( task->channelLocksList[ channel ] ), task->channelUsesList[ channel ] );
   
   Semaphores.Decrement( task->channelLocksList[ channel ] );
-  
-  DEBUG_PRINT( "%lu reads left of %u", Semaphores.GetCount( task->channelLocksList[ channel ] ), task->channelUsesList[ channel ] );
   
   *ref_value = task->channelValuesList[ channel ];
   

@@ -105,9 +105,11 @@ double* SignalProcessing_UpdateFilter( SignalFilter filter, double newSignalValu
         newSignalValue = newSignalValue / ( signal->calibrationMax - signal->calibrationMin );
       }
 
-      double deltaTime = Timing.GetExecTimeSeconds() - signal->samplingTime;
+      double deltaTime = 0.005;//Timing.GetExecTimeSeconds() - signal->samplingTime;
       //DEBUG_PRINT( "filter %p delta time: %g", filter, deltaTime );
       filterOutput = SimpleKalman.Update( filter->kalmanFilter, newSignalValue, deltaTime );
+      filterOutput[ 0 ] = newSignalValue;
+      //DEBUG_PRINT( "input: %g - output: %g", newSignalValue, filterOutput[ 0 ] );
     }
   }
   

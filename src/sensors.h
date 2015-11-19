@@ -65,8 +65,8 @@ Sensor Sensors_Init( const char* configFileName )
         newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.input_channel" );
         loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
         
-        newSensor->gain = parser.GetRealValue( configFileID, 1.0, "signal_processing.input_gain.multiplier" );
-        newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "signal_processing.input_gain.divisor" );
+        newSensor->gain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
+        newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
         
         uint8_t filterFlags = 0x00;
         if( parser.GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) filterFlags |= SIGNAL_PROCESSING_RECTIFY;
@@ -133,14 +133,12 @@ double* Sensors_Update( Sensor sensor )
   {
     sensorOutput = SignalProcessing.UpdateFilter( sensor->filter, signal * sensor->gain );
     
-    //DEBUG_PRINT( "channel %u: value: %g - gain: %g - filtered: %g", sensor->channel, signal, sensor->gain, sensorOutput[ 0 ] );
-    
-    if( sensor->reference != NULL ) DEBUG_PRINT( "updating reference %d-%u", sensor->reference->taskID, sensor->reference->channel );
+    //DEBUG_PRINT( "channel %u value: %g", sensor->channel, sensorOutput[ 0 ] );
     
     double* referenceOutput = Sensors_Update( sensor->reference );
     if( referenceOutput != NULL ) sensorOutput[ 0 ] -= referenceOutput[ 0 ];
 
-    sensorOutput[ 0 ] = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput[ 0 ], 0.0 );
+    sensorOutput[ 0 ] = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput[ 0 ], sensorOutput[ 0 ] );
   }
     
   return sensorOutput;

@@ -269,7 +269,7 @@ static inline void UpdateControlMeasures( Actuator actuator )
 
     actuator->measuresList[ CONTROL_FORCE ] = filteredForceSignal[ 0 ];
   
-    DEBUG_PRINT( "measures p: %.3f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
+    //DEBUG_PRINT( "measures p: %.5f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
   }
 }
 

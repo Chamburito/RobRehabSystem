@@ -93,16 +93,18 @@ CANFrame CANNetwork_InitFrame( enum CANFrameTypes type, enum CANFrameMode mode, 
 {
   char frameAddress[ ADDRESS_MAX_LENGTH ];
   
+  DEBUG_PRINT( "Trying to create %s frame (type %d) on node %u", CAN_FRAME_NAMES[ type ], type, nodeID );
+  
   if( type < 0 || type >= CAN_FRAME_TYPES_NUMBER ) return NULL;
   
   const char* interfaceName = ( mode == FRAME_IN ) ? "CAN1" : "CAN2";
   const char* modeName = ( mode == FRAME_IN ) ? "RX" : "TX";
   
-  int frameKey = kh_str_hash_func( interfaceName ) + kh_str_hash_func( CAN_FRAME_NAMES[ type ] );
+  int frameKey = ( type << 16 ) + ( mode << 8 ) + nodeID;
   
   snprintf( frameAddress, ADDRESS_MAX_LENGTH, "%s_%s_%02u", CAN_FRAME_NAMES[ type ], modeName, nodeID );
   
-  DEBUG_PRINT( "creating frame %s on mode %d", frameAddress, mode );
+  DEBUG_PRINT( "creating frame %s on mode %d (key: %d)", frameAddress, mode, frameKey );
   
   if( framesList == NULL ) CANNetwork_Start();
   

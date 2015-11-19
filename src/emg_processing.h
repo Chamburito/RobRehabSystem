@@ -115,7 +115,7 @@ double EMGProcessing_GetJointMuscleSignal( int jointID, size_t muscleIndex )
   
   if( muscleIndex >= joint->musclesListLength ) return 0.0;
   
-  DEBUG_PRINT( "updating sensor %d-%lu (%p)", jointID, muscleIndex, joint->musclesList[ muscleIndex ]->emgSensor );
+  //DEBUG_PRINT( "updating sensor %d-%lu (%p)", jointID, muscleIndex, joint->musclesList[ muscleIndex ]->emgSensor );
   
   double* normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
   

@@ -1,5 +1,7 @@
 #include "robot_mechanics_interface.h"
 
+#include <math.h>
+
 IMPLEMENT_INTERFACE( ROBOT_MECHANICS_FUNCTIONS )
 
 const size_t DOFS_NUMBER = 1;
@@ -42,5 +44,8 @@ void GetInverseDynamics( double** dofValuesTable, double* jointValuesList, size_
   
   jointValuesList[ ROBOT_POSITION ] = dofValuesTable[ 0 ][ ROBOT_POSITION ];
   jointValuesList[ ROBOT_VELOCITY ] = dofValuesTable[ 0 ][ ROBOT_VELOCITY ];
-  jointValuesList[ ROBOT_FORCE ] = dofValuesTable[ 0 ][ ROBOT_FORCE ];
+  //jointValuesList[ ROBOT_FORCE ] = dofValuesTable[ 0 ][ ROBOT_FORCE ];
+  double weight = 5.0 * 9.81;
+  double momentArm = 0.20;
+  jointValuesList[ ROBOT_FORCE ] = weight * momentArm * cos( dofValuesTable[ 0 ][ ROBOT_POSITION ] );
 }

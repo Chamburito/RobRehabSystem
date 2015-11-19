@@ -2,10 +2,10 @@
   "interface": {
     "type": "signal_io/NICANEPOS",
     "name": "1",
-    "output_channel": 0
+    "output_channel": 1
   },
   "output_gain": {
-    "multiplier": 4096,
+    "multiplier": 1,
     "divisor": 1
   }
 }

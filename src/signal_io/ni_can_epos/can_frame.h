@@ -64,6 +64,7 @@ CANFrame CANFrame_Init( enum CANFrameMode mode, const char* interfaceName, const
   nxStatus_t statusCode = nxCreateSession( databaseName, clusterName, frameName, interfaceName, (u32) mode, &(frame->ref_session) );
   if( statusCode != nxSuccess )
   {
+    DEBUG_PRINT( "error: %x", statusCode );
     PrintFrameStatus( statusCode, frameName, "(nxCreateSession)" );
     nxClear( frame->ref_session );
     return NULL;

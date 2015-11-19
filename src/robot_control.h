@@ -243,7 +243,9 @@ inline double* RobotControl_GetJointMeasuresList( int controllerID, size_t joint
   RobotController controller = kh_value( controllersList, controllerIndex );
   
   if( jointIndex >= controller->dofsNumber ) return NULL;
-    
+  
+  //DEBUG_PRINT( "angle: %g - torque: %g", controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ], controller->jointMeasuresTable[ 0 ][ CONTROL_FORCE ] );
+  
   return controller->jointMeasuresTable[ jointIndex ];
 }
 

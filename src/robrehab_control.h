@@ -186,8 +186,9 @@ void RobRehabControl_Update()
     if( jointMeasuresList != NULL )
     {
       SHMControl.GetNumericValuesList( sharedJoint, controlValuesList, SHM_CONTROL_PEEK );
-      controlValuesList[ SHM_JOINT_ANGLE ] = (float) jointMeasuresList[ CONTROL_POSITION ];
+      controlValuesList[ SHM_JOINT_ANGLE ] = (float) jointMeasuresList[ CONTROL_POSITION ] * 360.0;
       controlValuesList[ SHM_JOINT_ID_TORQUE ] = (float) jointMeasuresList[ CONTROL_FORCE ];
+      //DEBUG_PRINT( "angle: %g - torque: %g", controlValuesList[ SHM_JOINT_ANGLE ], controlValuesList[ SHM_JOINT_ID_TORQUE ] );
       SHMControl.SetNumericValuesList( sharedJoint, controlValuesList, 0xFF );
     }
   }

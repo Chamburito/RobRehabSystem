@@ -16,9 +16,9 @@
 
 #include <stdlib.h>
 
-const unsigned long UPDATE_INTERVAL_MS = 50; // 5;
+const unsigned long UPDATE_INTERVAL_MS = 5;
 
-#define MAX_SAMPLES_NUMBER 100
+#define MAX_SAMPLES_NUMBER 1000
 typedef double SamplingBuffer[ MAX_SAMPLES_NUMBER ];
 
 typedef struct _SamplingData
@@ -176,12 +176,12 @@ void RobRehabEMG_Update( void )
       sharedJoint->lastJointPhase = SHM_EMG_MEASUREMENT;
     }
     
-    DEBUG_PRINT( "updating joint %lu", sharedJointID );
+    //DEBUG_PRINT( "updating joint %lu", sharedJointID );
     
     float jointAngle = 0.0, jointIDTorque = 0.0;
-    if( /*SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ANGLE, &jointAngle, SHM_CONTROL_PEEK )*/true )
+    if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ANGLE, &jointAngle, SHM_CONTROL_PEEK ) )
     {
-      if( /*SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ID_TORQUE, &jointIDTorque, SHM_CONTROL_PEEK )*/true )
+      if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ID_TORQUE, &jointIDTorque, SHM_CONTROL_PEEK ) )
       {
         if( /*sharedJoint->lastJointPhase == SHM_EMG_SAMPLING*/true )
         {      
@@ -193,12 +193,14 @@ void RobRehabEMG_Update( void )
               sharedJoint->samplingData.muscleSignalsList[ muscleIndex ][ sharedJoint->samplingData.samplesCount ] = muscleSignal;
             }
             
-            DEBUG_PRINT( "sample %u: %g - %g %g %g %g %g", sharedJoint->samplingData.samplesCount, jointIDTorque, 
+            DEBUG_PRINT( "sample %u: %g %g", sharedJoint->samplingData.samplesCount, jointAngle, jointIDTorque );
+            
+            /*DEBUG_PRINT( "sample %u: %g - %g %g %g %g %g", sharedJoint->samplingData.samplesCount, jointIDTorque, 
                          sharedJoint->samplingData.muscleSignalsList[ 0 ][ sharedJoint->samplingData.samplesCount ],
                          sharedJoint->samplingData.muscleSignalsList[ 1 ][ sharedJoint->samplingData.samplesCount ],
                          sharedJoint->samplingData.muscleSignalsList[ 2 ][ sharedJoint->samplingData.samplesCount ],
                          sharedJoint->samplingData.muscleSignalsList[ 3 ][ sharedJoint->samplingData.samplesCount ],
-                         sharedJoint->samplingData.muscleSignalsList[ 4 ][ sharedJoint->samplingData.samplesCount ] );
+                         sharedJoint->samplingData.muscleSignalsList[ 4 ][ sharedJoint->samplingData.samplesCount ] );*/
             
             sharedJoint->samplingData.jointAnglesList[ sharedJoint->samplingData.samplesCount ] = jointAngle;
             sharedJoint->samplingData.jointIDTorquesList[ sharedJoint->samplingData.samplesCount ] = jointIDTorque;

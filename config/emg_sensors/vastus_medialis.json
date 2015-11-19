@@ -1,15 +1,14 @@
 {
-  "aquisition_system": {
+  "interface": {
     "type": "signal_io/NIDAQmx",
-    "task": "EMGReadTask",
-    "channel": 3
+    "name": "EMGReadTask",
+    "input_channel": 3
+  },
+  "input_gain": {
+    "divisor": 909
   },
   "signal_processing": {
-    "input_gain": {
-      "divisor": 909
-    },
     "rectified": true,
-    "filtered": true,
     "normalized": true
   },
   "log_data": false

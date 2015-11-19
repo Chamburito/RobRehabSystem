@@ -6,7 +6,7 @@
   },
   "input_gain": {
     "multiplier": 1,
-    "divisor": 4096
+    "divisor": 614400
   },
   "log_data": false
 }
