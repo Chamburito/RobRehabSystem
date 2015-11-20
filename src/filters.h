@@ -88,11 +88,13 @@ double* SimpleKalman_Update( KalmanFilter filter, double newValue, double timeSt
   {
     error = newValue - filter->state[ 0 ];
     
-    for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
+    /*for( size_t dimensionIndex = 0; dimensionIndex < filter->dimensionsNumber; dimensionIndex++ )
     {
       for( size_t i = dimensionIndex + 1; i < filter->dimensionsNumber; i++ )
         filter->state[ dimensionIndex ] += filter->state[ i ] * pow( timeStamp, i - dimensionIndex ) / ( i - dimensionIndex );
-    }
+    }*/
+    filter->state[ 0 ] += filter->state[ 1 ] * timeStamp + filter->state[ 2 ] * timeStamp * timeStamp / 2.0;
+    filter->state[ 1 ] += filter->state[ 2 ] * timeStamp;
   
     for( size_t column = 0; column < filter->dimensionsNumber; column++ )
     {

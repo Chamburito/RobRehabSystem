@@ -49,7 +49,7 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
   
   int logKey = (int) kh_str_hash_func( logFilePath );
   
-  sprintf( logFilePathExt, "../logs/%s-%u.log", logFilePath, time( NULL ) );
+  sprintf( logFilePathExt, "../logs/%s-%ld.log", logFilePath, time( NULL ) );
   
   int insertionStatus;
   khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
