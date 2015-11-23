@@ -40,13 +40,13 @@
 #include <cvirte.h>		
 #include <userint.h>
 
+#include "shm_control.h"
 #include "shm_axis_control.h"
 #include "shm_emg_control.h"
 
-#include "ip_network/cvirte_ip_connection.h"
 #include "RobRehabClientGUI.h"
 
-#define NUM_POINTS			400
+#define NUM_POINTS			100
 
 /* Global variables */
 static int panel;
@@ -54,25 +54,13 @@ static int panel;
 /* Function prototypes */
 static void* UpdateData( void* );
 
-int axisID = 0;
+SHMController axisMotorController;
+SHMController jointEMGController;
 
-int motorEnabled = 0;
-double maxStiffness = 0.0;
-
-int calibrationRunning = 0;
-double maxReach = 0.0, minReach = 0.0;
-double positionOffset = 0.0;
-
-Thread dataConnectionThreadID;
+Thread dataConnectionThreadID = INVALID_THREAD_HANDLE;
 bool isDataUpdateRunning = false;
 
-char address[ 256 ] = "169.254.110.158";
-
-int infoClientID, dataClientID;
-
-const double TOTAL_CURVE_INTERVAL = 2.22;
 const double CONTROL_SAMPLING_INTERVAL = 0.005;
-const double NORMALIZED_SAMPLING_INTERVAL = CONTROL_SAMPLING_INTERVAL / TOTAL_CURVE_INTERVAL;
 
 static double referenceValues[ NUM_POINTS ];
 size_t setpointIndex = 0;
@@ -85,24 +73,6 @@ int main( int argc, char *argv[] )
 	if( InitCVIRTE( 0, argv, 0 ) == 0 )
 		return -1;
   
-  // Get address of real-time target.
-	//PromptPopup("Prompt", "Enter Real-Time Target Name/IP Address:", address, sizeof(address) - 1);
-  
-  infoClientID = AsyncIPNetwork.OpenConnection( address, "50000", TCP );
-  char* infoMessage = NULL;
-  while( infoMessage == NULL )
-    infoMessage = AsyncIPNetwork.ReadMessage( infoClientID );
-  fprintf( stderr, "received info message: %s\n", infoMessage );
-  infoMessage = NULL;
-  while( infoMessage == NULL )
-    infoMessage = AsyncIPNetwork_ReadMessage( infoClientID );
-  fprintf( stderr, "received info message: %s\n", infoMessage );
-  
-  char resetMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0, SHM_COMMAND_RESET };
-  AsyncIPNetwork_WriteMessage( infoClientID, resetMessage );
-  
-  //dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
-  
 	if( (panel = LoadPanel( 0, "RobRehabClientGUI.uir", PANEL )) < 0 )
 		return -1;
 
@@ -111,11 +81,10 @@ int main( int argc, char *argv[] )
 	RunUserInterface();
 	
   isDataUpdateRunning = false;
-  //Threading.WaitExit( dataConnectionThreadID, 5000 );
+  Threading.WaitExit( dataConnectionThreadID, 5000 );
   
-	AsyncIPNetwork.WriteMessage( infoClientID, resetMessage );
-  
-  AsyncIPNetwork.CloseConnection( infoClientID ); 
+  SHMControl.EndData( axisMotorController );
+  SHMControl.EndData( jointEMGController );
   
 	DiscardPanel( panel );
 	
@@ -129,82 +98,82 @@ static void* UpdateData( void* callbackData )
   const size_t WAIT_SAMPLES = 10;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
-  float measuresList[ SHM_AXIS_FLOATS_NUMBER ], setpointsList[ SHM_AXIS_FLOATS_NUMBER ];
+  float measuresList[ SHM_CONTROL_MAX_FLOATS_NUMBER ], setpointsList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
   
-  double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ];
-  size_t measureIndex = 0;
-  
-  char dataMessageOut[ IP_MAX_MESSAGE_LENGTH ];
-  dataMessageOut[ 0 ] = 1;
-  dataMessageOut[ 1 ] = 0;
-  dataMessageOut[ 2 ] = 0xFF;
+  double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueIDValues[ NUM_POINTS ], torqueEMGValues[ NUM_POINTS ];
+  size_t axisMeasureIndex = 0, jointMeasureIndex = 0, setpointIndex = 0;
   
   double initialTime = Timing_GetExecTimeSeconds();
-  double elapsedTime = 0.0, deltaTime = 0.0, absoluteTime = initialTime; 
+  double elapsedTime = 0.0, deltaTime = 0.0, setpointTime = 0.0, absoluteTime = initialTime; 
   
-  size_t setpointIndex = 0;
-  
-  int dataClientID = AsyncIPNetwork.OpenConnection( address, "50001", UDP );
-  
-  if( dataClientID != -1 ) isDataUpdateRunning = true;
-  
-  char testMessage[ IP_MAX_MESSAGE_LENGTH ] = "UDP Start";
-  AsyncIPNetwork_WriteMessage( dataClientID, testMessage );
+  isDataUpdateRunning = true;
   
   while( isDataUpdateRunning )
   {
-    deltaTime += ( Timing_GetExecTimeSeconds()  - absoluteTime );
+    deltaTime = ( Timing_GetExecTimeSeconds() - absoluteTime );
+    setpointTime += deltaTime;
     absoluteTime = Timing_GetExecTimeSeconds();
     elapsedTime = absoluteTime - initialTime;
     
-    char* messageIn = AsyncIPNetwork.ReadMessage( dataClientID );
-    if( messageIn != NULL )
+    if( deltaTime > CONTROL_SAMPLING_INTERVAL )
     {
-      if( messageIn[ 0 ] == 1 && messageIn[ 1 ] == 0 )
-      {
-        memcpy( measuresList, messageIn + 2, sizeof(float) * SHM_AXIS_FLOATS_NUMBER );
-        
-        positionValues[ measureIndex ] = measuresList[ SHM_AXIS_POSITION ];
-        velocityValues[ measureIndex ] = measuresList[ SHM_AXIS_VELOCITY ];
-        torqueValues[ measureIndex ] = measuresList[ SHM_AXIS_FORCE ];
-        
-        if( ++measureIndex >= NUM_POINTS )
-        {
-          DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
-          PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
-          PlotY( panel, PANEL_GRAPH_1, velocityValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
-          
-          DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
-          PlotY( panel, PANEL_GRAPH_2, torqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
-          
-          measureIndex = 0;
-        }
-      }
+      axisMeasureIndex++;
+      jointMeasureIndex++;
+      
+      fprintf( stderr, "measure %u of %u\r", axisMeasureIndex, NUM_POINTS );
     }
     
-    if( deltaTime >= SETPOINT_UPDATE_INTERVAL )
+    uint8_t axisDataMask = SHMControl.GetNumericValuesList( axisMotorController, measuresList, SHM_CONTROL_REMOVE );
+    //if( axisDataMask )
+    //{
+      if( axisMeasureIndex >= NUM_POINTS )
+      {
+        DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
+        PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
+        PlotY( panel, PANEL_GRAPH_1, velocityValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+
+        axisMeasureIndex = 0;
+      }
+      
+      positionValues[ axisMeasureIndex ] = measuresList[ SHM_AXIS_POSITION ] * 6.28;
+      velocityValues[ axisMeasureIndex ] = measuresList[ SHM_AXIS_VELOCITY ] * 6.28;
+      
+      SetCtrlVal( panel, PANEL_MEASURE_SLIDER, positionValues[ axisMeasureIndex ] * 180.0 / 3.14 );
+    //}
+    
+    uint8_t jointDataMask = SHMControl.GetNumericValuesList( jointEMGController, measuresList, SHM_CONTROL_REMOVE );
+    //if( jointDataMask )
+    //{
+      if( jointMeasureIndex >= NUM_POINTS )
+      {
+        DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
+        PlotY( panel, PANEL_GRAPH_2, torqueIDValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+        PlotY( panel, PANEL_GRAPH_2, torqueEMGValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+
+        jointMeasureIndex = 0;
+      }
+      
+      torqueEMGValues[ jointMeasureIndex ] = measuresList[ SHM_JOINT_EMG_TORQUE ];
+      torqueIDValues[ jointMeasureIndex ] = measuresList[ SHM_JOINT_ID_TORQUE ];
+    //}
+    
+    if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      setpointsList[ SHM_AXIS_POSITION ] = fmod( elapsedTime / TOTAL_CURVE_INTERVAL, 1.0 );
-      setpointsList[ SHM_AXIS_VELOCITY ] = 1.0 / TOTAL_CURVE_INTERVAL;
-      setpointsList[ SHM_AXIS_STIFFNESS ] = maxStiffness;
+      setpointsList[ SHM_AXIS_POSITION ] = ( sin( absoluteTime ) - 3.14 / 3.0 ) / 4.0;
+      setpointsList[ SHM_AXIS_VELOCITY ] = cos( absoluteTime ) / 4.0;
       setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
+      
+      SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, setpointsList[ SHM_AXIS_POSITION ] * 180.0 );
       
       for( size_t i = 0; i < WAIT_SAMPLES; i++ )
         referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointsList[ SHM_AXIS_POSITION ];
       setpointIndex += WAIT_SAMPLES;
     
-      memcpy( dataMessageOut + 3, setpointsList, sizeof(float) * SHM_AXIS_FLOATS_NUMBER );
-    
-      deltaTime = 0.0;
+      setpointTime = 0.0;
       
-      AsyncIPNetwork.WriteMessage( dataClientID, dataMessageOut );
+      SHMControl.SetNumericValuesList( axisMotorController, setpointsList, 0xFF );
     }
   }
-  
-  memset( dataMessageOut + 3, 0, sizeof(float) * SHM_AXIS_FLOATS_NUMBER );
-  AsyncIPNetwork.WriteMessage( dataClientID, dataMessageOut ); 
-  
-  AsyncIPNetwork.CloseConnection( dataClientID );
   
   return NULL;
 }
@@ -219,14 +188,39 @@ static void InitUserInterface( void )
 	ChangeValueCallback( panel, PANEL_STIFFNESS_SLIDER, EVENT_COMMIT, NULL, 0, 0 );
 }
 
-int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
+int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-  static char commandMessage[ IP_MAX_MESSAGE_LENGTH ] = { 1, 0 };
+  char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "169.254.110.158:";
   
 	if( event == EVENT_COMMIT )
 	{
-    commandMessage[ 2 ] = 0;
-    
+    // Write the new value to the appropriate network variable.
+    if( control == PANEL_CONNECT_BUTTON )
+    {
+      // Connect to shared variables
+      
+      GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "169.254.110.158:" ) );
+      fprintf( stderr, "connecting to axis %s\n", sharedVarName );
+      axisMotorController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
+      if( axisMotorController != NULL ) fprintf( stderr, "connected to axis %s\n\n", sharedVarName );
+      
+      GetCtrlVal( panel, PANEL_JOINT_STRING, sharedVarName + strlen( "169.254.110.158:" ) );
+      fprintf( stderr, "connecting to joint %s\n", sharedVarName );
+      jointEMGController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
+      if( jointEMGController != NULL ) fprintf( stderr, "connected to joint %s\n\n", sharedVarName );
+      
+      if( dataConnectionThreadID == INVALID_THREAD_HANDLE )
+        dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
+    }
+	}
+  
+	return 0;
+}
+
+int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
+{
+	if( event == EVENT_COMMIT )
+	{
     // Write the new value to the appropriate network variable.
     if( control == PANEL_MOTOR_TOGGLE )
     {
@@ -234,21 +228,14 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
       int enabled;
       GetCtrlVal( panel, control, &enabled );
 
-      if( enabled == 1 )
-        commandMessage[ 2 ] = SHM_COMMAND_ENABLE;
-      else
-        commandMessage[ 2 ] = SHM_COMMAND_DISABLE;
+      if( enabled == 1 ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_ENABLE );
+      else SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_DISABLE );
     }
-    else if( control == PANEL_RESET_BUTTON )
-    {
-      commandMessage[ 2 ] = SHM_COMMAND_RESET;
-    }
-    else if( control == PANEL_OFFSET_BUTTON )
-    {
-      commandMessage[ 2 ] = SHM_COMMAND_CALIBRATE;
-    }
-
-    AsyncIPNetwork.WriteMessage( infoClientID, commandMessage );
+    else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_OFFSET );
+    else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_CALIBRATE );
+    else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_EMG_OFFSET );
+    else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_EMG_CALIBRATION );
+    else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_EMG_SAMPLING );
 	}
   
 	return 0;
@@ -261,7 +248,9 @@ int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* ca
     if( control == PANEL_STIFFNESS_SLIDER )
     {
       // Get the new value.
+      double maxStiffness;
       GetCtrlVal( panel, control, &maxStiffness );
+      SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
     }
 	}
 	return 0;

@@ -109,6 +109,7 @@ double* SignalProcessing_UpdateFilter( SignalFilter filter, double newSignalValu
       //DEBUG_PRINT( "filter %p delta time: %g", filter, deltaTime );
       filterOutput = SimpleKalman.Update( filter->kalmanFilter, newSignalValue, deltaTime );
       filterOutput[ 0 ] = newSignalValue;
+      filterOutput[ 1 ] = filterOutput[ 2 ] = 0.0;
       //DEBUG_PRINT( "input: %g - output: %g", newSignalValue, filterOutput[ 0 ] );
     }
   }

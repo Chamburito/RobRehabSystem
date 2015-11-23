@@ -62,7 +62,7 @@ typedef SHMControlData* SHMController;
 INIT_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_FUNCTIONS )
 
 
-const size_t SHARED_VARIABLE_NAME_MAX_LENGTH = 128;
+#define SHARED_VARIABLE_NAME_MAX_LENGTH 128
 const char* SHARED_VARIABLE_IN_SUFFIX = "_in";
 const char* SHARED_VARIABLE_OUT_SUFFIX = "_out";
 SHMController SHMControl_InitData( const char* bufferName, enum SHMControlTypes controlType )
@@ -112,6 +112,8 @@ void SHMControl_EndData( SHMController controller )
 bool SHMControl_GetNumericValue( SHMController controller, size_t valueIndex, float* ref_value, bool remove )
 {
   if( controller == NULL ) return false;
+  
+  if( controller->channelIn == NULL ) return false;
     
   if( valueIndex < 0 || valueIndex >= SHM_CONTROL_MAX_FLOATS_NUMBER ) return false;
     
@@ -126,9 +128,11 @@ bool SHMControl_GetNumericValue( SHMController controller, size_t valueIndex, fl
   return true;
 }
 
-bool SHMControl_SetNumericValue( SHMController controller, size_t  valueIndex, float value )
+bool SHMControl_SetNumericValue( SHMController controller, size_t valueIndex, float value )
 {
   if( controller == NULL ) return false;
+  
+  if( controller->channelOut == NULL ) return false;
     
   if( valueIndex < 0 || valueIndex >= SHM_CONTROL_MAX_FLOATS_NUMBER ) return false;
   
@@ -140,7 +144,9 @@ bool SHMControl_SetNumericValue( SHMController controller, size_t  valueIndex, f
 
 uint8_t SHMControl_GetNumericValuesList( SHMController controller, float* valuesList, bool remove )
 {
-  if( controller == NULL ) return 0;
+  if( controller == NULL ) return 0x00;
+  
+  if( controller->channelIn == NULL ) return 0x00; 
   
   uint8_t mask = controller->channelIn->numericValuesUpdatedList;
   
@@ -161,6 +167,8 @@ uint8_t SHMControl_SetNumericValuesList( SHMController controller, float* values
 {
   if( controller == NULL ) return SHM_CONTROL_BYTE_NULL;
   
+  if( controller->channelOut == NULL ) return SHM_CONTROL_BYTE_NULL;
+  
   if( valuesList == NULL ) return SHM_CONTROL_BYTE_NULL;
   
   size_t dataSize = sizeof(float) * SHM_CONTROL_MAX_FLOATS_NUMBER;
@@ -175,6 +183,8 @@ uint8_t SHMControl_GetByteValue( SHMController controller, bool remove )
 {
   if( controller == NULL ) return SHM_CONTROL_BYTE_NULL;
   
+  if( controller->channelIn == NULL ) return SHM_CONTROL_BYTE_NULL; 
+  
   uint8_t value = controller->channelIn->byteValue;
   
   if( remove ) controller->channelIn->byteValue = SHM_CONTROL_BYTE_NULL;
@@ -185,6 +195,8 @@ uint8_t SHMControl_GetByteValue( SHMController controller, bool remove )
 bool SHMControl_SetByteValue( SHMController controller, uint8_t value )
 {
   if( controller == NULL ) return false;
+  
+  if( controller->channelOut == NULL ) return false; 
   
   //DEBUG_PRINT( "byte value %u being set", value );
   

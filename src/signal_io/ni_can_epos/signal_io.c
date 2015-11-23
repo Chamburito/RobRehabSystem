@@ -206,9 +206,9 @@ bool IsOutputEnabled( int taskID )
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
-  task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0x6041, 0x00 );
-
-  return (bool) ( task->statusWord & ( SWITCHED_ON | OPERATION_ENABLED ) ) ;
+  //task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0x6041, 0x00 );
+  
+  return (bool) ( task->statusWord & ( SWITCHED_ON | OPERATION_ENABLED ) );
 }
 
 bool Write( int taskID, unsigned int channel, double value )
@@ -257,7 +257,7 @@ bool Write( int taskID, unsigned int channel, double value )
   return true;
 }
 
-bool AquireOuputChannel( int taskID, unsigned int channel )
+bool AquireOutputChannel( int taskID, unsigned int channel )
 {
   const int OPERATION_MODES[ OUTPUT_CHANNELS_NUMBER ] = { 0xFF, 0xFE, 0xFD };
   
@@ -339,6 +339,9 @@ SignalIOTask LoadTaskData( const char* taskConfig )
     UnloadTaskData( newTask );
     return NULL;
   }
+  
+  newTask->controlWord = ENABLE_VOLTAGE | QUICK_STOP;
+  CANNetwork_WriteSingleValue( newTask->writeFramesList[ SDO ], 0x6040, 0x00, newTask->controlWord );
   
   return newTask;
 }

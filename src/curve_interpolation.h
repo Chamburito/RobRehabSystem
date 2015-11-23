@@ -14,6 +14,7 @@ typedef struct _SegmentData
   double* coeffs;
   size_t coeffsNumber;
   double bounds[ 2 ];
+  double offset;
 }
 SegmentData;
 
@@ -35,14 +36,14 @@ typedef CurveData* Curve;
         function_init( Curve, namespace, LoadCurveFile, const char* ) \
         function_init( Curve, namespace, LoadCurveString, const char* ) \
         function_init( void, namespace, UnloadCurve, Curve ) \
-        function_init( void, namespace, AddSpline3Segment, Curve, double*, double[ 2 ] ) \
-        function_init( void, namespace, AddPolySegment, Curve, double*, size_t, double[ 2 ] ) \
         function_init( void, namespace, SetScale, Curve, double ) \
         function_init( void, namespace, SetOffset, Curve, double ) \
         function_init( double, namespace, GetValue, Curve, double, double )
 
 INIT_NAMESPACE_INTERFACE( CurveInterpolation, CURVE_INTERPOLATION_FUNCTIONS )
 
+void AddSpline3Segment( Curve, double*, double[ 2 ] );
+Segment AddPolySegment( Curve, double*, size_t, double[ 2 ] );
 
 Curve LoadCurveData( int configDataID )
 {
@@ -70,9 +71,9 @@ Curve LoadCurveData( int configDataID )
 
     char* curveType = parser.GetStringValue( configDataID, "", "segments.%lu.type", segmentIndex );
     if( strcmp( curveType, "cubic_spline" ) == 0 && parametersNumber == SPLINE3_COEFFS_NUMBER ) 
-      CurveInterpolation_AddSpline3Segment( newCurve, curveParameters, curveBounds );
+      (void) AddSpline3Segment( newCurve, curveParameters, curveBounds );
     else if( strcmp( curveType, "polynomial" ) == 0 ) 
-      CurveInterpolation_AddPolySegment( newCurve, curveParameters, parametersNumber, curveBounds );
+      (void) AddPolySegment( newCurve, curveParameters, parametersNumber, curveBounds );
 
     free( curveParameters );
   }
@@ -113,39 +114,47 @@ void CurveInterpolation_UnloadCurve( Curve curve )
   }
 }
 
-void CurveInterpolation_AddSpline3Segment( Curve curve, double* splineValues, double splineBounds[ 2 ] )
+void AddSpline3Segment( Curve curve, double* splineValues, double splineBounds[ 2 ] )
 {
   double splineLength = splineBounds[ 1 ] - splineBounds[ 0 ];
   
-  double initialValue = splineValues[ 0 ];
-  double initialDerivative = splineValues[ 1 ];
-  double finalValue = splineValues[ 2 ];
-  double finalDerivative = splineValues[ 3 ];
+  double initialValue = splineValues[ 3 ];
+  double initialDerivative = splineValues[ 2 ];
+  double finalValue = splineValues[ 1 ];
+  double finalDerivative = splineValues[ 0 ];
   
   // Curve ( x = d + c*t + b*t^2 + a*t^3 ) coefficients calculation
+  splineValues[ 0 ] = initialValue;
+  splineValues[ 1 ] = initialDerivative;
   splineValues[ 2 ] = ( 3 * ( finalValue - initialValue ) - splineLength * ( 2 * initialDerivative + finalDerivative ) ) / pow( splineLength, 2 );
   splineValues[ 3 ] = ( 2 * ( initialValue - finalValue ) + splineLength * ( initialDerivative + finalDerivative ) ) / pow( splineLength, 3 );
   
   /*DEBUG_EVENT( 1,*/DEBUG_PRINT( " adding spline: %g %g %g %g", splineValues[ 0 ], splineValues[ 1 ], splineValues[ 2 ], splineValues[ 3 ] );
   
-  CurveInterpolation_AddPolySegment( curve, (double*) splineValues, SPLINE3_COEFFS_NUMBER, splineBounds );
+  Segment newSegment = AddPolySegment( curve, (double*) splineValues, SPLINE3_COEFFS_NUMBER, splineBounds );
+  
+  if( newSegment != NULL ) newSegment->offset = newSegment->bounds[ 0 ];
 }
 
-void CurveInterpolation_AddPolySegment( Curve curve, double* polyCoeffs, size_t coeffsNumber, double polyBounds[ 2 ] )
+Segment AddPolySegment( Curve curve, double* polyCoeffs, size_t coeffsNumber, double polyBounds[ 2 ] )
 {
-  if( curve == NULL ) return;
+  if( curve == NULL ) return NULL;
   
-  if( coeffsNumber == 0 ) return;
+  if( coeffsNumber == 0 ) return NULL;
   
   curve->segmentsList = (Segment) realloc( curve->segmentsList, ( curve->segmentsNumber + 1 ) * sizeof(SegmentData) );
-  curve->segmentsList[ curve->segmentsNumber ].coeffs = (double*) calloc( coeffsNumber, sizeof(double) );
+  
+  Segment newSegment = &(curve->segmentsList[ curve->segmentsNumber++ ]);
+  
+  newSegment->coeffs = (double*) calloc( coeffsNumber, sizeof(double) );
+  newSegment->coeffsNumber = coeffsNumber;
 
-  curve->segmentsList[ curve->segmentsNumber ].bounds[ 0 ] = polyBounds[ 0 ];
-  curve->segmentsList[ curve->segmentsNumber ].bounds[ 1 ] = polyBounds[ 1 ];
+  newSegment->bounds[ 0 ] = polyBounds[ 0 ];
+  newSegment->bounds[ 1 ] = polyBounds[ 1 ];
   
-  memcpy( curve->segmentsList[ curve->segmentsNumber ].coeffs, polyCoeffs, coeffsNumber * sizeof(double) );
+  memcpy( newSegment->coeffs, polyCoeffs, coeffsNumber * sizeof(double) );
   
-  curve->segmentsNumber++;
+  return newSegment;
 }
 
 inline void CurveInterpolation_SetScale( Curve curve, double scaleFactor )
@@ -184,9 +193,10 @@ double CurveInterpolation_GetValue( Curve curve, double valuePosition, double de
         {
           double* curveCoeffs = curve->segmentsList[ segmentIndex ].coeffs;
           size_t coeffsNumber = curve->segmentsList[ segmentIndex ].coeffsNumber;
+          double positionOffset = curve->segmentsList[ segmentIndex ].offset;
           
           curveValue = 0.0;
-          double relativePosition = valuePosition - segmentBounds[ 0 ];
+          double relativePosition = valuePosition - positionOffset;
           for( size_t coeffIndex = 0; coeffIndex < coeffsNumber; coeffIndex++ )
             curveValue += curveCoeffs[ coeffIndex ] * pow( relativePosition, coeffIndex );
           

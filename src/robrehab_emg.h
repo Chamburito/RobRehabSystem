@@ -16,7 +16,7 @@
 
 #include <stdlib.h>
 
-const unsigned long UPDATE_INTERVAL_MS = 5;
+const unsigned long UPDATE_INTERVAL_MS = 50;
 
 #define MAX_SAMPLES_NUMBER 1000
 

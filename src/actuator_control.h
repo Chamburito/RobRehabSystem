@@ -16,7 +16,7 @@
 typedef struct _ActuatorData
 {
   Motor motor;
-  Sensor encoder, forceSensor;
+  Sensor positionSensor, velocitySensor, forceSensor;
   enum SignalProcessingPhase sensorState;
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
@@ -67,8 +67,9 @@ Actuator ActuatorControl_InitController( const char* configFileName )
     bool loadSuccess = true;
 
     if( (newActuator->motor = Motors.Init( parser.GetStringValue( configFileID, "", "motor" ) )) == NULL ) loadSuccess = false;
-    if( (newActuator->encoder = Sensors.Init( parser.GetStringValue( configFileID, "", "encoder" ) )) == NULL ) loadSuccess = false;
-    if( (newActuator->forceSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "force_sensor" ) )) == NULL ) loadSuccess = false;
+    if( (newActuator->positionSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.position" ) )) == NULL ) loadSuccess = false;
+    //if( (newActuator->velocitySensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.velocity" ) )) == NULL ) loadSuccess = false;
+    if( (newActuator->forceSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.force" ) )) == NULL ) loadSuccess = false;
 
     newActuator->sensorState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
     
@@ -107,14 +108,14 @@ void ActuatorControl_EndController( Actuator actuator )
   if( actuator == NULL ) return;
   
   Motors.End( actuator->motor );
-  Sensors.End( actuator->encoder );
+  Sensors.End( actuator->positionSensor );
   Sensors.End( actuator->forceSensor );
 }
 
 void ActuatorControl_Enable( Actuator actuator )
 {
   if( actuator == NULL ) return;
-    
+  
   Motors.Enable( actuator->motor );
 }
 
@@ -130,7 +131,7 @@ void ActuatorControl_Reset( Actuator actuator )
   if( actuator == NULL ) return;
     
   Motors.Reset( actuator->motor );
-  Sensors.Reset( actuator->encoder );
+  Sensors.Reset( actuator->positionSensor );
   Sensors.Reset( actuator->forceSensor );
 }
 
@@ -140,12 +141,12 @@ void ActuatorControl_SetOffset( Actuator actuator )
 
   if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+    Sensors.SetState( actuator->positionSensor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
     Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
   }
   else
   {
-    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_OFFSET );
+    Sensors.SetState( actuator->positionSensor, SIGNAL_PROCESSING_PHASE_OFFSET );
     Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_OFFSET );
   }
 }
@@ -156,12 +157,12 @@ void ActuatorControl_Calibrate( Actuator actuator )
 
   if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_CALIBRATION )
   {
-    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+    Sensors.SetState( actuator->positionSensor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
     Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
   }
   else
   {  
-    Sensors.SetState( actuator->encoder, SIGNAL_PROCESSING_PHASE_CALIBRATION );
+    Sensors.SetState( actuator->positionSensor, SIGNAL_PROCESSING_PHASE_CALIBRATION );
     Sensors.SetState( actuator->forceSensor, SIGNAL_PROCESSING_PHASE_CALIBRATION );
   }
 }
@@ -178,7 +179,7 @@ bool ActuatorControl_HasError( Actuator actuator )
   if( actuator == NULL ) return false;
     
   if( Motors.HasError( actuator->motor ) ) return true;
-  else if( Sensors.HasError( actuator->encoder ) ) return true;
+  else if( Sensors.HasError( actuator->positionSensor ) ) return true;
   else if( Sensors.HasError( actuator->forceSensor ) ) return true;
   
   return false;
@@ -259,7 +260,7 @@ static void* AsyncControl( void* data )
 static inline void UpdateControlMeasures( Actuator actuator )
 {
   DEBUG_UPDATE( "reading measures from actuator %p", actuator );
-  double* filteredPositionSignal = Sensors.Update( actuator->encoder );
+  double* filteredPositionSignal = Sensors.Update( actuator->positionSensor );
   double* filteredForceSignal = Sensors.Update( actuator->forceSensor );
   if( filteredPositionSignal != NULL && filteredForceSignal != NULL )
   {
@@ -287,8 +288,9 @@ static inline void RunControl( Actuator actuator )
   
   if( Motors.IsEnabled( actuator->motor ) )
   {
+    actuator->setpointsList[ CONTROL_FORCE ] = 0.0;
     double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_SAMPLING_INTERVAL, &(actuator->controlError) );
-    //DEBUG_PRINT( "force: %.3f - control: %.3f", actuator->measuresList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
+    //DEBUG_PRINT( "force setpoint: %.3f - control: %.3f", actuator->setpointsList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
     
     Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
   }

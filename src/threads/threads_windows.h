@@ -17,7 +17,7 @@
 /////                                      THREADS HANDLING 									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const HANDLE INVALID_THREAD_HANDLE = NULL;
+#define INVALID_THREAD_HANDLE NULL
 
 // Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()

@@ -18,6 +18,7 @@ typedef struct _MotorData
   SignalIOInterface interface;
   unsigned int outputChannel;
   double outputGain, outputOffset;
+  double outputMin, outputMax;
 }
 MotorData;
 
@@ -63,13 +64,16 @@ Motor Motors_Init( const char* configFileName )
       {
         newMotor->outputChannel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.output_channel" );
         DEBUG_PRINT( "trying to aquire channel %u from interface %d", newMotor->outputChannel, newMotor->interfaceID );
-        //loadSuccess = newMotor->interface.AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
+        loadSuccess = newMotor->interface.AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
       }
       else loadSuccess = false;
     }
 
     newMotor->outputGain = parser.GetRealValue( configFileID, 1.0, "output_gain.multiplier" );
     newMotor->outputGain /= parser.GetRealValue( configFileID, 1.0, "output_gain.divisor" );
+    
+    newMotor->outputMin = parser.GetRealValue( configFileID, 0.0, "output_limits.min" );
+    newMotor->outputMax = parser.GetRealValue( configFileID, 0.0, "output_limits.max" );
 
     parser.UnloadData( configFileID );
 
@@ -100,6 +104,7 @@ inline void Motors_Enable( Motor motor )
 {
   if( motor == NULL ) return;
   
+  motor->interface.Reset( motor->interfaceID );
   motor->interface.EnableOutput( motor->interfaceID, true );
 }
 
@@ -142,7 +147,12 @@ void Motors_WriteControl( Motor motor, double setpoint )
 {
   if( motor == NULL ) return;
   
-  setpoint = ( setpoint + motor->outputOffset ) / motor->outputGain;
+  setpoint = ( setpoint + motor->outputOffset ) * motor->outputGain;
+  
+  if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
+  else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
+  
+  DEBUG_PRINT( "motor output: %g", setpoint );
   
   motor->interface.Write( motor->interfaceID, motor->outputChannel, setpoint );
 }

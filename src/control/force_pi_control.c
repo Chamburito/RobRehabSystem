@@ -36,9 +36,11 @@ double* Run( double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ C
 
   double force = measuresList[ CONTROL_FORCE ];
   forceError[ 0 ] = forceSetpoint - force;
-
+  
   velocitySetpoint += 370.0 * ( forceError[0] - forceError[1] ) + 3.5 * deltaTime * forceError[0];
   outputsList[ CONTROL_VELOCITY ] = velocitySetpoint;
+  
+  //DEBUG_PRINT( "force:%.3f (set:%.3f) - pos:%.3f (set:%.3f) -> %.3f", force, forceSetpoint, position, positionSetpoint, velocitySetpoint );
   
   //velocitySetpoint[0] = 0.9822 * velocitySetpoint[1] + 0.01407 * velocitySetpoint[2] + 338.6 * forceError[1] - 337.4 * forceError[2]; //5ms
   

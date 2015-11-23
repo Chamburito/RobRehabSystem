@@ -133,8 +133,6 @@ double* Sensors_Update( Sensor sensor )
   {
     sensorOutput = SignalProcessing.UpdateFilter( sensor->filter, signal * sensor->gain );
     
-    //DEBUG_PRINT( "channel %u value: %g", sensor->channel, sensorOutput[ 0 ] );
-    
     double* referenceOutput = Sensors_Update( sensor->reference );
     if( referenceOutput != NULL ) sensorOutput[ 0 ] -= referenceOutput[ 0 ];
 

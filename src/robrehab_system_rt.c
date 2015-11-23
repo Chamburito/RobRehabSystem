@@ -62,9 +62,10 @@ void CVIFUNC_C RTmain( void )
 	while( !RTIsShuttingDown() && !systemStarted )
 	{
 		status = CNVProcessIsRunning( "system", &systemStarted );
-		if( status != 0 ) printf( "%s\n\n", CNVGetErrorDescription( status ) );
 		SleepUS( 10000 );
-	}*/
+	}
+  
+  DEBUG_PRINT( "Network variables ready on thread %lx", THREAD_ID );*/
   
   SetDir( "C:\\ni-rt" );
   

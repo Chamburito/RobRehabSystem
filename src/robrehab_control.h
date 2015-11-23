@@ -151,7 +151,7 @@ void RobRehabControl_Update()
     if( dataMask )
     {
       double* controlSetpointsList = RobotControl.GetDoFSetpointsList( robotControllerID, dofControllerIndex );
-      //DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_STIFFNESS ] );
+      //DEBUG_PRINT( "setpoints: p: %.3f - v: %.3f - s: %.3f", controlValuesList[ SHM_AXIS_POSITION ], controlValuesList[ SHM_AXIS_VELOCITY ], controlValuesList[ SHM_AXIS_STIFFNESS ] );
       if( SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_POSITION ) ) controlSetpointsList[ CONTROL_POSITION ] = controlValuesList[ SHM_AXIS_POSITION ];
       if( SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_VELOCITY ) ) controlSetpointsList[ CONTROL_VELOCITY ] = controlValuesList[ SHM_AXIS_VELOCITY ];
 
