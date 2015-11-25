@@ -33,7 +33,8 @@
   
 #define FUNCTION_NAME( func ) # func
   
-#define INIT_INTERFACE_SYMBOL( rtype, interfaceStruct, func, ... ) interfaceStruct . func = (rtype (*)( __VA_ARGS__ )) GET_PLUGIN_FUNCTION( pluginHandle, FUNCTION_NAME( func ) );
+#define INIT_INTERFACE_SYMBOL( rtype, interfaceStruct, func, ... ) interfaceStruct . func = (rtype (*)( __VA_ARGS__ )) GET_PLUGIN_FUNCTION( pluginHandle, FUNCTION_NAME( func ) ); \
+                                                                   printf( "trying to load plugin function %s\n",  FUNCTION_NAME( func ) );
   
 #define LOAD_PLUGIN_FUNCTIONS( interfaceFunctions, interfaceName ) interfaceFunctions( interfaceName, INIT_INTERFACE_SYMBOL )
       

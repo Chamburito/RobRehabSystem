@@ -46,7 +46,7 @@
 
 #include "RobRehabClientGUI.h"
 
-#define NUM_POINTS			100
+#define NUM_POINTS			20
 
 /* Global variables */
 static int panel;
@@ -64,6 +64,8 @@ const double CONTROL_SAMPLING_INTERVAL = 0.005;
 
 static double referenceValues[ NUM_POINTS ];
 size_t setpointIndex = 0;
+
+double maxStiffness;
 
 void InitUserInterface( void );
 
@@ -95,7 +97,7 @@ int main( int argc, char *argv[] )
 
 static void* UpdateData( void* callbackData )
 {
-  const size_t WAIT_SAMPLES = 10;
+  const size_t WAIT_SAMPLES = 2;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
   float measuresList[ SHM_CONTROL_MAX_FLOATS_NUMBER ], setpointsList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
@@ -120,7 +122,7 @@ static void* UpdateData( void* callbackData )
       axisMeasureIndex++;
       jointMeasureIndex++;
       
-      fprintf( stderr, "measure %u of %u\r", axisMeasureIndex, NUM_POINTS );
+      //fprintf( stderr, "measure %u of %u\r", axisMeasureIndex, NUM_POINTS );
     }
     
     uint8_t axisDataMask = SHMControl.GetNumericValuesList( axisMotorController, measuresList, SHM_CONTROL_REMOVE );
@@ -142,7 +144,6 @@ static void* UpdateData( void* callbackData )
     //}
     
     uint8_t jointDataMask = SHMControl.GetNumericValuesList( jointEMGController, measuresList, SHM_CONTROL_REMOVE );
-    //if( jointDataMask )
     //{
       if( jointMeasureIndex >= NUM_POINTS )
       {
@@ -159,11 +160,12 @@ static void* UpdateData( void* callbackData )
     
     if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      setpointsList[ SHM_AXIS_POSITION ] = ( sin( absoluteTime ) - 3.14 / 3.0 ) / 4.0;
-      setpointsList[ SHM_AXIS_VELOCITY ] = cos( absoluteTime ) / 4.0;
+      setpointsList[ SHM_AXIS_POSITION ] = sin( absoluteTime / 2.0 ) / 20.0 - 0.125;
+      setpointsList[ SHM_AXIS_VELOCITY ] = cos( absoluteTime / 2.0 ) / 20.0;
+      setpointsList[ SHM_AXIS_STIFFNESS ] = maxStiffness;
       setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
       
-      SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, setpointsList[ SHM_AXIS_POSITION ] * 180.0 );
+      SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, setpointsList[ SHM_AXIS_POSITION ] * 360.0 );
       
       for( size_t i = 0; i < WAIT_SAMPLES; i++ )
         referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointsList[ SHM_AXIS_POSITION ];
@@ -233,9 +235,9 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
     }
     else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_OFFSET );
     else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_CALIBRATE );
-    else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_EMG_OFFSET );
-    else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_EMG_CALIBRATION );
-    else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_EMG_SAMPLING );
+    else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetByteValue( jointEMGController, SHM_EMG_OFFSET );
+    else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetByteValue( jointEMGController, SHM_EMG_CALIBRATION );
+    else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetByteValue( jointEMGController, SHM_EMG_SAMPLING );
 	}
   
 	return 0;
@@ -248,9 +250,9 @@ int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* ca
     if( control == PANEL_STIFFNESS_SLIDER )
     {
       // Get the new value.
-      double maxStiffness;
+      //double maxStiffness;
       GetCtrlVal( panel, control, &maxStiffness );
-      SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
+      //SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
     }
 	}
 	return 0;

@@ -49,7 +49,8 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
   
   int logKey = (int) kh_str_hash_func( logFilePath );
   
-  sprintf( logFilePathExt, "../logs/%s-%ld.log", logFilePath, time( NULL ) );
+  //sprintf( logFilePathExt, "../logs/%s-%ld.log", logFilePath, time( NULL ) );
+  sprintf( logFilePathExt, "logs/emg-%lu.log", time( NULL ) );
   
   int insertionStatus;
   khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
@@ -110,7 +111,8 @@ static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSi
   for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
   {
     for( size_t lineValueIndex = 0; lineValueIndex < log->valuesNumber; lineValueIndex++ )
-      fprintf( log->file, "%.*lf\t", log->dataPrecision, dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
+      //fprintf( log->file, "%.*lf\t", log->dataPrecision, dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
+      fprintf( log->file, "%.8f\t", dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
     fprintf( log->file, "\n" );
   }
 }

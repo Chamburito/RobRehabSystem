@@ -45,6 +45,7 @@ LOCATE on "filters.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabS
 LOCATE on "interfaces.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "khash.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib" ;
 LOCATE on "kson.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\klib" ;
+LOCATE on "matrices.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "optimization.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "plugin_loader.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "robrehab_emg.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;

@@ -149,10 +149,8 @@ void Motors_WriteControl( Motor motor, double setpoint )
   
   setpoint = ( setpoint + motor->outputOffset ) * motor->outputGain;
   
-  if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
-  else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
-  
-  DEBUG_PRINT( "motor output: %g", setpoint );
+  //if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
+  //else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
   
   motor->interface.Write( motor->interfaceID, motor->outputChannel, setpoint );
 }

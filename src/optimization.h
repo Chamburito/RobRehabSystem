@@ -5,9 +5,9 @@
     extern "C" {
 #endif
 
-#include <math.h>
+#include "matrices.h"
       
-#define MATRIX_SIZE_MAX 100
+#include <math.h>
       
 enum OptimizationGoals { OPTIMIZATION_MINIMIZE, OPTIMIZATION_MAXIMIZE };
 
@@ -22,9 +22,9 @@ double CalculateGradient( double*, size_t, ObjectiveFunction, void*, double );
 void CalculateHessian( size_t );
 void UpdateParameters( double*, size_t, ObjectiveFunction, void*, double[ 2 ] );
 
-static double* gradient;
-static double* deltaParameters;
-static double* deltaGradient;
+static Matrix gradient = NULL;
+static Matrix deltaParameters = NULL;
+static Matrix deltaGradient = NULL;
 static double** hessian;
 
 bool Optimization_Run( double* parameters, size_t parametersNumber, ObjectiveFunction ref_Evaluate, void* input, enum OptimizationGoals goal, size_t maxIterations )
@@ -33,16 +33,10 @@ bool Optimization_Run( double* parameters, size_t parametersNumber, ObjectiveFun
   
   double iterationUpdateFactors[ 2 ] = { ( ( goal == OPTIMIZATION_MAXIMIZE ) ? 1 : -1 ), ( ( goal == OPTIMIZATION_MAXIMIZE ) ? 0.0001 : -0.0001 ) };
   
-  deltaParameters = (double*) calloc( parametersNumber, sizeof(double) ); 
-  deltaGradient = (double*) calloc( parametersNumber, sizeof(double) ); 
-  gradient = (double*) calloc( parametersNumber, sizeof(double) );
-  hessian = (double**) calloc( parametersNumber, sizeof(double*) );
-  for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-  {
-    hessian[ parameterIndex ] = (double*) calloc( parametersNumber, sizeof(double) );
-    memset( hessian[ parameterIndex ], 0, parametersNumber * sizeof(double) );
-    hessian[ parameterIndex ][ parameterIndex ] = 1.0;
-  }
+  deltaParameters = Matrices_Create( NULL, parametersNumber, 1 ); 
+  deltaGradient = Matrices_Create( NULL, parametersNumber, 1 ); 
+  gradient = Matrices_Create( NULL, parametersNumber, 1 );
+  hessian = Matrices_CreateSquare( parametersNumber, MATRIX_IDENTITY );
   
   for( size_t iterationsCount = 0; iterationsCount < maxIterations; iterationsCount++ )
   {
@@ -55,125 +49,12 @@ bool Optimization_Run( double* parameters, size_t parametersNumber, ObjectiveFun
     DEBUG_PRINT( "iteration %u (current: %g - change: %g * %g)", iterationsCount, currentResult, iterationUpdateFactors[ 0 ], changeRate );
   }
   
-  free( deltaParameters );
-  free( deltaGradient );
-  
-  free( gradient );
-  for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-    free( hessian[ parameterIndex ] );
-  free( hessian );
+  Matrices_Discard( deltaParameters );
+  Matrices_Discard( deltaGradient );
+  Matrices_Discard( gradient );
+  Matrices_Discard( hessian );
   
   return optimizationSuccess;
-}
-
-void Matrix_Dot( double** matrix_1, double** matrix_2, size_t rowsNumber, size_t size, size_t columnsNumber, double** result )
-{
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
-  
-  for( size_t i = 0; i < rowsNumber; i++ )
-  {
-    for( size_t j = 0; j < columnsNumber; j++ )
-    {
-      auxMatrix[ i ][ j ] = 0.0;
-      for( size_t k = 0; k < size; k++ )
-        auxMatrix[ i ][ j ] += matrix_1[ i ][ k ] * matrix_2[ k ][ j ];
-    }
-  }
-  
-  for( size_t row = 0; row < rowsNumber; row++ )
-  {
-    for( size_t column = 0; column < columnsNumber; column++ )
-      result[ row ][ column ] = auxMatrix[ row ][ column ];
-  }
-}
-
-void CofactorMatrix( double** matrix, size_t size, size_t row, size_t column, double** result )
-{
-  size_t m = 0, n = 0;
-  for( size_t i = 0; i < size; i++ )
-  {
-    for( size_t j = 0 ; j < size; j++ )
-    {
-      if( i != row && j != column )
-      {
-        result[ m ][ n ] = matrix[ i ][ j ];
-
-        if( n < size - 2 ) n++;
-        else
-        {
-          n = 0;
-          m++;
-        }
-      }
-    }
-  }
-}
-
-double Matrix_Determinant( double** matrix, size_t size )
-{
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
-  
-  if( size == 1 ) return matrix[ 0 ][ 0 ];
-  
-  double result = 0.0;
-  for( size_t c = 0; c < size; c++ )
-  {
-    CofactorMatrix( matrix, size, 0, c, (double**) auxMatrix );
-
-    result += pow( -1, c ) * matrix[ 0 ][ c ] * Matrix_Determinant( (double**) auxMatrix, size - 1 );
-  }
-    
-  return result;
-}
-
-double Cofactor( double** matrix, size_t size, size_t row, size_t column )
-{
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
-  
-  CofactorMatrix( matrix, size, row, column, (double**) auxMatrix );
-  
-  double result = pow( -1, row + column ) * matrix[ row ][ column ] * Matrix_Determinant( (double**) auxMatrix, size - 1 );
-  
-  return result;
-}
-
-void Matrix_Transpose( double** matrix, size_t rowsNumber, size_t columnsNumber, double** result )
-{
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
-  
-  for( size_t row = 0; row < rowsNumber; row++ )
-  {
-    for( size_t column = 0; column < columnsNumber; column++ )
-      auxMatrix[ row ][ column ] = matrix[ column ][ row ];
-  }
-  
-  for( size_t row = 0; row < rowsNumber; row++ )
-  {
-    for( size_t column = 0; column < columnsNumber; column++ )
-      result[ row ][ column ] = auxMatrix[ row ][ column ];
-  }
-}
-
-void Matrix_Inverse( double** matrix, size_t size, double** result )
-{
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
-  
-  double det = Matrix_Determinant( matrix, size );
-  
-  if( det != 0.0 )
-  {
-    for( size_t row = 0; row < size; row++ )
-    {
-      for( size_t column = 0; column < size; column++ )
-        auxMatrix[ row ][ column ] = Cofactor( matrix, size, column, row ) / det;
-    }
-
-    for( size_t row = 0; row < size; row++ )
-    {
-      for( size_t column = 0; column < size; column++ )
-        result[ row ][ column ] = auxMatrix[ row ][ column ];
-    }
-  }
 }
 
 const double ITERATION_PARAMETER_DELTA = 0.001;//0.00001;
@@ -181,16 +62,19 @@ double CalculateGradient( double* parametersList, size_t parametersNumber, Objec
 {
   double changeRate = 0.0;
   
+  double* gradientList = Matrices_GetAsVector( gradient );
+  double* deltaGradientList = Matrices_GetAsVector( deltaGradient );
+  
   for( size_t derivativeIndex = 0; derivativeIndex < parametersNumber; derivativeIndex++ )
   {
     parametersList[ derivativeIndex ] += ITERATION_PARAMETER_DELTA;
     
     double functionDelta = ref_Evaluate( parametersList, parametersNumber, input ) - currentValue;
     double functionDerivative = functionDelta / ITERATION_PARAMETER_DELTA;
-    deltaGradient[ derivativeIndex ] = functionDerivative - gradient[ derivativeIndex ];
-    gradient[ derivativeIndex ] = functionDerivative;
+    deltaGradientList[ derivativeIndex ] = functionDerivative - gradientList[ derivativeIndex ];
+    gradientList[ derivativeIndex ] = functionDerivative;
     
-    changeRate += gradient[ derivativeIndex ] * gradient[ derivativeIndex ];
+    changeRate += gradientList[ derivativeIndex ] * gradientList[ derivativeIndex ];
     
     parametersList[ derivativeIndex ] -= ITERATION_PARAMETER_DELTA;
   }
@@ -200,62 +84,63 @@ double CalculateGradient( double* parametersList, size_t parametersNumber, Objec
 
 void CalculateHessian( size_t parametersNumber )
 {
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ], partialResult[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
-  
   //ddJ = H + ((1+q'*H*q)/(q'*q))*((pddJ*pddJ')/(pddJ'*q)) - ((pddJ*q'*H+H*(q*q'))/(q'*pddJ));
   
-  Matrix_Transpose( (double**) deltaGradient, parametersNumber, 1, (double**) auxMatrix );                                      // q[Nx1]' = [1xN]
-  Matrix_Dot( (double**) auxMatrix, hessian, 1, parametersNumber, parametersNumber, (double**) auxMatrix );                     // q'[1xN]*H[NxN] = [1xN]
-  Matrix_Dot( (double**) auxMatrix, (double**) deltaGradient, 1, parametersNumber, 1, (double**) auxMatrix );                   // (q'*H)[1xN]*q[Nx1] = [1x1]
-  double aux = 1.0 + auxMatrix[ 0 ][ 0 ];                                                                                       // 1[1x1] + (q'*H*q)[1x1] = [1x1]
-  Matrix_Transpose( (double**) deltaGradient, parametersNumber, 1, (double**) auxMatrix );                                      // q[Nx1]' = [1xN]
-  Matrix_Dot( (double**) auxMatrix, (double**) deltaGradient, 1, parametersNumber, 1, (double**) auxMatrix );                   // q'[1xN]*q[Nx1] = [1x1]
-  aux /= auxMatrix[ 0 ][ 0 ];                                                                                                   // (1+q'*H*q)[1x1]/(q'*q)[1x1] = [1x1]
-  Matrix_Transpose( (double**) deltaParameters, parametersNumber, 1, (double**) auxMatrix );                                    // pddJ[Nx1]' = [1xN]
-  Matrix_Dot( (double**) auxMatrix, (double**) deltaGradient, 1, parametersNumber, 1, (double**) auxMatrix );                   // pddJ'[1xN]*q[Nx1] = [1x1]
-  aux /= auxMatrix[ 0 ][ 0 ];                                                                                                   // ((1+q'*H*q)/(q'*q))[1x1]*(1/(pddJ'*q))[1x1] = [1x1]
-  Matrix_Transpose( (double**) deltaParameters, parametersNumber, 1, (double**) auxMatrix );                                    // pddJ[Nx1]' = [1xN]
-  Matrix_Dot( (double**) deltaParameters, (double**) auxMatrix, parametersNumber, 1, parametersNumber, (double**) auxMatrix );  // pddJ[Nx1]*pddJ'[1xN] = [NxN]
-  for( size_t row = 0; row < parametersNumber; row++ )
-  {
-    for( size_t column = 0; column < parametersNumber; column++ )
-      partialResult[ row ][ column ] = hessian[ row ][ column ] + auxMatrix[ row ][ column ] * aux;                          // H[NxN] + ((1+q'*H*q)/(q'*q))*(1/(pddJ'*q))[1x1]*(pddJ*pddJ')[NxN] = [NxN]
-  }
-  Matrix_Transpose( (double**) deltaGradient, parametersNumber, 1, (double**) auxMatrix );                                      // q[Nx1]' = [1xN]
-  Matrix_Dot( (double**) auxMatrix, (double**) deltaParameters, 1, parametersNumber, 1, (double**) auxMatrix );                 // q'[1xN]*pddJ[Nx1] = [1x1]
-  aux = auxMatrix[ 0 ][ 0 ];                                                                                                    // (q'*pddJ)[1x1]
-  Matrix_Transpose( (double**) deltaGradient, parametersNumber, 1, (double**) auxMatrix );                                      // q[Nx1]' = [1xN]
-  Matrix_Dot( (double**) deltaParameters, (double**) auxMatrix, parametersNumber, 1, parametersNumber, (double**) auxMatrix );  // pddJ[Nx1]*q'[1xN] = [NxN]
-  Matrix_Dot( (double**) auxMatrix, hessian, parametersNumber, parametersNumber, parametersNumber, (double**) auxMatrix );      // (pddJ*q')[NxN]*H[NxN] = [NxN]
-  for( size_t row = 0; row < parametersNumber; row++ )
-  {
-    for( size_t column = 0; column < parametersNumber; column++ )
-      partialResult[ row ][ column ] -= auxMatrix[ row ][ column ] / aux;                          // (H + ((1+q'*H*q)/(q'*q))*((pddJ*pddJ')/(pddJ'*q)))[NxN] - ((pddJ*q'*H)[NxN]/(q'*pddJ)[1x1]) = [NxN]
-  }
-  Matrix_Transpose( (double**) deltaGradient, parametersNumber, 1, (double**) auxMatrix );                                      // q[Nx1]' = [1xN]
-  Matrix_Dot( (double**) deltaGradient, (double**) auxMatrix, parametersNumber, 1, parametersNumber, (double**) auxMatrix );    // q[Nx1]*q'[1xN] = [NxN]
-  Matrix_Dot( (double**) auxMatrix, hessian, parametersNumber, parametersNumber, parametersNumber, (double**) auxMatrix );      // H[NxN]*(q*q')[NxN] = [NxN]
-  for( size_t row = 0; row < parametersNumber; row++ )
-  {
-    for( size_t column = 0; column < parametersNumber; column++ )
-      hessian[ row ][ column ] = partialResult[ row ][ column ] - auxMatrix[ row ][ column ] / aux;                             // Result [NxN]
-  }
+  Matrix auxMatrix = Matrices_Transpose( deltaGradient, NULL );                                     // q[Nx1]' = [1xN]
+  Matrices_Dot( auxMatrix, hessian, auxMatrix );                                                    // q'[1xN]*H[NxN] = [1xN]
+  Matrices_Dot( auxMatrix, deltaGradient, auxMatrix );                                              // (q'*H)[1xN]*q[Nx1] = [1x1]
+  double aux = 1.0 + Matrices_GetElement( auxMatrix, 0, 0 );                                        // 1[1x1] + (q'*H*q)[1x1] = [1x1]
+  Matrices_Transpose( deltaGradient, auxMatrix );                                                   // q[Nx1]' = [1xN]
+  Matrices_Dot( auxMatrix, deltaGradient, auxMatrix );                                              // q'[1xN]*q[Nx1] = [1x1]
+  aux /= Matrices_GetElement( auxMatrix, 0, 0 );                                                    // (1+q'*H*q)[1x1]/(q'*q)[1x1] = [1x1]
+  Matrices_Transpose( deltaParameters, auxMatrix );                                                 // pddJ[Nx1]' = [1xN]
+  Matrices_Dot( auxMatrix, deltaGradient, auxMatrix );                                              // pddJ'[1xN]*q[Nx1] = [1x1]
+  aux /= Matrices_GetElement( auxMatrix, 0, 0 );                                                    // ((1+q'*H*q)/(q'*q))[1x1]*(1/(pddJ'*q))[1x1] = [1x1]
+  Matrices_Transpose( deltaParameters, auxMatrix );                                                 // pddJ[Nx1]' = [1xN]
+  Matrices_Dot( deltaParameters, auxMatrix, auxMatrix );                                            // pddJ[Nx1]*pddJ'[1xN] = [NxN]
+  
+  Matrix partialResult = Matrices_Sum( hessian, auxMatrix, NULL );                                  // H[NxN] + ((1+q'*H*q)/(q'*q))*(1/(pddJ'*q))[1x1]*(pddJ*pddJ')[NxN] = [NxN]
+  
+  Matrices_Transpose( deltaGradient, auxMatrix );                                                   // q[Nx1]' = [1xN]
+  Matrices_Dot( auxMatrix, deltaParameters, auxMatrix );                                            // q'[1xN]*pddJ[Nx1] = [1x1]
+  aux = Matrices_GetElement( auxMatrix, 0, 0 );                                                     // (q'*pddJ)[1x1]
+  Matrices_Transpose( deltaGradient, auxMatrix );                                                   // q[Nx1]' = [1xN]
+  Matrices_Dot( deltaParameters, auxMatrix, auxMatrix );                                            // pddJ[Nx1]*q'[1xN] = [NxN]
+  Matrices_Dot( auxMatrix, hessian, auxMatrix );                                                    // (pddJ*q')[NxN]*H[NxN] = [NxN]
+  
+  Matrices_Scale( auxMatrix, -1.0/aux, auxMatrix );
+  Matrices_Sum( partialResult, auxMatrix, partialResult );                                          // (H + ((1+q'*H*q)/(q'*q))*((pddJ*pddJ')/(pddJ'*q)))[NxN] - ((pddJ*q'*H)[NxN]/(q'*pddJ)[1x1]) = [NxN]
+  
+  Matrices_Transpose( deltaGradient, auxMatrix );                                                   // q[Nx1]' = [1xN]
+  Matrices_Dot( deltaGradient, auxMatrix, auxMatrix );                                              // q[Nx1]*q'[1xN] = [NxN]
+  Matrices_Dot( auxMatrix, hessian, auxMatrix );                                                    // H[NxN]*(q*q')[NxN] = [NxN]
+  
+  Matrices_Scale( auxMatrix, -1.0/aux, auxMatrix );
+  Matrices_Sum( partialResult, auxMatrix, hessian );                                                // Result [NxN]
+  
+  Matrices_Discard( auxMatrix );
+  Matrices_Discard( partialResult );
 }
 
 void UpdateParameters( double* parametersList, size_t parametersNumber, ObjectiveFunction ref_Evaluate, void* input, double updateFactors[ 2 ] )
 {
-  static double auxMatrix[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ], auxVector[ MATRIX_SIZE_MAX ][ MATRIX_SIZE_MAX ];
   static double newEstimation[ 2 ];
   
-  Matrix_Transpose( (double**) gradient, parametersNumber, 1, (double**) auxVector );                                           // q[Nx1]' = [1xN]
-  Matrix_Inverse( hessian, parametersNumber, (double**) auxMatrix );                                                            // H[NxN]^(-1) = invH[NxN]
-  Matrix_Dot( (double**) auxVector, (double**) auxMatrix, 1, parametersNumber, parametersNumber, (double**) auxMatrix );        // q'[1xN]*invH[NxN] = [1xN]
+  Matrix auxVector = Matrices_Transpose( gradient, NULL );                                          // q[Nx1]' = [1xN]
+  Matrix auxMatrix = Matrices_Inverse( hessian, auxMatrix );                                        // H[NxN]^(-1) = invH[NxN]
+  Matrices_Dot( auxVector, auxMatrix, auxVector );                                                  // q'[1xN]*invH[NxN] = [1xN]
+  
+  double* parametersTestList = Matrices_GetAsVector( auxMatrix );
+  double* changeRatesList = Matrices_GetAsVector( auxVector );
   
   for( size_t estimationIndex = 0; estimationIndex < 2; estimationIndex++ )
   {
     for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-      auxVector[ estimationIndex ][ parameterIndex ] = parametersList[ parameterIndex ] + updateFactors[ estimationIndex ] * auxMatrix[ 0 ][ parameterIndex ];
-    newEstimation[ estimationIndex ] = ref_Evaluate( (double*) &(auxVector[ estimationIndex ]), parametersNumber, input );
+    {
+      double parameterEstimation = parametersList[ parameterIndex ] + updateFactors[ estimationIndex ] * changeRatesList[ parameterIndex ];
+      parametersTestList[ estimationIndex * parametersNumber + parameterIndex ] = parameterEstimation;
+    }
+    newEstimation[ estimationIndex ] = ref_Evaluate( parametersTestList + estimationIndex * parametersNumber ), parametersNumber, input );
   }
   
   size_t updateFactorIndex;
@@ -272,9 +157,12 @@ void UpdateParameters( double* parametersList, size_t parametersNumber, Objectiv
   
   for( size_t parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
   {
-    deltaParameters[ parameterIndex ] = auxVector[ updateFactorIndex ][ parameterIndex ] - parametersList[ parameterIndex ];
-    parametersList[ parameterIndex ] = auxVector[ updateFactorIndex ][ parameterIndex ];
+    deltaParameters[ parameterIndex ] = parametersTestList[ updateFactorIndex * parametersNumber + parameterIndex ] - parametersList[ parameterIndex ];
+    parametersList[ parameterIndex ] = parametersTestList[ updateFactorIndex * parametersNumber + parameterIndex ];
   }
+  
+  Matrix_Discard( auxVector );
+  Matrix_Discard( auxMatrix );
 }
 
 #ifdef __cplusplus

@@ -105,7 +105,7 @@ static inline const kson_node_t* GetPathNode( int dataID, const char* pathFormat
   
   vsnprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, pathFormat, pathArgs );
   
-  //DEBUG_PRINT( "Search path: %s", searchPath );
+  DEBUG_PRINT( "Search path: %s", searchPath );
   
   for( char* key = strtok( searchPath, "." ); key != NULL; key = strtok( NULL, "." ) )
   {
@@ -133,7 +133,7 @@ char* GetStringValue( int dataID, char* defaultValue, const char* pathFormat, ..
   
   if( valueNode->v.str == NULL ) return defaultValue;
   
-  //DEBUG_PRINT( "Found value: %s", valueNode->v.str );
+  DEBUG_PRINT( "Found value: %s", valueNode->v.str );
   
   return valueNode->v.str;
 }
@@ -148,7 +148,7 @@ long GetIntegerValue( int dataID, long defaultValue, const char* pathFormat, ...
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
   
-  //DEBUG_PRINT( "Found value: %ld", strtol( valueNode->v.str, NULL, 0 ) );
+  DEBUG_PRINT( "Found value: %ld", strtol( valueNode->v.str, NULL, 0 ) );
   
   return strtol( valueNode->v.str, NULL, 0 );
 }
@@ -163,7 +163,7 @@ double GetRealValue( int dataID, double defaultValue, const char* pathFormat, ..
   
   if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
   
-  //DEBUG_PRINT( "Found value: %g", strtod( valueNode->v.str, NULL ) );
+  DEBUG_PRINT( "Found value: %g", strtod( valueNode->v.str, NULL ) );
   
   return strtod( valueNode->v.str, NULL );
 }
@@ -193,7 +193,7 @@ size_t GetListSize( int dataID, const char* pathFormat, ... )
   
   if( listNode->type != KSON_TYPE_BRACKET ) return 0;
   
-  //DEBUG_PRINT( "List %s size: %u", pathFormat, (size_t) listNode->n );
+  DEBUG_PRINT( "List %s size: %u", pathFormat, (size_t) listNode->n );
   
   return (size_t) listNode->n;
 }

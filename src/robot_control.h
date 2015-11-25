@@ -59,6 +59,7 @@ khash_t( RobotControlInt )* controllersList = NULL;
         function_init( double*, namespace, GetJointMeasuresList, int, size_t ) \
         function_init( double*, namespace, GetDoFMeasuresList, int, size_t ) \
         function_init( double*, namespace, GetDoFSetpointsList, int, size_t ) \
+        function_init( double, namespace, SetDoFSetpoint, int, size_t, enum ControlVariables, double ) \
         function_init( bool, namespace, SetDoFImpedance, int, size_t, double, double ) \
         function_init( size_t, namespace, GetDoFsNumber, int )
 
@@ -263,6 +264,8 @@ inline bool RobotControl_Update( int controllerID )
     controller->dofSetpointsTable[ dofIndex ][ CONTROL_FORCE ] = controller->dofsList[ dofIndex ].stiffness * positionError;
   }
   
+  //DEBUG_PRINT( "setpoint: %g * (%g - %g)", controller->dofsList[ 0 ].stiffness, controller->dofSetpointsTable[ 0 ][ CONTROL_POSITION ], controller->dofMeasuresTable[ 0 ][ CONTROL_POSITION ] ); 
+  
   for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
     controller->mechanism.GetInverseDynamics( controller->dofSetpointsTable, controller->jointSetpointsTable[ jointIndex ], jointIndex );
   
@@ -291,6 +294,22 @@ inline double* RobotControl_GetDoFSetpointsList( int controllerID, size_t dofInd
   if( dofIndex >= controller->dofsNumber ) return NULL;
     
   return controller->dofSetpointsTable[ dofIndex ];
+}
+
+inline double RobotControl_SetDoFSetpoint( int controllerID, size_t dofIndex, enum ControlVariables variable, double value )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return 0.0;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( dofIndex >= controller->dofsNumber ) return 0.0;
+  
+  if( variable < 0 || variable >= CONTROL_VARS_NUMBER ) return 0.0;
+  
+  controller->dofSetpointsTable[ dofIndex ][ variable ] = value;
+  
+  return value;
 }
 
 inline bool RobotControl_SetDoFImpedance( int controllerID, size_t dofIndex, double stiffness, double damping )

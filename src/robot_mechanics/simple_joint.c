@@ -44,8 +44,13 @@ void GetInverseDynamics( double** dofValuesTable, double* jointValuesList, size_
   
   jointValuesList[ ROBOT_POSITION ] = dofValuesTable[ 0 ][ ROBOT_POSITION ];
   jointValuesList[ ROBOT_VELOCITY ] = dofValuesTable[ 0 ][ ROBOT_VELOCITY ];
-  //jointValuesList[ ROBOT_FORCE ] = dofValuesTable[ 0 ][ ROBOT_FORCE ];
+  
+  jointValuesList[ ROBOT_FORCE ] = dofValuesTable[ 0 ][ ROBOT_FORCE ];
+  
   double weight = 5.0 * 9.81;
   double momentArm = 0.20;
-  jointValuesList[ ROBOT_FORCE ] = weight * momentArm * cos( dofValuesTable[ 0 ][ ROBOT_POSITION ] );
+  double jointAngle = dofValuesTable[ 0 ][ ROBOT_POSITION ] * 6.28;
+  //jointValuesList[ ROBOT_FORCE ] = weight * momentArm * cos( dofValuesTable[ 0 ][ ROBOT_POSITION ] );
+  double weightTorque = weight * momentArm * cos( jointAngle );
+  //DEBUG_PRINT( "set torque: %g * %g * cos( %g ) = %g", weight, momentArm, jointAngle, weightTorque );
 }

@@ -105,8 +105,8 @@ void CurveInterpolation_UnloadCurve( Curve curve )
   {
     if( curve->segmentsList != NULL )
     {
-      for( size_t segmentIndex = 0; segmentIndex < curve->segmentsNumber; segmentIndex++ )
-        free( curve->segmentsList[ curve->segmentsNumber ].coeffs );
+      //for( size_t segmentIndex = 0; segmentIndex < curve->segmentsNumber; segmentIndex++ )
+      //  free( curve->segmentsList[ curve->segmentsNumber ].coeffs );
       free( curve->segmentsList );
     }
     

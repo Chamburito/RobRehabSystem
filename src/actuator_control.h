@@ -288,7 +288,7 @@ static inline void RunControl( Actuator actuator )
   
   if( Motors.IsEnabled( actuator->motor ) )
   {
-    actuator->setpointsList[ CONTROL_FORCE ] = 0.0;
+    //DEBUG_PRINT( "force setpoint: %g", actuator->setpointsList[ CONTROL_FORCE ] ); 
     double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_SAMPLING_INTERVAL, &(actuator->controlError) );
     //DEBUG_PRINT( "force setpoint: %.3f - control: %.3f", actuator->setpointsList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
     
