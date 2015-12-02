@@ -12,149 +12,119 @@ enum SignalProcessingPhase { SIGNAL_PROCESSING_PHASE_MEASUREMENT, SIGNAL_PROCESS
 
 const uint8_t SIGNAL_PROCESSING_RECTIFY = 0x0F, SIGNAL_PROCESSING_NORMALIZE = 0xF0;
 
-typedef struct _SignalData
+typedef struct _SignalProcessorData
 {
-  double samplingTime;
   double calibrationMax, calibrationMin;
   double samplesMean, offset;
   size_t recordedSamplesCount;
   enum SignalProcessingPhase processingPhase;
   bool isRectified, isNormalized;
 }
-SignalData;
+SignalProcessorData;
 
-typedef struct _SignalFilterData
-{
-  SignalData signalData;
-  KalmanFilter kalmanFilter;
-}
-SignalFilterData;
-
-typedef SignalFilterData* SignalFilter;
+typedef SignalProcessorData* SignalProcessor;
 
 
 #define SIGNAL_PROCESSING_FUNCTIONS( namespace, function_init ) \
-        function_init( SignalFilter, namespace, CreateFilter, uint8_t ) \
-        function_init( void, namespace, DiscardFilter, SignalFilter ) \
-        function_init( double*, namespace, UpdateFilter, SignalFilter, double ) \
-        function_init( double, namespace, GetFilterOffset, SignalFilter ) \
-        function_init( void, namespace, SetFilterState, SignalFilter, enum SignalProcessingPhase ) 
+        function_init( SignalProcessor, namespace, CreateProcessor, uint8_t ) \
+        function_init( void, namespace, DiscardProcessor, SignalProcessor ) \
+        function_init( double, namespace, UpdateSignal, SignalProcessor, double ) \
+        function_init( double, namespace, GetSignalOffset, SignalProcessor ) \
+        function_init( void, namespace, SetProcessorState, SignalProcessor, enum SignalProcessingPhase ) 
 
 INIT_NAMESPACE_INTERFACE( SignalProcessing, SIGNAL_PROCESSING_FUNCTIONS )
 
 
-SignalFilter SignalProcessing_CreateFilter( uint8_t flags )
+SignalProcessor SignalProcessing_CreateProcessor( uint8_t flags )
 {
-  DEBUG_PRINT( "Trying to create filter type %u", flags );
+  DEBUG_PRINT( "Trying to create processor type %u", flags );
   
-  SignalFilter newSensor = (SignalFilter) malloc( sizeof(SignalFilterData) );
-  memset( newSensor, 0, sizeof(SignalFilterData) );
+  SignalProcessor newProcessor = (SignalProcessor) malloc( sizeof(SignalProcessorData) );
+  memset( newProcessor, 0, sizeof(SignalProcessorData) );
   
-  newSensor->signalData.processingPhase = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
+  newProcessor->processingPhase = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
   
-  newSensor->signalData.isRectified = (bool) ( flags & SIGNAL_PROCESSING_RECTIFY );
-  newSensor->signalData.isNormalized = (bool) ( flags & SIGNAL_PROCESSING_NORMALIZE );
+  newProcessor->isRectified = (bool) ( flags & SIGNAL_PROCESSING_RECTIFY );
+  newProcessor->isNormalized = (bool) ( flags & SIGNAL_PROCESSING_NORMALIZE );
         
-  DEBUG_PRINT( "measure properties: rect: %u - norm: %u", newSensor->signalData.isRectified, newSensor->signalData.isNormalized ); 
-        
-  newSensor->kalmanFilter = SimpleKalman.CreateFilter( 3, 0.0 );
+  DEBUG_PRINT( "measure properties: rect: %u - norm: %u", newProcessor->isRectified, newProcessor->isNormalized ); 
   
-  return newSensor;
+  return newProcessor;
 }
 
-void SignalProcessing_DiscardFilter( SignalFilter filter )
+void SignalProcessing_DiscardProcessor( SignalProcessor processor )
 {
-  if( filter == NULL ) return;
+  if( processor == NULL ) return;
   
-  SimpleKalman.DiscardFilter( filter->kalmanFilter );
-  
-  free( filter );
+  free( processor );
 }
 
-double* SignalProcessing_UpdateFilter( SignalFilter filter, double newSignalValue )
+double SignalProcessing_UpdateProcessor( SignalProcessor processor, double newSignalValue )
 {
-  if( filter == NULL ) return NULL;
-  
-  SignalData* signal = &(filter->signalData);
-  
-  double* filterOutput = NULL;
+  if( processor == NULL ) return 0.0;
     
-  if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+  if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    signal->samplesMean += newSignalValue;
-    signal->recordedSamplesCount++;
+    processor->samplesMean += newSignalValue;
+    processor->recordedSamplesCount++;
   }
   else
   {
-    newSignalValue -= signal->offset;
+    newSignalValue -= processor->offset;
 
-    if( signal->isRectified ) newSignalValue = fabs( newSignalValue );
+    if( processor->isRectified ) newSignalValue = fabs( newSignalValue );
 
-    if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+    if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
     {
-      if( newSignalValue > signal->calibrationMax ) signal->calibrationMax = newSignalValue;
-      else if( newSignalValue < signal->calibrationMin ) signal->calibrationMin = newSignalValue;
+      if( newSignalValue > processor->calibrationMax ) processor->calibrationMax = newSignalValue;
+      else if( newSignalValue < processor->calibrationMin ) processor->calibrationMin = newSignalValue;
     }
-    else if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
+    else if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
     {
-      if( signal->isNormalized && ( signal->calibrationMin != signal->calibrationMax ) )
+      if( processor->isNormalized && ( processor->calibrationMin != processor->calibrationMax ) )
       {
-        if( newSignalValue > signal->calibrationMax ) newSignalValue = signal->calibrationMax;
-        else if( newSignalValue < signal->calibrationMin ) newSignalValue = signal->calibrationMin;
+        if( newSignalValue > processor->calibrationMax ) newSignalValue = processor->calibrationMax;
+        else if( newSignalValue < processor->calibrationMin ) newSignalValue = processor->calibrationMin;
 
-        newSignalValue = newSignalValue / ( signal->calibrationMax - signal->calibrationMin );
+        newSignalValue = newSignalValue / ( processor->calibrationMax - processor->calibrationMin );
       }
-
-      double deltaTime = 0.005;//Timing.GetExecTimeSeconds() - signal->samplingTime;
-      //DEBUG_PRINT( "filter %p delta time: %g", filter, deltaTime );
-      filterOutput = SimpleKalman.Update( filter->kalmanFilter, newSignalValue, deltaTime );
-      filterOutput[ 0 ] = newSignalValue;
-      filterOutput[ 1 ] = filterOutput[ 2 ] = 0.0;
-      //DEBUG_PRINT( "input: %g - output: %g", newSignalValue, filterOutput[ 0 ] );
     }
   }
-  
-  signal->samplingTime = Timing.GetExecTimeSeconds();
     
-  return filterOutput;
+  return newSignalValue;
 }
 
-double SignalProcessing_GetFilterOffset( SignalFilter filter )
+double SignalProcessing_GetProcessorOffset( SignalProcessor processor )
 {
-  if( filter == NULL ) return 0.0;
+  if( processor == NULL ) return 0.0;
   
-  return filter->signalData.offset;
+  return processor->offset;
 }
 
-void SignalProcessing_SetFilterState( SignalFilter filter, enum SignalProcessingPhase newProcessingPhase )
+void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalProcessingPhase newProcessingPhase )
 {
-  if( filter == NULL ) return;
+  if( processor == NULL ) return;
   
   if( newProcessingPhase < 0 || newProcessingPhase >= SIGNAL_PROCESSING_PHASES_NUMBER ) return;
-  
-  SignalData* signal = &(filter->signalData);
 
-  if( signal->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+  if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    if( signal->recordedSamplesCount > 0 ) 
-      signal->offset = signal->samplesMean / signal->recordedSamplesCount;
+    if( processor->recordedSamplesCount > 0 ) 
+      processor->offset = processor->samplesMean / processor->recordedSamplesCount;
   }
   
   if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
   {
-    signal->calibrationMax = 0.0;
-    signal->calibrationMin = 0.0;
+    processor->calibrationMax = 0.0;
+    processor->calibrationMin = 0.0;
   }
   else if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    signal->samplesMean = 0.0;
-    signal->recordedSamplesCount = 0;
+    processor->samplesMean = 0.0;
+    processor->recordedSamplesCount = 0;
   }
-
-  SimpleKalman.Reset( filter->kalmanFilter, 0.0 );
-  signal->samplingTime = Timing.GetExecTimeSeconds();
   
-  signal->processingPhase = newProcessingPhase;
+  processor->processingPhase = newProcessingPhase;
 }
 
 

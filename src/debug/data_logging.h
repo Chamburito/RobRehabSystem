@@ -72,6 +72,8 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
     newLog->memoryBuffer = (double*) calloc( memoryBufferLength, sizeof(double) );
     newLog->memoryBufferLength = memoryBufferLength;
     newLog->memoryValuesCount = 0;
+    
+    newLog->dataPrecision = 3;
   }
   
   return (int) kh_key( logsList, newLogIndex );
@@ -111,8 +113,7 @@ static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSi
   for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
   {
     for( size_t lineValueIndex = 0; lineValueIndex < log->valuesNumber; lineValueIndex++ )
-      //fprintf( log->file, "%.*lf\t", log->dataPrecision, dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
-      fprintf( log->file, "%.8f\t", dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
+      fprintf( log->file, "%.*lf\t", log->dataPrecision, dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
     fprintf( log->file, "\n" );
   }
 }
@@ -163,7 +164,7 @@ static void DataLogging_RegisterList( int logID, size_t valuesNumber, double* va
 
 static void DataLogging_SetDataPrecision( int logID, size_t decimalPlacesNumber )
 {
-  const size_t MAX_PRECISION = 6;
+  const size_t MAX_PRECISION = 8;
   
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;

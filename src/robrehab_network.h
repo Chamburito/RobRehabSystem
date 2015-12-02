@@ -4,7 +4,7 @@
 #ifdef _CVI_
   #include "ip_network/cvirte_ip_connection.h"
 #else
-  #include "ip_network/async_ip_connection.h"
+  #include "ip_network/async_ip_network.h"
 #endif
 
 #include <cvinetv.h>
@@ -275,7 +275,7 @@ static void UpdateClientEvent( int clientID )
     if( messageOut[ 0 ] > 0 ) 
     {
       DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", messageOut, clientID, stateByteIndex );
-      AsyncIPNetwork_WriteMessage( clientID, messageOut );
+      AsyncIPNetwork.WriteMessage( clientID, messageOut );
     }
   }
 }

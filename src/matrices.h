@@ -15,6 +15,9 @@
 #define MATRIX_IDENTITY true
 #define MATRIX_ZERO false
 
+#define MATRIX_TRANSPOSE true
+#define MATRIX_KEEP false
+
 typedef struct _MatrixData
 {
   double* data;
@@ -25,20 +28,21 @@ MatrixData;
 typedef MatrixData* Matrix;
 
 
-Matrix Matrices_Create( double*, size_t, size_t );            // Criar a partir de array de tamanho linhas * colunas
-Matrix Matrices_CreateSquare( size_t, bool );                 // Atalho para criar matriz quadrada (zero ou identidade)
-double Matrices_GetElement( Matrix, size_t, size_t );         // ObtÈm elemento da matriz na linha e coluna dadas
-double* Matrices_GetAsVector( Matrix );                       // ObtÈm vetor de 1 dimens„o dos elementos da matriz
-void Matrices_SetElement( Matrix, size_t, size_t, double );   // Escreve elemento na matriz na linha e coluna dadas
-Matrix Matrices_Clear( Matrix );                              // Zera a matriz
-Matrix Matrices_Resize( Matrix, size_t, size_t );             // Redimensiona a matriz para tamanho (linhas e colunas) dado
-Matrix Matrices_Scale( Matrix, double );                      // Multiplica matriz por escalar
-Matrix Matrices_Sum( Matrix, Matrix, Matrix );                // Soma de matrizes
-Matrix Matrices_Dot( Matrix, Matrix, Matrix );                // Produto de matrizes
-double Matrices_Determinant( Matrix );                        // Determinante de matriz
-Matrix Matrices_Transpose( Matrix, Matrix );                  // Matriz transposta
-Matrix Matrices_Inverse( Matrix, Matrix );                    // Matriz inversa
-void Matrices_Print( Matrix );                                // Imprime matriz
+Matrix Matrices_Create( double*, size_t, size_t );                    // Criar a partir de array de tamanho linhas * colunas
+Matrix Matrices_CreateSquare( size_t, bool );                         // Atalho para criar matriz quadrada (zero ou identidade)
+void Matrices_Discard( Matrix );                                      // Desaloca memÛria de matrix fornecida
+double Matrices_GetElement( Matrix, size_t, size_t );                 // ObtÈm elemento da matriz na linha e coluna dadas
+double* Matrices_GetAsVector( Matrix );                               // ObtÈm vetor de 1 dimens„o dos elementos da matriz
+void Matrices_SetElement( Matrix, size_t, size_t, double );           // Escreve elemento na matriz na linha e coluna dadas
+Matrix Matrices_Clear( Matrix );                                      // Preenche a matrix com zeros
+Matrix Matrices_Resize( Matrix, size_t, size_t );                     // Redimensiona a matriz para tamanho (linhas e colunas) dado
+Matrix Matrices_Scale( Matrix, double, Matrix );                      // Multiplica matriz por escalar
+Matrix Matrices_Sum( Matrix, double, Matrix, double, Matrix );        // Soma de matrizes
+Matrix Matrices_Dot( Matrix, bool, Matrix, bool, Matrix );            // Produto de matrizes
+double Matrices_Determinant( Matrix );                                // Determinante de matriz
+Matrix Matrices_Transpose( Matrix, Matrix );                          // Matriz transposta
+Matrix Matrices_Inverse( Matrix, Matrix );                            // Matriz inversa
+void Matrices_Print( Matrix );                                        // Imprime matriz
 
 /*#define MATRICES_FUNCTIONS( namespace, function_init ) \
         function_init( Matrix, namespace, Create, double*, size_t, size_t ) \             // Criar a partir de array de tamanho linhas * colunas
@@ -96,6 +100,15 @@ Matrix Matrices_CreateSquare( size_t size, bool isIdentity )
   return newSquareMatrix;
 }
 
+void Matrices_Discard( Matrix matrix )
+{
+  if( matrix == NULL ) return;
+  
+  free( matrix->data );
+  
+  free( matrix );
+}
+
 Matrix Matrices_Resize( Matrix matrix, size_t rowsNumber, size_t columnsNumber )
 {
   if( matrix == NULL )
@@ -128,20 +141,22 @@ void Matrices_SetElement( Matrix matrix, size_t row, size_t column, double value
   matrix->data[ row * matrix->columnsNumber + column ] = value;
 }
 
-Matrix Matrices_Scale( Matrix matrix, double scalar )
+Matrix Matrices_Scale( Matrix matrix, double scalar, Matrix result )
 {
   if( matrix == NULL ) return NULL;
+  
+  if( (result = Matrices_Resize( result, matrix->rowsNumber, matrix->columnsNumber )) == NULL ) return NULL;
 
   for( size_t row = 0; row < matrix->rowsNumber; row++ )
   {
     for( size_t column = 0; column < matrix->columnsNumber; column++ )
-      matrix->data[ row * matrix->columnsNumber + column ] *= scalar;
+      result->data[ row * matrix->columnsNumber + column ] = matrix->data[ row * matrix->columnsNumber + column ] * scalar;
   }
 
-  return matrix;
+  return result;
 }
 
-Matrix Matrices_Sum( Matrix matrix_1, Matrix matrix_2, Matrix result )
+Matrix Matrices_Sum( Matrix matrix_1, double weight_1, Matrix matrix_2, double weight_2, Matrix result )
 {
   static double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
 
@@ -157,7 +172,7 @@ Matrix Matrices_Sum( Matrix matrix_1, Matrix matrix_2, Matrix result )
     {
       double element_1 = matrix_1->data[ row * matrix_1->columnsNumber + column ];
       double element_2 = matrix_2->data[ row * matrix_2->columnsNumber + column ];
-      auxArray[ row * result->columnsNumber + column ] = element_1 + element_2;
+      auxArray[ row * result->columnsNumber + column ] = weight_1 * element_1 + weight_2 * element_2;
     }
   }
 
@@ -166,28 +181,31 @@ Matrix Matrices_Sum( Matrix matrix_1, Matrix matrix_2, Matrix result )
   return result;
 }
 
-Matrix Matrices_Dot( Matrix matrix_1, Matrix matrix_2, Matrix result )
+Matrix Matrices_Dot( Matrix matrix_1, bool transpose_1, Matrix matrix_2, bool transpose_2, Matrix result )
 {
   static double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
 
   if( matrix_1 == NULL || matrix_2 == NULL ) return NULL;
 
-  if( matrix_1->columnsNumber != matrix_2->rowsNumber ) return NULL;
+  size_t couplingLength = transpose_1 ? matrix_1->rowsNumber : matrix_1->columnsNumber;
+  
+  if( couplingLength != ( transpose_2 ? matrix_2->columnsNumber : matrix_2->rowsNumber ) ) return NULL;
+  
+  size_t resultRowsNumber = transpose_1 ? matrix_1->columnsNumber : matrix_1->rowsNumber;
+  size_t resultColumnsNumber = transpose_2 ? matrix_2->rowsNumber : matrix_2->columnsNumber;
 
-  if( (result = Matrices_Resize( result, matrix_1->rowsNumber, matrix_2->columnsNumber )) == NULL ) return NULL;
-
-  size_t operationsNumber = matrix_1->columnsNumber;
+  if( (result = Matrices_Resize( result, resultRowsNumber, resultColumnsNumber )) == NULL ) return NULL;
 
   for( size_t row = 0; row < result->rowsNumber; row++ )
   {
     for( size_t column = 0; column < result->columnsNumber; column++ )
     {
       auxArray[ row * result->columnsNumber + column ] = 0.0;
-      for( size_t i = 0; i < operationsNumber; i++ )
+      for( size_t i = 0; i < couplingLength; i++ )
       {
-        double element_1 = matrix_1->data[ row * matrix_1->columnsNumber + i ];
-        double element_2 = matrix_2->data[ i * matrix_2->columnsNumber + column ];
-        auxArray[ row * result->columnsNumber + column ] += element_1 * element_2;
+        size_t elementIndex_1 = transpose_1 ? i * matrix_1->columnsNumber + column : row * matrix_1->columnsNumber + i;
+        size_t elementIndex_2 = transpose_2 ? row * matrix_2->columnsNumber + i : i * matrix_2->columnsNumber + column;
+        auxArray[ row * result->columnsNumber + column ] += matrix_1->data[ elementIndex_1 ] * matrix_2->data[ elementIndex_2 ];
       }
     }
   }
@@ -197,7 +215,7 @@ Matrix Matrices_Dot( Matrix matrix_1, Matrix matrix_2, Matrix result )
   return result;
 }
 
-// N√ÉO USAR DIRETAMENTE !!
+// N√O USAR DIRETAMENTE !!
 void CofactorMatrix( double* matrixArray, size_t size, size_t elementRow, size_t elementColumn, double* result )
 {
   size_t cofRow = 0, cofColumn = 0;

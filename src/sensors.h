@@ -23,7 +23,7 @@ struct _SensorData
   SignalIOInterface interface;
   int taskID;
   unsigned int channel;
-  SignalFilter filter;
+  SignalProcessor processor;
   Curve measurementCurve;
   double gain;
   int logID;
@@ -33,7 +33,7 @@ struct _SensorData
 #define SENSOR_FUNCTIONS( namespace, function_init ) \
         function_init( Sensor, namespace, Init, const char* ) \
         function_init( void, namespace, End, Sensor ) \
-        function_init( double*, namespace, Update, Sensor ) \
+        function_init( double, namespace, Update, Sensor ) \
         function_init( bool, namespace, HasError, Sensor ) \
         function_init( void, namespace, Reset, Sensor ) \
         function_init( void, namespace, SetState, Sensor, enum SignalProcessingPhase )
@@ -68,10 +68,10 @@ Sensor Sensors_Init( const char* configFileName )
         newSensor->gain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
         newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
         
-        uint8_t filterFlags = 0x00;
-        if( parser.GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) filterFlags |= SIGNAL_PROCESSING_RECTIFY;
-        if( parser.GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) filterFlags |= SIGNAL_PROCESSING_NORMALIZE;
-        newSensor->filter = SignalProcessing.CreateFilter( filterFlags );
+        uint8_t processingFlags = 0x00;
+        if( parser.GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) processingFlags |= SIGNAL_PROCESSING_RECTIFY;
+        if( parser.GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) processingFlags |= SIGNAL_PROCESSING_NORMALIZE;
+        newSensor->processor = SignalProcessing.CreateProcessor( processingFlags );
         
         newSensor->measurementCurve = CurveInterpolation.LoadCurveString( parser.GetStringValue( configFileID, NULL, "conversion_curve" ) );
         
@@ -110,7 +110,7 @@ void Sensors_End( Sensor sensor )
   sensor->interface.ReleaseInputChannel( sensor->taskID, sensor->channel );
   sensor->interface.EndTask( sensor->taskID );
   
-  SignalProcessing.DiscardFilter( sensor->filter );
+  SignalProcessing.DiscardProcessor( sensor->processor );
   CurveInterpolation.UnloadCurve( sensor->measurementCurve );
   
   if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
@@ -120,23 +120,23 @@ void Sensors_End( Sensor sensor )
   free( sensor );
 }
 
-double* Sensors_Update( Sensor sensor )
+double Sensors_Update( Sensor sensor )
 {
-  if( sensor == NULL ) return NULL;
-  
-  double* sensorOutput = NULL;
+  if( sensor == NULL ) return 0.0;
   
   //DEBUG_PRINT( "updating sensor channel %d-%u", sensor->taskID, sensor->channel );
+  
+  double sensorOutput = 0.0;
   
   double signal;
   if( sensor->interface.Read( sensor->taskID, sensor->channel, &signal ) )
   {
-    sensorOutput = SignalProcessing.UpdateFilter( sensor->filter, signal * sensor->gain );
+    sensorOutput = SignalProcessing.UpdateSignal( sensor->processor, signal * sensor->gain );
     
-    double* referenceOutput = Sensors_Update( sensor->reference );
-    if( referenceOutput != NULL ) sensorOutput[ 0 ] -= referenceOutput[ 0 ];
+    double referenceOutput = Sensors_Update( sensor->reference );
+    sensorOutput -= referenceOutput;
 
-    sensorOutput[ 0 ] = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput[ 0 ], sensorOutput[ 0 ] );
+    sensorOutput = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput, sensorOutput );
   }
     
   return sensorOutput;
@@ -160,7 +160,7 @@ void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPh
 {
   if( sensor == NULL ) return;
   
-  SignalProcessing.SetFilterState( sensor->filter, newProcessingPhase );
+  SignalProcessing.SetProcessorState( sensor->processor, newProcessingPhase );
   Sensors.SetState( sensor->reference, newProcessingPhase );
 }
 

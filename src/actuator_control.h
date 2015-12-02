@@ -18,6 +18,7 @@ typedef struct _ActuatorData
   Motor motor;
   Sensor positionSensor, velocitySensor, forceSensor;
   enum SignalProcessingPhase sensorState;
+  KalmanFilter positionFilter, forceFilter;
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double controlError;
@@ -68,7 +69,7 @@ Actuator ActuatorControl_InitController( const char* configFileName )
 
     if( (newActuator->motor = Motors.Init( parser.GetStringValue( configFileID, "", "motor" ) )) == NULL ) loadSuccess = false;
     if( (newActuator->positionSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.position" ) )) == NULL ) loadSuccess = false;
-    //if( (newActuator->velocitySensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.velocity" ) )) == NULL ) loadSuccess = false;
+    if( (newActuator->velocitySensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.velocity" ) )) == NULL ) loadSuccess = false;
     if( (newActuator->forceSensor = Sensors.Init( parser.GetStringValue( configFileID, "", "sensors.force" ) )) == NULL ) loadSuccess = false;
 
     newActuator->sensorState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
@@ -109,6 +110,7 @@ void ActuatorControl_EndController( Actuator actuator )
   
   Motors.End( actuator->motor );
   Sensors.End( actuator->positionSensor );
+  Sensors.End( actuator->velocitySensor );
   Sensors.End( actuator->forceSensor );
 }
 
@@ -132,6 +134,7 @@ void ActuatorControl_Reset( Actuator actuator )
     
   Motors.Reset( actuator->motor );
   Sensors.Reset( actuator->positionSensor );
+  Sensors.Reset( actuator->velocitySensor );
   Sensors.Reset( actuator->forceSensor );
 }
 
