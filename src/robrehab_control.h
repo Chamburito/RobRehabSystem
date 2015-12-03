@@ -1,7 +1,7 @@
 #ifndef ROBREHAB_CONTROL_H
 #define ROBREHAB_CONTROL_H
 
-#include "shm_control.h"
+#include "shm_dof_control.h"
 #include "shm_axis_control.h"
 #include "shm_emg_control.h"
 #include "robot_control.h"
@@ -13,18 +13,10 @@
 
 #include "debug/async_debug.h"
 
-const unsigned long UPDATE_INTERVAL_MS = (unsigned long) CONTROL_SAMPLING_INTERVAL * 1000;
+const unsigned long UPDATE_INTERVAL_MS = (unsigned long) CONTROL_PASS_INTERVAL * 1000;
 
-typedef struct _SharedAxisController
-{
-  int robotID;
-  size_t controllerIndex;
-  SHMController sharedData;
-}
-SharedAxisController;
-
-kvec_t( SharedAxisController ) sharedDoFControllersList;
-kvec_t( SharedAxisController ) sharedJointControllersList;
+kvec_t( SHMDoFController ) sharedAxisControllersList;
+kvec_t( SHMDoFController ) sharedJointControllersList;
 kvec_t( int ) robotControllersList;
 
 
@@ -40,14 +32,14 @@ INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_CONTROL_FUNCTIONS )
 
 int RobRehabControl_Init()
 {
-  kv_init( sharedDoFControllersList );
+  kv_init( sharedAxisControllersList );
   kv_init( sharedJointControllersList );
   kv_init( robotControllersList );
 
   if( ConfigParsing.Init( "JSON" ) )
   {
     int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
-    if( configFileID != -1 )
+    if( configFileID != PARSED_DATA_INVALID_ID )
     {
       ParserInterface parser = ConfigParsing.GetParser(); 
       
@@ -71,21 +63,21 @@ int RobRehabControl_Init()
               size_t dofsNumber = parser.GetListSize( configFileID, "robots.%lu.dofs", sharedRobotIndex );
               for( size_t dofIndex = 0; dofIndex < dofsNumber; dofIndex++ )
               {
-                SharedAxisController newSharedDoF = { .robotID = robotControllerID, .controllerIndex = dofIndex };
+                SHMDoFController newSharedDoF = { .robotID = robotControllerID, .controllerIndex = dofIndex };
                 char* dofName = parser.GetStringValue( configFileID, "", "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
                 sprintf( robotVarName, "%s-%s", robotName, dofName );
                 newSharedDoF.sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_IN );
-                if( newSharedDoF.sharedData != NULL ) kv_push( SharedAxisController, sharedDoFControllersList, newSharedDoF );
+                if( newSharedDoF.sharedData != NULL ) kv_push( SHMDoFController, sharedAxisControllersList, newSharedDoF );
               }
 
               size_t jointsNumber = parser.GetListSize( configFileID, "robots.%lu.joints", sharedRobotIndex );
               for( size_t jointIndex = 0; jointIndex < jointsNumber; jointIndex++ )
               {
-                SharedAxisController newSharedJoint = { .robotID = robotControllerID, .controllerIndex = jointIndex };
+                SHMDoFController newSharedJoint = { .robotID = robotControllerID, .controllerIndex = jointIndex };
                 char* jointName = parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
                 sprintf( robotVarName, "%s-%s", robotName, jointName );
                 newSharedJoint.sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_IN );
-                if( newSharedJoint.sharedData != NULL ) kv_push( SharedAxisController, sharedJointControllersList, newSharedJoint );
+                if( newSharedJoint.sharedData != NULL ) kv_push( SHMDoFController, sharedJointControllersList, newSharedJoint );
               }
             }
           }
@@ -105,13 +97,13 @@ void RobRehabControl_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %x", THREAD_ID );
 
-  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedDoFControllersList ); controllerIndex++ )
+  for( size_t controllerIndex = 0; controllerIndex < kv_size( sharedAxisControllersList ); controllerIndex++ )
   {
-    RobotControl.EndController( kv_A( sharedDoFControllersList, controllerIndex ).robotID );
-    SHMControl.EndData( kv_A( sharedDoFControllersList, controllerIndex ).sharedData );
+    RobotControl.EndController( kv_A( sharedAxisControllersList, controllerIndex ).robotID );
+    SHMControl.EndData( kv_A( sharedAxisControllersList, controllerIndex ).sharedData );
   }
 
-  kv_destroy( sharedDoFControllersList );
+  kv_destroy( sharedAxisControllersList );
   kv_destroy( sharedJointControllersList );
   kv_destroy( robotControllersList );
 
@@ -122,11 +114,11 @@ void RobRehabControl_Update()
 {
   static float controlValuesList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
 
-  for( size_t dofControllerIndex = 0; dofControllerIndex < kv_size( sharedDoFControllersList ); dofControllerIndex++ )
+  for( size_t dofControllerIndex = 0; dofControllerIndex < kv_size( sharedAxisControllersList ); dofControllerIndex++ )
   {
     DEBUG_UPDATE( "updating axis controller %u", controllerIndex );
 
-    SharedAxisController* sharedController = &(kv_A( sharedDoFControllersList, dofControllerIndex ));
+    SHMDoFController* sharedController = &(kv_A( sharedAxisControllersList, dofControllerIndex ));
     SHMController sharedDoF = sharedController->sharedData;
     int robotControllerID = sharedController->robotID;
     size_t dofControllerIndex = sharedController->controllerIndex;
@@ -181,7 +173,7 @@ void RobRehabControl_Update()
 
   for( size_t jointControllerIndex = 0; jointControllerIndex < kv_size( sharedJointControllersList ); jointControllerIndex++ )
   {
-    SharedAxisController* sharedController = &(kv_A( sharedJointControllersList, jointControllerIndex ));
+    SHMDoFController* sharedController = &(kv_A( sharedJointControllersList, jointControllerIndex ));
     SHMController sharedJoint = sharedController->sharedData;
     int robotControllerID = sharedController->robotID;
     size_t jointControllerIndex = sharedController->controllerIndex;

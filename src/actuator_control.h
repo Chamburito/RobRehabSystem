@@ -7,18 +7,21 @@
 
 #include "motors.h"
 #include "sensors.h"
+#include "kalman_filters.h"
 
 #include "control_interface.h"
 #include "plugin_loader.h"
 
 #include "debug/async_debug.h"
 
+const double CONTROL_PASS_INTERVAL = 0.005;
+
 typedef struct _ActuatorData
 {
   Motor motor;
   Sensor positionSensor, velocitySensor, forceSensor;
   enum SignalProcessingPhase sensorState;
-  KalmanFilter positionFilter, forceFilter;
+  KalmanFilter positionFilter;
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double controlError;
@@ -74,6 +77,9 @@ Actuator ActuatorControl_InitController( const char* configFileName )
 
     newActuator->sensorState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
     
+    newActuator->positionFilter = Kalman.CreateFilter( 2 );
+    Kalman.SetVariablesCoupling( newActuator->positionFilter, 1, 0, CONTROL_PASS_INTERVAL );
+    
     newActuator->controlMode = CONTROL_POSITION;
     char* controlModeName = parser.GetStringValue( configFileID, CONTROL_MODE_NAMES[ CONTROL_POSITION ], "control.variable" );
     for( int controlModeIndex = 0; controlModeIndex < CONTROL_VARS_NUMBER; controlModeIndex++ )
@@ -108,6 +114,8 @@ void ActuatorControl_EndController( Actuator actuator )
   
   if( actuator == NULL ) return;
   
+  Kalman.DiscardFilter( actuator->positionFilter );
+  
   Motors.End( actuator->motor );
   Sensors.End( actuator->positionSensor );
   Sensors.End( actuator->velocitySensor );
@@ -118,7 +126,7 @@ void ActuatorControl_Enable( Actuator actuator )
 {
   if( actuator == NULL ) return;
   
-  Motors.Enable( actuator->motor );
+  Motors.Enable( actuator->motor );     
 }
 
 void ActuatorControl_Disable( Actuator actuator )
@@ -133,9 +141,12 @@ void ActuatorControl_Reset( Actuator actuator )
   if( actuator == NULL ) return;
     
   Motors.Reset( actuator->motor );
+  
   Sensors.Reset( actuator->positionSensor );
   Sensors.Reset( actuator->velocitySensor );
   Sensors.Reset( actuator->forceSensor );
+  
+  Kalman.Reset( actuator->positionFilter );
 }
 
 void ActuatorControl_SetOffset( Actuator actuator )
@@ -217,8 +228,6 @@ void ActuatorControl_SetOperationMode( Actuator actuator, enum ControlVariables 
 /////                         ASYNCRONOUS CONTROL                           /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const double CONTROL_SAMPLING_INTERVAL = 0.005;           // Sampling interval
-
 static void UpdateControlMeasures( Actuator );
 static void UpdateControlSetpoints( Actuator );
 static void RunControl( Actuator );
@@ -251,7 +260,7 @@ static void* AsyncControl( void* data )
     
     elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
     DEBUG_UPDATE( "control pass for actuator %p (before delay): elapsed time: %u ms", actuator, elapsedTime );
-    if( elapsedTime < (int) ( 1000 * CONTROL_SAMPLING_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_SAMPLING_INTERVAL - elapsedTime );
+    if( elapsedTime < (int) ( 1000 * CONTROL_PASS_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_PASS_INTERVAL - elapsedTime );
     DEBUG_UPDATE( "control pass for actuator %p (after delay): elapsed time: %u ms", actuator, Timing_GetExecTimeMilliseconds() - execTime );
   }
   
@@ -263,24 +272,24 @@ static void* AsyncControl( void* data )
 static inline void UpdateControlMeasures( Actuator actuator )
 {
   DEBUG_UPDATE( "reading measures from actuator %p", actuator );
-  double* filteredPositionSignal = Sensors.Update( actuator->positionSensor );
-  double* filteredForceSignal = Sensors.Update( actuator->forceSensor );
-  if( filteredPositionSignal != NULL && filteredForceSignal != NULL )
-  {
-    actuator->measuresList[ CONTROL_POSITION ] = filteredPositionSignal[ 0 ];
-    actuator->measuresList[ CONTROL_VELOCITY ] = filteredPositionSignal[ 1 ];
-    //actuator->measuresList[ CONTROL_ACCELERATION ] = filteredMeasuresList[ 2 ];
-
-    actuator->measuresList[ CONTROL_FORCE ] = filteredForceSignal[ 0 ];
   
-    //DEBUG_PRINT( "measures p: %.5f - v: %.3f - f: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
+  Kalman.SetMeasure( actuator->positionFilter, 0, Sensors.Update( actuator->positionSensor ) );
+  Kalman.SetMeasure( actuator->positionFilter, 1, Sensors.Update( actuator->velocitySensor ) );
+  (void) Kalman.Predict( actuator->positionFilter );
+  double* fusedPositionSignal = Kalman.Update( actuator->positionFilter );
+  if( fusedPositionSignal != NULL )
+  {
+    actuator->measuresList[ CONTROL_POSITION ] = fusedPositionSignal[ 0 ];
+    actuator->measuresList[ CONTROL_VELOCITY ] = fusedPositionSignal[ 1 ];
+    
+    actuator->measuresList[ CONTROL_FORCE ] = Sensors.Update( actuator->forceSensor );
   }
 }
 
 static inline void UpdateControlSetpoints( Actuator actuator )
 {
-  actuator->setpointsList[ CONTROL_POSITION ] += actuator->setpointsList[ CONTROL_VELOCITY ] * CONTROL_SAMPLING_INTERVAL;
-  //actuator->setpointsList[ CONTROL_VELOCITY ] += actuator->setpointsList[ CONTROL_ACCELERATION ] * CONTROL_SAMPLING_INTERVAL;
+  actuator->setpointsList[ CONTROL_POSITION ] += actuator->setpointsList[ CONTROL_VELOCITY ] * CONTROL_PASS_INTERVAL;
+  //actuator->setpointsList[ CONTROL_VELOCITY ] += actuator->setpointsList[ CONTROL_ACCELERATION ] * CONTROL_PASS_INTERVAL;
   
   //DEBUG_PRINT( "got parameters: %.5f %.5f", actuator->setpointsList[ CONTROL_POSITION ], actuator->setpointsList[ CONTROL_VELOCITY ] );
 }
@@ -292,7 +301,7 @@ static inline void RunControl( Actuator actuator )
   if( Motors.IsEnabled( actuator->motor ) )
   {
     //DEBUG_PRINT( "force setpoint: %g", actuator->setpointsList[ CONTROL_FORCE ] ); 
-    double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_SAMPLING_INTERVAL, &(actuator->controlError) );
+    double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_PASS_INTERVAL, &(actuator->controlError) );
     //DEBUG_PRINT( "force setpoint: %.3f - control: %.3f", actuator->setpointsList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
     
     Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );

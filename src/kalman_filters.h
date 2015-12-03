@@ -1,7 +1,7 @@
-#ifndef FILTERS_H
-#define FILTERS_H
+#ifndef KALMAN_FILTERS_H
+#define KALMAN_FILTERS_H
 
-#include "interface.h"
+#include "interfaces.h"
 
 #include "matrices.h"
 
@@ -9,6 +9,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+
 
 typedef struct _KalmanFilterData
 {
@@ -150,4 +151,4 @@ void Kalman_Reset( KalmanFilter filter )
   Matrices_Clear( filter->innovationCovariance );
 }
 
-#endif  // FILTERS_H
+#endif  // KALMAN_FILTERS_H

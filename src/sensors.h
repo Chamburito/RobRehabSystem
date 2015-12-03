@@ -36,7 +36,8 @@ struct _SensorData
         function_init( double, namespace, Update, Sensor ) \
         function_init( bool, namespace, HasError, Sensor ) \
         function_init( void, namespace, Reset, Sensor ) \
-        function_init( void, namespace, SetState, Sensor, enum SignalProcessingPhase )
+        function_init( void, namespace, SetState, Sensor, enum SignalProcessingPhase ) \
+        function_init( SignalProcessor, namespace, GetSignalProcessor, Sensor )
 
 INIT_NAMESPACE_INTERFACE( Sensors, SENSOR_FUNCTIONS )
 
@@ -71,7 +72,11 @@ Sensor Sensors_Init( const char* configFileName )
         uint8_t processingFlags = 0x00;
         if( parser.GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) processingFlags |= SIGNAL_PROCESSING_RECTIFY;
         if( parser.GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) processingFlags |= SIGNAL_PROCESSING_NORMALIZE;
-        newSensor->processor = SignalProcessing.CreateProcessor( processingFlags );
+        if( (newSensor->processor = SignalProcessing.CreateProcessor( processingFlags )) != NULL )
+        {
+          double relativeCutFrequency = parser.GetRealValue( configFileID, 0.0, "signal_processing.relative_cut_frequency" );
+          SignalProcessing.SetMaxFrequency( newSensor->processor, relativeCutFrequency );
+        }
         
         newSensor->measurementCurve = CurveInterpolation.LoadCurveString( parser.GetStringValue( configFileID, NULL, "conversion_curve" ) );
         
@@ -142,21 +147,21 @@ double Sensors_Update( Sensor sensor )
   return sensorOutput;
 }
 
-bool Sensors_HasError( Sensor sensor )
+inline bool Sensors_HasError( Sensor sensor )
 {
   if( sensor == NULL ) return false;
   
   return sensor->interface.HasError( sensor->taskID );
 }
 
-void Sensors_Reset( Sensor sensor )
+inline void Sensors_Reset( Sensor sensor )
 {
   if( sensor == NULL ) return;
   
   sensor->interface.Reset( sensor->taskID );
 }
 
-void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )
+inline void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )
 {
   if( sensor == NULL ) return;
   
@@ -164,5 +169,11 @@ void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPh
   Sensors.SetState( sensor->reference, newProcessingPhase );
 }
 
+inline SignalProcessor Sensors_GetSignalProcessor( Sensor sensor )
+{
+  if( sensor == NULL ) return NULL;
+  
+  return sensor->processor;
+}
 
 #endif // SENSORS_H

@@ -9,7 +9,7 @@ IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
-Number of Files = 20
+Number of Files = 22
 Target Type = "Dynamic Link Library"
 Flags = 16
 Copied From Locked InstrDrv Directory = False
@@ -104,8 +104,8 @@ File Type = "Include"
 Res Id = 7
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/filters.h"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/filters.h"
+Path Rel Path = "src/interfaces.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/interfaces.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -116,8 +116,8 @@ File Type = "Include"
 Res Id = 8
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/interface.h"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/interface.h"
+Path Rel Path = "src/kalman_filters.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/kalman_filters.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -225,9 +225,8 @@ File Type = "Include"
 Res Id = 17
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/threads/threads_data_structures.h"
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_data"
-Path Line0002 = "_structures.h"
+Path Rel Path = "src/shm_dof_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_dof_control.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -238,6 +237,31 @@ File Type = "Include"
 Res Id = 18
 Path Is Rel = True
 Path Rel To = "Project"
+Path Rel Path = "src/signal_processing.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_processing.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0019]
+File Type = "Include"
+Res Id = 19
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threads_data_structures.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_data"
+Path Line0002 = "_structures.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0020]
+File Type = "Include"
+Res Id = 20
+Path Is Rel = True
+Path Rel To = "Project"
 Path Rel Path = "src/time/timing_realtime.h"
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/time/timing_realtime"
 Path Line0002 = ".h"
@@ -246,9 +270,9 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 0
 
-[File 0019]
+[File 0021]
 File Type = "CSource"
-Res Id = 19
+Res Id = 21
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/klib/kson.c"
@@ -259,9 +283,9 @@ Project Flags = 0
 Folder = "Source Files"
 Folder Id = 1
 
-[File 0020]
+[File 0022]
 File Type = "CSource"
-Res Id = 20
+Res Id = 22
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/robrehab_system_rt.c"
