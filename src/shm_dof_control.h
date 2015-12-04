@@ -14,7 +14,7 @@
 
 typedef struct _SHMDoFControllerData
 {
-  int64_t localControllerKey;
+  void* ref_localDoF;
   SHMController sharedData;
 }
 SHMDoFControllerData;

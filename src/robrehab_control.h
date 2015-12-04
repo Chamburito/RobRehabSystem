@@ -60,22 +60,22 @@ int RobRehabControl_Init()
             {
               kv_push( int, robotControllersList, robotControllerID );
 
-              size_t dofsNumber = parser.GetListSize( configFileID, "robots.%lu.dofs", sharedRobotIndex );
-              for( size_t dofIndex = 0; dofIndex < dofsNumber; dofIndex++ )
+              size_t axesNumber = parser.GetListSize( configFileID, "robots.%lu.axes", sharedRobotIndex );
+              for( size_t axisIndex = 0; axisIndex < axesNumber; axisIndex++ )
               {
-                SHMDoFController newSharedDoF = { .robotID = robotControllerID, .controllerIndex = dofIndex };
-                char* dofName = parser.GetStringValue( configFileID, "", "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
-                sprintf( robotVarName, "%s-%s", robotName, dofName );
-                newSharedDoF.sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_IN );
-                if( newSharedDoF.sharedData != NULL ) kv_push( SHMDoFController, sharedAxisControllersList, newSharedDoF );
+                SHMDoFController newSharedAxis = (SHMDoFController) malloc( sizeof(SHMDoFControllerData) );
+                newSharedAxis->ref_localDoF = (void*) RobotControl.GetAxis( robotControllerID, axisIndex );
+                sprintf( robotVarName, "%s-%s", robotName, parser.GetStringValue( configFileID, "", "robots.%lu.axes.%lu", sharedRobotIndex, axisIndex ) );
+                newSharedAxis->sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_IN );
+                kv_push( SHMDoFController, sharedAxisControllersList, newSharedAxis );
               }
 
               size_t jointsNumber = parser.GetListSize( configFileID, "robots.%lu.joints", sharedRobotIndex );
               for( size_t jointIndex = 0; jointIndex < jointsNumber; jointIndex++ )
               {
-                SHMDoFController newSharedJoint = { .robotID = robotControllerID, .controllerIndex = jointIndex };
-                char* jointName = parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
-                sprintf( robotVarName, "%s-%s", robotName, jointName );
+                SHMDoFController newSharedJoint = (SHMDoFController) malloc( sizeof(SHMDoFControllerData) );
+                newSharedJoint->ref_localDoF = (void*) RobotControl.GetJoint( robotControllerID, jointIndex );
+                sprintf( robotVarName, "%s-%s", robotName, parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex ) );
                 newSharedJoint.sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_IN );
                 if( newSharedJoint.sharedData != NULL ) kv_push( SHMDoFController, sharedJointControllersList, newSharedJoint );
               }
@@ -120,7 +120,6 @@ void RobRehabControl_Update()
 
     SHMDoFController* sharedController = &(kv_A( sharedAxisControllersList, dofControllerIndex ));
     SHMController sharedDoF = sharedController->sharedData;
-    int robotControllerID = sharedController->robotID;
     size_t dofControllerIndex = sharedController->controllerIndex;
 
     uint8_t command = SHMControl.GetByteValue( sharedDoF, SHM_CONTROL_REMOVE );

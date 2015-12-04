@@ -16,15 +16,15 @@
 /////                            CONTROL DEVICE                             /////
 /////////////////////////////////////////////////////////////////////////////////
 
-typedef struct _DoFData
+typedef struct _AxisData
 {
   double measuresList[ CONTROL_VARS_NUMBER ];
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double stiffness, damping;
 }
-DoFData;
+AxisData;
 
-typedef DoFData* DoF;
+typedef AxisData* Axis;
 
 typedef struct _RobotControllerData
 {
@@ -32,9 +32,9 @@ typedef struct _RobotControllerData
   Actuator* jointsList;
   double** jointMeasuresTable;
   double** jointSetpointsTable;
-  DoF dofsList;
-  double** dofMeasuresTable;
-  double** dofSetpointsTable;
+  Axis axesList;
+  double** axisMeasuresTable;
+  double** axisSetpointsTable;
   size_t dofsNumber;
 }
 RobotControllerData;
@@ -48,19 +48,12 @@ khash_t( RobotControlInt )* controllersList = NULL;
 #define ROBOT_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( int, namespace, InitController, const char* ) \
         function_init( void, namespace, EndController, int ) \
-        function_init( void, namespace, Enable, int ) \
-        function_init( void, namespace, Disable, int ) \
-        function_init( void, namespace, Reset, int ) \
-        function_init( void, namespace, SetOffset, int ) \
-        function_init( void, namespace, Calibrate, int ) \
-        function_init( bool, namespace, IsEnabled, int ) \
-        function_init( bool, namespace, HasError, int ) \
         function_init( bool, namespace, Update, int ) \
-        function_init( double*, namespace, GetJointMeasuresList, int, size_t ) \
-        function_init( double*, namespace, GetDoFMeasuresList, int, size_t ) \
-        function_init( double*, namespace, GetDoFSetpointsList, int, size_t ) \
-        function_init( double, namespace, SetDoFSetpoint, int, size_t, enum ControlVariables, double ) \
-        function_init( bool, namespace, SetDoFImpedance, int, size_t, double, double ) \
+        function_init( Actuator, namespace, GetJoint, int, size_t ) \
+        function_init( Axis, namespace, GetAxis, int, size_t ) \
+        function_init( double*, namespace, GetAxisMeasuresList, Axis ) \
+        function_init( double, namespace, SetAxisSetpoint, Axis, enum ControlVariables, double ) \
+        function_init( bool, namespace, SetAxisImpedance, Axis, double, double ) \
         function_init( size_t, namespace, GetDoFsNumber, int )
 
 INIT_NAMESPACE_INTERFACE( RobotControl, ROBOT_CONTROL_FUNCTIONS )
@@ -114,7 +107,7 @@ void RobotControl_EndController( int controllerID )
   }
 }
 
-inline void RobotControl_Enable( int controllerID )
+/*inline void RobotControl_Enable( int controllerID )
 {
   khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
   if( controllerIndex == kh_end( controllersList ) ) return;
@@ -248,7 +241,7 @@ inline double* RobotControl_GetJointMeasuresList( int controllerID, size_t joint
   //DEBUG_PRINT( "angle: %g - torque: %g", controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ], controller->jointMeasuresTable[ 0 ][ CONTROL_FORCE ] );
   
   return controller->jointMeasuresTable[ jointIndex ];
-}
+}*/
 
 inline bool RobotControl_Update( int controllerID )
 {
@@ -257,76 +250,73 @@ inline bool RobotControl_Update( int controllerID )
   
   RobotController controller = kh_value( controllersList, controllerIndex );
   
-  for( size_t dofIndex = 0; dofIndex < controller->dofsNumber; dofIndex++ )
+  for( size_t axisIndex = 0; axisIndex < controller->dofsNumber; axisIndex++ )
   {
-    controller->mechanism.GetForwardDynamics( controller->jointMeasuresTable, controller->dofMeasuresTable[ dofIndex ], dofIndex );
-    double positionError = controller->dofSetpointsTable[ dofIndex ][ CONTROL_POSITION ] - controller->dofMeasuresTable[ dofIndex ][ CONTROL_POSITION ];
-    controller->dofSetpointsTable[ dofIndex ][ CONTROL_FORCE ] = controller->dofsList[ dofIndex ].stiffness * positionError;
+    controller->mechanism.GetForwardDynamics( controller->jointMeasuresTable, controller->axisMeasuresTable[ axisIndex ], axisIndex );
+    double positionError = controller->axisSetpointsTable[ axisIndex ][ CONTROL_POSITION ] - controller->axisMeasuresTable[ axisIndex ][ CONTROL_POSITION ];
+    controller->axisSetpointsTable[ axisIndex ][ CONTROL_FORCE ] = controller->axesList[ axisIndex ].stiffness * positionError;
   }
   
-  //DEBUG_PRINT( "setpoint: %g * (%g - %g)", controller->dofsList[ 0 ].stiffness, controller->dofSetpointsTable[ 0 ][ CONTROL_POSITION ], controller->dofMeasuresTable[ 0 ][ CONTROL_POSITION ] ); 
+  //DEBUG_PRINT( "setpoint: %g * (%g - %g)", controller->axesList[ 0 ].stiffness, controller->axisSetpointsTable[ 0 ][ CONTROL_POSITION ], controller->axisMeasuresTable[ 0 ][ CONTROL_POSITION ] ); 
   
   for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-    controller->mechanism.GetInverseDynamics( controller->dofSetpointsTable, controller->jointSetpointsTable[ jointIndex ], jointIndex );
+    controller->mechanism.GetInverseDynamics( controller->axisSetpointsTable, controller->jointSetpointsTable[ jointIndex ], jointIndex );
   
   return true;
 }
 
-inline double* RobotControl_GetDoFMeasuresList( int controllerID, size_t dofIndex )
+inline double* RobotControl_GetAxisMeasuresList( Axis axis )
 {
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return NULL;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  if( dofIndex >= controller->dofsNumber ) return NULL;
+  if( axis == NULL ) return NULL;
     
-  return controller->dofMeasuresTable[ dofIndex ];
+  return (double*) axis->measuresList;
 }
 
-inline double* RobotControl_GetDoFSetpointsList( int controllerID, size_t dofIndex )
+inline double RobotControl_SetAxisSetpoint( Axis axis, enum ControlVariables variable, double value )
 {
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return NULL;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  if( dofIndex >= controller->dofsNumber ) return NULL;
-    
-  return controller->dofSetpointsTable[ dofIndex ];
-}
-
-inline double RobotControl_SetDoFSetpoint( int controllerID, size_t dofIndex, enum ControlVariables variable, double value )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return 0.0;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  if( dofIndex >= controller->dofsNumber ) return 0.0;
+  if( axis == NULL ) return 0.0;
   
   if( variable < 0 || variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
-  controller->dofSetpointsTable[ dofIndex ][ variable ] = value;
+  axis->setpointsList[ variable ] = value;
   
   return value;
 }
 
-inline bool RobotControl_SetDoFImpedance( int controllerID, size_t dofIndex, double stiffness, double damping )
+inline bool RobotControl_SetAxisImpedance( Axis axis, double stiffness, double damping )
 {
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return false;
+  if( axis == NULL ) return false;
   
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  if( dofIndex >= controller->dofsNumber ) return false;
-  
-  controller->dofsList[ dofIndex ].stiffness = ( stiffness > 0.0 ) ? stiffness : 0.0;
-  controller->dofsList[ dofIndex ].damping = ( damping > 0.0 ) ? damping : 0.0;
+  axis->stiffness = ( stiffness > 0.0 ) ? stiffness : 0.0;
+  axis->damping = ( damping > 0.0 ) ? damping : 0.0;
   
   if( stiffness < 0.0 || damping < 0.0 ) return false;
   
   return true;
+}
+
+inline Actuator RobotControl_GetJoint( int controllerID, size_t jointIndex )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return NULL;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( jointIndex >= controller->dofsNumber ) return NULL;
+  
+  return controller->jointsList[ jointIndex ];
+}
+
+inline Axis RobotControl_GetAxis( int controllerID, size_t axisIndex )
+{
+  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
+  if( controllerIndex == kh_end( controllersList ) ) return NULL;
+  
+  RobotController controller = kh_value( controllersList, controllerIndex );
+  
+  if( axisIndex >= controller->dofsNumber ) return NULL;
+  
+  return &(controller->axesList[ axisIndex ]);
 }
 
 inline size_t RobotControl_GetDoFsNumber( int controllerID )
@@ -361,11 +351,11 @@ static inline RobotController LoadControllerData( const char* configFileName )
       newController->dofsNumber = newController->mechanism.GetDoFsNumber();
 
       newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
-      newController->dofsList = (DoF) calloc( newController->dofsNumber, sizeof(DoFData) );
+      newController->axesList = (Axis) calloc( newController->dofsNumber, sizeof(AxisData) );
       newController->jointMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
       newController->jointSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-      newController->dofMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
-      newController->dofSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->axisMeasuresTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
+      newController->axisSetpointsTable = (double**) calloc( newController->dofsNumber, sizeof(double*) );
 
       for( size_t jointIndex = 0; jointIndex < newController->dofsNumber; jointIndex++ )
       {
@@ -378,11 +368,11 @@ static inline RobotController LoadControllerData( const char* configFileName )
         else loadSuccess = false;
       }
 
-      for( size_t dofIndex = 0; dofIndex < newController->dofsNumber; dofIndex++ )
+      for( size_t axisIndex = 0; axisIndex < newController->dofsNumber; axisIndex++ )
       {
-        memset( &(newController->dofsList[ dofIndex ]), 0, sizeof(DoFData) );
-        newController->dofMeasuresTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].measuresList;
-        newController->dofSetpointsTable[ dofIndex ] = (double*) newController->dofsList[ dofIndex ].setpointsList;
+        memset( &(newController->axesList[ axisIndex ]), 0, sizeof(AxisData) );
+        newController->axisMeasuresTable[ axisIndex ] = (double*) newController->axesList[ axisIndex ].measuresList;
+        newController->axisSetpointsTable[ axisIndex ] = (double*) newController->axesList[ axisIndex ].setpointsList;
       }
     }
 
@@ -409,11 +399,11 @@ static inline void UnloadControllerData( RobotController controller )
   DEBUG_PRINT( "ending robot controller %p", controller );
   
   free( controller->jointsList );
-  free( controller->dofsList );
+  free( controller->axesList );
   free( controller->jointMeasuresTable );
   free( controller->jointSetpointsTable );
-  free( controller->dofMeasuresTable );
-  free( controller->dofSetpointsTable );
+  free( controller->axisMeasuresTable );
+  free( controller->axisSetpointsTable );
     
   free( controller );
 
