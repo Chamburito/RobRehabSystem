@@ -107,97 +107,7 @@ void RobotControl_EndController( int controllerID )
   }
 }
 
-/*inline void RobotControl_Enable( int controllerID )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-  {
-    Actuator joint = controller->jointsList[ jointIndex ];
-    
-    ActuatorControl.Reset( joint );
-  
-    if( !( ActuatorControl.IsEnabled( joint ) ) )
-    {
-      DEBUG_PRINT( "enabling controller joint %p", joint );
-      ActuatorControl.Enable( joint );
-    }
-  }
-}
-
-inline void RobotControl_Disable( int controllerID )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-  {
-    Actuator joint = controller->jointsList[ jointIndex ];
-  
-    if( ActuatorControl.IsEnabled( joint ) )
-    {
-      DEBUG_PRINT( "disabling controller joint %p", joint );
-      ActuatorControl.Disable( joint );
-    }
-  }
-}
-
-inline void RobotControl_Reset( int controllerID )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-  {
-    Actuator joint = controller->jointsList[ jointIndex ];
-    
-    DEBUG_PRINT( "reseting controller joint %p", joint );
-    ActuatorControl.Reset( joint );
-  }
-}
-
-inline bool RobotControl_IsEnabled( int controllerID )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return false;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  bool isEnabled = true;
-  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-  {
-    Actuator joint = controller->jointsList[ jointIndex ];
-    if( !( ActuatorControl.IsEnabled( joint ) ) ) isEnabled = false;
-  }
-  
-  return isEnabled;
-}
-
-inline bool RobotControl_HasError( int controllerID )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return false;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  bool hasError = false;
-  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-  {
-    Actuator joint = controller->jointsList[ jointIndex ];
-    if( !( ActuatorControl.HasError( joint ) ) ) hasError = true;
-  }
-  
-  return hasError;
-}
-
-inline void RobotControl_SetOffset( int controllerID )
+/*inline void RobotControl_SetOffset( int controllerID )
 {
   khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
   if( controllerIndex == kh_end( controllersList ) ) return;
@@ -227,20 +137,6 @@ inline void RobotControl_Calibrate( int controllerID )
     DEBUG_PRINT( "calibrating controller joint %p", joint );
     ActuatorControl.Calibrate( joint );
   }
-}
-
-inline double* RobotControl_GetJointMeasuresList( int controllerID, size_t jointIndex )
-{
-  khint_t controllerIndex = kh_get( RobotControlInt, controllersList, (khint_t) controllerID );
-  if( controllerIndex == kh_end( controllersList ) ) return NULL;
-  
-  RobotController controller = kh_value( controllersList, controllerIndex );
-  
-  if( jointIndex >= controller->dofsNumber ) return NULL;
-  
-  //DEBUG_PRINT( "angle: %g - torque: %g", controller->jointMeasuresTable[ 0 ][ CONTROL_POSITION ], controller->jointMeasuresTable[ 0 ][ CONTROL_FORCE ] );
-  
-  return controller->jointMeasuresTable[ jointIndex ];
 }*/
 
 inline bool RobotControl_Update( int controllerID )
