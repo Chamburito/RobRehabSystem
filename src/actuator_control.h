@@ -250,7 +250,7 @@ static void* AsyncControl( void* data )
   {
     DEBUG_UPDATE( "running control for actuator %p motor %p", actuator, actuator->motor );
     
-    execTime = Timing_GetExecTimeMilliseconds();
+    execTime = Timing.GetExecTimeMilliseconds();
     
     UpdateControlMeasures( actuator );
     
@@ -258,10 +258,10 @@ static void* AsyncControl( void* data )
     
     RunControl( actuator );
     
-    elapsedTime = Timing_GetExecTimeMilliseconds() - execTime;
+    elapsedTime = Timing.GetExecTimeMilliseconds() - execTime;
     DEBUG_UPDATE( "control pass for actuator %p (before delay): elapsed time: %u ms", actuator, elapsedTime );
-    if( elapsedTime < (int) ( 1000 * CONTROL_PASS_INTERVAL ) ) Timing_Delay( 1000 * CONTROL_PASS_INTERVAL - elapsedTime );
-    DEBUG_UPDATE( "control pass for actuator %p (after delay): elapsed time: %u ms", actuator, Timing_GetExecTimeMilliseconds() - execTime );
+    if( elapsedTime < (int) ( 1000 * CONTROL_PASS_INTERVAL ) ) Timing.Delay( 1000 * CONTROL_PASS_INTERVAL - elapsedTime );
+    DEBUG_UPDATE( "control pass for actuator %p (after delay): elapsed time: %u ms", actuator, Timing.GetExecTimeMilliseconds() - execTime );
   }
   
   DEBUG_PRINT( "ending control thread %lx", THREAD_ID );
@@ -281,6 +281,8 @@ static inline void UpdateControlMeasures( Actuator actuator )
   {
     actuator->measuresList[ CONTROL_POSITION ] = fusedPositionSignal[ 0 ];
     actuator->measuresList[ CONTROL_VELOCITY ] = fusedPositionSignal[ 1 ];
+  
+    //DEBUG_PRINT( "fused: position: %g - velocity: %g", fusedPositionSignal[ 0 ], fusedPositionSignal[ 1 ] );
     
     actuator->measuresList[ CONTROL_FORCE ] = Sensors.Update( actuator->forceSensor );
   }

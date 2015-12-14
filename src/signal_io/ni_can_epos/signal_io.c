@@ -127,7 +127,7 @@ bool HasError( int taskID )
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
-  task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0x6041, 0x00 );
+  //task->statusWord = (uint16_t) CANNetwork_ReadSingleValue( task->writeFramesList[ SDO ], task->readFramesList[ SDO ], 0x6041, 0x00 );
 
   return (bool) ( task->statusWord & FAULT );
 }

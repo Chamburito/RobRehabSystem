@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define MATRIX_SIZE_MAX 100 
+#define MATRIX_SIZE_MAX 50 
 
 #define MATRIX_IDENTITY true
 #define MATRIX_ZERO false

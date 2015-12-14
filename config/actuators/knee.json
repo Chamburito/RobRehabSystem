@@ -2,10 +2,11 @@
   "motor": "motors/knee",
   "sensors": {
     "position": "sensors/knee_position",
+    "velocity": "sensors/knee_velocity",
     "force": "sensors/knee_force"
   },
   "control": {
     "variable": "VELOCITY",
-    "function": "control/ForcePIControl"
+    "function": "control/ForceFuzzyControl"
   }
 }

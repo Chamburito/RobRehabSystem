@@ -129,8 +129,6 @@ double Sensors_Update( Sensor sensor )
 {
   if( sensor == NULL ) return 0.0;
   
-  //DEBUG_PRINT( "updating sensor channel %d-%u", sensor->taskID, sensor->channel );
-  
   double sensorOutput = 0.0;
   
   double signal;

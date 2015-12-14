@@ -166,7 +166,7 @@ int CANNetwork_ReadSingleValue( CANFrame requestFrame, CANFrame readFrame, uint1
   // Write value requisition to SDO frame 
   CANFrame_Write( requestFrame, payload );
 
-  Timing_Delay( 100 );
+  //Timing.Delay( 100 );
 
   // Read requested value from SDO frame
   CANFrame_Read( readFrame, payload );

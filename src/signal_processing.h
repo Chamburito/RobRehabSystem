@@ -87,7 +87,7 @@ void SignalProcessing_SetMaxFrequency( SignalProcessor processor, double relativ
 double SignalProcessing_UpdateSignal( SignalProcessor processor, double newInputValue )
 {
   if( processor == NULL ) return 0.0;
-    
+  
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
     processor->signalMean += newInputValue;
@@ -99,7 +99,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double newInput
 
     if( processor->rectify ) newInputValue = fabs( newInputValue );
 
-    for( int sampleIndex = FILTER_LENGTH - 1; sampleIndex > 0; sampleIndex++ )
+    for( int sampleIndex = FILTER_LENGTH - 1; sampleIndex > 0; sampleIndex-- )
     {
       processor->inputSamplesList[ sampleIndex ] = processor->inputSamplesList[ sampleIndex - 1 ];
       processor->outputSamplesList[ sampleIndex ] = processor->outputSamplesList[ sampleIndex - 1 ];
@@ -130,7 +130,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double newInput
       }
     }
   }
-    
+  
   return newInputValue;
 }
 

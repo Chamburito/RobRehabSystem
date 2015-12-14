@@ -1,5 +1,7 @@
 #include "control_interface.h"
 
+#include <math.h>
+
 enum { NEGATIVE_BIG, NEGATIVE_SMALL, ZERO, POSITIVE_SMALL, POSITIVE_BIG, FUZZY_SETS_NUMBER };
 
 typedef struct _FuzzySetData
@@ -11,10 +13,10 @@ FuzzySetData;
 
 typedef FuzzySetData* FuzzySet;
 
-const FuzzySetData POSITION_ERROR_SETS[ FUZZY_SETS_NUMBER ] = { { -1.0, 0.4 }, { -0.5, 0.4 }, { 0.0, 0.4 }, { 0.5, 0.4 }, { 1.0, 0.4 } };
-const FuzzySetData FORCE_ERROR_SETS[ FUZZY_SETS_NUMBER ] = { { -100.0, 20.0 }, { -50.0, 20.0 }, { 0.0, 20.0 }, { 50.0, 20.0 }, { 100.0, 20.0 } };
+FuzzySetData POSITION_ERROR_SETS[ FUZZY_SETS_NUMBER ] = { { -1.0, 0.4 }, { -0.5, 0.4 }, { 0.0, 0.4 }, { 0.5, 0.4 }, { 1.0, 0.4 } };
+FuzzySetData FORCE_ERROR_SETS[ FUZZY_SETS_NUMBER ] = { { -100.0, 20.0 }, { -50.0, 20.0 }, { 0.0, 20.0 }, { 50.0, 20.0 }, { 100.0, 20.0 } };
 
-const FuzzySetData VELOCITY_OUTPUT_SETS[ FUZZY_SETS_NUMBER ] = { { -500.0, 160.0 }, { -250.0, 160.0 }, { 0.0, 160.0 }, { 250.0, 160.0 }, { 500.0, 160.0 } };
+FuzzySetData VELOCITY_OUTPUT_SETS[ FUZZY_SETS_NUMBER ] = { { -500.0, 160.0 }, { -250.0, 160.0 }, { 0.0, 160.0 }, { 250.0, 160.0 }, { 500.0, 160.0 } };
 
 //                     Force error
 //              __NB___NS___ZE___PS___PB__
@@ -27,7 +29,7 @@ const int INFERENCE_RULES[ FUZZY_SETS_NUMBER ][ FUZZY_SETS_NUMBER ] = { { POSITI
                                                                         { POSITIVE_SMALL, ZERO, ZERO, NEGATIVE_SMALL, NEGATIVE_SMALL },
                                                                         { POSITIVE_SMALL, ZERO, ZERO, ZERO, NEGATIVE_SMALL },
                                                                         { POSITIVE_SMALL, POSITIVE_SMALL, ZERO, ZERO, NEGATIVE_SMALL },
-                                                                        { POSITIVE_BIG, POSITIVE_SMALL, POSITIIVE_SMALL, POSITIVE_SMALL, NEGATIVE_SMALL } };
+                                                                        { POSITIVE_BIG, POSITIVE_SMALL, POSITIVE_SMALL, POSITIVE_SMALL, NEGATIVE_SMALL } };
 
 IMPLEMENT_INTERFACE( CONTROL_FUNCTIONS )
 
@@ -62,7 +64,7 @@ double* Run( double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ C
   
   double velocityOutputsSum = 0.0;
   double velocityOutputsWeightedSum = 0.0;
-  for( int velocityOutput = -500; velocityOutputSet <= 500; velocityOutputSet++ )
+  for( int velocityOutput = -500; velocityOutput <= 500; velocityOutput++ )
   {
     double maxOutputSetActivation = 0.0;
     
