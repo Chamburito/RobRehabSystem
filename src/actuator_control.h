@@ -29,6 +29,8 @@ typedef struct _ActuatorData
   Thread controlThread;
   enum ControlVariables controlMode;
   bool isControlRunning;
+  
+  int logID;
 }
 ActuatorData;
 
@@ -87,6 +89,11 @@ Actuator ActuatorControl_InitController( const char* configFileName )
       if( strcmp( controlModeName, CONTROL_MODE_NAMES[ controlModeIndex ] ) == 0 ) newActuator->controlMode = controlModeIndex;
     }
     
+    
+    newActuator->logID = DataLogging_InitLog( configFileName, 7, 1000 );
+    DataLogging_SetDataPrecision( newActuator->logID, 5 );
+    
+    
     GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, parser.GetStringValue( configFileID, "", "control.function" ), newActuator->control, loadSuccess );
     if( loadSuccess ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
 
@@ -120,6 +127,8 @@ void ActuatorControl_EndController( Actuator actuator )
   Sensors.End( actuator->positionSensor );
   Sensors.End( actuator->velocitySensor );
   Sensors.End( actuator->forceSensor );
+  
+  if( actuator->logID != 0 ) DataLogging_EndLog( actuator->logID );
 }
 
 void ActuatorControl_Enable( Actuator actuator )
@@ -305,6 +314,12 @@ static inline void RunControl( Actuator actuator )
     //DEBUG_PRINT( "force setpoint: %g", actuator->setpointsList[ CONTROL_FORCE ] ); 
     double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_PASS_INTERVAL, &(actuator->controlError) );
     //DEBUG_PRINT( "force setpoint: %.3f - control: %.3f", actuator->setpointsList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
+    
+    DataLogging_RegisterValues( actuator->logID, 7, actuator->setpointsList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_POSITION ],
+                                                    actuator->setpointsList[ CONTROL_POSITION ] - actuator->measuresList[ CONTROL_POSITION ],
+                                                    actuator->setpointsList[ CONTROL_FORCE ], actuator->measuresList[ CONTROL_FORCE ],
+                                                    actuator->setpointsList[ CONTROL_FORCE ] - actuator->measuresList[ CONTROL_FORCE ],
+                                                    controlOutputsList[ actuator->controlMode ] );
     
     Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
   }

@@ -136,8 +136,10 @@ void RobRehabControl_Update()
     uint8_t dataMask = SHMControl.GetNumericValuesList( sharedController->sharedData, controlValuesList, SHM_CONTROL_REMOVE );
     if( dataMask )
     {
+      DEBUG_PRINT( "stiffness: %g - setpoint: %g", controlValuesList[ SHM_AXIS_STIFFNESS ], controlValuesList[ SHM_AXIS_POSITION ] );
+      
       if( SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_POSITION ) ) RobotControl.SetAxisSetpoint( localAxis, SHM_AXIS_POSITION, controlValuesList[ SHM_AXIS_POSITION ] );
-      if( SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_VELOCITY ) ) RobotControl.SetAxisSetpoint( localAxis, SHM_AXIS_POSITION, controlValuesList[ SHM_AXIS_POSITION ] );
+      if( SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_VELOCITY ) ) RobotControl.SetAxisSetpoint( localAxis, SHM_AXIS_VELOCITY, controlValuesList[ SHM_AXIS_VELOCITY ] );
 
       if( SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_STIFFNESS ) | SHM_CONTROL_IS_BIT_SET( dataMask, SHM_AXIS_DAMPING ) )
         RobotControl.SetAxisImpedance( localAxis, controlValuesList[ SHM_AXIS_STIFFNESS ], controlValuesList[ SHM_AXIS_DAMPING ] );

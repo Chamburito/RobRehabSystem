@@ -12,14 +12,14 @@ typedef struct _NormalDistribuitionData
 NormalDistribuitionData;
 
 const NormalDistribuitionData FUZZY_SETS_LIST[ FUZZY_SETS_NUMBER ] = { {-1, 0.2}, {-0.5, 0.2}, {0, 0.2}, {0.5, 0.2}, {1, 0.2} };
-
+                                                          
 const int INFERENCE_RULES[ FUZZY_SETS_NUMBER ][ FUZZY_SETS_NUMBER ] = 
 {
-  { POSITIVE_LOW, NEGATIVE_LOW, NEGATIVE_LOW, NEGATIVE_LOW, NEGATIVE_HIGH },
-  { POSITIVE_LOW, ZERO, ZERO, NEGATIVE_LOW, NEGATIVE_LOW },
-  { POSITIVE_LOW, ZERO, ZERO, ZERO, NEGATIVE_LOW },
-  { POSITIVE_LOW, POSITIVE_LOW, ZERO, ZERO, NEGATIVE_LOW },
-  { POSITIVE_HIGH, POSITIVE_LOW, POSITIVE_LOW, POSITIVE_LOW, NEGATIVE_LOW }
+  { POSITIVE_LOW, ZERO, NEGATIVE_LOW, NEGATIVE_LOW, NEGATIVE_HIGH },
+  { POSITIVE_LOW, ZERO, ZERO, NEGATIVE_LOW, NEGATIVE_HIGH },
+  { POSITIVE_HIGH, POSITIVE_LOW, ZERO, NEGATIVE_LOW, NEGATIVE_HIGH },
+  { POSITIVE_HIGH, POSITIVE_LOW, ZERO, ZERO, NEGATIVE_LOW },
+  { POSITIVE_HIGH, POSITIVE_LOW, POSITIVE_LOW, ZERO, NEGATIVE_LOW }
 };
 
 IMPLEMENT_INTERFACE( CONTROL_FUNCTIONS )
@@ -30,8 +30,8 @@ double* Run( double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ C
   
   double outputSetCutsList[ FUZZY_SETS_NUMBER ] = { 0 };
   
-  double positionError = setpointsList[ CONTROL_POSITION ] - measuresList[ CONTROL_POSITION ];
-  double forceError = setpointsList[ CONTROL_FORCE ] - measuresList[ CONTROL_FORCE ];
+  double positionError = ( setpointsList[ CONTROL_POSITION ] - measuresList[ CONTROL_POSITION ] ) / 0.3;
+  double forceError = ( setpointsList[ CONTROL_FORCE ] - measuresList[ CONTROL_FORCE ] ) / 5;
   
   for( size_t positionErrorSetIndex = 0; positionErrorSetIndex < FUZZY_SETS_NUMBER; positionErrorSetIndex++ )
   {
@@ -72,7 +72,7 @@ double* Run( double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ C
     outputWeightedSum += outputPointValue * pointPosition;
   }
 
-  outputsList[ CONTROL_VELOCITY ] = outputWeightedSum / outputSum;
+  outputsList[ CONTROL_VELOCITY ] = -( outputWeightedSum / outputSum ) * 600;
   
   return (double*) outputsList;
 }

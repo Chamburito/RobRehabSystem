@@ -36,12 +36,12 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis
 	;
 include Jamfile_instr ;
 LOCATE on "control_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
-LOCATE on "force_fuzzy_control.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
-Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\force_fuzzy_control.c" ;
-FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj" = 1 ;
-DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj.cvidefprots" ;
-OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj.out" ;
-PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj" ;
+LOCATE on "fuzzy_force.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\control" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\control\\fuzzy_force.c" ;
+FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj" = 1 ;
+DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj.cvidefprots" ;
+OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj.out" ;
+PrjObjects += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj" ;
 PreLinkInputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\resources.in.rc" ;
 PreLinkInputs += $(PrjObjects) $(InstrObjects) ;
 PreLinkOutputs += "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\resources.out.rc" ;

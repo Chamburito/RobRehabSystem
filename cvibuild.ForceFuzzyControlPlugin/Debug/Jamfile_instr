@@ -1,4 +1,4 @@
-Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\ForceFuzzyControl.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\force_fuzzy_control.obj" ;
+Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\ForceFuzzyControl.dll" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\fuzzy_force.obj" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\ForceFuzzyControl.dll" : "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\advapi32_lvrt.lib" ;
 NoCare "c:\\program files (x86)\\national instruments\\cvi2015\\bin\\msvc\\advapi32_lvrt.lib" ;
 Depends "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.ForceFuzzyControlPlugin\\Debug\\ForceFuzzyControl.dll" : "c:\\ProgramData\\National Instruments\\CVI2015\\bin\\msvc\\analysis.lib" ;
