@@ -70,7 +70,7 @@ int RobRehabControl_Init()
                 kv_push( SHMDoFController, sharedAxisControllersList, newSharedAxis );
               }
 
-              size_t jointsNumber = parser.GetListSize( configFileID, "robots.%lu.joints", sharedRobotIndex );
+              /*size_t jointsNumber = parser.GetListSize( configFileID, "robots.%lu.joints", sharedRobotIndex );
               for( size_t jointIndex = 0; jointIndex < jointsNumber; jointIndex++ )
               {
                 SHMDoFController newSharedJoint = (SHMDoFController) malloc( sizeof(SHMDoFControllerData) );
@@ -78,7 +78,7 @@ int RobRehabControl_Init()
                 sprintf( robotVarName, "%s-%s", robotName, parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex ) );
                 newSharedJoint->sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_IN );
                 kv_push( SHMDoFController, sharedJointControllersList, newSharedJoint );
-              }
+              }*/
             }
           }
         }

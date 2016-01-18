@@ -126,8 +126,8 @@ static void* UpdateData( void* callbackData )
     }
     
     uint8_t axisDataMask = SHMControl.GetNumericValuesList( axisMotorController, measuresList, SHM_CONTROL_REMOVE );
-    //if( axisDataMask )
-    //{
+    if( axisDataMask )
+    {
       if( axisMeasureIndex >= NUM_POINTS )
       {
         DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
@@ -141,7 +141,7 @@ static void* UpdateData( void* callbackData )
       velocityValues[ axisMeasureIndex ] = measuresList[ SHM_AXIS_VELOCITY ] * 6.28;
       
       SetCtrlVal( panel, PANEL_MEASURE_SLIDER, positionValues[ axisMeasureIndex ] * 180.0 / 3.14 );
-    //}
+    }
     
     uint8_t jointDataMask = SHMControl.GetNumericValuesList( jointEMGController, measuresList, SHM_CONTROL_REMOVE );
     //{
@@ -252,7 +252,7 @@ int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* ca
       // Get the new value.
       //double maxStiffness;
       GetCtrlVal( panel, control, &maxStiffness );
-      //SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
+      SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
     }
 	}
 	return 0;

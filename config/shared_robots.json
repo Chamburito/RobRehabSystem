@@ -2,7 +2,7 @@
   "robots": [
     {
       "name": "robots/simple_joint",
-      "dofs": [ "theta" ],
+      "axes": [ "theta" ],
       "joints": [ "emg_joints/knee" ]
     }
   ]

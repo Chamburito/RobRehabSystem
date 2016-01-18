@@ -98,12 +98,12 @@ int RobRehabNetwork_Init()
         {
           DEBUG_PRINT( "found shared robot %lu: %s", sharedRobotIndex, robotName );
           
-          size_t sharedDoFsNumber = parser.GetListSize( configFileID, "robots.%lu.dofs", sharedRobotIndex );
+          size_t sharedDoFsNumber = parser.GetListSize( configFileID, "robots.%lu.axes", sharedRobotIndex );
           for( size_t dofIndex = 0; dofIndex < sharedDoFsNumber; dofIndex++ )
           {
             NetworkAxis newNetworkAxis = { .clientID = IP_CONNECTION_INVALID_ID };
-            char* dofName = parser.GetStringValue( configFileID, "", "robots.%lu.dofs.%lu", sharedRobotIndex, dofIndex );
-            sprintf( robotVarName, "%s-%s", robotName, dofName );
+            char* axisName = parser.GetStringValue( configFileID, "", "robots.%lu.axes.%lu", sharedRobotIndex, dofIndex );
+            sprintf( robotVarName, "%s-%s", robotName, axisName );
             if( (newNetworkAxis.sharedData = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT )) != NULL )
             {
               DEBUG_PRINT( "got network axis %u", kv_size( networkAxesList ) );
@@ -121,7 +121,7 @@ int RobRehabNetwork_Init()
           {
             char* jointName = parser.GetStringValue( configFileID, "", "robots.%lu.joints.%lu", sharedRobotIndex, jointIndex );
             sprintf( robotVarName, "%s-%s", robotName, jointName );
-            SHMController sharedJoint = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT );
+            /*SHMController sharedJoint = SHMControl.InitData( robotVarName, SHM_CONTROL_OUT );
             if( sharedJoint != NULL )
             {
               DEBUG_PRINT( "got network EMG joint %u", kv_size( networkEMGJointsList ) );
@@ -131,7 +131,7 @@ int RobRehabNetwork_Init()
               
               kv_push( SHMController, networkEMGJointsList, sharedJoint );
               emgDataMessageLength += EMG_DATA_BLOCK_SIZE;
-            }
+            }*/
           }
         }
       }
@@ -326,6 +326,8 @@ static void UpdateClientAxis( int clientID )
     
     SHMControl.GetNumericValuesList( sharedAxis, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
     measureByteIndex += AXIS_DATA_BLOCK_SIZE;
+    
+    DEBUG_PRINT( "sending axis %u measures: %.3f", messageOut[ measureByteIndex ], *( (float*) ( messageOut + measureByteIndex + 1 ) ) );
   }
   
   if( messageOut[ 0 ] > 0 ) 

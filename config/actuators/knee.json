@@ -7,6 +7,6 @@
   },
   "control": {
     "variable": "VELOCITY",
-    "function": "control/ForceFuzzyControl"
+    "function": "control/ForcePIControl"
   }
 }
