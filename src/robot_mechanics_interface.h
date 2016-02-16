@@ -10,11 +10,13 @@
 enum { ROBOT_POSITION, ROBOT_VELOCITY, ROBOT_ACCELERATION, ROBOT_FORCE = ROBOT_ACCELERATION, ROBOT_MECHANICS_VARS_NUMBER };
 
 #define ROBOT_MECHANICS_FUNCTIONS( interface, function_init ) \
-        function_init( size_t, interface, GetDoFsNumber, void ) \
-        function_init( void, interface, GetForwardKinematics, double**, double*, size_t ) \
-        function_init( void, interface, GetInverseKinematics, double**, double*, size_t ) \
-        function_init( void, interface, GetForwardDynamics, double**, double*, size_t ) \
-        function_init( void, interface, GetInverseDynamics, double**, double*, size_t )
+        function_init( int, interface, Init, const char* ) \
+        function_init( void, interface, End, int ) \ 
+        function_init( size_t, interface, GetDoFsNumber, int ) \
+        function_init( void, interface, GetForwardKinematics, int, double**, double*, size_t ) \
+        function_init( void, interface, GetInverseKinematics, int, double**, double*, size_t ) \
+        function_init( void, interface, GetForwardDynamics, int, double**, double*, size_t ) \
+        function_init( void, interface, GetInverseDynamics, int, double**, double*, size_t )
         //function_init( void, interface, GetJointForces, double* const, double* ) \
         //function_init( void, interface, GetJointAccelerations, double* const, double* )
 

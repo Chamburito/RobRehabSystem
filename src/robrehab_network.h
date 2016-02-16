@@ -324,10 +324,12 @@ static void UpdateClientAxis( int clientID )
     messageOut[ 0 ]++;
     messageOut[ measureByteIndex ] = (uint8_t) networkAxisIndex;
     
-    SHMControl.GetNumericValuesList( sharedAxis, (float*) ( messageOut + measureByteIndex + 1 ), SHM_CONTROL_PEEK );
+    float* measuresList = (float*) ( messageOut + measureByteIndex + 2 );
+    
+    SHMControl.GetNumericValuesList( sharedAxis, measuresList, SHM_CONTROL_PEEK );
     measureByteIndex += AXIS_DATA_BLOCK_SIZE;
     
-    DEBUG_PRINT( "sending axis %u measures: %.3f", messageOut[ measureByteIndex ], *( (float*) ( messageOut + measureByteIndex + 1 ) ) );
+    //DEBUG_PRINT( "sending axis %u measures: %.3f", messageOut[ measureByteIndex ], measuresList[ 0 ] );
   }
   
   if( messageOut[ 0 ] > 0 ) 

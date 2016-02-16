@@ -15,7 +15,7 @@
 #include <stdbool.h>
 
 enum { MUSCLE_ACTIVE_FORCE, MUSCLE_PASSIVE_FORCE, MUSCLE_MOMENT_ARM, MUSCLE_NORM_LENGTH, MUSCLE_PENATION_ANGLE, MUSCLE_CURVES_NUMBER };
-enum EMGMuscleGains{ MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
+enum EMGMuscleGains { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
 
 const double JOINT_MIN_GAIN = 0.1;
 const double JOINT_MAX_GAIN = 2.0;
@@ -117,11 +117,9 @@ double EMGProcessing_GetJointMuscleSignal( int jointID, size_t muscleIndex )
   
   //DEBUG_PRINT( "updating sensor %d-%lu (%p)", jointID, muscleIndex, joint->musclesList[ muscleIndex ]->emgSensor );
   
-  double* normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
+  double normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
   
-  if( normalizedSignal == NULL ) return 0.0;
-  
-  return normalizedSignal[ 0 ];
+  return normalizedSignal;
 }
 
 double GetMuscleTorque( EMGMuscle muscle, double normalizedSignal, double jointAngle )
@@ -131,14 +129,15 @@ double GetMuscleTorque( EMGMuscle muscle, double normalizedSignal, double jointA
   double activationFactor = muscle->gainsList[ MUSCLE_GAIN_ACTIVATION ];
   double activation = ( exp( activationFactor * normalizedSignal ) - 1 ) / ( exp( activationFactor ) - 1 );
   
-  /*if( activation != 0.0 )
+  if( activation != 0.0 )
   {
+    Sensor emgSensor = muscle->emgSensor;
     size_t newSamplesBufferStart = emgSensor->emgData.samplesBufferStartIndex % emgSensor->emgData.samplesBufferLength;
     size_t newSamplesBufferMaxLength = emgSensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
+    DataLogging_RegisterValues( emgSensor->logID, 3, emgSensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
     DataLogging_RegisterList( emgSensor->logID, newSamplesBufferMaxLength, emgSensor->emgData.samplesBuffer + newSamplesBufferStart );
     DataLogging_RegisterList( emgSensor->logID, newSamplesBufferMaxLength, emgSensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
-    DataLogging_RegisterValues( emgSensor->logID, 3, emgSensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
-  }*/
+  }
   
   double activeForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_ACTIVE_FORCE ], jointAngle, 0.0 );
   double passiveForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_PASSIVE_FORCE ], jointAngle, 0.0 );
@@ -166,9 +165,8 @@ double EMGProcessing_GetJointTorque( int jointID, double jointAngle )
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
   {
-    double* normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
-    if( normalizedSignal != NULL )
-      jointTorque += GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal[ 0 ], jointAngle );
+    double normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
+    jointTorque += GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal, jointAngle );
   }
   
   return jointTorque;
@@ -185,9 +183,8 @@ double EMGProcessing_GetJointStiffness( int jointID, double jointAngle )
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
   {
-    double* normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
-    if( normalizedSignal != NULL )
-      jointStiffness += fabs( GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal[ 0 ], jointAngle ) );
+    double normalizedSignal = Sensors.Update( joint->musclesList[ muscleIndex ]->emgSensor );
+    jointStiffness += fabs( GetMuscleTorque( joint->musclesList[ muscleIndex ], normalizedSignal, jointAngle ) );
   }
   
   //DEBUG_PRINT( "joint stiffness: %.3f + %.3f = %.3f", EMGProcessing_GetMuscleTorque( 0, jointAngle ), EMGProcessing_GetMuscleTorque( 1, jointAngle ), jointStiffness );

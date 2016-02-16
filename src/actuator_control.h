@@ -291,6 +291,8 @@ static inline void UpdateControlMeasures( Actuator actuator )
     actuator->measuresList[ CONTROL_POSITION ] = fusedPositionSignal[ 0 ];
     actuator->measuresList[ CONTROL_VELOCITY ] = fusedPositionSignal[ 1 ];
   
+    DEBUG_PRINT( "angle: %f", 360.0 * fusedPositionSignal[ 0 ] );
+    
     //DEBUG_PRINT( "fused: position: %g - velocity: %g", fusedPositionSignal[ 0 ], fusedPositionSignal[ 1 ] );
     
     actuator->measuresList[ CONTROL_FORCE ] = Sensors.Update( actuator->forceSensor );

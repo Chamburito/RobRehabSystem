@@ -148,7 +148,7 @@ inline bool RobotControl_Update( int controllerID )
   
   for( size_t axisIndex = 0; axisIndex < controller->dofsNumber; axisIndex++ )
   {
-    controller->mechanism.GetForwardDynamics( controller->jointMeasuresTable, controller->axisMeasuresTable[ axisIndex ], axisIndex );
+    controller->mechanism.GetForwardDynamics( 0, controller->jointMeasuresTable, controller->axisMeasuresTable[ axisIndex ], axisIndex );
     double positionError = controller->axisSetpointsTable[ axisIndex ][ CONTROL_POSITION ] - controller->axisMeasuresTable[ axisIndex ][ CONTROL_POSITION ];
     controller->axisSetpointsTable[ axisIndex ][ CONTROL_FORCE ] = controller->axesList[ axisIndex ].stiffness * positionError;
   }
@@ -156,7 +156,7 @@ inline bool RobotControl_Update( int controllerID )
   //DEBUG_PRINT( "setpoint: %g * (%g - %g)", controller->axesList[ 0 ].stiffness, controller->axisSetpointsTable[ 0 ][ CONTROL_POSITION ], controller->axisMeasuresTable[ 0 ][ CONTROL_POSITION ] ); 
   
   for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-    controller->mechanism.GetInverseDynamics( controller->axisSetpointsTable, controller->jointSetpointsTable[ jointIndex ], jointIndex );
+    controller->mechanism.GetInverseDynamics( 0, controller->axisSetpointsTable, controller->jointSetpointsTable[ jointIndex ], jointIndex );
   
   return true;
 }
@@ -244,7 +244,7 @@ static inline RobotController LoadControllerData( const char* configFileName )
     GET_PLUGIN_INTERFACE( ROBOT_MECHANICS_FUNCTIONS, parser.GetStringValue( configFileID, "", "mechanics" ), newController->mechanism, loadSuccess );
     if( loadSuccess )
     {
-      newController->dofsNumber = newController->mechanism.GetDoFsNumber();
+      newController->dofsNumber = newController->mechanism.GetDoFsNumber( 0 );
 
       newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
       newController->axesList = (Axis) calloc( newController->dofsNumber, sizeof(AxisData) );

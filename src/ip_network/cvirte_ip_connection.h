@@ -546,7 +546,7 @@ static int CVICALLBACK AcceptUDPClient( unsigned int channel, int eventType, int
 
     AsyncConnection client = kh_value( connection->clientsList, clientIndex );
     ThreadSafeQueues.Enqueue( client->readQueue, messageBuffer, QUEUE_APPEND_WAIT );
-    /*DEBUG_UPDATE*/DEBUG_PRINT( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
+    DEBUG_UPDATE( "UDP connection handle %u (server handle %u) received message: %s", client->handle, client->ref_server->handle, messageBuffer );
   }
   
   return 0;
