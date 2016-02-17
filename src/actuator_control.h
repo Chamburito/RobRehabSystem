@@ -90,7 +90,7 @@ Actuator ActuatorControl_InitController( const char* configFileName )
     }
     
     
-    newActuator->logID = DataLogging_InitLog( configFileName, 7, 1000 );
+    newActuator->logID = DataLogging_InitLog( configFileName, 6, 1000 );
     DataLogging_SetDataPrecision( newActuator->logID, 5 );
     
     
@@ -282,8 +282,10 @@ static inline void UpdateControlMeasures( Actuator actuator )
 {
   DEBUG_UPDATE( "reading measures from actuator %p", actuator );
   
-  Kalman.SetMeasure( actuator->positionFilter, 0, Sensors.Update( actuator->positionSensor ) );
-  Kalman.SetMeasure( actuator->positionFilter, 1, Sensors.Update( actuator->velocitySensor ) );
+  double sensorPosition = Sensors.Update( actuator->positionSensor );
+  double sensorVelocity = Sensors.Update( actuator->velocitySensor );
+  Kalman.SetMeasure( actuator->positionFilter, 0, sensorPosition );
+  Kalman.SetMeasure( actuator->positionFilter, 1, sensorVelocity );
   (void) Kalman.Predict( actuator->positionFilter );
   double* fusedPositionSignal = Kalman.Update( actuator->positionFilter );
   if( fusedPositionSignal != NULL )
@@ -291,11 +293,13 @@ static inline void UpdateControlMeasures( Actuator actuator )
     actuator->measuresList[ CONTROL_POSITION ] = fusedPositionSignal[ 0 ];
     actuator->measuresList[ CONTROL_VELOCITY ] = fusedPositionSignal[ 1 ];
   
-    DEBUG_PRINT( "angle: %f", 360.0 * fusedPositionSignal[ 0 ] );
-    
     //DEBUG_PRINT( "fused: position: %g - velocity: %g", fusedPositionSignal[ 0 ], fusedPositionSignal[ 1 ] );
     
     actuator->measuresList[ CONTROL_FORCE ] = Sensors.Update( actuator->forceSensor );
+    
+    DataLogging_RegisterValues( actuator->logID, 6, Timing.GetExecTimeSeconds(), sensorPosition, sensorVelocity,
+                                                    actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ],
+                                                    actuator->measuresList[ CONTROL_FORCE ] );
   }
 }
 
@@ -316,12 +320,6 @@ static inline void RunControl( Actuator actuator )
     //DEBUG_PRINT( "force setpoint: %g", actuator->setpointsList[ CONTROL_FORCE ] ); 
     double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_PASS_INTERVAL, &(actuator->controlError) );
     //DEBUG_PRINT( "force setpoint: %.3f - control: %.3f", actuator->setpointsList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
-    
-    DataLogging_RegisterValues( actuator->logID, 7, actuator->setpointsList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_POSITION ],
-                                                    actuator->setpointsList[ CONTROL_POSITION ] - actuator->measuresList[ CONTROL_POSITION ],
-                                                    actuator->setpointsList[ CONTROL_FORCE ], actuator->measuresList[ CONTROL_FORCE ],
-                                                    actuator->setpointsList[ CONTROL_FORCE ] - actuator->measuresList[ CONTROL_FORCE ],
-                                                    controlOutputsList[ actuator->controlMode ] );
     
     Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
   }

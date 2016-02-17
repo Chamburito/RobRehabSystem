@@ -192,7 +192,7 @@ static void InitUserInterface( void )
 
 int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-  char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "169.254.110.158:";
+  char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "192.168.0.181:";
   
 	if( event == EVENT_COMMIT )
 	{
@@ -201,12 +201,12 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
     {
       // Connect to shared variables
       
-      GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "169.254.110.158:" ) );
+      GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
       fprintf( stderr, "connecting to axis %s\n", sharedVarName );
       axisMotorController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
       if( axisMotorController != NULL ) fprintf( stderr, "connected to axis %s\n\n", sharedVarName );
       
-      GetCtrlVal( panel, PANEL_JOINT_STRING, sharedVarName + strlen( "169.254.110.158:" ) );
+      GetCtrlVal( panel, PANEL_JOINT_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
       fprintf( stderr, "connecting to joint %s\n", sharedVarName );
       jointEMGController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
       if( jointEMGController != NULL ) fprintf( stderr, "connected to joint %s\n\n", sharedVarName );

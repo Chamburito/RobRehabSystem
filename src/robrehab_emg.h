@@ -92,8 +92,9 @@ int RobRehabEMG_Init( void )
               for( size_t sampleIndex = 0; sampleIndex < MAX_SAMPLES_NUMBER; sampleIndex++ )
                 newSharedJoint.samplingData.muscleSignalsList[ sampleIndex ] = (double*) calloc( newSharedJoint.samplingData.musclesCount, sizeof(double) );
               
-              size_t sampleValuesNumber = newSharedJoint.samplingData.musclesCount + 2;
+              size_t sampleValuesNumber = newSharedJoint.samplingData.musclesCount + 3;
               newSharedJoint.samplingLogID = DataLogging.InitLog( robotVarName, sampleValuesNumber, sampleValuesNumber * MAX_SAMPLES_NUMBER / 5.0 );
+              DataLogging.SetDataPrecision( newSharedJoint.samplingLogID, DATA_LOG_MAX_PRECISION );
               
               kv_push( SHMJointData, sharedJointsList, newSharedJoint );
               
@@ -202,15 +203,15 @@ void RobRehabEMG_Update( void )
           {
             double* currentSampleList = sharedJoint->samplingData.muscleSignalsList[ sharedJoint->samplingData.samplesCount ];
             
-            for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
-              currentSampleList[ muscleIndex ] = EMGProcessing.GetJointMuscleSignal( sharedJoint->samplingData.jointID, muscleIndex );
-            
             sharedJoint->samplingData.sampleTimesList[ sharedJoint->samplingData.samplesCount ] = Timing.GetExecTimeSeconds();
             double relativeTime = sharedJoint->samplingData.sampleTimesList[ sharedJoint->samplingData.samplesCount ] - sharedJoint->samplingData.sampleTimesList[ 0 ];
             
-            DEBUG_PRINT( "Saving sample %u (%.3f): %.3f", sharedJoint->samplingData.samplesCount, relativeTime, jointAngle );
+            for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
+              currentSampleList[ muscleIndex ] = EMGProcessing.GetJointMuscleSignal( sharedJoint->samplingData.jointID, muscleIndex );
             
-            DataLogging.RegisterValues( sharedJoint->samplingLogID, 2, relativeTime, jointAngle );
+            DEBUG_PRINT( "Saving sample %u (%.3f): %.3f, %.3f", sharedJoint->samplingData.samplesCount, relativeTime, jointAngle, jointIDTorque );
+            
+            DataLogging.RegisterValues( sharedJoint->samplingLogID, 3, relativeTime, jointAngle, jointIDTorque );
             DataLogging.RegisterList( sharedJoint->samplingLogID, sharedJoint->samplingData.musclesCount, currentSampleList );
             
             sharedJoint->samplingData.jointAnglesList[ sharedJoint->samplingData.samplesCount ] = jointAngle;

@@ -14,6 +14,8 @@
 
 #include "async_debug.h"
 
+const size_t DATA_LOG_MAX_PRECISION = 15;
+
 typedef struct _LogData
 {
   FILE* file;
@@ -49,8 +51,8 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
   
   int logKey = (int) kh_str_hash_func( logFilePath );
   
-  //sprintf( logFilePathExt, "../logs/%s-%lu.log", logFilePath, time( NULL ) );
-  sprintf( logFilePathExt, "logs/test-%lu.log", time( NULL ) );
+  sprintf( logFilePathExt, "logs/%s-%lu.log", logFilePath, time( NULL ) );
+  //sprintf( logFilePathExt, "logs/test-%lu.log", time( NULL ) );
   
   int insertionStatus;
   khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
@@ -164,14 +166,12 @@ static void DataLogging_RegisterList( int logID, size_t valuesNumber, double* va
 
 static void DataLogging_SetDataPrecision( int logID, size_t decimalPlacesNumber )
 {
-  const size_t MAX_PRECISION = 8;
-  
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;
   
   Log log = kh_value( logsList, logIndex );
   
-  log->dataPrecision = ( decimalPlacesNumber < MAX_PRECISION ) ? decimalPlacesNumber : MAX_PRECISION;
+  log->dataPrecision = ( decimalPlacesNumber < DATA_LOG_MAX_PRECISION ) ? decimalPlacesNumber : DATA_LOG_MAX_PRECISION;
 }
 
 #endif /* DATA_LOGGING_H */

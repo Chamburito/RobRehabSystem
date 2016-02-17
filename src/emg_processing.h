@@ -129,16 +129,6 @@ double GetMuscleTorque( EMGMuscle muscle, double normalizedSignal, double jointA
   double activationFactor = muscle->gainsList[ MUSCLE_GAIN_ACTIVATION ];
   double activation = ( exp( activationFactor * normalizedSignal ) - 1 ) / ( exp( activationFactor ) - 1 );
   
-  if( activation != 0.0 )
-  {
-    Sensor emgSensor = muscle->emgSensor;
-    size_t newSamplesBufferStart = emgSensor->emgData.samplesBufferStartIndex % emgSensor->emgData.samplesBufferLength;
-    size_t newSamplesBufferMaxLength = emgSensor->emgData.filteredSamplesBufferLength - FILTER_EXTRA_SAMPLES_NUMBER;
-    DataLogging_RegisterValues( emgSensor->logID, 3, emgSensor->emgData.processingResultsList[ EMG_ACTIVATION_PHASE ], jointAngle, Timing_GetExecTimeMilliseconds() );
-    DataLogging_RegisterList( emgSensor->logID, newSamplesBufferMaxLength, emgSensor->emgData.samplesBuffer + newSamplesBufferStart );
-    DataLogging_RegisterList( emgSensor->logID, newSamplesBufferMaxLength, emgSensor->emgData.filteredSamplesBuffer + FILTER_EXTRA_SAMPLES_NUMBER );
-  }
-  
   double activeForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_ACTIVE_FORCE ], jointAngle, 0.0 );
   double passiveForce = CurveInterpolation.GetValue( muscle->curvesList[ MUSCLE_PASSIVE_FORCE ], jointAngle, 0.0 );
   
