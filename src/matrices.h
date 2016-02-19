@@ -104,12 +104,11 @@ Matrix Matrices_Resize( Matrix matrix, size_t rowsNumber, size_t columnsNumber )
 {
   if( matrix == NULL )
     matrix = Matrices_Create( NULL, rowsNumber, columnsNumber );
-  else if( matrix->rowsNumber < rowsNumber || matrix->columnsNumber < columnsNumber )
-  {
+  else if( matrix->rowsNumber * matrix->columnsNumber < rowsNumber * columnsNumber )
     matrix->data = (double*) realloc( matrix->data, rowsNumber * columnsNumber * sizeof(double) );
-    matrix->rowsNumber = rowsNumber;
-    matrix->columnsNumber = columnsNumber;
-  }
+  
+  matrix->rowsNumber = rowsNumber;
+  matrix->columnsNumber = columnsNumber;
 
   return matrix;
 }
