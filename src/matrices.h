@@ -207,8 +207,8 @@ Matrix Matrices_Dot( Matrix matrix_1, bool transpose_1, Matrix matrix_2, bool tr
       auxArray[ row * result->columnsNumber + column ] = 0.0;
       for( size_t i = 0; i < couplingLength; i++ )
       {
-        size_t elementIndex_1 = transpose_1 ? i * matrix_1->columnsNumber + column : row * matrix_1->columnsNumber + i;
-        size_t elementIndex_2 = transpose_2 ? row * matrix_2->columnsNumber + i : i * matrix_2->columnsNumber + column;
+        size_t elementIndex_1 = transpose_1 ? i * matrix_1->columnsNumber + row : row * matrix_1->columnsNumber + i;
+        size_t elementIndex_2 = transpose_2 ? column * matrix_2->columnsNumber + i : i * matrix_2->columnsNumber + column;
         auxArray[ row * result->columnsNumber + column ] += matrix_1->data[ elementIndex_1 ] * matrix_2->data[ elementIndex_2 ];
       }
     }

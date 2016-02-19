@@ -107,7 +107,7 @@ double* Kalman_Predict( KalmanFilter filter )
   // x = F*x_old
   Matrices_Dot( filter->prediction, 1.0, filter->state, 1.0, filter->state );
   
-  // P = F*P_old*F + Q
+  // P = F*P_old*F' + Q
   Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->predictionCovariance );
   Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->prediction, MATRIX_TRANSPOSE, filter->predictionCovariance );
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->predictionCovarianceNoise, 1.0, filter->predictionCovariance );
@@ -126,7 +126,7 @@ double* Kalman_Update( KalmanFilter filter )
   // y = z - [H*]x
   Matrices_Sum( filter->measures, 1.0, filter->state, -1.0, filter->innovation );
   
-  // K = P[*H] * ( [H*]P[*H] + R )^(-1)
+  // K = P[*H'] * ( [H*]P[*H'] + R )^(-1)
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->innovationCovarianceNoise, 1.0, filter->innovationCovariance );
   Matrices_Inverse( filter->innovationCovariance, filter->innovationCovariance );
   Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->innovationCovariance, MATRIX_KEEP, filter->gains );
