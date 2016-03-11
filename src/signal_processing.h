@@ -95,7 +95,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double newInput
   }
   else
   {
-    newInputValue -= processor->signalOffset;
+    /*newInputValue -= processor->signalOffset;
 
     if( processor->rectify ) newInputValue = fabs( newInputValue );
 
@@ -128,7 +128,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double newInput
 
         newInputValue = newInputValue / ( processor->signalLimitsList[ 1 ] - processor->signalLimitsList[ 0 ] );
       }
-    }
+    }*/
   }
   
   return newInputValue;

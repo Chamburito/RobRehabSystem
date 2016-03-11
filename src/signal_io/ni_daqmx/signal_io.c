@@ -94,24 +94,37 @@ bool HasError( int taskID )
   return false;
 }
 
-bool Read( int taskID, unsigned int channel, double* ref_value )
+size_t GetMaxInputSamplesNumber( int taskID )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
-  if( taskIndex == kh_end( tasksList ) ) return false;
+  if( taskIndex == kh_end( tasksList ) ) return 0;
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
-  if( channel >= task->channelsNumber ) return false;
+  if( task->mode == WRITE ) return 0;
   
-  if( !task->isRunning ) return false;
+  return AQUISITION_BUFFER_LENGTH;
+}
+
+size_t Read( int taskID, unsigned int channel, double* channelSamplesList )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return 0;
   
-  if( task->mode == WRITE ) return false;
+  SignalIOTask task = kh_value( tasksList, taskIndex );
+  
+  if( channel >= task->channelsNumber ) return 0;
+  
+  if( !task->isRunning ) return 0;
+  
+  if( task->mode == WRITE ) return 0;
   
   Semaphores.Decrement( task->channelLocksList[ channel ] );
   
-  *ref_value = task->channelValuesList[ channel ];
+  size_t channelAquiredSamplesCount = (size_t) task->channelValuesList[ channel ];
+  memcpy( channelSamplesList, task->samplesList + channel * channelAquiredSamplesCount, channelAquiredSamplesCount );
   
-  return true;
+  return channelAquiredSamplesCount;
 }
 
 bool AquireInputChannel( int taskID, unsigned int channel )
@@ -244,11 +257,7 @@ static void* AsyncReadBuffer( void* callbackData )
     {
       for( unsigned int channel = 0; channel < task->channelsNumber; channel++ )
       {
-        double* channelSamplesList = task->samplesList + channel * aquiredSamplesCount;
-        double channelSamplesSum = 0.0;
-        for( size_t sampleIndex = 0; sampleIndex < (size_t) aquiredSamplesCount; sampleIndex++ )
-          channelSamplesSum += channelSamplesList[ sampleIndex ]; 
-        task->channelValuesList[ channel ] = channelSamplesSum / aquiredSamplesCount;
+        task->channelValuesList[ channel ] = (double) aquiredSamplesCount;
         
         Semaphores.SetCount( task->channelLocksList[ channel ], task->channelUsesList[ channel ] );
       }
@@ -335,7 +344,7 @@ SignalIOTask LoadTaskData( const char* taskName )
         DAQmxGetReadAttribute( newTask->handle, DAQmx_Read_NumChans, &readChannelsNumber );
         if( readChannelsNumber > 0 ) 
         {
-          newTask->channelLocksList = (Semaphore*) calloc( newTask->channelsNumber, sizeof(double) );
+          newTask->channelLocksList = (Semaphore*) calloc( newTask->channelsNumber, sizeof(Semaphore) );
           for( unsigned int channel = 0; channel < newTask->channelsNumber; channel++ )
             newTask->channelLocksList[ channel ] = Semaphores.Create( 0, SIGNAL_INPUT_CHANNEL_MAX_USES );
           
@@ -343,7 +352,7 @@ SignalIOTask LoadTaskData( const char* taskName )
         }
         else 
         {
-          newTask->channelLocksList = (Semaphore*) calloc( 1, sizeof(double) );
+          newTask->channelLocksList = (Semaphore*) calloc( 1, sizeof(Semaphore) );
           newTask->channelLocksList[ 0 ] = Semaphores.Create( 0, SIGNAL_INPUT_CHANNEL_MAX_USES );
           
           newTask->mode = WRITE;

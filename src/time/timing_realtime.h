@@ -6,7 +6,7 @@
 #ifndef TIMING_H
 #define TIMING_H
 
-#include "interface.h"
+#include "interfaces.h"
 
 #include <rtutil.h>
 

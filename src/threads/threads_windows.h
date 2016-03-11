@@ -7,7 +7,7 @@
 #define THREADS_H
 
 #include "debug/debug.h"
-#include "interface.h"
+#include "interfaces.h"
 
 #include <stdint.h>
 #include <Windows.h>

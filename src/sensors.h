@@ -23,6 +23,7 @@ struct _SensorData
   SignalIOInterface interface;
   int taskID;
   unsigned int channel;
+  double* inputBuffer;
   SignalProcessor processor;
   Curve measurementCurve;
   double gain;
@@ -65,6 +66,9 @@ Sensor Sensors_Init( const char* configFileName )
       {
         newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.input_channel" );
         loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
+        
+        size_t maxInputSamplesNumber = newSensor->interface.GetMaxInputSamplesNumber( newSensor->taskID );
+        newSensor->inputBuffer = (double*) calloc( maxInputSamplesNumber, sizeof(double) );
         
         newSensor->gain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
         newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
@@ -118,6 +122,8 @@ void Sensors_End( Sensor sensor )
   SignalProcessing.DiscardProcessor( sensor->processor );
   CurveInterpolation.UnloadCurve( sensor->measurementCurve );
   
+  free( sensor->inputBuffer );
+  
   if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
   
   Sensors_End( sensor->reference );
@@ -131,17 +137,21 @@ double Sensors_Update( Sensor sensor )
   
   double sensorOutput = 0.0;
   
-  double signal;
-  if( sensor->interface.Read( sensor->taskID, sensor->channel, &signal ) )
+  size_t aquiredSamplesNumber = sensor->interface.Read( sensor->taskID, sensor->channel, sensor->inputBuffer );
+  
+  if( aquiredSamplesNumber > 0 )
   {
-    sensorOutput = SignalProcessing.UpdateSignal( sensor->processor, signal * sensor->gain );
+    sensorOutput = sensor->inputBuffer[ 0 ] * sensor->gain;
+    
+    //for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesNumber; sampleIndex++ )
+    //  sensorOutput = SignalProcessing.UpdateSignal( sensor->processor, sensor->inputBuffer[ sampleIndex ] * sensor->gain );
     
     double referenceOutput = Sensors_Update( sensor->reference );
     sensorOutput -= referenceOutput;
 
     sensorOutput = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput, sensorOutput );
   }
-    
+  
   return sensorOutput;
 }
 

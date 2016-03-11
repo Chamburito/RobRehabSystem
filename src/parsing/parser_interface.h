@@ -1,7 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "interface.h"
+#include "interfaces.h"
 
 #ifdef _CVI_
   #include <windows.h>

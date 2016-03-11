@@ -88,14 +88,22 @@ void EndTask( int taskID )
   }
 }
 
-bool Read( int taskID, unsigned int channel, double* ref_value )
+size_t GetMaxInputSamplesNumber( int taskID )
 {
   khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
-  if( taskIndex == kh_end( tasksList ) ) return false;
+  if( taskIndex == kh_end( tasksList ) ) return 0;
+  
+  return 1;
+}
+
+size_t Read( int taskID, unsigned int channel, double* ref_value )
+{
+  khint_t taskIndex = kh_get( TaskInt, tasksList, (khint_t) taskID );
+  if( taskIndex == kh_end( tasksList ) ) return 0;
   
   SignalIOTask task = kh_value( tasksList, taskIndex );
   
-  if( channel >= INPUT_CHANNELS_NUMBER ) return false;
+  if( channel >= INPUT_CHANNELS_NUMBER ) return 0;
   
   CANNetwork_Sync();
   
@@ -117,7 +125,7 @@ bool Read( int taskID, unsigned int channel, double* ref_value )
     
   *ref_value = task->measuresList[ channel ];
   
-  return true;
+  return 1;
 }
 
 bool HasError( int taskID )

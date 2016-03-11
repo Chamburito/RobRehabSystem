@@ -1,7 +1,7 @@
 #ifndef ACTUATOR_CONTROL_H
 #define ACTUATOR_CONTROL_H 
 
-#include "interface.h"
+#include "interfaces.h"
 
 #include "config_parser.h"
 
@@ -26,6 +26,7 @@ typedef struct _ActuatorData
   double setpointsList[ CONTROL_VARS_NUMBER ];
   double controlError;
   ControlInterface control;
+  Controller controller;
   Thread controlThread;
   enum ControlVariables controlMode;
   bool isControlRunning;
@@ -90,12 +91,16 @@ Actuator ActuatorControl_InitController( const char* configFileName )
     }
     
     
-    newActuator->logID = DataLogging_InitLog( configFileName, 6, 1000 );
-    DataLogging_SetDataPrecision( newActuator->logID, 5 );
+    //newActuator->logID = DataLogging_InitLog( configFileName, 6, 1000 );
+    //DataLogging_SetDataPrecision( newActuator->logID, 5 );
     
     
     GET_PLUGIN_INTERFACE( CONTROL_FUNCTIONS, parser.GetStringValue( configFileID, "", "control.function" ), newActuator->control, loadSuccess );
-    if( loadSuccess ) newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
+    if( loadSuccess ) 
+    {
+      newActuator->controller = newActuator->control.InitController();
+      newActuator->controlThread = Threading.StartThread( AsyncControl, newActuator, THREAD_JOINABLE );
+    }
 
     parser.UnloadData( configFileID );
 
@@ -120,6 +125,8 @@ void ActuatorControl_EndController( Actuator actuator )
   DEBUG_PRINT( "ending actuator %p", actuator );
   
   if( actuator == NULL ) return;
+  
+  actuator->control.EndController( actuator->controller );
   
   Kalman.DiscardFilter( actuator->positionFilter );
   
@@ -297,9 +304,9 @@ static inline void UpdateControlMeasures( Actuator actuator )
     
     actuator->measuresList[ CONTROL_FORCE ] = Sensors.Update( actuator->forceSensor );
     
-    DataLogging_RegisterValues( actuator->logID, 6, Timing.GetExecTimeSeconds(), sensorPosition, sensorVelocity,
-                                                    actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ],
-                                                    actuator->measuresList[ CONTROL_FORCE ] );
+    //DataLogging_RegisterValues( actuator->logID, 6, Timing.GetExecTimeSeconds(), sensorPosition, sensorVelocity,
+    //                                                actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ],
+    //                                                actuator->measuresList[ CONTROL_FORCE ] );
   }
 }
 
@@ -318,7 +325,7 @@ static inline void RunControl( Actuator actuator )
   if( Motors.IsEnabled( actuator->motor ) )
   {
     //DEBUG_PRINT( "force setpoint: %g", actuator->setpointsList[ CONTROL_FORCE ] ); 
-    double* controlOutputsList = actuator->control.Run( actuator->measuresList, actuator->setpointsList, CONTROL_PASS_INTERVAL, &(actuator->controlError) );
+    double* controlOutputsList = actuator->control.RunStep( actuator->controller, actuator->measuresList, actuator->setpointsList, CONTROL_PASS_INTERVAL, &(actuator->controlError) );
     //DEBUG_PRINT( "force setpoint: %.3f - control: %.3f", actuator->setpointsList[ CONTROL_FORCE ], controlOutputsList[ actuator->controlMode ] );
     
     Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );

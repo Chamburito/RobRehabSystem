@@ -12,7 +12,8 @@ const int SIGNAL_IO_TASK_INVALID_ID = -1;
         function_init( void, interface, EndTask, int ) \
         function_init( void, interface, Reset, int ) \
         function_init( bool, interface, HasError, int ) \
-        function_init( bool, interface, Read, int, unsigned int, double* ) \
+        function_init( size_t, interface, GetMaxInputSamplesNumber, int ) \
+        function_init( size_t, interface, Read, int, unsigned int, double* ) \
         function_init( bool, interface, AquireInputChannel, int, unsigned int ) \
         function_init( void, interface, ReleaseInputChannel, int, unsigned int ) \
         function_init( void, interface, EnableOutput, int, bool ) \

@@ -2,7 +2,7 @@
 #define ROBOT_CONTROL_H
 
 #include "actuator_control.h"
-#include "robot_mechanics_interface.h"
+#include "mechanics/mechanical_interface.h"
 
 #include "config_parser.h"
 #include "plugin_loader.h"
@@ -28,7 +28,8 @@ typedef AxisData* Axis;
 
 typedef struct _RobotControllerData
 {
-  RobotMechanicsInterface mechanism;
+  MechanicsInterface mechanics;
+  MechanicalModel mechanism;
   Actuator* jointsList;
   double** jointMeasuresTable;
   double** jointSetpointsTable;
@@ -146,17 +147,20 @@ inline bool RobotControl_Update( int controllerID )
   
   RobotController controller = kh_value( controllersList, controllerIndex );
   
+  controller->mechanics.SolveForwardKinematics( controller->mechanism, controller->jointMeasuresTable, controller->axisMeasuresTable );
+  controller->mechanics.SolveForwardDynamics( controller->mechanism, controller->jointMeasuresTable, controller->axisMeasuresTable );
   for( size_t axisIndex = 0; axisIndex < controller->dofsNumber; axisIndex++ )
   {
-    controller->mechanism.GetForwardDynamics( 0, controller->jointMeasuresTable, controller->axisMeasuresTable[ axisIndex ], axisIndex );
     double positionError = controller->axisSetpointsTable[ axisIndex ][ CONTROL_POSITION ] - controller->axisMeasuresTable[ axisIndex ][ CONTROL_POSITION ];
     controller->axisSetpointsTable[ axisIndex ][ CONTROL_FORCE ] = controller->axesList[ axisIndex ].stiffness * positionError;
   }
   
   //DEBUG_PRINT( "setpoint: %g * (%g - %g)", controller->axesList[ 0 ].stiffness, controller->axisSetpointsTable[ 0 ][ CONTROL_POSITION ], controller->axisMeasuresTable[ 0 ][ CONTROL_POSITION ] ); 
   
-  for( size_t jointIndex = 0; jointIndex < controller->dofsNumber; jointIndex++ )
-    controller->mechanism.GetInverseDynamics( 0, controller->axisSetpointsTable, controller->jointSetpointsTable[ jointIndex ], jointIndex );
+  controller->mechanics.SolveInverseKinematics( controller->mechanism, controller->axisSetpointsTable, controller->jointSetpointsTable );
+  controller->mechanics.SolveInverseDynamics( controller->mechanism, controller->axisSetpointsTable, controller->jointSetpointsTable );
+  
+  controller->mechanics.GetJointControlActions( controller->mechanism, controller->jointMeasuresTable, controller->jointSetpointsTable );
   
   return true;
 }
@@ -241,10 +245,11 @@ static inline RobotController LoadControllerData( const char* configFileName )
     memset( newController, 0, sizeof(RobotControllerData) );
   
     bool loadSuccess = false;
-    GET_PLUGIN_INTERFACE( ROBOT_MECHANICS_FUNCTIONS, parser.GetStringValue( configFileID, "", "mechanics" ), newController->mechanism, loadSuccess );
+    GET_PLUGIN_INTERFACE( MECHANICS_FUNCTIONS, parser.GetStringValue( configFileID, "", "type" ), newController->mechanics, loadSuccess );
     if( loadSuccess )
     {
-      newController->dofsNumber = newController->mechanism.GetDoFsNumber( 0 );
+      newController->mechanism = newController->mechanics.InitModel( parser.GetStringValue( configFileID, "", "name" ) );
+      newController->dofsNumber = newController->mechanics.GetDoFsNumber( newController->mechanism );
 
       newController->jointsList = (Actuator*) calloc( newController->dofsNumber, sizeof(Actuator) );
       newController->axesList = (Axis) calloc( newController->dofsNumber, sizeof(AxisData) );
@@ -293,6 +298,8 @@ static inline void UnloadControllerData( RobotController controller )
   if( controller == NULL ) return;
     
   DEBUG_PRINT( "ending robot controller %p", controller );
+  
+  controller->mechanics.EndModel( controller->mechanism );
   
   free( controller->jointsList );
   free( controller->axesList );

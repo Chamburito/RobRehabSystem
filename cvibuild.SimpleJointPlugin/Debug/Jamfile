@@ -35,10 +35,10 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis
 	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
 	;
 include Jamfile_instr ;
-LOCATE on "interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
-LOCATE on "robot_mechanics_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
-LOCATE on "simple_joint.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_mechanics" ;
-Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_mechanics\\simple_joint.c" ;
+LOCATE on "interfaces.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "mechanical_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\mechanics" ;
+LOCATE on "simple_joint.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\mechanics" ;
+Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\mechanics\\simple_joint.c" ;
 FILENUM on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj" = 1 ;
 DEFPROTS on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj.cvidefprots" ;
 OUTFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\simple_joint.obj.out" ;

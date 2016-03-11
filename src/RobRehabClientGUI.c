@@ -160,8 +160,8 @@ static void* UpdateData( void* callbackData )
     
     if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      setpointsList[ SHM_AXIS_POSITION ] = sin( absoluteTime / 2.0 ) / 20.0 - 0.125;
-      setpointsList[ SHM_AXIS_VELOCITY ] = cos( absoluteTime / 2.0 ) / 20.0;
+      setpointsList[ SHM_AXIS_POSITION ] = sin( absoluteTime ) / 10.0 - 0.125;
+      setpointsList[ SHM_AXIS_VELOCITY ] = cos( absoluteTime ) / 10.0;
       setpointsList[ SHM_AXIS_STIFFNESS ] = maxStiffness;
       setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
       

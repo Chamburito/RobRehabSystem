@@ -16,17 +16,17 @@
 
 #include <stdlib.h>
 
-const unsigned long UPDATE_INTERVAL_MS = 50;
+const unsigned long UPDATE_INTERVAL_MS = 5;
 
-#define MAX_SAMPLES_NUMBER 1000
+#define MAX_SAMPLES_NUMBER 5000
 
 typedef struct _SamplingData
 {
   int jointID;
   double** muscleSignalsList;
-  double jointAnglesList[ MAX_SAMPLES_NUMBER ];
-  double jointIDTorquesList[ MAX_SAMPLES_NUMBER ];
-  double sampleTimesList[ MAX_SAMPLES_NUMBER ];
+  double* jointAnglesList;//double jointAnglesList[ MAX_SAMPLES_NUMBER ];
+  double* jointIDTorquesList;//double jointIDTorquesList[ MAX_SAMPLES_NUMBER ];
+  double* sampleTimesList;//double sampleTimesList[ MAX_SAMPLES_NUMBER ];
   size_t musclesCount, samplesCount;
 }
 SamplingData;
@@ -91,6 +91,9 @@ int RobRehabEMG_Init( void )
               newSharedJoint.samplingData.muscleSignalsList = (double**) calloc( MAX_SAMPLES_NUMBER, sizeof(double*) );
               for( size_t sampleIndex = 0; sampleIndex < MAX_SAMPLES_NUMBER; sampleIndex++ )
                 newSharedJoint.samplingData.muscleSignalsList[ sampleIndex ] = (double*) calloc( newSharedJoint.samplingData.musclesCount, sizeof(double) );
+              newSharedJoint.samplingData.jointAnglesList = (double*) calloc( MAX_SAMPLES_NUMBER, sizeof(double) );
+              newSharedJoint.samplingData.jointIDTorquesList = (double*) calloc( MAX_SAMPLES_NUMBER, sizeof(double) );
+              newSharedJoint.samplingData.sampleTimesList = (double*) calloc( MAX_SAMPLES_NUMBER, sizeof(double) );
               
               size_t sampleValuesNumber = newSharedJoint.samplingData.musclesCount + 3;
               newSharedJoint.samplingLogID = DataLogging.InitLog( robotVarName, sampleValuesNumber, sampleValuesNumber * MAX_SAMPLES_NUMBER / 5.0 );
@@ -198,24 +201,25 @@ void RobRehabEMG_Update( void )
       if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ID_TORQUE, &jointIDTorque, SHM_CONTROL_PEEK ) )
       {
         if( sharedJoint->lastJointPhase == SHM_EMG_SAMPLING )
-        {      
+        {   
           if( sharedJoint->samplingData.samplesCount < MAX_SAMPLES_NUMBER )
           {
             double* currentSampleList = sharedJoint->samplingData.muscleSignalsList[ sharedJoint->samplingData.samplesCount ];
             
             sharedJoint->samplingData.sampleTimesList[ sharedJoint->samplingData.samplesCount ] = Timing.GetExecTimeSeconds();
-            double relativeTime = sharedJoint->samplingData.sampleTimesList[ sharedJoint->samplingData.samplesCount ] - sharedJoint->samplingData.sampleTimesList[ 0 ];
             
             for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
               currentSampleList[ muscleIndex ] = EMGProcessing.GetJointMuscleSignal( sharedJoint->samplingData.jointID, muscleIndex );
+            
+            sharedJoint->samplingData.jointAnglesList[ sharedJoint->samplingData.samplesCount ] = jointAngle;
+            sharedJoint->samplingData.jointIDTorquesList[ sharedJoint->samplingData.samplesCount ] = jointIDTorque;
+            
+            double relativeTime = sharedJoint->samplingData.sampleTimesList[ sharedJoint->samplingData.samplesCount ] - sharedJoint->samplingData.sampleTimesList[ 0 ];
             
             DEBUG_PRINT( "Saving sample %u (%.3f): %.3f, %.3f", sharedJoint->samplingData.samplesCount, relativeTime, jointAngle, jointIDTorque );
             
             DataLogging.RegisterValues( sharedJoint->samplingLogID, 3, relativeTime, jointAngle, jointIDTorque );
             DataLogging.RegisterList( sharedJoint->samplingLogID, sharedJoint->samplingData.musclesCount, currentSampleList );
-            
-            sharedJoint->samplingData.jointAnglesList[ sharedJoint->samplingData.samplesCount ] = jointAngle;
-            sharedJoint->samplingData.jointIDTorquesList[ sharedJoint->samplingData.samplesCount ] = jointIDTorque;
             
             sharedJoint->samplingData.samplesCount++;
           }
