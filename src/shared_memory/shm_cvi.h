@@ -122,6 +122,8 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, in
 
 void SharedObjects_DestroyObject( void* sharedObjectData )
 {
+  if( sharedObjectData == NULL ) return;
+  
   for( khint_t sharedObjectID = 0; sharedObjectID != kh_end( sharedObjectsList ); sharedObjectID++ )
   {
     if( !kh_exist( sharedObjectsList, sharedObjectID ) ) continue;

@@ -1,0 +1,9 @@
+{
+  "sensors": [
+    { "input_variable": "POSITION", "id": "simple_joint_sensor_position" },
+    { "input_variable": "VELOCITY", "id": "simple_joint_sensor_velocity" },
+    { "input_variable": "FORCE", "id": "simple_joint_sensor_torque" }
+  ],
+  "motor": { "output_variable": "VELOCITY", "id": "simple_joint_motor" },
+  "controller": "ForcePIControl"
+}

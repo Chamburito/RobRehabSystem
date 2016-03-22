@@ -16,20 +16,19 @@
 
 enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER };
 
-const size_t SHM_CONTROL_MAX_FLOATS_NUMBER = 8;
-const uint8_t SHM_CONTROL_BYTE_NULL = 0x00;
+#define SHM_CONTROL_MAX_DATA_SIZE 256
 
 const bool SHM_CONTROL_PEEK = false;
 const bool SHM_CONTROL_REMOVE = true;
 
 #define SHM_CONTROL_BIT_INDEX( index ) ( 1 << index )
-#define SHM_CONTROL_IS_BIT_SET( byte, index ) ( (byte) & SHM_CONTROL_BIT_INDEX( index ) )
+#define SHM_CONTROL_SET_BIT( field, index ) ( (field) |= SHM_CONTROL_BIT_INDEX( index ) )
+#define SHM_CONTROL_IS_BIT_SET( field, index ) ( (field) & SHM_CONTROL_BIT_INDEX( index ) )
 
 typedef struct _ControlChannelData
 {
-  float numericValuesList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
-  uint8_t numericValuesUpdatedList;
-  uint8_t byteValue;
+  uint32_t dataUpdated;
+  uint8_t data[ SHM_CONTROL_MAX_DATA_SIZE ];
 }
 ControlChannelData;
 
@@ -52,12 +51,8 @@ typedef SHMControlData* SHMController;
 #define SHM_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( SHMController, namespace, InitData, const char*, enum SHMControlTypes ) \
         function_init( void, namespace, EndData, SHMController ) \
-        function_init( bool, namespace, GetNumericValue, SHMController, size_t , float*, bool ) \
-        function_init( bool, namespace, SetNumericValue, SHMController, size_t , float ) \
-        function_init( uint8_t, namespace, GetNumericValuesList, SHMController, float*, bool ) \
-        function_init( uint8_t, namespace, SetNumericValuesList, SHMController, float*, uint8_t ) \
-        function_init( uint8_t, namespace, GetByteValue, SHMController, bool ) \
-        function_init( bool, namespace, SetByteValue, SHMController, uint8_t )
+        function_init( uint32_t, namespace, GetData, SHMController, void*, size_t, size_t, bool ) \
+        function_init( uint32_t, namespace, SetData, SHMController, void*, size_t, size_t, uint32_t )
 
 INIT_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_FUNCTIONS )
 
@@ -109,100 +104,45 @@ void SHMControl_EndData( SHMController controller )
   free( controller );
 }
 
-bool SHMControl_GetNumericValue( SHMController controller, size_t valueIndex, float* ref_value, bool remove )
+uint32_t SHMControl_GetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, bool remove )
 {
-  if( controller == NULL ) return false;
+  if( controller == NULL ) return 0;
   
-  if( controller->channelIn == NULL ) return false;
-    
-  if( valueIndex < 0 || valueIndex >= SHM_CONTROL_MAX_FLOATS_NUMBER ) return false;
-    
-  if( !( controller->channelIn->numericValuesUpdatedList & SHM_CONTROL_BIT_INDEX( valueIndex ) ) ) return false;
+  if( controller->channelIn == NULL ) return 0;
   
-  if( ref_value != NULL )
-  {
-    *ref_value = controller->channelIn->numericValuesList[ valueIndex ];
-    if( remove ) controller->channelIn->numericValuesUpdatedList ^= SHM_CONTROL_BIT_INDEX( valueIndex );
-  }
-    
-  return true;
-}
-
-bool SHMControl_SetNumericValue( SHMController controller, size_t valueIndex, float value )
-{
-  if( controller == NULL ) return false;
+  if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return 0;
   
-  if( controller->channelOut == NULL ) return false;
-    
-  if( valueIndex < 0 || valueIndex >= SHM_CONTROL_MAX_FLOATS_NUMBER ) return false;
+  uint32_t dataUpdated = controller->channelIn->dataUpdated;
   
-  controller->channelOut->numericValuesList[ valueIndex ] = value;
-  controller->channelOut->numericValuesUpdatedList |= SHM_CONTROL_BIT_INDEX( valueIndex );
-  
-  return true;
-}
-
-uint8_t SHMControl_GetNumericValuesList( SHMController controller, float* valuesList, bool remove )
-{
-  if( controller == NULL ) return 0x00;
-  
-  if( controller->channelIn == NULL ) return 0x00; 
-  
-  uint8_t mask = controller->channelIn->numericValuesUpdatedList;
+  //if( remove && dataUpdated == 0 ) return 0;
   
   if( valuesList != NULL )
   {
-    size_t dataSize = sizeof(float) * SHM_CONTROL_MAX_FLOATS_NUMBER;
-    memcpy( valuesList, controller->channelIn->numericValuesList, dataSize );
+    memcpy( valuesList, controller->channelIn->data + dataOffset, dataLength );
     
-    DEBUG_UPDATE( "got %x: p: %.3f - v: %.3f", mask, valuesList[ 0 ], valuesList[ 1 ] );
+    //DEBUG_UPDATE( "got %x: p: %.3f - v: %.3f", mask, valuesList[ 0 ], valuesList[ 1 ] );
     
-    if( remove ) controller->channelIn->numericValuesUpdatedList = 0x00;
+    if( remove ) controller->channelIn->dataUpdated = 0;
   }
   
-  return mask;
+  return dataUpdated;
 }
 
-uint8_t SHMControl_SetNumericValuesList( SHMController controller, float* valuesList, uint8_t mask )
+uint32_t SHMControl_SetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, uint32_t dataUpdated )
 {
-  if( controller == NULL ) return SHM_CONTROL_BYTE_NULL;
+  if( controller == NULL ) return 0;
   
-  if( controller->channelOut == NULL ) return SHM_CONTROL_BYTE_NULL;
+  if( controller->channelOut == NULL ) return 0;
   
-  if( valuesList == NULL ) return SHM_CONTROL_BYTE_NULL;
+  if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return 0;
   
-  size_t dataSize = sizeof(float) * SHM_CONTROL_MAX_FLOATS_NUMBER;
-  memcpy( controller->channelOut->numericValuesList, valuesList, dataSize );
+  if( valuesList == NULL ) return 0;
+  
+  memcpy( controller->channelOut->data + dataOffset, valuesList, dataLength );
     
-  controller->channelOut->numericValuesUpdatedList = mask;
+  controller->channelOut->dataUpdated = dataUpdated;
     
-  return controller->channelOut->numericValuesUpdatedList;
-}
-
-uint8_t SHMControl_GetByteValue( SHMController controller, bool remove )
-{
-  if( controller == NULL ) return SHM_CONTROL_BYTE_NULL;
-  
-  if( controller->channelIn == NULL ) return SHM_CONTROL_BYTE_NULL; 
-  
-  uint8_t value = controller->channelIn->byteValue;
-  
-  if( remove ) controller->channelIn->byteValue = SHM_CONTROL_BYTE_NULL;
-  
-  return value;
-}
-
-bool SHMControl_SetByteValue( SHMController controller, uint8_t value )
-{
-  if( controller == NULL ) return false;
-  
-  if( controller->channelOut == NULL ) return false; 
-  
-  //DEBUG_PRINT( "byte value %u being set", value );
-  
-  controller->channelOut->byteValue = value;
-  
-  return true;
+  return controller->channelOut->dataUpdated;
 }
 
 #endif // SHM_CONTROL_H

@@ -43,13 +43,15 @@ struct _SensorData
 INIT_NAMESPACE_INTERFACE( Sensors, SENSOR_FUNCTIONS )
 
 
+char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
 Sensor Sensors_Init( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load sensor %s data", configFileName );
   
   Sensor newSensor = NULL;
   
-  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  sprintf( filePath, "sensors/%s", configFileName );
+  int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != PARSED_DATA_INVALID_ID )
   {
     ParserInterface parser = ConfigParsing.GetParser();
@@ -58,7 +60,8 @@ Sensor Sensors_Init( const char* configFileName )
     memset( newSensor, 0, sizeof(SensorData) );
     
     bool loadSuccess;
-    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, parser.GetStringValue( configFileID, "", "interface.type" ), newSensor->interface, loadSuccess );
+    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "interface.type" ) );
+    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, filePath, newSensor->interface, loadSuccess );
     if( loadSuccess )
     {
       newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "interface.name" ) );

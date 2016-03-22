@@ -31,8 +31,10 @@ typedef MatrixData* Matrix;
 #define MATRICES_FUNCTIONS( namespace, function_init ) \
         function_init( Matrix, namespace, Create, double*, size_t, size_t ) \               
         function_init( Matrix, namespace, CreateSquare, size_t, bool ) \                    
-        function_init( double, namespace, GetElement, Matrix, size_t, size_t ) \            
-        function_init( double*, namespace, GetAsVector, Matrix ) \                             
+        function_init( double, namespace, GetElement, Matrix, size_t, size_t ) \
+        function_init( size_t, namespace, GetWidth, Matrix ) \
+        function_init( size_t, namespace, GetHeight, Matrix ) \
+        function_init( double*, namespace, GetAsVector, Matrix ) \
         function_init( void, namespace, SetElement, Matrix, size_t, size_t, double ) \      
         function_init( Matrix, namespace, Clear, Matrix ) \                                 
         function_init( Matrix, namespace, Resize, Matrix, size_t, size_t ) \                
@@ -121,6 +123,20 @@ double Matrices_GetElement( Matrix matrix, size_t row, size_t column )
   if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return 0.0;
 
   return matrix->data[ row * matrix->columnsNumber + column ];
+}
+
+size_t Matrices_GetWidth( Matrix matrix )
+{
+  if( matrix == NULL ) return 0;
+
+  return matrix->columnsNumber;
+}
+
+size_t Matrices_GetHeight( Matrix matrix )
+{
+  if( matrix == NULL ) return 0;
+
+  return matrix->rowsNumber;
 }
 
 // Obtém vetor de 1 dimensão dos elementos da matriz

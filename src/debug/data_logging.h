@@ -16,6 +16,8 @@
 
 const size_t DATA_LOG_MAX_PRECISION = 15;
 
+const int DATA_LOG_INVALID_ID = -1;
+
 typedef struct _LogData
 {
   FILE* file;
@@ -51,8 +53,8 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
   
   int logKey = (int) kh_str_hash_func( logFilePath );
   
-  //sprintf( logFilePathExt, "logs/%s-%lu.log", logFilePath, time( NULL ) );
-  sprintf( logFilePathExt, "logs/test-%lu.log", time( NULL ) );
+  sprintf( logFilePathExt, "logs/%s-%lu.log", logFilePath, time( NULL ) );
+  //sprintf( logFilePathExt, "logs/test-%lu.log", time( NULL ) );
   
   int insertionStatus;
   khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
@@ -67,7 +69,7 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
     {
       perror( "error opening file" );
       DataLogging_EndLog( (int) newLogIndex );
-      return -1;
+      return DATA_LOG_INVALID_ID;
     }
     
     newLog->valuesNumber = logValuesNumber;

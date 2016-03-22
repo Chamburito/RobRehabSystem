@@ -146,7 +146,7 @@ void RobRehabEMG_Update( void )
   {
     SHMJoint sharedJoint = &(kv_A( sharedJointsList, sharedJointID ));
     
-    uint8_t jointPhase = SHMControl.GetByteValue( sharedJoint->controller, SHM_CONTROL_REMOVE );
+    uint8_t jointPhase = SHMControl.GetControlByte( sharedJoint->controller, SHM_CONTROL_REMOVE );
     
     jointPhase = SHM_EMG_SAMPLING;
     
@@ -198,6 +198,7 @@ void RobRehabEMG_Update( void )
     float jointAngle = 0.0, jointIDTorque = 0.0;
     if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ANGLE, &jointAngle, SHM_CONTROL_PEEK ) )
     {
+      jointAngle *= 360.0;
       if( SHMControl.GetNumericValue( sharedJoint->controller, SHM_JOINT_ID_TORQUE, &jointIDTorque, SHM_CONTROL_PEEK ) )
       {
         if( sharedJoint->lastJointPhase == SHM_EMG_SAMPLING )

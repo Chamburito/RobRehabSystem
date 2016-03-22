@@ -39,14 +39,14 @@ typedef MotorData* Motor;
 INIT_NAMESPACE_INTERFACE( Motors, MOTORS_FUNCTIONS )
 
 
-//static inline void ReadRawMeasures( Motor motor );
-
+char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
 Motor Motors_Init( const char* configFileName )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Motor %s", configFileName );
   
   Motor newMotor = NULL;
   
+  sprintf( filePath, "motors/%s", filePath );
   int configFileID = ConfigParsing.LoadConfigFile( configFileName );
   if( configFileID != PARSED_DATA_INVALID_ID )
   {
@@ -56,7 +56,8 @@ Motor Motors_Init( const char* configFileName )
     memset( newMotor, 0, sizeof(MotorData) );
 
     bool loadSuccess = true;
-    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, parser.GetStringValue( configFileID, "", "interface.type" ), newMotor->interface, loadSuccess );
+    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "interface.type" ) );
+    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, filePath, newMotor->interface, loadSuccess );
     if( loadSuccess )
     {
       newMotor->interfaceID = newMotor->interface.InitTask( parser.GetStringValue( configFileID, "", "interface.name" ) );
@@ -149,8 +150,8 @@ void Motors_WriteControl( Motor motor, double setpoint )
   
   setpoint = ( setpoint + motor->outputOffset ) * motor->outputGain;
   
-  //if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
-  //else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
+  if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
+  else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
   
   motor->interface.Write( motor->interfaceID, motor->outputChannel, setpoint );
 }

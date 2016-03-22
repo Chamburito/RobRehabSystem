@@ -57,7 +57,7 @@ static void* UpdateData( void* );
 SHMController axisMotorController;
 SHMController jointEMGController;
 
-Thread dataConnectionThreadID = INVALID_THREAD_HANDLE;
+Thread dataConnectionThreadID = THREAD_INVALID_HANDLE;
 bool isDataUpdateRunning = false;
 
 const double CONTROL_SAMPLING_INTERVAL = 0.005;
@@ -125,7 +125,7 @@ static void* UpdateData( void* callbackData )
       //fprintf( stderr, "measure %u of %u\r", axisMeasureIndex, NUM_POINTS );
     }
     
-    uint8_t axisDataMask = SHMControl.GetNumericValuesList( axisMotorController, measuresList, SHM_CONTROL_REMOVE );
+    uint8_t axisDataMask = SHMControl.GetData( axisMotorController, measuresList, SHM_CONTROL_REMOVE );
     if( axisDataMask )
     {
       if( axisMeasureIndex >= NUM_POINTS )
@@ -143,7 +143,7 @@ static void* UpdateData( void* callbackData )
       SetCtrlVal( panel, PANEL_MEASURE_SLIDER, positionValues[ axisMeasureIndex ] * 180.0 / 3.14 );
     }
     
-    uint8_t jointDataMask = SHMControl.GetNumericValuesList( jointEMGController, measuresList, SHM_CONTROL_REMOVE );
+    uint8_t jointDataMask = SHMControl.GetData( jointEMGController, measuresList, SHM_CONTROL_REMOVE );
     //{
       if( jointMeasureIndex >= NUM_POINTS )
       {
@@ -173,7 +173,7 @@ static void* UpdateData( void* callbackData )
     
       setpointTime = 0.0;
       
-      SHMControl.SetNumericValuesList( axisMotorController, setpointsList, 0xFF );
+      SHMControl.SetData( axisMotorController, setpointsList, 0xFF );
     }
   }
   
@@ -211,7 +211,7 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
       jointEMGController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
       if( jointEMGController != NULL ) fprintf( stderr, "connected to joint %s\n\n", sharedVarName );
       
-      if( dataConnectionThreadID == INVALID_THREAD_HANDLE )
+      if( dataConnectionThreadID == THREAD_INVALID_HANDLE )
         dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
     }
 	}
@@ -230,14 +230,14 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
       int enabled;
       GetCtrlVal( panel, control, &enabled );
 
-      if( enabled == 1 ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_ENABLE );
-      else SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_DISABLE );
+      if( enabled == 1 ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_ENABLE );
+      else SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_DISABLE );
     }
-    else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_OFFSET );
-    else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetByteValue( axisMotorController, SHM_COMMAND_CALIBRATE );
-    else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetByteValue( jointEMGController, SHM_EMG_OFFSET );
-    else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetByteValue( jointEMGController, SHM_EMG_CALIBRATION );
-    else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetByteValue( jointEMGController, SHM_EMG_SAMPLING );
+    else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_OFFSET );
+    else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_CALIBRATE );
+    else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_OFFSET );
+    else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_CALIBRATION );
+    else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_SAMPLING );
 	}
   
 	return 0;

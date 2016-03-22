@@ -1,5 +1,5 @@
 {
   "axis_controls": [
-    "knee"
+    "simple_joint_axis"
   ]
 }

@@ -313,7 +313,7 @@ bool CheckTask( SignalIOTask task )
   if( !isStillUsed )
   {
     task->isRunning = false;
-    if( task->threadID != INVALID_THREAD_HANDLE ) Threading.WaitExit( task->threadID, 5000 );
+    if( task->threadID != THREAD_INVALID_HANDLE ) Threading.WaitExit( task->threadID, 5000 );
   }
   
   return isStillUsed;
@@ -359,7 +359,7 @@ SignalIOTask LoadTaskData( const char* taskName )
         }
         
         newTask->isRunning = false;
-        newTask->threadID = INVALID_THREAD_HANDLE;
+        newTask->threadID = THREAD_INVALID_HANDLE;
       }
       else
       {

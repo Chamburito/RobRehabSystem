@@ -11,7 +11,7 @@
   #include <unistd.h>
 #endif
 
-#define INIT_INTERFACE_FILE( rtype, interface, func, ... ) extern __declspec(dllexport) rtype func( __VA_ARGS__ );
+#define INIT_INTERFACE_FILE( rtype, interface, func, ... ) extern "C" __declspec(dllexport) rtype func( __VA_ARGS__ );
 #define INIT_INTERFACE_POINTER( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
 #define INIT_INTERFACE_STRUCT( rtype, interface, func, ... ) .func = func,
       

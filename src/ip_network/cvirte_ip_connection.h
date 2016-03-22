@@ -230,7 +230,7 @@ static khint_t AddConnection( unsigned int connectionHandle, unsigned int addres
   
   newConnection->messageLength = IP_MAX_MESSAGE_LENGTH;
   
-  newConnection->callbackThread = INVALID_THREAD_HANDLE;
+  newConnection->callbackThread = THREAD_INVALID_HANDLE;
   
   newConnection->address.port = addressPort;
   strncpy( newConnection->address.host, addressHost, IP_HOST_LENGTH );
@@ -296,7 +296,7 @@ int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t p
 
     if( newConnection->networkRole == DISCONNECTED )
     {
-      newConnection->callbackThread = INVALID_THREAD_HANDLE;
+      newConnection->callbackThread = THREAD_INVALID_HANDLE;
       AsyncIPNetwork_CloseConnection( newConnectionIndex );
       return IP_CONNECTION_INVALID_ID;
     }
@@ -704,13 +704,13 @@ static void CloseConnection( AsyncConnection connection )
 
   connection->networkRole = DISCONNECTED;
 
-  if( connection->callbackThread != INVALID_THREAD_HANDLE )
+  if( connection->callbackThread != THREAD_INVALID_HANDLE )
   {
     DEBUG_EVENT( 0, "waiting connection callback thread %x return", connection->callbackThread );
     (void) Threading.WaitExit( connection->callbackThread, INFINITE );
     DEBUG_EVENT( 0, "connection callback thread %x returned successfully", connection->callbackThread );
     
-    connection->callbackThread = INVALID_THREAD_HANDLE;
+    connection->callbackThread = THREAD_INVALID_HANDLE;
   }
 
   DEBUG_EVENT( 0, "destroying read queue %p", connection->readQueue );

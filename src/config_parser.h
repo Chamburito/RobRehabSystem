@@ -1,7 +1,7 @@
 #ifndef CONFIG_PARSING_H
 #define CONFIG_PARSING_H
 
-#include "parsing/parser_interface.h"
+#include "data_io/interface.h"
 #include "plugin_loader.h"
 
 #include "debug/async_debug.h"

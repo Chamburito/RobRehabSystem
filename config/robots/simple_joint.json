@@ -1,4 +1,8 @@
 {
-  "type": "robots/SimpleJoint",
-  "joints": [ "actuators/knee" ]
+  "mechanism": {
+    "type": "SimpleJoint",
+    "id": "simple_joint"
+  },
+  "actuators": [ "simple_joint_actuator" ],
+  "axes": [ "simple_joint_axis" ]
 }

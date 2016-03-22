@@ -1,9 +1,5 @@
 {
   "robots": [
-    {
-      "name": "robots/simple_joint",
-      "axes": [ "theta" ],
-      "joints": [ "emg_joints/knee" ]
-    }
+    "simple_joint"
   ]
 }

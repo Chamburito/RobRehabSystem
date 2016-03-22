@@ -1,5 +1,5 @@
 {
   "emg_joints": [
-    "knee"
+    "simple_joint_actuator"
   ]
 }

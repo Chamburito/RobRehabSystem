@@ -17,7 +17,7 @@
 /////                                      THREADS HANDLING 									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define INVALID_THREAD_HANDLE NULL
+#define THREAD_INVALID_HANDLE NULL
 
 // Returns unique identifier of the calling thread
 #define THREAD_ID GetCurrentThreadId()
@@ -43,10 +43,10 @@ Thread Threading_StartThread( AsyncFunction function, void* args, int mode )
   static HANDLE handle;
   static unsigned int threadID;
   
-  if( (handle = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) function, args, 0, &threadID )) == INVALID_THREAD_HANDLE )
+  if( (handle = CreateThread( NULL, 0, (LPTHREAD_START_ROUTINE) function, args, 0, &threadID )) == THREAD_INVALID_HANDLE )
   {
     ERROR_PRINT( "CreateThread: failed creating new thread with function %p", function );
-    return INVALID_THREAD_HANDLE;
+    return THREAD_INVALID_HANDLE;
   }
   
   DEBUG_PRINT( "created thread %x successfully", handle );
@@ -62,7 +62,7 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milliseconds )
   static DWORD exitCode = 0;
   static DWORD exitStatus = WAIT_OBJECT_0;
 
-  if( handle != INVALID_THREAD_HANDLE )
+  if( handle != THREAD_INVALID_HANDLE )
   {
     DEBUG_PRINT( "waiting thread %x", handle );
 

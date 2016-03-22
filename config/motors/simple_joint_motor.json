@@ -1,0 +1,15 @@
+{
+  "output_interface": {
+    "type": "NICANEPOS",
+    "id": "1",
+    "channel": 1
+  },
+  "output_gain": {
+    "multiplier": 1,
+    "divisor": 1
+  },
+  "output_limits": {
+    "min": -500,
+    "max": 500
+  }
+}

@@ -69,7 +69,7 @@ void CVIFUNC_C RTmain( void )
   
   SetDir( "C:\\ni-rt" );
   
-  if( SUBSYSTEM.Init() != -1 )
+  if( SUBSYSTEM.Init( "JSON" ) != -1 )
   {
   	while( !RTIsShuttingDown() ) // Check for program termination conditions
   	{
