@@ -16,18 +16,22 @@
 
 enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER };
 
-#define SHM_CONTROL_MAX_DATA_SIZE 256
+#define SHM_CONTROL_MAX_DATA_SIZE 256 // 8 * sizeof(uint64_t) * sizeof(int)
 
 const bool SHM_CONTROL_PEEK = false;
 const bool SHM_CONTROL_REMOVE = true;
 
-#define SHM_CONTROL_BIT_INDEX( index ) ( 1 << index )
+#define SHM_CONTROL_BIT_INDEX( index ) ( 1 << (index) )
 #define SHM_CONTROL_SET_BIT( field, index ) ( (field) |= SHM_CONTROL_BIT_INDEX( index ) )
+#define SHM_CONTROL_CLR_BIT( field, index ) ( (field) &= (~SHM_CONTROL_BIT_INDEX( index )) )
 #define SHM_CONTROL_IS_BIT_SET( field, index ) ( (field) & SHM_CONTROL_BIT_INDEX( index ) )
+
+#define SHM_CONTROL_SET_BYTE( field, index, byte ) ( (field) |= ( ( (byte) << index * 8 ) ) )
+#define SHM_CONTROL_GET_BYTE( field, index ) ( ( (field) >> index * 8 ) & 0xFF )
 
 typedef struct _ControlChannelData
 {
-  uint32_t dataUpdated;
+  uint64_t dataUpdated;
   uint8_t data[ SHM_CONTROL_MAX_DATA_SIZE ];
 }
 ControlChannelData;
@@ -51,8 +55,8 @@ typedef SHMControlData* SHMController;
 #define SHM_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( SHMController, namespace, InitData, const char*, enum SHMControlTypes ) \
         function_init( void, namespace, EndData, SHMController ) \
-        function_init( uint32_t, namespace, GetData, SHMController, void*, size_t, size_t, bool ) \
-        function_init( uint32_t, namespace, SetData, SHMController, void*, size_t, size_t, uint32_t )
+        function_init( uint64_t, namespace, GetData, SHMController, void*, size_t, size_t, bool ) \
+        function_init( uint64_t, namespace, SetData, SHMController, void*, size_t, size_t, uint64_t )
 
 INIT_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_FUNCTIONS )
 
@@ -104,7 +108,7 @@ void SHMControl_EndData( SHMController controller )
   free( controller );
 }
 
-uint32_t SHMControl_GetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, bool remove )
+uint64_t SHMControl_GetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, bool remove )
 {
   if( controller == NULL ) return 0;
   
@@ -112,7 +116,7 @@ uint32_t SHMControl_GetData( SHMController controller, void* valuesList, size_t 
   
   if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return 0;
   
-  uint32_t dataUpdated = controller->channelIn->dataUpdated;
+  uint64_t dataUpdated = controller->channelIn->dataUpdated;
   
   //if( remove && dataUpdated == 0 ) return 0;
   
@@ -128,7 +132,7 @@ uint32_t SHMControl_GetData( SHMController controller, void* valuesList, size_t 
   return dataUpdated;
 }
 
-uint32_t SHMControl_SetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, uint32_t dataUpdated )
+uint64_t SHMControl_SetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, uint64_t dataUpdated )
 {
   if( controller == NULL ) return 0;
   
