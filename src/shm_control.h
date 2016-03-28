@@ -16,22 +16,23 @@
 
 enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER };
 
-#define SHM_CONTROL_MAX_DATA_SIZE 256 // 8 * sizeof(uint64_t) * sizeof(int)
+#define SHM_CONTROL_MASK_SIZE 32
+#define SHM_CONTROL_MAX_DATA_SIZE ( 8 * SHM_CONTROL_MASK_SIZE )
 
-const bool SHM_CONTROL_PEEK = false;
-const bool SHM_CONTROL_REMOVE = true;
+//const bool SHM_CONTROL_PEEK = false;
+//const bool SHM_CONTROL_REMOVE = true;
 
 #define SHM_CONTROL_BIT_INDEX( index ) ( 1 << (index) )
 #define SHM_CONTROL_SET_BIT( field, index ) ( (field) |= SHM_CONTROL_BIT_INDEX( index ) )
 #define SHM_CONTROL_CLR_BIT( field, index ) ( (field) &= (~SHM_CONTROL_BIT_INDEX( index )) )
 #define SHM_CONTROL_IS_BIT_SET( field, index ) ( (field) & SHM_CONTROL_BIT_INDEX( index ) )
 
-#define SHM_CONTROL_SET_BYTE( field, index, byte ) ( (field) |= ( ( (byte) << index * 8 ) ) )
-#define SHM_CONTROL_GET_BYTE( field, index ) ( ( (field) >> index * 8 ) & 0xFF )
+//#define SHM_CONTROL_SET_BYTE( field, index, byte ) ( (field) |= ( ( (byte) << index * 8 ) ) )
+//#define SHM_CONTROL_GET_BYTE( field, index ) ( ( (field) >> index * 8 ) & 0xFF )
 
 typedef struct _ControlChannelData
 {
-  uint64_t dataUpdated;
+  uint8_t dataMask[ SHM_CONTROL_MASK_SIZE ];
   uint8_t data[ SHM_CONTROL_MAX_DATA_SIZE ];
 }
 ControlChannelData;
@@ -55,8 +56,10 @@ typedef SHMControlData* SHMController;
 #define SHM_CONTROL_FUNCTIONS( namespace, function_init ) \
         function_init( SHMController, namespace, InitData, const char*, enum SHMControlTypes ) \
         function_init( void, namespace, EndData, SHMController ) \
-        function_init( uint64_t, namespace, GetData, SHMController, void*, size_t, size_t, bool ) \
-        function_init( uint64_t, namespace, SetData, SHMController, void*, size_t, size_t, uint64_t )
+        function_init( bool, namespace, GetData, SHMController, void*, size_t, size_t ) \
+        function_init( bool, namespace, SetData, SHMController, void*, size_t, size_t ) \
+        function_init( uint8_t, namespace, GetMaskByte, SHMController, size_t ) \
+        function_init( uint8_t, namespace, SetMaskByte, SHMController, size_t, uint8_t )
 
 INIT_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_FUNCTIONS )
 
@@ -108,45 +111,58 @@ void SHMControl_EndData( SHMController controller )
   free( controller );
 }
 
-uint64_t SHMControl_GetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, bool remove )
+bool SHMControl_GetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength )
+{
+  if( controller == NULL ) return false;
+  
+  if( controller->channelIn == NULL ) return false;
+  
+  if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return false;
+  
+  if( valuesList == NULL ) return false;
+    
+  memcpy( valuesList, controller->channelIn->data + dataOffset, dataLength );
+  
+  return true;
+}
+
+bool SHMControl_SetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength )
+{
+  if( controller == NULL ) return false;
+  
+  if( controller->channelOut == NULL ) return false;
+  
+  if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return false;
+  
+  if( valuesList == NULL ) return false;
+  
+  memcpy( controller->channelOut->data + dataOffset, valuesList, dataLength );
+    
+  return true;
+}
+
+uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex )
 {
   if( controller == NULL ) return 0;
   
   if( controller->channelIn == NULL ) return 0;
   
-  if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return 0;
+  if( maskByteIndex >= SHM_CONTROL_MASK_SIZE ) return 0;
   
-  uint64_t dataUpdated = controller->channelIn->dataUpdated;
-  
-  //if( remove && dataUpdated == 0 ) return 0;
-  
-  if( valuesList != NULL )
-  {
-    memcpy( valuesList, controller->channelIn->data + dataOffset, dataLength );
-    
-    //DEBUG_UPDATE( "got %x: p: %.3f - v: %.3f", mask, valuesList[ 0 ], valuesList[ 1 ] );
-    
-    if( remove ) controller->channelIn->dataUpdated = 0;
-  }
-  
-  return dataUpdated;
+  return controller->channelIn->dataMask[ maskByteIndex ];
 }
 
-uint64_t SHMControl_SetData( SHMController controller, void* valuesList, size_t dataOffset, size_t dataLength, uint64_t dataUpdated )
+uint8_t SHMControl_SetMaskByte( SHMController controller, size_t maskByteIndex, uint8_t maskByteValue )
 {
   if( controller == NULL ) return 0;
   
   if( controller->channelOut == NULL ) return 0;
   
-  if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return 0;
-  
-  if( valuesList == NULL ) return 0;
-  
-  memcpy( controller->channelOut->data + dataOffset, valuesList, dataLength );
+  if( maskByteIndex >= SHM_CONTROL_MASK_SIZE ) return 0;
     
-  controller->channelOut->dataUpdated = dataUpdated;
+  controller->channelOut->dataMask[ maskByteIndex ] = maskByteValue;
     
-  return controller->channelOut->dataUpdated;
+  return controller->channelOut->dataMask[ maskByteIndex ];
 }
 
 #endif // SHM_CONTROL_H
