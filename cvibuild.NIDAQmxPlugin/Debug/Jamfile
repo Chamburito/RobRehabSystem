@@ -33,15 +33,6 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src"
 	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
 	;
 include Jamfile_instr ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\actuator_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\actuator_control.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\robot_control.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_mechanics_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\robot_mechanics_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\parsing\\json_parser.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\json_parser.c" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\control\\force_pi_control.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\force_pi_control.c" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\control_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\control_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\mechanics\\simple_joint.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\simple_joint.c" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\mechanics\\mechanical_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\mechanical_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\parsing\\parser_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\UnsavedChanges\\parser_interface.h" ;
 LOCATE on "interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_io" ;
 LOCATE on "signal_io.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_io\\ni_daqmx" ;
 Object "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.NIDAQmxPlugin\\Debug\\signal_io.obj" : "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\signal_io\\ni_daqmx\\signal_io.c" ;

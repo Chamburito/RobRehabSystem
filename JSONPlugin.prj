@@ -379,8 +379,8 @@ Include Path 2 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src"
 [Create Executable]
 Executable File_Debug Is Rel = True
 Executable File_Debug Rel To = "Project"
-Executable File_Debug Rel Path = "plugins/parsing/JSON.dll"
-Executable File_Debug = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/parsing/JSON.dll"
+Executable File_Debug Rel Path = "plugins/data_io/JSON.dll"
+Executable File_Debug = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/data_io/JSON.dll"
 Executable File_Release Is Rel = True
 Executable File_Release Rel To = "Project"
 Executable File_Release Rel Path = "JSONPlugin.dll"

@@ -60,14 +60,14 @@ Sensor Sensors_Init( const char* configFileName )
     memset( newSensor, 0, sizeof(SensorData) );
     
     bool loadSuccess;
-    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "interface.type" ) );
+    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "input_interface.type" ) );
     GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, filePath, newSensor->interface, loadSuccess );
     if( loadSuccess )
     {
-      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "interface.name" ) );
+      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "input_interface.id" ) );
       if( newSensor->taskID != SIGNAL_IO_TASK_INVALID_ID )
       {
-        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.input_channel" );
+        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "input_interface.channel" );
         loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
         
         size_t maxInputSamplesNumber = newSensor->interface.GetMaxInputSamplesNumber( newSensor->taskID );

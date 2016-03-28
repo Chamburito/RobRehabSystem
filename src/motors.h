@@ -46,8 +46,8 @@ Motor Motors_Init( const char* configFileName )
   
   Motor newMotor = NULL;
   
-  sprintf( filePath, "motors/%s", filePath );
-  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  sprintf( filePath, "motors/%s", configFileName );
+  int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != PARSED_DATA_INVALID_ID )
   {
     ParserInterface parser = ConfigParsing.GetParser();
@@ -56,14 +56,14 @@ Motor Motors_Init( const char* configFileName )
     memset( newMotor, 0, sizeof(MotorData) );
 
     bool loadSuccess = true;
-    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "interface.type" ) );
+    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "output_interface.type" ) );
     GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, filePath, newMotor->interface, loadSuccess );
     if( loadSuccess )
     {
-      newMotor->interfaceID = newMotor->interface.InitTask( parser.GetStringValue( configFileID, "", "interface.name" ) );
+      newMotor->interfaceID = newMotor->interface.InitTask( parser.GetStringValue( configFileID, "", "output_interface.id" ) );
       if( newMotor->interfaceID != SIGNAL_IO_TASK_INVALID_ID ) 
       {
-        newMotor->outputChannel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "interface.output_channel" );
+        newMotor->outputChannel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "output_interface.channel" );
         DEBUG_PRINT( "trying to aquire channel %u from interface %d", newMotor->outputChannel, newMotor->interfaceID );
         loadSuccess = newMotor->interface.AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
       }

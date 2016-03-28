@@ -8,7 +8,7 @@
 
 #include "threads/thread_safe_data.h"
 
-#include "interface.h"
+#include "interfaces.h"
 
 #include "cvidef.h"
 #include "debug/async_debug.h"

@@ -89,6 +89,9 @@ int Robots_Init( const char* configFileName )
     return ROBOT_INVALID_ID;
   }
   
+  // hack
+  //Robots_Enable( (int) kh_key( robotsList, newRobotIndex ) ); 
+  
   DEBUG_PRINT( "robot %s created (iterator %u)", configFileName, newRobotIndex );
   
   return (int) kh_key( robotsList, newRobotIndex );
@@ -326,6 +329,8 @@ static inline Robot LoadRobotData( const char* configFileName )
       }
     }
 
+    newRobot->controlThread = Threading.StartThread( AsyncControl, newRobot, THREAD_JOINABLE );
+    
     parser.UnloadData( configFileID );
 
     if( !loadSuccess )
@@ -334,7 +339,7 @@ static inline Robot LoadRobotData( const char* configFileName )
       return NULL;
     }
 
-    DEBUG_PRINT( "robot robot %s created", configFileName );
+    DEBUG_PRINT( "robot %s created", configFileName );
   }
   else
     DEBUG_PRINT( "configuration for robot %s is not available", configFileName );

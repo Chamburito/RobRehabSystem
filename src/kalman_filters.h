@@ -135,9 +135,9 @@ double* Kalman_Predict( KalmanFilter filter )
   Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->prediction, MATRIX_TRANSPOSE, filter->predictionCovariance );    // P[nxn] * F'[nxn] -> P[nxn]
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->predictionCovarianceNoise, 1.0, filter->predictionCovariance );          // P[nxn] + Q[nxn] -> P[nxn]
   
-  //DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
-  //                                                           Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
-  //                                                           Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
+  DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
+                                                             Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
+                                                             Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
   
   return Matrices_GetAsVector( filter->state );
 }
@@ -167,9 +167,9 @@ double* Kalman_Update( KalmanFilter filter )
   Matrices_Dot( filter->gain, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->gain );                     // K[nxn] * P[nxn] -> K[nxn]
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->gain, -1.0, filter->predictionCovariance );                    // P[nxn] - K[nxn] -> P[nxn]
   
-  //DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
-  //                                                           Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
-  //                                                           Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
+  DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
+                                                             Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
+                                                             Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
   
   return Matrices_GetAsVector( filter->state );
 }

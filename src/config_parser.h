@@ -22,7 +22,7 @@ INIT_NAMESPACE_INTERFACE( ConfigParsing, CONFIG_PARSING_FUNCTIONS )
 bool ConfigParsing_Init( const char* pluginName )
 {
   char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
-  snprintf( searchPath, PARSER_MAX_FILE_PATH_LENGTH, "parsing/%s", pluginName );
+  snprintf( searchPath, PARSER_MAX_FILE_PATH_LENGTH, "data_io/%s", pluginName );
   
   GET_PLUGIN_INTERFACE( PARSER_FUNCTIONS, searchPath, parser, pluginLoaded );
   

@@ -141,11 +141,10 @@ void RobRehabControl_Update()
     Axis axis = kv_A( axesList, axisIndex );
     
     uint8_t axisMask = SHMControl.GetMaskByte( sharedRobotAxesData, axisIndex ); 
-    size_t axisDataOffset = axisIndex * AXIS_DATA_BLOCK_SIZE;
     
     DEBUG_UPDATE( "updating axis controller %lu", axisIndex );
 
-    float* controlSetpointsList = (float*) (controlData + axisDataOffset);
+    float* controlSetpointsList = (float*) (controlData + axisIndex * AXIS_DATA_BLOCK_SIZE);
     //DEBUG_PRINT( "stiffness: %g - setpoint: %g", controlValuesList[ SHM_AXIS_STIFFNESS ], controlValuesList[ SHM_AXIS_POSITION ] );
 
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_POSITION ) ) Robots.SetAxisSetpoint( axis, CONTROL_POSITION, controlSetpointsList[ SHM_AXIS_POSITION ] );
@@ -208,6 +207,8 @@ void RobRehabControl_Update()
     
     uint8_t jointMask = SHMControl.GetMaskByte( sharedRobotJointsData, jointIndex );
 
+    float* controlSetpointsList = (float*) (controlData + jointIndex * JOINT_DATA_BLOCK_SIZE);
+    
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_POSITION ) ) Actuators.SetSetpoint( joint, CONTROL_POSITION, controlSetpointsList[ SHM_JOINT_POSITION ] );
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_FORCE ) ) Actuators.SetSetpoint( joint, CONTROL_FORCE, controlSetpointsList[ SHM_JOINT_FORCE ] );
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_STIFFNESS ) ) Actuators.SetSetpoint( joint, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );

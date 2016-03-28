@@ -373,9 +373,9 @@ Include Path 3 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src"
 [Create Executable]
 Executable File_Debug Is Rel = True
 Executable File_Debug Rel To = "Project"
-Executable File_Debug Rel Path = "plugins/control/ForcePIControl.dll"
-Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/control/ForcePIC"
-Executable File_Debug Line0002 = "ontrol.dll"
+Executable File_Debug Rel Path = "plugins/actuator_control/ForcePIControl.dll"
+Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/actuator_control"
+Executable File_Debug Line0002 = "/ForcePIControl.dll"
 Executable File_Release Is Rel = True
 Executable File_Release Rel To = "Project"
 Executable File_Release Rel Path = "ForcePIControlPlugin.dll"

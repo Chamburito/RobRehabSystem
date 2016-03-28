@@ -7,7 +7,7 @@
   #include "threads_unix.h"
 #endif
 
-#include "interface.h"
+#include "interfaces.h"
 
 #include "klib/khash.h"
 

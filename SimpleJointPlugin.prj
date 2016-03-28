@@ -373,9 +373,9 @@ Include Path 3 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src"
 [Create Executable]
 Executable File_Debug Is Rel = True
 Executable File_Debug Rel To = "Project"
-Executable File_Debug Rel Path = "plugins/robots/SimpleJoint.dll"
-Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/robots/SimpleJoi"
-Executable File_Debug Line0002 = "nt.dll"
+Executable File_Debug Rel Path = "plugins/robot_control/SimpleJoint.dll"
+Executable File_Debug Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/plugins/robot_control/Si"
+Executable File_Debug Line0002 = "mpleJoint.dll"
 Executable File_Release Is Rel = True
 Executable File_Release Rel To = "Project"
 Executable File_Release Rel Path = "SimpleJointPlugin.dll"

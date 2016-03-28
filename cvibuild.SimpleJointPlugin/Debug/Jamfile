@@ -35,12 +35,6 @@ HDRS = 	"c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\axis
 	"c:\\Program Files (x86)\\National Instruments\\Shared\\CVI\\Bin"
 	;
 include Jamfile_instr ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\actuator_control.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\UnsavedChanges\\actuator_control.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_mechanics_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\UnsavedChanges\\robot_mechanics_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\parsing\\json_parser.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\UnsavedChanges\\json_parser.c" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\control_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\UnsavedChanges\\control_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\mechanics\\mechanical_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\UnsavedChanges\\mechanical_interface.h" ;
-TIMESTAMPFILE on "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\parsing\\parser_interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\cvibuild.SimpleJointPlugin\\Debug\\UnsavedChanges\\parser_interface.h" ;
 LOCATE on "control_definitions.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "interface.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_control" ;
 LOCATE on "simple_joint.c" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\robot_control" ;

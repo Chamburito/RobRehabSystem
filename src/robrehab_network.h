@@ -7,7 +7,7 @@
   #include "ip_network/async_ip_network.h"
 #endif
 
-#include "interface.h"
+#include "interfaces.h"
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
@@ -38,9 +38,6 @@ SHMController sharedRobotJointsData;
 
 static kvec_t( int ) axisNetworkControllersList;
 static kvec_t( int ) jointNetworkControllersList;
-
-static char axesInfoString[ IP_MAX_MESSAGE_LENGTH ] = "";             // String containing used axes names
-static char jointsInfoString[ IP_MAX_MESSAGE_LENGTH ] = "";           // String containing used joint joint names
 
 #define SUBSYSTEM RobRehabNetwork
 
@@ -165,6 +162,19 @@ static void UpdateClientEvent( int clientID )
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
     
+    uint8_t commandBlocksNumber = (uint8_t) *(messageIn++);
+    for( uint8_t commandBlockIndex = 0; commandBlockIndex < commandBlocksNumber; commandBlockIndex++ )
+    {
+      uint8_t eventIndex = (uint8_t) *(messageIn++);
+      uint8_t command = (uint8_t) *(messageIn++);
+      DEBUG_PRINT( "received event %u command: %u", eventIndex, command );
+      
+      SHMControl.SetMaskByte( sharedRobotJointsInfo, eventIndex, 1 );
+      SHMControl.SetData( sharedRobotJointsInfo, (void*) &command, eventIndex, sizeof(uint8_t) );
+    }
+    
+    memset( messageOut, 0, IP_MAX_MESSAGE_LENGTH * sizeof(char) );
+    
     uint8_t updateCommand = (uint8_t) *(messageIn++);
     if( updateCommand != 0 )
     {
@@ -172,19 +182,6 @@ static void UpdateClientEvent( int clientID )
       else if( updateCommand == SHM_JOINTS_LIST ) SHMControl.GetData( sharedRobotJointsInfo, messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
       
       AsyncIPNetwork.WriteMessage( clientID, messageOut );
-    }
-    
-    memset( messageOut, 0, IP_MAX_MESSAGE_LENGTH * sizeof(char) );
-    
-    uint8_t commandBlocksNumber = (uint8_t) *(messageIn++);
-    for( uint8_t commandBlockIndex = 0; commandBlockIndex < commandBlocksNumber; commandBlockIndex++ )
-    {
-      uint8_t eventIndex = (uint8_t) *(messageIn++);
-      uint8_t command = (uint8_t) *(messageIn++);
-      DEBUG_PRINT( "received event %u command: %u", controllerIndex, command );
-      
-      SHMControl.SetMaskByte( sharedRobotJointsInfo, eventIndex, 1 );
-      SHMControl.SetData( sharedRobotJointsInfo, (void*) &command, controllerIndex, sizeof(uint8_t) );
     }
   }
 }
@@ -213,7 +210,7 @@ static void UpdateClientAxis( int clientID )
       else if( kv_A( axisNetworkControllersList, axisIndex ) != clientID ) continue;
       
       DEBUG_UPDATE( "receiving axis %u setpoints (mask: %x)", axisIndex, axisMask );
-      SHMControl.SetMaskByte( sharedRobotAxesData, axisIndex );
+      SHMControl.SetMaskByte( sharedRobotAxesData, axisIndex, axisMask );
       SHMControl.SetData( sharedRobotAxesData, messageIn, axisIndex * AXIS_DATA_BLOCK_SIZE, AXIS_DATA_BLOCK_SIZE );
       
       messageIn += AXIS_DATA_BLOCK_SIZE;
@@ -229,7 +226,7 @@ static void UpdateClientAxis( int clientID )
       messageOut[ 0 ]++;
       messageOut[ axisdataOffset++ ] = (uint8_t) axisIndex;
     
-      SHMControl.GetData( sharedRobotAxesData, messageOut + measureByteIndex, axisIndex * AXIS_DATA_BLOCK_SIZE, AXIS_DATA_BLOCK_SIZE );
+      SHMControl.GetData( sharedRobotAxesData, messageOut + axisdataOffset, axisIndex * AXIS_DATA_BLOCK_SIZE, AXIS_DATA_BLOCK_SIZE );
       axisdataOffset += AXIS_DATA_BLOCK_SIZE;
     
       //DEBUG_PRINT( "sending axis %u measures: %.3f", messageOut[ measureByteIndex ], measuresList[ 0 ] );
@@ -257,7 +254,7 @@ static void UpdateClientJoint( int clientID )
       messageOut[ 0 ]++;
       messageOut[ jointDataOffset++ ] = (uint8_t) jointIndex;
     
-      SHMControl.GetData( sharedjointJoint, messageOut + jointDataOffset, jointIndex * JOINT_DATA_BLOCK_SIZE, JOINT_DATA_BLOCK_SIZE );
+      SHMControl.GetData( sharedRobotJointsData, messageOut + jointDataOffset, jointIndex * JOINT_DATA_BLOCK_SIZE, JOINT_DATA_BLOCK_SIZE );
       jointDataOffset += JOINT_DATA_BLOCK_SIZE;
     }
   }
