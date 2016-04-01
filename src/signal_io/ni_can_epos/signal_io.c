@@ -33,7 +33,7 @@ typedef SignalIOTaskData* SignalIOTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalIOTask )
 static khash_t( TaskInt )* tasksList = NULL;
 
-IMPLEMENT_INTERFACE( SIGNAL_IO_FUNCTIONS ) 
+DEFINE_INTERFACE( SIGNAL_IO_INTERFACE ) 
 
 static SignalIOTask LoadTaskData( const char* );
 static void UnloadTaskData( SignalIOTask );
@@ -124,7 +124,7 @@ size_t Read( int taskID, unsigned int channel, double* ref_value )
   task->measuresList[ INPUT_ANALOG ] = task->readPayload[ 5 ] * 0x100 + task->readPayload[ 4 ];
     
   *ref_value = task->measuresList[ channel ];
-  
+
   return 1;
 }
 
@@ -244,8 +244,6 @@ bool Write( int taskID, unsigned int channel, double value )
   
   int velocitySetpointRPM = (int) value;
   int16_t digitalOutput = (int16_t) value;
-  
-  //DEBUG_PRINT( "velocity setpoint: %d", rawVelocitySetpoint );
   
   // Set values for PDO02 (Velocity Setpoint and Digital Output)
   task->writePayload[ 0 ] = (uint8_t) ( velocitySetpointRPM & 0x000000FF );

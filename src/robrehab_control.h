@@ -23,7 +23,7 @@ SHMController sharedRobotAxesData;
 SHMController sharedRobotJointsData;
 
 kvec_t( Axis ) axesList;
-kvec_t( Actuator ) jointsList;
+kvec_t( Joint ) jointsList;
 
 
 #define SUBSYSTEM RobRehabControl
@@ -92,7 +92,7 @@ int RobRehabControl_Init( const char* configType )
                 if( jointName != NULL ) 
                 {
                   sprintf( robotJointsInfo + strlen(robotJointsInfo), ":%lu:%s", kv_max( robotIDsList ) + kv_size( jointsList ), jointName );
-                  kv_push( Actuator, jointsList, Robots.GetJoint( robotID, dofIndex ) );
+                  kv_push( Joint, jointsList, Robots.GetJoint( robotID, dofIndex ) );
                 }
               }
             }
@@ -191,11 +191,11 @@ void RobRehabControl_Update()
       size_t eventIndex = kv_max( robotIDsList ) + jointIndex;
       if( SHMControl.GetMaskByte( sharedRobotJointsInfo, eventIndex ) )
       {
-        Actuator joint = kv_A( jointsList, jointIndex );
+        Actuator jointActuator = Robots.GetJointActuator( kv_A( jointsList, jointIndex ) );
 
-        if( controlData[ eventIndex ] == SHM_JOINT_RESET ) Actuators.Reset( joint );
-        else if( controlData[ eventIndex ] == SHM_JOINT_OFFSET ) Actuators.Reset( joint );
-        else if( controlData[ eventIndex ] == SHM_JOINT_CALIBRATE ) Actuators.Calibrate( joint );
+        if( controlData[ eventIndex ] == SHM_JOINT_RESET ) Actuators.Reset( jointActuator );
+        else if( controlData[ eventIndex ] == SHM_JOINT_OFFSET ) Actuators.SetOffset( jointActuator );
+        else if( controlData[ eventIndex ] == SHM_JOINT_CALIBRATE ) Actuators.Calibrate( jointActuator );
       }
     }
   }
@@ -203,17 +203,17 @@ void RobRehabControl_Update()
   SHMControl.GetData( sharedRobotJointsData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
   for( size_t jointIndex = 0; jointIndex < kv_size( jointsList ); jointIndex++ )
   {
-    Actuator joint = kv_A( jointsList, jointIndex );
+    Joint joint = kv_A( jointsList, jointIndex );
     
     uint8_t jointMask = SHMControl.GetMaskByte( sharedRobotJointsData, jointIndex );
 
     float* controlSetpointsList = (float*) (controlData + jointIndex * JOINT_DATA_BLOCK_SIZE);
     
-    if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_POSITION ) ) Actuators.SetSetpoint( joint, CONTROL_POSITION, controlSetpointsList[ SHM_JOINT_POSITION ] );
-    if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_FORCE ) ) Actuators.SetSetpoint( joint, CONTROL_FORCE, controlSetpointsList[ SHM_JOINT_FORCE ] );
-    if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_STIFFNESS ) ) Actuators.SetSetpoint( joint, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );
+    if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_POSITION ) ) Robots.SetJointSetpoint( joint, CONTROL_POSITION, controlSetpointsList[ SHM_JOINT_POSITION ] );
+    if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_FORCE ) ) Robots.SetJointSetpoint( joint, CONTROL_FORCE, controlSetpointsList[ SHM_JOINT_FORCE ] );
+    if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_STIFFNESS ) ) Robots.SetJointSetpoint( joint, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );
     
-    double* jointMeasuresList = Actuators.GetMeasuresList( joint );
+    double* jointMeasuresList = Robots.GetJointMeasuresList( joint );
     if( jointMeasuresList != NULL )
     {
       float* controlMeasuresList = (float*) controlData;

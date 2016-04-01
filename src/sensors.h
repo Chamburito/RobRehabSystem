@@ -19,14 +19,14 @@ typedef SensorData* Sensor;
 
 struct _SensorData
 {
-  Sensor reference;
-  SignalIOInterface interface;
+  DEFINE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
   int taskID;
   unsigned int channel;
   double* inputBuffer;
+  size_t maxInputSamplesNumber;
   SignalProcessor processor;
   Curve measurementCurve;
-  double gain;
+  Sensor reference;
   int logID;
 };
 
@@ -61,42 +61,44 @@ Sensor Sensors_Init( const char* configFileName )
     
     bool loadSuccess;
     sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "input_interface.type" ) );
-    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, filePath, newSensor->interface, loadSuccess );
+    GET_PLUGIN_IMPLEMENTATION( SIGNAL_IO_INTERFACE, filePath, newSensor, &loadSuccess );
     if( loadSuccess )
     {
-      newSensor->taskID = newSensor->interface.InitTask( parser.GetStringValue( configFileID, "", "input_interface.id" ) );
+      newSensor->taskID = newSensor->InitTask( parser.GetStringValue( configFileID, "", "input_interface.id" ) );
       if( newSensor->taskID != SIGNAL_IO_TASK_INVALID_ID )
       {
         newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "input_interface.channel" );
-        loadSuccess = newSensor->interface.AquireInputChannel( newSensor->taskID, newSensor->channel );
+        loadSuccess = newSensor->AquireInputChannel( newSensor->taskID, newSensor->channel );
         
-        size_t maxInputSamplesNumber = newSensor->interface.GetMaxInputSamplesNumber( newSensor->taskID );
-        newSensor->inputBuffer = (double*) calloc( maxInputSamplesNumber, sizeof(double) );
-        
-        newSensor->gain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
-        newSensor->gain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
+        newSensor->maxInputSamplesNumber = newSensor->GetMaxInputSamplesNumber( newSensor->taskID );
+        newSensor->inputBuffer = (double*) calloc( newSensor->maxInputSamplesNumber, sizeof(double) );
         
         uint8_t processingFlags = 0x00;
         if( parser.GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) processingFlags |= SIGNAL_PROCESSING_RECTIFY;
         if( parser.GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) processingFlags |= SIGNAL_PROCESSING_NORMALIZE;
-        if( (newSensor->processor = SignalProcessing.CreateProcessor( processingFlags )) != NULL )
-        {
-          double relativeCutFrequency = parser.GetRealValue( configFileID, 0.0, "signal_processing.relative_cut_frequency" );
-          SignalProcessing.SetMaxFrequency( newSensor->processor, relativeCutFrequency );
-        }
+        newSensor->processor = SignalProcessing.CreateProcessor( processingFlags );
+
+        double inputGain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
+        inputGain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
+        SignalProcessing.SetInputGain( newSensor->processor, inputGain );
+          
+        double relativeCutFrequency = parser.GetRealValue( configFileID, 0.0, "signal_processing.relative_cut_frequency" );
+        SignalProcessing.SetMaxFrequency( newSensor->processor, relativeCutFrequency );
         
         newSensor->measurementCurve = CurveInterpolation.LoadCurveString( parser.GetStringValue( configFileID, NULL, "conversion_curve" ) );
         
+        newSensor->logID = DATA_LOG_INVALID_ID;
         if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
         {
-          newSensor->logID = DataLogging_InitLog( configFileName, 2 * 10 + 3, 1000 ); // ?
+          sprintf( filePath, "sensors/%s", configFileName );
+          newSensor->logID = DataLogging_InitLog( filePath, newSensor->maxInputSamplesNumber + 3, 1000 );
           DataLogging_SetDataPrecision( newSensor->logID, 4 );
         }
         
         char* referenceName = parser.GetStringValue( configFileID, "", "relative_to" );
         if( strcmp( referenceName, configFileName ) != 0 && strcmp( referenceName, "" ) != 0 ) newSensor->reference = Sensors_Init( referenceName );
         
-        newSensor->interface.Reset( newSensor->taskID );
+        newSensor->Reset( newSensor->taskID );
       }
       else loadSuccess = false;
     }
@@ -119,15 +121,15 @@ void Sensors_End( Sensor sensor )
 {
   if( sensor == NULL ) return;
   
-  sensor->interface.ReleaseInputChannel( sensor->taskID, sensor->channel );
-  sensor->interface.EndTask( sensor->taskID );
+  sensor->ReleaseInputChannel( sensor->taskID, sensor->channel );
+  sensor->EndTask( sensor->taskID );
   
   SignalProcessing.DiscardProcessor( sensor->processor );
   CurveInterpolation.UnloadCurve( sensor->measurementCurve );
   
   free( sensor->inputBuffer );
   
-  if( sensor->logID != 0 ) DataLogging_EndLog( sensor->logID );
+  if( sensor->logID != DATA_LOG_INVALID_ID ) DataLogging_EndLog( sensor->logID );
   
   Sensors_End( sensor->reference );
   
@@ -138,38 +140,38 @@ double Sensors_Update( Sensor sensor )
 {
   if( sensor == NULL ) return 0.0;
   
-  double sensorOutput = 0.0;
+  size_t aquiredSamplesNumber = sensor->Read( sensor->taskID, sensor->channel, sensor->inputBuffer );
   
-  size_t aquiredSamplesNumber = sensor->interface.Read( sensor->taskID, sensor->channel, sensor->inputBuffer );
+  double sensorOutput = SignalProcessing.UpdateSignal( sensor->processor, sensor->inputBuffer, aquiredSamplesNumber );
   
-  if( aquiredSamplesNumber > 0 )
-  {
-    sensorOutput = sensor->inputBuffer[ 0 ] * sensor->gain;
-    
-    //for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesNumber; sampleIndex++ )
-    //  sensorOutput = SignalProcessing.UpdateSignal( sensor->processor, sensor->inputBuffer[ sampleIndex ] * sensor->gain );
-    
-    double referenceOutput = Sensors_Update( sensor->reference );
-    sensorOutput -= referenceOutput;
+  //DEBUG_PRINT( "sample: %g - output: %g", sensor->inputBuffer[ 0 ], sensorOutput );
+  
+  double referenceOutput = Sensors.Update( sensor->reference );
+  sensorOutput -= referenceOutput;
 
-    sensorOutput = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput, sensorOutput );
+  double sensorMeasure = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput, sensorOutput );
+  
+  if( sensor->logID != DATA_LOG_INVALID_ID )
+  {
+    DataLogging.RegisterList( sensor->logID, sensor->maxInputSamplesNumber, sensor->inputBuffer );
+    DataLogging.RegisterValues( sensor->logID, 3, sensorOutput, referenceOutput, sensorMeasure );
   }
   
-  return sensorOutput;
+  return sensorMeasure;
 }
 
 inline bool Sensors_HasError( Sensor sensor )
 {
   if( sensor == NULL ) return false;
   
-  return sensor->interface.HasError( sensor->taskID );
+  return sensor->HasError( sensor->taskID );
 }
 
 inline void Sensors_Reset( Sensor sensor )
 {
   if( sensor == NULL ) return;
   
-  sensor->interface.Reset( sensor->taskID );
+  sensor->Reset( sensor->taskID );
 }
 
 inline void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )

@@ -37,6 +37,7 @@ include Jamfile_instr ;
 LOCATE on "actuators.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "async_debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "config_parser.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
+LOCATE on "control_definitions.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "curve_interpolation.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src" ;
 LOCATE on "data_logging.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;
 LOCATE on "debug.h" = "c:\\Users\\Adriano\\Documents\\Leonardo Jose\\RobRehabSystem\\src\\debug" ;

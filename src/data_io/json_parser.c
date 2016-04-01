@@ -19,7 +19,7 @@ JSONData;
 KHASH_MAP_INIT_INT( JSONInt, JSONData )
 static khash_t( JSONInt )* jsonDataList = NULL;
 
-IMPLEMENT_INTERFACE( PARSER_FUNCTIONS )
+DEFINE_INTERFACE( PARSER_FUNCTIONS )
 
 int LoadStringData( const char* configString )
 {

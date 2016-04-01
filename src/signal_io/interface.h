@@ -7,7 +7,7 @@
 
 const int SIGNAL_IO_TASK_INVALID_ID = -1;
 
-#define SIGNAL_IO_FUNCTIONS( interface, function_init ) \
+#define SIGNAL_IO_INTERFACE( interface, function_init ) \
         function_init( int, interface, InitTask, const char* ) \
         function_init( void, interface, EndTask, int ) \
         function_init( void, interface, Reset, int ) \
@@ -21,7 +21,5 @@ const int SIGNAL_IO_TASK_INVALID_ID = -1;
         function_init( bool, interface, Write, int, unsigned int, double ) \
         function_init( bool, interface, AquireOutputChannel, int, unsigned int ) \
         function_init( void, interface, ReleaseOutputChannel, int, unsigned int ) 
-
-DEFINE_INTERFACE( SignalIO, SIGNAL_IO_FUNCTIONS )
 
 #endif // SIGNAL_IO_INTERFACE_H 

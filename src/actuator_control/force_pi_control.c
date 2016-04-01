@@ -1,7 +1,5 @@
 #include "actuator_control/interface.h"
 
-IMPLEMENT_INTERFACE( ACTUATOR_CONTROL_FUNCTIONS )
-
 typedef struct _ControlData
 {
   double positionErrorSum, positionSetpointSum;
@@ -12,6 +10,8 @@ typedef struct _ControlData
 }
 ControlData;
 
+DEFINE_INTERFACE( ACTUATOR_CONTROL_INTERFACE )
+
 Controller InitController( void )
 {
   void* newController = malloc( sizeof(ControlData) );
@@ -20,7 +20,7 @@ Controller InitController( void )
   return (Controller) newController;
 }
 
-double* RunStep( Controller controller, double measuresList[ CONTROL_VARS_NUMBER ], double setpointsList[ CONTROL_VARS_NUMBER ], double deltaTime, double* ref_error )
+double* RunControlStep( Controller controller, double* measuresList, double* setpointsList, double deltaTime, double* ref_error )
 {
   ControlData* controlData = (ControlData*) controller;
   

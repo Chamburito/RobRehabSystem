@@ -34,6 +34,6 @@ const int PARSED_DATA_INVALID_ID = -1;
         function_init( size_t, interface, GetListSize, int, const char*, ... ) \
         function_init( bool, interface, HasKey, int, const char*, ... )
 
-DEFINE_INTERFACE( Parser, PARSER_FUNCTIONS )
+DEFINE_INTERFACE_MODULE( Parser, PARSER_FUNCTIONS )
 
 #endif // PARSER_H

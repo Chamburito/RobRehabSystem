@@ -48,7 +48,7 @@ KHASH_MAP_INIT_INT( RobotControlInt, RobotController )
 khash_t( RobotControlInt )* robotsList = NULL;
 
 
-#define ROBOT_CONTROL_FUNCTIONS( namespace, function_init ) \
+#define ROBOT_CONTROL_INTERFACE( namespace, function_init ) \
         function_init( int, namespace, InitController, const char* ) \
         function_init( void, namespace, EndController, int ) \
         function_init( bool, namespace, Enable, int ) \
@@ -60,7 +60,7 @@ khash_t( RobotControlInt )* robotsList = NULL;
         function_init( double, namespace, SetAxisSetpoint, Axis, enum ControlVariables, double ) \
         function_init( size_t, namespace, GetDoFsNumber, int )
 
-INIT_NAMESPACE_INTERFACE( RobotControl, ROBOT_CONTROL_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( RobotControl, ROBOT_CONTROL_INTERFACE )
 
 
 static inline RobotController LoadControllerData( const char* );
@@ -268,7 +268,7 @@ static inline RobotController LoadControllerData( const char* configFileName )
   
     bool loadSuccess = false;
     sprintf( filePath, "mechanics/%s", parser.GetStringValue( configFileID, "", "mechanism.type" ) );
-    GET_PLUGIN_INTERFACE( MECHANICS_FUNCTIONS, filePath, newRobot->mechanics, loadSuccess );
+    GET_PLUGIN_IMPLEMENTATION( MECHANICS_FUNCTIONS, filePath, newRobot->mechanics, loadSuccess );
     if( loadSuccess )
     {
       newRobot->mechanism = newRobot->mechanics.InitModel( parser.GetStringValue( configFileID, "", "mechanism.id" ) );

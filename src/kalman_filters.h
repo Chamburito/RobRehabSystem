@@ -59,6 +59,11 @@ KalmanFilter Kalman_CreateFilter( size_t dimensionsNumber )
   
   Kalman_Reset( newFilter );
   
+  DEBUG_PRINT( "created filter with %lu states", dimensionsNumber );
+  
+  Matrices_Print( newFilter->state );
+  Matrices_Print( newFilter->prediction );
+  
   return newFilter;
 }
 
@@ -91,13 +96,16 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
   size_t newInputIndex = Matrices_GetHeight( filter->input );
   size_t newInputsNumber = newInputIndex + 1;
   
-  Matrices_Resize( filter->input, newInputsNumber, 1 );
-  Matrices_Resize( filter->inputModel, newInputsNumber, dimensionsNumber );
+  Matrices_Discard( filter->input );
+  filter->input = Matrices_Create( NULL, newInputsNumber, 1 );
   
-  Matrices_SetElement( filter->inputModel, newInputIndex, dimensionIndex, 1 );
+  filter->inputModel = Matrices_Resize( filter->inputModel, newInputsNumber, dimensionsNumber );
+  for( size_t stateIndex = 0; stateIndex < dimensionsNumber; stateIndex++ )
+    Matrices_SetElement( filter->inputModel, newInputIndex, stateIndex, 0.0 );
+  Matrices_SetElement( filter->inputModel, newInputIndex, dimensionIndex, 1.0 );
   
-  Matrices_Resize( filter->errorCovariance, newInputsNumber, newInputsNumber );
-  Matrices_Resize( filter->errorCovarianceNoise, newInputsNumber, newInputsNumber );
+  filter->errorCovariance = Matrices_Resize( filter->errorCovariance, newInputsNumber, newInputsNumber );
+  filter->errorCovarianceNoise = Matrices_Resize( filter->errorCovarianceNoise, newInputsNumber, newInputsNumber );
   
   Matrices_SetElement( filter->errorCovarianceNoise, newInputIndex, newInputIndex, 1.0 );
 }
@@ -109,11 +117,13 @@ void Kalman_SetInput( KalmanFilter filter, size_t inputIndex, double value )
   Matrices_SetElement( filter->input, inputIndex, 0, value );
 }
 
-void Kalman_SetVariablesCoupling( KalmanFilter filter, size_t inputIndex, size_t outputIndex, double ratio )
+void Kalman_SetVariablesCoupling( KalmanFilter filter, size_t outputIndex, size_t inputIndex, double ratio )
 {
   if( filter == NULL ) return;
   
-  Matrices_SetElement( filter->prediction, inputIndex, outputIndex, ratio );
+  Matrices_SetElement( filter->prediction, outputIndex, inputIndex, ratio );
+  
+  Matrices_Print( filter->prediction );
 }
 
 void Kalman_SetInputMaxError( KalmanFilter filter, size_t inputIndex, double maxError )
@@ -127,17 +137,14 @@ double* Kalman_Predict( KalmanFilter filter )
 {
   if( filter == NULL ) return NULL;
   
-  // x = F*x_old
-  Matrices_Dot( filter->prediction, 1.0, filter->state, 1.0, filter->state );                                                       // F[nxn] * x_old[nx1] -> x[nx1]
+  // x = F*x
+  Matrices_Dot( filter->prediction, 1.0, filter->state, 1.0, filter->state );                                                       // F[nxn] * x[nx1] -> x[nx1]
   
-  // P = F*P_old*F' + Q
-  Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->predictionCovariance );         // F[nxn] * P_old[nxn] -> P[nxn]
+  // P = F*P*F' + Q
+  Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->predictionCovariance );         // F[nxn] * P[nxn] -> P[nxn]
   Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->prediction, MATRIX_TRANSPOSE, filter->predictionCovariance );    // P[nxn] * F'[nxn] -> P[nxn]
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->predictionCovarianceNoise, 1.0, filter->predictionCovariance );          // P[nxn] + Q[nxn] -> P[nxn]
-  
-  DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
-                                                             Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
-                                                             Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
+  //DEBUG_PRINT( "x: %.6f - p: %.6f - q: %.6f", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovarianceNoise, 0, 0 ) );
   
   return Matrices_GetAsVector( filter->state );
 }
@@ -150,26 +157,33 @@ double* Kalman_Update( KalmanFilter filter )
   Matrices_Dot( filter->inputModel, MATRIX_KEEP, filter->state, MATRIX_KEEP, filter->error );                             // H[mxn] * x[nx1] -> e[mx1]
   Matrices_Sum( filter->input, 1.0, filter->error, -1.0, filter->error );                                                 // y[mx1] - e[mx1] -> e[mx1]
   
-  // K = P*H' * ( H*P*H' + R )^(-1)
-  Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->gain );          // P[nxn] * H'[nxm] -> K[nxm]
+  // S = H*P*H' + R
   Matrices_Dot( filter->inputModel, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->errorCovariance );    // H[mxn] * P[nxn] -> S[mxn]
   Matrices_Dot( filter->errorCovariance, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->errorCovariance );    // S[mxn] * H'[nxm] -> S[mxm]
   Matrices_Sum( filter->errorCovariance, 1.0, filter->errorCovarianceNoise, 1.0, filter->errorCovariance );               // S[mxm] + R[mxm] -> S[mxm]
+  
+  // K = P*H' * S^(-1)
+  Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->gain );          // P[nxn] * H'[nxm] -> K[nxm]
+  //DEBUG_PRINT( "p: %.6f - h: %.6f", Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->inputModel, 0, 0 ) );
+  //DEBUG_PRINT( "k: %.6f - s: %.6f", Matrices_GetElement( filter->gain, 0, 0 ), Matrices_GetElement( filter->errorCovariance, 0, 0 ) );
   Matrices_Inverse( filter->errorCovariance, filter->errorCovariance );                                                   // S^(-1)[mxm] -> S[mxm]
   Matrices_Dot( filter->gain, MATRIX_KEEP, filter->errorCovariance, MATRIX_KEEP, filter->gain );                          // K[nxm] * S[mxm] -> K[nxm]
+  //DEBUG_PRINT( "k: %.6f - s: %.6f", Matrices_GetElement( filter->gain, 0, 0 ), Matrices_GetElement( filter->errorCovariance, 0, 0 ) );
   
   // x' = x + K*e
   Matrices_Dot( filter->gain, MATRIX_KEEP, filter->error, MATRIX_KEEP, filter->error );                                   // K[nxm] * e[mx1] -> e[nx1]
   Matrices_Sum( filter->state, 1.0, filter->error, 1.0, filter->state );                                                  // x[nx1] + e[nx1] -> x[nx1]
+  
+  //DEBUG_PRINT( "x: %.6f - y: %.6f - e: %.6f", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->input, 0, 0 ), Matrices_GetElement( filter->error, 0, 0 ) );
   
   // P' = P - K*H*P
   Matrices_Dot( filter->gain, MATRIX_KEEP, filter->inputModel, MATRIX_KEEP, filter->gain );                               // K[nxm] * H[mxn] -> K[nxn]
   Matrices_Dot( filter->gain, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->gain );                     // K[nxn] * P[nxn] -> K[nxn]
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->gain, -1.0, filter->predictionCovariance );                    // P[nxn] - K[nxn] -> P[nxn]
   
-  DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
-                                                             Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
-                                                             Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
+  //DEBUG_PRINT( "x = [%.3f;%.3f], P = [%.3f %.3f;%.3f %.3f]", Matrices_GetElement( filter->state, 0, 0 ), Matrices_GetElement( filter->state, 1, 0 ),
+  //                                                           Matrices_GetElement( filter->predictionCovariance, 0, 0 ), Matrices_GetElement( filter->predictionCovariance, 0, 1 ),
+  //                                                           Matrices_GetElement( filter->predictionCovariance, 1, 0 ), Matrices_GetElement( filter->predictionCovariance, 1, 1 ) );
   
   return Matrices_GetAsVector( filter->state );
 }

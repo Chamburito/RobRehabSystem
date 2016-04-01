@@ -2,10 +2,10 @@
 
 #include <math.h>
 
-IMPLEMENT_INTERFACE( ROBOT_CONTROL_FUNCTIONS )
-
 const size_t DOFS_NUMBER = 1;
 const char* DOF_NAMES[ DOFS_NUMBER ] = { { "angle" } };
+
+DEFINE_INTERFACE( ROBOT_CONTROL_INTERFACE ) 
 
 Controller InitController( const char* data )
 {
@@ -32,7 +32,7 @@ const char** GetAxisNamesList( Controller controller )
   return (const char**) DOF_NAMES;
 }
 
-void RunStep( Controller controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
+void RunControlStep( Controller controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
 {
   axisMeasuresTable[ 0 ][ CONTROL_POSITION ] = jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
 	axisMeasuresTable[ 0 ][ CONTROL_VELOCITY ] = jointMeasuresTable[ 0 ][ CONTROL_VELOCITY ];

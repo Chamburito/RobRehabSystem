@@ -11,27 +11,29 @@
   #include <unistd.h>
 #endif
 
-#define INIT_INTERFACE_FILE( rtype, interface, func, ... ) extern "C" __declspec(dllexport) rtype func( __VA_ARGS__ );
-#define INIT_INTERFACE_POINTER( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
-#define INIT_INTERFACE_STRUCT( rtype, interface, func, ... ) .func = func,
+#define DEFINE_INTERFACE_FUNCTION( rtype, interface, func, ... ) extern "C" __declspec(dllexport) rtype func( __VA_ARGS__ );
+#define DEFINE_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
+#define INIT_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) .func = func,
       
-#define INIT_NAMESPACE_FILE( rtype, namespace, func, ... ) static rtype namespace##_##func( __VA_ARGS__ );
-#define INIT_NAMESPACE_POINTER( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
-#define INIT_NAMESPACE_STRUCT( rtype, namespace, func, ... ) .func = namespace##_##func,
+#define DEFINE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) static rtype namespace##_##func( __VA_ARGS__ );
+#define DEFINE_NAMESPACE_FUNC_PTR( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
+#define INIT_NAMESPACE_FUNC_PTR( rtype, namespace, func, ... ) .func = namespace##_##func,
 
-#define DEFINE_INTERFACE( interfaceName, interfaceFunctions ) \
+
+#define DEFINE_INTERFACE( interfaceFunctions ) interfaceFunctions( NULL, DEFINE_INTERFACE_FUNCTION )
+#define DEFINE_INTERFACE_REF( interfaceFunctions ) interfaceFunctions( NULL, DEFINE_INTERFACE_FUNC_PTR )
+
+#define DEFINE_INTERFACE_MODULE( interfaceName, interfaceFunctions ) \
         typedef struct { \
-          interfaceFunctions( interfaceName, INIT_INTERFACE_POINTER ) \
+          interfaceFunctions( interfaceName, DEFINE_INTERFACE_FUNC_PTR ) \
         } \
         interfaceName##Interface;
       
-#define IMPLEMENT_INTERFACE( interfaceFunctions ) interfaceFunctions( interfaceName, INIT_INTERFACE_FILE )
-      
 #define INIT_NAMESPACE_INTERFACE( namespace, functions ) \
-        functions( namespace, INIT_NAMESPACE_FILE ) \
+        functions( namespace, DEFINE_NAMESPACE_FUNCTION ) \
         const struct { \
-          functions( namespace, INIT_NAMESPACE_POINTER ) \
+          functions( namespace, DEFINE_NAMESPACE_FUNC_PTR ) \
         } \
-        namespace = { functions( namespace, INIT_NAMESPACE_STRUCT ) };
+        namespace = { functions( namespace, INIT_NAMESPACE_FUNC_PTR ) };
 
 #endif  // INTERFACES_H

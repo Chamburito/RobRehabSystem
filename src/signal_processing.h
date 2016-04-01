@@ -14,6 +14,7 @@ const uint8_t SIGNAL_PROCESSING_RECTIFY = 0x0F, SIGNAL_PROCESSING_NORMALIZE = 0x
 
 typedef struct _SignalProcessorData
 {
+  double inputGain;
   double signalLimitsList[ 2 ];
   double signalMean, signalOffset;
   size_t recordedSamplesCount;
@@ -30,8 +31,9 @@ typedef SignalProcessorData* SignalProcessor;
 #define SIGNAL_PROCESSING_FUNCTIONS( namespace, function_init ) \
         function_init( SignalProcessor, namespace, CreateProcessor, uint8_t ) \
         function_init( void, namespace, DiscardProcessor, SignalProcessor ) \
+        function_init( void, namespace, SetInputGain, SignalProcessor, double ) \
         function_init( void, namespace, SetMaxFrequency, SignalProcessor, double ) \
-        function_init( double, namespace, UpdateSignal, SignalProcessor, double ) \
+        function_init( double, namespace, UpdateSignal, SignalProcessor, double*, size_t ) \
         function_init( double, namespace, RevertTransformation, SignalProcessor, double ) \
         function_init( void, namespace, SetProcessorState, SignalProcessor, enum SignalProcessingPhase ) 
 
@@ -44,6 +46,8 @@ SignalProcessor SignalProcessing_CreateProcessor( uint8_t flags )
   
   SignalProcessor newProcessor = (SignalProcessor) malloc( sizeof(SignalProcessorData) );
   memset( newProcessor, 0, sizeof(SignalProcessorData) );
+  
+  newProcessor->inputGain = 1.0;
   
   newProcessor->processingPhase = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
   
@@ -62,6 +66,15 @@ void SignalProcessing_DiscardProcessor( SignalProcessor processor )
   if( processor == NULL ) return;
   
   free( processor );
+}
+
+void SignalProcessing_SetInputGain( SignalProcessor processor, double inputGain )
+{
+  if( processor == NULL ) return;
+  
+  processor->inputGain = inputGain;
+  
+  DEBUG_PRINT( "setting input gain for processor %p: %g", processor, processor->inputGain );
 }
 
 void SignalProcessing_SetMaxFrequency( SignalProcessor processor, double relativeFrequency )
@@ -84,51 +97,59 @@ void SignalProcessing_SetMaxFrequency( SignalProcessor processor, double relativ
   processor->inputFilterCoeffs[ 2 ] = processor->inputFilterCoeffs[ 0 ];
 }
 
-double SignalProcessing_UpdateSignal( SignalProcessor processor, double newInputValue )
+double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInputValuesList, size_t newValuesNumber )
 {
   if( processor == NULL ) return 0.0;
   
+  double newInputValue = processor->outputSamplesList[ 0 ];
+  
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    processor->signalMean += newInputValue;
-    processor->recordedSamplesCount++;
+    for( size_t valueIndex = 0; valueIndex < newValuesNumber; valueIndex++ )
+    {
+      processor->signalMean += newInputValuesList[ valueIndex ];
+      processor->recordedSamplesCount++;
+    }
   }
   else
   {
-    /*newInputValue -= processor->signalOffset;
+    for( size_t valueIndex = 0; valueIndex < newValuesNumber; valueIndex++ )
+    {
+      newInputValue = newInputValuesList[ valueIndex ] * processor->inputGain - processor->signalOffset;
 
-    if( processor->rectify ) newInputValue = fabs( newInputValue );
+      /*if( processor->rectify ) newInputValue = fabs( newInputValue );
 
-    for( int sampleIndex = FILTER_LENGTH - 1; sampleIndex > 0; sampleIndex-- )
-    {
-      processor->inputSamplesList[ sampleIndex ] = processor->inputSamplesList[ sampleIndex - 1 ];
-      processor->outputSamplesList[ sampleIndex ] = processor->outputSamplesList[ sampleIndex - 1 ];
-    }
-    processor->inputSamplesList[ 0 ] = newInputValue;
-    
-    processor->outputSamplesList[ 0 ] = 0.0;
-    for( size_t sampleIndex = 0; sampleIndex < FILTER_LENGTH; sampleIndex++ )
-    {
-      processor->outputSamplesList[ 0 ] -= processor->outputFilterCoeffs[ sampleIndex ] * processor->outputSamplesList[ sampleIndex ];
-      processor->outputSamplesList[ 0 ] += processor->inputFilterCoeffs[ sampleIndex ] * processor->inputSamplesList[ sampleIndex ];
-    }
-    newInputValue = processor->outputSamplesList[ 0 ];
-    
-    if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
-    {
-      if( newInputValue > processor->signalLimitsList[ 1 ] ) processor->signalLimitsList[ 1 ] = newInputValue;
-      else if( newInputValue < processor->signalLimitsList[ 0 ] ) processor->signalLimitsList[ 0 ] = newInputValue;
-    }
-    else if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
-    {
-      if( processor->normalize && ( processor->signalLimitsList[ 0 ] != processor->signalLimitsList[ 1 ] ) )
+      for( int sampleIndex = FILTER_LENGTH - 1; sampleIndex > 0; sampleIndex-- )
       {
-        if( newInputValue > processor->signalLimitsList[ 1 ] ) newInputValue = processor->signalLimitsList[ 1 ];
-        else if( newInputValue < processor->signalLimitsList[ 0 ] ) newInputValue = processor->signalLimitsList[ 0 ];
-
-        newInputValue = newInputValue / ( processor->signalLimitsList[ 1 ] - processor->signalLimitsList[ 0 ] );
+        processor->inputSamplesList[ sampleIndex ] = processor->inputSamplesList[ sampleIndex - 1 ];
+        processor->outputSamplesList[ sampleIndex ] = processor->outputSamplesList[ sampleIndex - 1 ];
       }
-    }*/
+      processor->inputSamplesList[ 0 ] = newInputValue;
+    
+      processor->outputSamplesList[ 0 ] = 0.0;
+      for( size_t sampleIndex = 0; sampleIndex < FILTER_LENGTH; sampleIndex++ )
+      {
+        processor->outputSamplesList[ 0 ] -= processor->outputFilterCoeffs[ sampleIndex ] * processor->outputSamplesList[ sampleIndex ];
+        processor->outputSamplesList[ 0 ] += processor->inputFilterCoeffs[ sampleIndex ] * processor->inputSamplesList[ sampleIndex ];
+      }
+      newInputValue = processor->outputSamplesList[ 0 ];
+    
+      if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+      {
+        if( newInputValue > processor->signalLimitsList[ 1 ] ) processor->signalLimitsList[ 1 ] = newInputValue;
+        else if( newInputValue < processor->signalLimitsList[ 0 ] ) processor->signalLimitsList[ 0 ] = newInputValue;
+      }
+      else if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
+      {
+        if( processor->normalize && ( processor->signalLimitsList[ 0 ] != processor->signalLimitsList[ 1 ] ) )
+        {
+          if( newInputValue > processor->signalLimitsList[ 1 ] ) newInputValue = processor->signalLimitsList[ 1 ];
+          else if( newInputValue < processor->signalLimitsList[ 0 ] ) newInputValue = processor->signalLimitsList[ 0 ];
+
+          newInputValue = newInputValue / ( processor->signalLimitsList[ 1 ] - processor->signalLimitsList[ 0 ] );
+        }
+      }*/
+    }
   }
   
   return newInputValue;

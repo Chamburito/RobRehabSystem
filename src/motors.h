@@ -14,8 +14,8 @@
       
 typedef struct _MotorData
 {
+  DEFINE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
   int interfaceID;
-  SignalIOInterface interface;
   unsigned int outputChannel;
   double outputGain, outputOffset;
   double outputMin, outputMax;
@@ -57,15 +57,15 @@ Motor Motors_Init( const char* configFileName )
 
     bool loadSuccess = true;
     sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "output_interface.type" ) );
-    GET_PLUGIN_INTERFACE( SIGNAL_IO_FUNCTIONS, filePath, newMotor->interface, loadSuccess );
+    GET_PLUGIN_IMPLEMENTATION( SIGNAL_IO_INTERFACE, filePath, newMotor, &loadSuccess );
     if( loadSuccess )
     {
-      newMotor->interfaceID = newMotor->interface.InitTask( parser.GetStringValue( configFileID, "", "output_interface.id" ) );
+      newMotor->interfaceID = newMotor->InitTask( parser.GetStringValue( configFileID, "", "output_interface.id" ) );
       if( newMotor->interfaceID != SIGNAL_IO_TASK_INVALID_ID ) 
       {
         newMotor->outputChannel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "output_interface.channel" );
         DEBUG_PRINT( "trying to aquire channel %u from interface %d", newMotor->outputChannel, newMotor->interfaceID );
-        loadSuccess = newMotor->interface.AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
+        loadSuccess = newMotor->AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
       }
       else loadSuccess = false;
     }
@@ -96,7 +96,7 @@ inline void Motors_End( Motor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface.EndTask( motor->interfaceID );
+  motor->EndTask( motor->interfaceID );
   
   free( motor );
 }
@@ -105,22 +105,22 @@ inline void Motors_Enable( Motor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface.Reset( motor->interfaceID );
-  motor->interface.EnableOutput( motor->interfaceID, true );
+  motor->Reset( motor->interfaceID );
+  motor->EnableOutput( motor->interfaceID, true );
 }
 
 inline void Motors_Disable( Motor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface.EnableOutput( motor->interfaceID, false );
+  motor->EnableOutput( motor->interfaceID, false );
 }
 
 inline void Motors_Reset( Motor motor )
 {
   if( motor == NULL ) return;
   
-  motor->interface.Reset( motor->interfaceID );
+  motor->Reset( motor->interfaceID );
 }
 
 inline void Motors_SetOffset( Motor motor, double offset )
@@ -134,14 +134,14 @@ inline bool Motors_IsEnabled( Motor motor )
 {
   if( motor == NULL ) return false;
   
-  return motor->interface.IsOutputEnabled( motor->interfaceID );
+  return motor->IsOutputEnabled( motor->interfaceID );
 }
 
 inline bool Motors_HasError( Motor motor )
 {
   if( motor == NULL ) return false;
   
-  return motor->interface.HasError( motor->interfaceID );
+  return motor->HasError( motor->interfaceID );
 }
 
 void Motors_WriteControl( Motor motor, double setpoint )
@@ -153,7 +153,7 @@ void Motors_WriteControl( Motor motor, double setpoint )
   if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
   else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
   
-  motor->interface.Write( motor->interfaceID, motor->outputChannel, setpoint );
+  motor->Write( motor->interfaceID, motor->outputChannel, setpoint );
 }
 
 #ifdef __cplusplus

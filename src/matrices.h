@@ -107,7 +107,10 @@ Matrix Matrices_Resize( Matrix matrix, size_t rowsNumber, size_t columnsNumber )
   if( matrix == NULL )
     matrix = Matrices_Create( NULL, rowsNumber, columnsNumber );
   else if( matrix->rowsNumber * matrix->columnsNumber < rowsNumber * columnsNumber )
+  {
     matrix->data = (double*) realloc( matrix->data, rowsNumber * columnsNumber * sizeof(double) );
+    memset( matrix->data + matrix->rowsNumber * matrix->columnsNumber, 0, rowsNumber * columnsNumber - matrix->rowsNumber * matrix->columnsNumber );
+  }
   
   matrix->rowsNumber = rowsNumber;
   matrix->columnsNumber = columnsNumber;
@@ -346,12 +349,12 @@ void Matrices_Print( Matrix matrix )
 
   for( size_t row = 0; row < matrix->rowsNumber; row++ )
   {
-    printf( "[" );
+    fprintf( stderr, "[" );
     for( size_t column = 0; column < matrix->columnsNumber; column++ )
-      printf( " %.3f", matrix->data[ row * matrix->columnsNumber + column ] );
-    printf( " ]\n" );
+      fprintf( stderr, " %.6f", matrix->data[ row * matrix->columnsNumber + column ] );
+    fprintf( stderr, " ]\n" );
   }
-   printf( "\n" );
+   fprintf( stderr, "\n" );
 }
 
 #endif // MATRICES_H

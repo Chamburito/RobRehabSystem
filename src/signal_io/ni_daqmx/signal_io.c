@@ -29,7 +29,7 @@ typedef SignalIOTaskData* SignalIOTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalIOTask )
 static khash_t( TaskInt )* tasksList = NULL;
 
-IMPLEMENT_INTERFACE( SIGNAL_IO_FUNCTIONS ) 
+DEFINE_INTERFACE( SIGNAL_IO_INTERFACE ) 
 
 static void* AsyncReadBuffer( void* );
 static void* AsyncWriteBuffer( void* );
