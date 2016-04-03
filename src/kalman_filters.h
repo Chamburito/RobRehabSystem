@@ -107,10 +107,8 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
   
   if( newInputsNumber > dimensionsNumber ) 
   {
-    Matrices_Discard( filter->gain );
-    filter->gain = Matrices_CreateSquare( newInputsNumber, MATRIX_ZERO );
-    Matrices_Discard( filter->aux );
-    filter->aux = Matrices_CreateSquare( newInputsNumber, MATRIX_ZERO );
+    filter->gain = Matrices_Resize( filter->gain, newInputsNumber, newInputsNumber );
+    filter->aux = Matrices_Resize( filter->aux, newInputsNumber, newInputsNumber );
   }
 }
 
