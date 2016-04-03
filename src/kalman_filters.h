@@ -3,7 +3,7 @@
 
 #include "interfaces.h"
 
-#include "matrices_blas_lapack.h"
+#include "matrices.h"
 
 #include <math.h>
 #include <stdlib.h>
