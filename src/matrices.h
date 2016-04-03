@@ -2,21 +2,28 @@
 #define MATRICES_H
 
 #include "interfaces.h"
-#include "debug/async_debug.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
+// Fortran77 function declarations
+
+// (BLAS) matrix-matrix product
+extern void dgemm_( char* transa, char* transb, int* m, int* n, int* k, double* alpha, double* A, int* lda, double* B, int* ldb, double* beta, double* C, int* ldc );  
+// (LAPACK) LU decomoposition of a general matrix
+extern void dgetrf_( int* M, int *N, double* A, int* lda, int* IPIV, int* INFO );
+// (LAPACK) generate inverse of a matrix given its LU decomposition
+extern void dgetri_( int* N, double* A, int* lda, int* IPIV, double* WORK, int* lwork, int* INFO );
 
 #define MATRIX_SIZE_MAX 50 
 
-#define MATRIX_IDENTITY true
-#define MATRIX_ZERO false
+const char MATRIX_IDENTITY = 'I';
+const char MATRIX_ZERO = '0';
 
-#define MATRIX_TRANSPOSE true
-#define MATRIX_KEEP false
+const char MATRIX_TRANSPOSE = 'T';
+const char MATRIX_KEEP = 'N';
 
 typedef struct _MatrixData
 {
@@ -29,21 +36,23 @@ typedef MatrixData* Matrix;
 
 
 #define MATRICES_FUNCTIONS( namespace, function_init ) \
-        function_init( Matrix, namespace, Create, double*, size_t, size_t ) \               
-        function_init( Matrix, namespace, CreateSquare, size_t, bool ) \                    
-        function_init( double, namespace, GetElement, Matrix, size_t, size_t ) \
+        function_init( Matrix, namespace, Create, double*, size_t, size_t ) \
+        function_init( Matrix, namespace, CreateSquare, size_t, char ) \
+        function_init( Matrix, namespace, Copy, Matrix, Matrix ) \
         function_init( size_t, namespace, GetWidth, Matrix ) \
         function_init( size_t, namespace, GetHeight, Matrix ) \
-        function_init( double*, namespace, GetAsVector, Matrix ) \
-        function_init( void, namespace, SetElement, Matrix, size_t, size_t, double ) \      
-        function_init( Matrix, namespace, Clear, Matrix ) \                                 
-        function_init( Matrix, namespace, Resize, Matrix, size_t, size_t ) \                
-        function_init( Matrix, namespace, Scale, Matrix, double, Matrix ) \                 
-        function_init( Matrix, namespace, Sum, Matrix, double, Matrix, double, Matrix ) \       
-        function_init( Matrix, namespace, Dot, Matrix, bool, Matrix, bool, Matrix ) \       
-        function_init( double, namespace, Determinant, Matrix ) \                           
-        function_init( Matrix, namespace, Transpose, Matrix, Matrix ) \                     
-        function_init( Matrix, namespace, Inverse, Matrix, Matrix ) \                       
+        function_init( double*, namespace, GetData, Matrix, double* ) \
+        function_init( void, namespace, SetData, Matrix, double* ) \
+        function_init( double, namespace, GetElement, Matrix, size_t, size_t ) \
+        function_init( void, namespace, SetElement, Matrix, size_t, size_t, double ) \
+        function_init( Matrix, namespace, Clear, Matrix ) \
+        function_init( Matrix, namespace, Resize, Matrix, size_t, size_t ) \
+        function_init( Matrix, namespace, Scale, Matrix, double, Matrix ) \
+        function_init( Matrix, namespace, Sum, Matrix, double, Matrix, double, Matrix ) \
+        function_init( Matrix, namespace, Dot, Matrix, char, Matrix, char, Matrix ) \
+        function_init( double, namespace, Determinant, Matrix ) \
+        function_init( Matrix, namespace, Transpose, Matrix, Matrix ) \
+        function_init( Matrix, namespace, Inverse, Matrix, Matrix ) \
         function_init( void, namespace, Print, Matrix )                                     
 
 INIT_NAMESPACE_INTERFACE( Matrices, MATRICES_FUNCTIONS )
@@ -72,17 +81,29 @@ Matrix Matrices_Create( double* data, size_t rowsNumber, size_t columnsNumber )
   newMatrix->columnsNumber = columnsNumber;
 
   if( data == NULL ) Matrices_Clear( newMatrix );
-  else memcpy( newMatrix->data, data, rowsNumber * columnsNumber * sizeof(double) );
+  else Matrices_SetData( newMatrix, data );
 
   return newMatrix;
 }
 
+Matrix Matrices_Copy( Matrix source, Matrix destination )
+{
+  if( source == NULL || destination == NULL ) return NULL;
+
+  destination->rowsNumber = source->rowsNumber;
+  destination->columnsNumber = source->columnsNumber;
+
+  memcpy( destination->data, source->data, destination->rowsNumber * destination->columnsNumber * sizeof(double) );
+
+  return destination;
+}
+
 // Atalho para criar matriz quadrada (zero ou identidade)
-Matrix Matrices_CreateSquare( size_t size, bool isIdentity )
+Matrix Matrices_CreateSquare( size_t size, char type )
 {
   Matrix newSquareMatrix = Matrices_Create( NULL, size, size );
 
-  if( isIdentity )
+  if( type == 'I' )
   {
     for( size_t line = 0; line < size; line++ )
       newSquareMatrix->data[ line * size + line ] = 1.0;
@@ -104,16 +125,28 @@ void Matrices_Discard( Matrix matrix )
 // Realoca a matriz para tamanho (linhas e colunas) dado
 Matrix Matrices_Resize( Matrix matrix, size_t rowsNumber, size_t columnsNumber )
 {
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  
   if( matrix == NULL )
     matrix = Matrices_Create( NULL, rowsNumber, columnsNumber );
-  else if( matrix->rowsNumber * matrix->columnsNumber < rowsNumber * columnsNumber )
+  else 
   {
-    matrix->data = (double*) realloc( matrix->data, rowsNumber * columnsNumber * sizeof(double) );
-    memset( matrix->data + matrix->rowsNumber * matrix->columnsNumber, 0, rowsNumber * columnsNumber - matrix->rowsNumber * matrix->columnsNumber );
-  }
+    if( matrix->rowsNumber * matrix->columnsNumber < rowsNumber * columnsNumber )
+      matrix->data = (double*) realloc( matrix->data, rowsNumber * columnsNumber * sizeof(double) );
   
-  matrix->rowsNumber = rowsNumber;
-  matrix->columnsNumber = columnsNumber;
+    memcpy( auxArray, matrix->data, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
+    
+    memset( matrix->data, 0, rowsNumber * columnsNumber * sizeof(double) );
+    
+    for( size_t column = 0; column < columnsNumber; column++ )
+    {
+      for( size_t row = 0; row < rowsNumber; row++ )
+        matrix->data[ column * rowsNumber + row ] = auxArray[ column * matrix->rowsNumber + row ];
+    }
+    
+    matrix->rowsNumber = rowsNumber;
+    matrix->columnsNumber = columnsNumber;
+  }
 
   return matrix;
 }
@@ -125,7 +158,17 @@ double Matrices_GetElement( Matrix matrix, size_t row, size_t column )
 
   if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return 0.0;
 
-  return matrix->data[ row * matrix->columnsNumber + column ];
+  return matrix->data[ column * matrix->rowsNumber + row ];
+}
+
+// Escreve elemento na matriz na linha e coluna dadas
+void Matrices_SetElement( Matrix matrix, size_t row, size_t column, double value )
+{
+  if( matrix == NULL ) return;
+
+  if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return;
+
+  matrix->data[ column * matrix->rowsNumber + row ] = value;
 }
 
 size_t Matrices_GetWidth( Matrix matrix )
@@ -143,21 +186,28 @@ size_t Matrices_GetHeight( Matrix matrix )
 }
 
 // Obtém vetor de 1 dimensão dos elementos da matriz
-double* Matrices_GetAsVector( Matrix matrix )
+double* Matrices_GetData( Matrix matrix, double* buffer )
 {
   if( matrix == NULL ) return NULL;
 
-  return matrix->data;
+  for( size_t row = 0; row < matrix->rowsNumber; row++ )
+  {
+    for( size_t column = 0; column < matrix->columnsNumber; column++ )
+      buffer[ row * matrix->columnsNumber + column ] = matrix->data[ column * matrix->rowsNumber + row ];
+  }
+  
+  return buffer;
 }
 
-// Escreve elemento na matriz na linha e coluna dadas
-void Matrices_SetElement( Matrix matrix, size_t row, size_t column, double value )
+void Matrices_SetData( Matrix matrix, double* data )
 {
   if( matrix == NULL ) return;
 
-  if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return;
-
-  matrix->data[ row * matrix->columnsNumber + column ] = value;
+  for( size_t column = 0; column < matrix->columnsNumber; column++ )
+  {
+    for( size_t row = 0; row < matrix->rowsNumber; row++ )
+      matrix->data[ column * matrix->rowsNumber + row ] = data[ row * matrix->columnsNumber + column ];
+  }
 }
 
 // Multiplica matriz por escalar
@@ -165,127 +215,53 @@ Matrix Matrices_Scale( Matrix matrix, double scalar, Matrix result )
 {
   if( matrix == NULL ) return NULL;
   
-  if( (result = Matrices_Resize( result, matrix->rowsNumber, matrix->columnsNumber )) == NULL ) return NULL;
+  size_t elementsNumber = result->rowsNumber * result->columnsNumber;
+  for( size_t elementIndex = 0; elementIndex < elementsNumber; elementIndex++ )
+    result->data[ elementIndex ] = scalar * matrix->data[ elementIndex ];
 
-  for( size_t row = 0; row < matrix->rowsNumber; row++ )
-  {
-    for( size_t column = 0; column < matrix->columnsNumber; column++ )
-      result->data[ row * matrix->columnsNumber + column ] = matrix->data[ row * matrix->columnsNumber + column ] * scalar;
-  }
-
+  result->rowsNumber = matrix->rowsNumber;
+  result->columnsNumber = matrix->columnsNumber;
+  
   return result;
 }
 
 // Soma de matrizes
 Matrix Matrices_Sum( Matrix matrix_1, double weight_1, Matrix matrix_2, double weight_2, Matrix result )
 {
-  static double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
-
   if( matrix_1 == NULL || matrix_2 == NULL ) return NULL;
 
   if( matrix_1->rowsNumber != matrix_2->rowsNumber || matrix_1->columnsNumber != matrix_2->columnsNumber ) return NULL;
 
-  if( (result = Matrices_Resize( result, matrix_1->rowsNumber, matrix_1->columnsNumber )) == NULL ) return NULL;
-
-  for( size_t row = 0; row < result->rowsNumber; row++ )
-  {
-    for( size_t column = 0; column < result->columnsNumber; column++ )
-    {
-      double element_1 = matrix_1->data[ row * matrix_1->columnsNumber + column ];
-      double element_2 = matrix_2->data[ row * matrix_2->columnsNumber + column ];
-      auxArray[ row * result->columnsNumber + column ] = weight_1 * element_1 + weight_2 * element_2;
-    }
-  }
-
-  memcpy( result->data, auxArray, result->rowsNumber * result->columnsNumber * sizeof(double) );
+  result->rowsNumber = matrix_1->rowsNumber;
+  result->columnsNumber = matrix_1->columnsNumber;
+  
+  size_t elementsNumber = result->rowsNumber * result->columnsNumber;
+  for( size_t elementIndex = 0; elementIndex < elementsNumber; elementIndex++ )
+    result->data[ elementIndex ] = weight_1 * matrix_1->data[ elementIndex ] + weight_2 * matrix_2->data[ elementIndex ];
 
   return result;
 }
 
 // Produto de matrizes
-Matrix Matrices_Dot( Matrix matrix_1, bool transpose_1, Matrix matrix_2, bool transpose_2, Matrix result )
+Matrix Matrices_Dot( Matrix matrix_1, char transpose_1, Matrix matrix_2, char transpose_2, Matrix result )
 {
-  static double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
-
+  const double alpha = 1.0;
+  const double beta = 0.0;
+  
   if( matrix_1 == NULL || matrix_2 == NULL ) return NULL;
-
-  size_t couplingLength = transpose_1 ? matrix_1->rowsNumber : matrix_1->columnsNumber;
   
-  if( couplingLength != ( transpose_2 ? matrix_2->columnsNumber : matrix_2->rowsNumber ) ) return NULL;
+  size_t couplingLength = ( transpose_1 == MATRIX_TRANSPOSE ) ? matrix_1->rowsNumber : matrix_1->columnsNumber;
+   
+  if( couplingLength != ( ( transpose_2 == MATRIX_TRANSPOSE ) ? matrix_2->columnsNumber : matrix_2->rowsNumber ) ) return NULL;
+   
+  result->rowsNumber = ( transpose_1 == MATRIX_TRANSPOSE ) ? matrix_1->columnsNumber : matrix_1->rowsNumber;
+  result->columnsNumber = ( transpose_2 == MATRIX_TRANSPOSE ) ? matrix_2->rowsNumber : matrix_2->columnsNumber;
   
-  size_t resultRowsNumber = transpose_1 ? matrix_1->columnsNumber : matrix_1->rowsNumber;
-  size_t resultColumnsNumber = transpose_2 ? matrix_2->rowsNumber : matrix_2->columnsNumber;
-
-  if( (result = Matrices_Resize( result, resultRowsNumber, resultColumnsNumber )) == NULL ) return NULL;
-
-  for( size_t row = 0; row < result->rowsNumber; row++ )
-  {
-    for( size_t column = 0; column < result->columnsNumber; column++ )
-    {
-      auxArray[ row * result->columnsNumber + column ] = 0.0;
-      for( size_t i = 0; i < couplingLength; i++ )
-      {
-        size_t elementIndex_1 = transpose_1 ? i * matrix_1->columnsNumber + row : row * matrix_1->columnsNumber + i;
-        size_t elementIndex_2 = transpose_2 ? column * matrix_2->columnsNumber + i : i * matrix_2->columnsNumber + column;
-        auxArray[ row * result->columnsNumber + column ] += matrix_1->data[ elementIndex_1 ] * matrix_2->data[ elementIndex_2 ];
-      }
-    }
-  }
-
-  memcpy( result->data, auxArray, result->rowsNumber * result->columnsNumber * sizeof(double) );
-
-  return result;
-}
-
-// NÃO USAR DIRETAMENTE !!
-void CofactorArray( double* matrixArray, size_t size, size_t elementRow, size_t elementColumn, double* result )
-{
-  size_t cofRow = 0, cofColumn = 0;
-  size_t cofSize = size - 1;
-  for( size_t row = 0; row < size; row++ )
-  {
-    for( size_t column = 0; column < size; column++ )
-    {
-      if( row != elementRow && column != elementColumn )
-      {
-        result[ cofRow * cofSize + cofColumn ] = matrixArray[ row * size + column ];
-
-        if( cofColumn < cofSize - 1 ) cofColumn++;
-        else
-        {
-          cofColumn = 0;
-          cofRow++;
-        }
-      }
-    }
-  }
-}
-
-// NÃO USAR DIRETAMENTE !!
-double ArrayDeterminant( double* matrixArray, size_t size )
-{
-  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
-
-  if( size == 1 ) return matrixArray[ 0 ];
-
-  double result = 0.0;
-  for( size_t c = 0; c < size; c++ )
-  {
-    CofactorArray( matrixArray, size, 0, c, (double*) auxArray );
-    result += pow( -1, c ) * matrixArray[ c ] * ArrayDeterminant( (double*) auxArray, size - 1 );
-  }
-
-  return result;
-}
-
-// NÃO USAR DIRETAMENTE !!
-double ArrayCofactor( double* matrixArray, size_t size, size_t row, size_t column )
-{
-  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
-
-  CofactorArray( matrixArray, size, row, column, (double*) auxArray );
-
-  double result = pow( -1, row + column ) * ArrayDeterminant( (double*) auxArray, size - 1 );
+  int lda = ( transpose_1 == MATRIX_TRANSPOSE ) ? couplingLength : result->rowsNumber;          // Distance between columns
+  int ldb = ( transpose_2 == MATRIX_TRANSPOSE ) ? result->columnsNumber : couplingLength;       // Distance between columns
+  
+  dgemm_( &transpose_1, &transpose_2, (int*) &(result->rowsNumber),(int*) &(result->columnsNumber), (int*) &(couplingLength), 
+          (double*) &alpha, matrix_1->data, &lda, matrix_2->data, &ldb, (double*) &beta, result->data, (int*) &result->rowsNumber );
 
   return result;
 }
@@ -293,26 +269,42 @@ double ArrayCofactor( double* matrixArray, size_t size, size_t row, size_t colum
 // Determinante de matriz
 double Matrices_Determinant( Matrix matrix )
 {
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  int pivotArray[ MATRIX_SIZE_MAX ];
+  int info;
+  
   if( matrix == NULL ) return 0.0;
 
   if( matrix->rowsNumber != matrix->columnsNumber ) return 0.0;
+  
+  memcpy( auxArray, matrix->data, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
+  
+  dgetrf_( (int*) &(matrix->rowsNumber), (int*) &(matrix->columnsNumber), auxArray, (int*) &(matrix->rowsNumber), pivotArray, &info );
+  
+  double determinant = 1.0;
+  for( size_t pivotIndex = 0; pivotIndex < matrix->rowsNumber; pivotIndex++ )
+  {
+    determinant *= auxArray[ pivotIndex * matrix->rowsNumber + pivotIndex ];
+    if( pivotArray[ pivotIndex ] != pivotIndex ) determinant *= -1.0;
+  }
 
-  return ArrayDeterminant( matrix->data, matrix->rowsNumber );
+  return determinant;
 }
 
 // Matriz transposta
 Matrix Matrices_Transpose( Matrix matrix, Matrix result )
 {
-  static double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
-
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  
   if( matrix == NULL ) return NULL;
 
-  if( (result = Matrices_Resize( result, matrix->columnsNumber, matrix->rowsNumber )) == NULL ) return NULL;
+  result->rowsNumber = matrix->columnsNumber;
+  result->columnsNumber = matrix->rowsNumber;
 
   for( size_t row = 0; row < result->rowsNumber; row++ )
   {
     for( size_t column = 0; column < result->columnsNumber; column++ )
-      auxArray[ row * matrix->columnsNumber + column ] = matrix->data[ column * matrix->columnsNumber + row ];
+      auxArray[ column * matrix->columnsNumber + row ] = matrix->data[ row * matrix->columnsNumber + column ];
   }
 
   memcpy( result->data, auxArray, result->rowsNumber * result->columnsNumber * sizeof(double) );
@@ -323,21 +315,31 @@ Matrix Matrices_Transpose( Matrix matrix, Matrix result )
 // Matriz inversa
 Matrix Matrices_Inverse( Matrix matrix, Matrix result )
 {
-  static double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  int pivotArray[ MATRIX_SIZE_MAX ];
+  int info;
+  
+  if( matrix == NULL || result == NULL ) return NULL;
 
-  double determinant = Matrices_Determinant( matrix );
+  if( matrix->rowsNumber != matrix->columnsNumber ) return NULL;
 
-  if( determinant == 0.0 ) return NULL;
-
-  if( (result = Matrices_Resize( result, matrix->columnsNumber, matrix->rowsNumber )) == NULL ) return NULL;
-
-  for( size_t row = 0; row < result->rowsNumber; row++ )
+  if( matrix != result )
   {
-    for( size_t column = 0; column < result->columnsNumber; column++ )
-      auxArray[ row * matrix->columnsNumber + column ] = ArrayCofactor( matrix->data, result->rowsNumber, column, row ) / determinant;
+    result->rowsNumber = matrix->rowsNumber;
+    result->columnsNumber = matrix->columnsNumber;
+  
+    memcpy( result->data, matrix->data, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
   }
-
-  memcpy( result->data, auxArray, result->rowsNumber * result->columnsNumber * sizeof(double) );
+  
+  dgetrf_( (int*) &(result->rowsNumber), (int*) &(result->columnsNumber), result->data, (int*) &(result->rowsNumber), pivotArray, &info );
+  
+  //for( size_t pivotIndex = 0; pivotIndex < result->rowsNumber; pivotIndex++ )
+  //{
+  //  if( auxArray[ pivotIndex * result->rowsNumber + pivotIndex ]; == 0.0 ) return NULL;
+  //}
+  
+  int workLength = result->rowsNumber * result->columnsNumber;
+  dgetri_( (int*) &(result->rowsNumber), result->data, (int*) &(result->rowsNumber), pivotArray, auxArray, &workLength, &info );
 
   return result;
 }
@@ -347,14 +349,15 @@ void Matrices_Print( Matrix matrix )
 {
   if( matrix == NULL ) return;
 
+  printf( "[%ux%u] matrix:\n", matrix->rowsNumber, matrix->columnsNumber );
   for( size_t row = 0; row < matrix->rowsNumber; row++ )
   {
-    fprintf( stderr, "[" );
+    printf( "[" );
     for( size_t column = 0; column < matrix->columnsNumber; column++ )
-      fprintf( stderr, " %.6f", matrix->data[ row * matrix->columnsNumber + column ] );
-    fprintf( stderr, " ]\n" );
+      printf( " %.6f", matrix->data[ column * matrix->rowsNumber + row ] );
+    printf( " ]\n" );
   }
-   fprintf( stderr, "\n" );
+  printf( "\n" );
 }
 
 #endif // MATRICES_H
