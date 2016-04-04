@@ -21,7 +21,6 @@ typedef struct _KalmanFilterData
   Matrix predictionCovarianceNoise;                   // Q
   Matrix errorCovariance;                             // S
   Matrix errorCovarianceNoise;                        // R
-  Matrix aux;
 }
 KalmanFilterData;
 
@@ -48,14 +47,13 @@ KalmanFilter Kalman_CreateFilter( size_t dimensionsNumber )
   memset( newFilter, 0, sizeof(KalmanFilterData) );
   
   newFilter->state = Matrices_Create( NULL, dimensionsNumber, 1 );
+  newFilter->error = Matrices_Create( NULL, dimensionsNumber, 1 );
   
   newFilter->gain = Matrices_CreateSquare( dimensionsNumber, MATRIX_ZERO );
   
   newFilter->prediction = Matrices_CreateSquare( dimensionsNumber, MATRIX_IDENTITY );
   newFilter->predictionCovariance = Matrices_CreateSquare( dimensionsNumber, MATRIX_ZERO );
   newFilter->predictionCovarianceNoise = Matrices_CreateSquare( dimensionsNumber, MATRIX_IDENTITY );
-  
-  newFilter->aux = Matrices_CreateSquare( dimensionsNumber, MATRIX_ZERO );
   
   Kalman_Reset( newFilter );
   
@@ -77,8 +75,6 @@ void Kalman_DiscardFilter( KalmanFilter filter )
   Matrices_Discard( filter->errorCovariance );
   Matrices_Discard( filter->errorCovarianceNoise );
   
-  Matrices_Discard( filter->aux );
-  
   free( filter );
 }
 
@@ -94,7 +90,6 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
   size_t newInputsNumber = newInputIndex + 1;
   
   filter->input = Matrices_Resize( filter->input, newInputsNumber, 1 );
-  filter->error = Matrices_Resize( filter->error, newInputsNumber, 1 );
   
   filter->inputModel = Matrices_Resize( filter->inputModel, newInputsNumber, dimensionsNumber );
   for( size_t stateIndex = 0; stateIndex < dimensionsNumber; stateIndex++ )
@@ -108,7 +103,7 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
   if( newInputsNumber > dimensionsNumber ) 
   {
     filter->gain = Matrices_Resize( filter->gain, newInputsNumber, newInputsNumber );
-    filter->aux = Matrices_Resize( filter->aux, newInputsNumber, newInputsNumber );
+    filter->error = Matrices_Resize( filter->error, newInputsNumber, 1 );
   }
 }
 
@@ -138,12 +133,11 @@ double* Kalman_Predict( KalmanFilter filter, double* result )
   if( filter == NULL ) return NULL;
   
   // x = F*x
-  Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->state, MATRIX_KEEP, filter->aux );                                         // F[nxn] * x[nx1] -> a[nx1]
-  Matrices_Copy( filter->aux, filter->state );                                                                                      // a[nx1] -> x[nx1]
+  Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->state, MATRIX_KEEP, filter->state );                                       // F[nxn] * x[nx1] -> x[nx1]
   
   // P = F*P*F' + Q
-  Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->aux );                          // F[nxn] * P[nxn] -> a[nxn]
-  Matrices_Dot( filter->aux, MATRIX_KEEP, filter->prediction, MATRIX_TRANSPOSE, filter->predictionCovariance );                     // a[nxn] * F'[nxn] -> P[nxn]
+  Matrices_Dot( filter->prediction, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->predictionCovariance );         // F[nxn] * P[nxn] -> P[nxn]
+  Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->prediction, MATRIX_TRANSPOSE, filter->predictionCovariance );    // P[nxn] * F'[nxn] -> P[nxn]
   Matrices_Sum( filter->predictionCovariance, 1.0, filter->predictionCovarianceNoise, 1.0, filter->predictionCovariance );          // P[nxn] + Q[nxn] -> P[nxn]
   
   if( result == NULL ) return NULL;
@@ -162,23 +156,25 @@ double* Kalman_Update( KalmanFilter filter, double* inputList, double* result )
   Matrices_Sum( filter->input, 1.0, filter->error, -1.0, filter->error );                                                 // y[mx1] - e[mx1] -> e[mx1]
   
   // S = H*P*H' + R
-  Matrices_Dot( filter->inputModel, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->aux );                // H[mxn] * P[nxn] -> a[mxn]
-  Matrices_Dot( filter->aux, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->errorCovariance );                // a[mxn] * H'[nxm] -> S[mxm]
+  Matrices_Dot( filter->inputModel, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->errorCovariance );    // H[mxn] * P[nxn] -> S[mxn]
+  Matrices_Dot( filter->errorCovariance, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->errorCovariance );    // S[mxn] * H'[nxm] -> S[mxm]
   Matrices_Sum( filter->errorCovariance, 1.0, filter->errorCovarianceNoise, 1.0, filter->errorCovariance );               // S[mxm] + R[mxm] -> S[mxm]
   
   // K = P*H' * S^(-1)
-  Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->aux );           // P[nxn] * H'[nxm] -> a[nxm]
-  Matrices_Inverse( filter->errorCovariance, filter->errorCovariance );                                                   // S^(-1)[mxm] -> S[mxm]
-  Matrices_Dot( filter->aux, MATRIX_KEEP, filter->errorCovariance, MATRIX_KEEP, filter->gain );                           // a[nxm] * S[mxm] -> K[nxm]
-  
-  // x = x + K*e
-  Matrices_Dot( filter->gain, MATRIX_KEEP, filter->error, MATRIX_KEEP, filter->aux );                                     // K[nxm] * e[mx1] -> a[nx1]
-  Matrices_Sum( filter->state, 1.0, filter->aux, 1.0, filter->state );                                                    // x[nx1] + a[nx1] -> x[nx1]
-  
-  // P' = P - K*H*P
-  Matrices_Dot( filter->gain, MATRIX_KEEP, filter->inputModel, MATRIX_KEEP, filter->aux );                                // K[nxm] * H[mxn] -> a[nxn]
-  Matrices_Dot( filter->aux, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->gain );                      // a[nxn] * P[nxn] -> K[nxn]
-  Matrices_Sum( filter->predictionCovariance, 1.0, filter->gain, -1.0, filter->predictionCovariance );                    // P[nxn] - K[nxn] -> P[nxn]
+  Matrices_Dot( filter->predictionCovariance, MATRIX_KEEP, filter->inputModel, MATRIX_TRANSPOSE, filter->gain );          // P[nxn] * H'[nxm] -> K[nxm]
+  if( Matrices_Inverse( filter->errorCovariance, filter->errorCovariance ) != NULL )                                      // S^(-1)[mxm] -> S[mxm]
+  {
+    Matrices_Dot( filter->gain, MATRIX_KEEP, filter->errorCovariance, MATRIX_KEEP, filter->gain );                          // K[nxm] * S[mxm] -> K[nxm]
+    
+    // x = x + K*e
+    Matrices_Dot( filter->gain, MATRIX_KEEP, filter->error, MATRIX_KEEP, filter->error );                                   // K[nxm] * e[mx1] -> e[nx1]
+    Matrices_Sum( filter->state, 1.0, filter->error, 1.0, filter->state );                                                  // x[nx1] + e[nx1] -> x[nx1]
+    
+    // P' = P - K*H*P
+    Matrices_Dot( filter->gain, MATRIX_KEEP, filter->inputModel, MATRIX_KEEP, filter->gain );                               // K[nxm] * H[mxn] -> K[nxn]
+    Matrices_Dot( filter->gain, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->gain );                     // K[nxn] * P[nxn] -> K[nxn]
+    Matrices_Sum( filter->predictionCovariance, 1.0, filter->gain, -1.0, filter->predictionCovariance );                    // P[nxn] - K[nxn] -> P[nxn]
+  }
   
   if( result == NULL ) return NULL;
   

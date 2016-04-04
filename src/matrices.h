@@ -248,6 +248,8 @@ Matrix Matrices_Dot( Matrix matrix_1, char transpose_1, Matrix matrix_2, char tr
   const double alpha = 1.0;
   const double beta = 0.0;
   
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  
   if( matrix_1 == NULL || matrix_2 == NULL ) return NULL;
   
   size_t couplingLength = ( transpose_1 == MATRIX_TRANSPOSE ) ? matrix_1->rowsNumber : matrix_1->columnsNumber;
@@ -257,11 +259,13 @@ Matrix Matrices_Dot( Matrix matrix_1, char transpose_1, Matrix matrix_2, char tr
   result->rowsNumber = ( transpose_1 == MATRIX_TRANSPOSE ) ? matrix_1->columnsNumber : matrix_1->rowsNumber;
   result->columnsNumber = ( transpose_2 == MATRIX_TRANSPOSE ) ? matrix_2->rowsNumber : matrix_2->columnsNumber;
   
-  int lda = ( transpose_1 == MATRIX_TRANSPOSE ) ? couplingLength : result->rowsNumber;          // Distance between columns
-  int ldb = ( transpose_2 == MATRIX_TRANSPOSE ) ? result->columnsNumber : couplingLength;       // Distance between columns
+  int stride_1 = ( transpose_1 == MATRIX_TRANSPOSE ) ? couplingLength : result->rowsNumber;          // Distance between columns
+  int stride_2 = ( transpose_2 == MATRIX_TRANSPOSE ) ? result->columnsNumber : couplingLength;       // Distance between columns
   
   dgemm_( &transpose_1, &transpose_2, (int*) &(result->rowsNumber),(int*) &(result->columnsNumber), (int*) &(couplingLength), 
-          (double*) &alpha, matrix_1->data, &lda, matrix_2->data, &ldb, (double*) &beta, result->data, (int*) &result->rowsNumber );
+          (double*) &alpha, matrix_1->data, &stride_1, matrix_2->data, &stride_2, (double*) &beta, auxArray, (int*) &result->rowsNumber );
+  
+  memcpy( result->data, auxArray, result->rowsNumber * result->columnsNumber * sizeof(double) );
 
   return result;
 }
@@ -333,13 +337,17 @@ Matrix Matrices_Inverse( Matrix matrix, Matrix result )
   
   dgetrf_( (int*) &(result->rowsNumber), (int*) &(result->columnsNumber), result->data, (int*) &(result->rowsNumber), pivotArray, &info );
   
-  //for( size_t pivotIndex = 0; pivotIndex < result->rowsNumber; pivotIndex++ )
-  //{
-  //  if( auxArray[ pivotIndex * result->rowsNumber + pivotIndex ]; == 0.0 ) return NULL;
-  //}
+  if( info != 0 ) return NULL;
+  
+  for( size_t pivotIndex = 0; pivotIndex < result->rowsNumber; pivotIndex++ )
+  {
+    if( auxArray[ pivotIndex * result->rowsNumber + pivotIndex ] == 0.0 ) return NULL;
+  }
   
   int workLength = result->rowsNumber * result->columnsNumber;
   dgetri_( (int*) &(result->rowsNumber), result->data, (int*) &(result->rowsNumber), pivotArray, auxArray, &workLength, &info );
+  
+  if( info != 0 ) return NULL;
 
   return result;
 }
