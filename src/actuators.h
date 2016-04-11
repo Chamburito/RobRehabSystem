@@ -247,23 +247,14 @@ double* Actuators_UpdateMeasures( Actuator actuator, double* measuresList )
   
   DEBUG_UPDATE( "reading measures from actuator %p", actuator );
   
-  /*for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
+  for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
   {
     double sensorMeasure = Sensors_Update( actuator->sensorsList[ sensorIndex ] );
     Kalman_SetInput( actuator->sensorFilter, sensorIndex, sensorMeasure );
   }
 
-  (void) Kalman_Predict( actuator->sensorFilter );
-  double* fusedSensorSignal = Kalman_Update( actuator->sensorFilter );
-  if( fusedSensorSignal != NULL )
-  {
-    actuator->measuresList[ CONTROL_POSITION ] = fusedSensorSignal[ CONTROL_POSITION ];
-    actuator->measuresList[ CONTROL_VELOCITY ] = fusedSensorSignal[ CONTROL_VELOCITY ];
-    actuator->measuresList[ CONTROL_ACCELERATION ] = fusedSensorSignal[ CONTROL_ACCELERATION ];
-    actuator->measuresList[ CONTROL_FORCE ] = fusedSensorSignal[ CONTROL_FORCE ];
-    
-    //DEBUG_PRINT( "fused: position: %g - velocity: %g", fusedSensorSignal[ 0 ], fusedSensorSignal[ 1 ] );
-  }*/
+  (void) Kalman_Predict( actuator->sensorFilter, actuator->measuresList );
+  (void) Kalman_Update( actuator->sensorFilter, NULL, actuator->measuresList );
   
   actuator->measuresList[ CONTROL_POSITION ] = Sensors.Update( actuator->sensorsList[ 0 ] );
   actuator->measuresList[ CONTROL_VELOCITY ] = Sensors.Update( actuator->sensorsList[ 1 ] );

@@ -3,7 +3,11 @@
 
 #include "interfaces.h"
 
-#include "matrices.h"
+#ifdef _LINK_CVI_LVRT_
+  #include "matrices_cvi_rt.h"
+#else
+  #include "matrices.h"
+#endif
 
 #include <math.h>
 #include <stdlib.h>
@@ -145,11 +149,11 @@ double* Kalman_Predict( KalmanFilter filter, double* result )
   return Matrices_GetData( filter->state, result );
 }
 
-double* Kalman_Update( KalmanFilter filter, double* inputList, double* result )
+double* Kalman_Update( KalmanFilter filter, double* inputsList, double* result )
 {
   if( filter == NULL ) return NULL;
   
-  if( inputList != NULL ) Matrices_SetData( filter->input, inputList );
+  if( inputsList != NULL ) Matrices_SetData( filter->input, inputsList );
   
   // e = y - H*x
   Matrices_Dot( filter->inputModel, MATRIX_KEEP, filter->state, MATRIX_KEEP, filter->error );                             // H[mxn] * x[nx1] -> e[mx1]

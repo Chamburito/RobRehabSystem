@@ -1,0 +1,4 @@
+EXPORTS
+dgemm_
+dgetrf_
+dgetri_

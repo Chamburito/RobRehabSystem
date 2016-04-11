@@ -298,7 +298,7 @@ double Matrices_Determinant( Matrix matrix )
 // Matriz transposta
 Matrix Matrices_Transpose( Matrix matrix, Matrix result )
 {
-  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ] = { 0 };
   
   if( matrix == NULL ) return NULL;
 
@@ -319,7 +319,7 @@ Matrix Matrices_Transpose( Matrix matrix, Matrix result )
 // Matriz inversa
 Matrix Matrices_Inverse( Matrix matrix, Matrix result )
 {
-  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ] = { 0 };
   int pivotArray[ MATRIX_SIZE_MAX ];
   int info;
   
