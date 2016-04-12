@@ -311,9 +311,9 @@ static void* AsyncControl( void* ref_robot )
       (void) Actuators.RunControl( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresTable[ jointIndex ], robot->jointSetpointsTable[ jointIndex ] );
     
     elapsedTime = Timing.GetExecTimeMilliseconds() - execTime;
-    /*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (before delay): %lu ms", robot, elapsedTime );
+    ///*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (before delay): %lu ms", robot, elapsedTime );
     if( elapsedTime < CONTROL_PASS_INTERVAL_MS ) Timing.Delay( CONTROL_PASS_INTERVAL_MS - elapsedTime );
-    /*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (after delay): %lu ms", robot, Timing.GetExecTimeMilliseconds() - execTime );
+    ///*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (after delay): %lu ms", robot, Timing.GetExecTimeMilliseconds() - execTime );
   }
   
   return NULL;

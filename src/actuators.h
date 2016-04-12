@@ -126,6 +126,7 @@ Actuator Actuators_Init( const char* configFileName )
 
     DEBUG_PRINT( "created series elastic actuator %s", configFileName );
 
+    Actuators_Reset( newActuator );
     Actuators_Enable( newActuator );
   }
   else
