@@ -441,6 +441,8 @@ stdbool.h
 -
 time.h
 -
+signal.h
+-
 
 /home/rerob/Projetos/RobRehabSystem/src/sensors.h
 math.h
