@@ -36,6 +36,8 @@ inline int ConfigParsing_LoadConfigFile( const char* configFilePath )
   char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
   snprintf( filePath, PARSER_MAX_FILE_PATH_LENGTH, "config/%s", configFilePath );
   
+  DEBUG_PRINT( "looking for config file %s", configFilePath );
+  
   return parser.LoadFileData( filePath );
 }
 

@@ -15,12 +15,13 @@
 #include <malloc.h>
 
 #include "debug/debug.h"
+#include "interfaces.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const pthread_t* INVALID_THREAD_HANDLE = NULL;
+#define THREAD_INVALID_HANDLE NULL
 #define INFINITE 0xFFFFFFFF
   
 // Returns unique identifier of the calling thread
@@ -30,13 +31,13 @@ const pthread_t* INVALID_THREAD_HANDLE = NULL;
 // when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
 enum { THREAD_DETACHED, THREAD_JOINABLE };
 
-typedef struct _Controller
+typedef struct _ThreadController
 {
   pthread_t handle;
   pthread_cond_t condition;
   pthread_mutex_t lock;
   void* result;
-} Controller;
+} ThreadController;
 
 // Aliases for platform abstraction
 typedef pthread_t* Thread;
@@ -57,7 +58,7 @@ Thread Threading_StartThread( void* (*function)( void* ), void* args, int mode )
   if( pthread_create( handle, NULL, function, args ) != 0 )
   {
     ERROR_PRINT( "pthread_create: failed creating new thread with function %p", function );
-    return INVALID_THREAD_HANDLE;
+    return THREAD_INVALID_HANDLE;
   }
   
   DEBUG_PRINT( "created thread %p successfully", handle );
@@ -70,7 +71,7 @@ Thread Threading_StartThread( void* (*function)( void* ), void* args, int mode )
 // Waiter function to be called asyncronously
 static void* Waiter( void *args )
 {
-  Controller* controller = (Controller*) args;
+  ThreadController* controller = (ThreadController*) args;
     
   pthread_join( controller->handle, &(controller->result) );
   pthread_mutex_lock( &(controller->lock) );
@@ -86,10 +87,10 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milisseconds )
 {
   static struct timespec timeout;
   pthread_t controlHandle;
-  Controller controlArgs = { *handle };
+  ThreadController controlArgs = { *handle };
   int controlResult;
 
-  if( handle != INVALID_THREAD_HANDLE )
+  if( handle != THREAD_INVALID_HANDLE )
   {
     clock_gettime( CLOCK_REALTIME, &timeout );
 

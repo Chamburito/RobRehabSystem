@@ -2,50 +2,35 @@
 BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x1c\x00R\x00o\x00b\x00R\x00e\x00h\x00a\x00b\x00S\x00y\x00s\x00t\x00e\x00m)
 
 [CMake]
-Build Directory Count=2
-Current Build Directory Index=1
+Build Directory Count=1
+Current Build Directory Index=0
 ProjectRootRelative=./
 
 [CMake][CMake Build Directory 0]
-Build Directory Path=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/bin
-Build Type=Debug
+Build Directory Path=/home/rerob/Projetos/RobRehabSystem/build
+Build Type=Release
 CMake Binary=/usr/bin/cmake
 Environment Profile=
 Extra Arguments=
 Install Directory=
 
-[CMake][CMake Build Directory 1]
-Build Directory Path=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/build
-Build Type=RelWithDebInfo
-CMake Binary=file:///usr/bin/cmake
-Environment Profile=
-Extra Arguments=
-Install Directory=file:///usr/local
-
 [CustomDefinesAndIncludes][ProjectPath0]
 Path=.
+parseAmbiguousAsCPP=false
 parserArguments=-fspell-checking -Wdocumentation -std=c++11 -Wall
+parserArgumentsC=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=gnu99
 
 [CustomDefinesAndIncludes][ProjectPath0][Compiler]
 Name=Clang
-Path=clang
-Type=Clang
 
 [CustomDefinesAndIncludes][ProjectPath0][Defines]
 DEBUG=1
-DEEP_DEBUG=1
-SIMPLE_DEBUG=1
+DEEP_DEBUG=0
+ROBREHAB_CONTROL=1
+SIMPLE_DEBUG=0
 
 [CustomDefinesAndIncludes][ProjectPath0][Includes]
-1=./src/
-2=./src/actuator/
-3=./src/axis/
-4=./src/debug/
-5=./src/file_parsing/
-6=./src/ip_network/
-7=./src/shared_memory/
-8=./src/threads/
-9=./src/time/
+1=/home/rerob/Projetos/RobRehabSystem/src/
 
 [Defines And Includes][Compiler]
 Name=GCC

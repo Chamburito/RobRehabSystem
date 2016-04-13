@@ -1,6 +1,14 @@
 #ifndef ACTUATOR_H
 #define ACTUATOR_H 
 
+#ifdef _LINK_LV_CVRT_
+  #include "time/timing_cvi_rt.h"
+#elif WIN32
+  #include "time/timing_windows.h"
+#else
+  #include "time/timing_unix.h"
+#endif
+
 #include "actuator_control/interface.h"
 #include "plugin_loader.h"
 
@@ -49,12 +57,13 @@ typedef ActuatorData* Actuator;
 INIT_NAMESPACE_INTERFACE( Actuators, ACTUATOR_INTERFACE )
 
 
-const double CONTROL_PASS_INTERVAL = 0.005;
+#define CONTROL_PASS_INTERVAL 0.005
 
 const char* CONTROL_MODE_NAMES[ CONTROL_MODES_NUMBER ] = { "POSITION", "VELOCITY", "FORCE", "ACCELERATION" };
-char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
 Actuator Actuators_Init( const char* configFileName )
 {
+  char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
+  
   DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
   
   Actuator newActuator = NULL;
@@ -98,7 +107,7 @@ Actuator Actuators_Init( const char* configFileName )
     if( (newActuator->motor = Motors.Init( parser.GetStringValue( configFileID, "", "motor.id" ) )) == NULL ) loadSuccess = false;
     
     newActuator->controlMode = CONTROL_POSITION;
-    char* controlModeName = parser.GetStringValue( configFileID, CONTROL_MODE_NAMES[ CONTROL_POSITION ], "motor.output_variable" );
+    char* controlModeName = parser.GetStringValue( configFileID, (char*) CONTROL_MODE_NAMES[ CONTROL_POSITION ], "motor.output_variable" );
     for( int controlModeIndex = 0; controlModeIndex < CONTROL_MODES_NUMBER; controlModeIndex++ )
     {
       if( strcmp( controlModeName, CONTROL_MODE_NAMES[ controlModeIndex ] ) == 0 ) newActuator->controlMode = controlModeIndex;

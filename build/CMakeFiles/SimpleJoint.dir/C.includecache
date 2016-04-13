@@ -1,0 +1,46 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../src/control_definitions.h
+
+../src/debug/debug.h
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+errno.h
+-
+
+../src/interfaces.h
+debug/debug.h
+../src/debug/debug.h
+stdbool.h
+-
+stdint.h
+-
+stddef.h
+-
+stdlib.h
+-
+unistd.h
+-
+
+../src/robot_control/interface.h
+interfaces.h
+../src/robot_control/interfaces.h
+control_definitions.h
+../src/robot_control/control_definitions.h
+
+/home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c
+robot_control/interface.h
+/home/rerob/Projetos/RobRehabSystem/src/robot_control/robot_control/interface.h
+math.h
+-
+

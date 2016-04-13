@@ -10,6 +10,7 @@
   #define UNLOAD_PLUGIN( pluginHandle ) FreeLibrary( pluginHandle )
   
   #define PLUGIN_HANDLE HINSTANCE
+  //#define PLUGIN_PREFIX ""
   #define PLUGIN_EXTENSION "dll"
 #else
   #include <stdint.h>
@@ -20,6 +21,7 @@
   #define UNLOAD_PLUGIN( pluginHandle ) dlclose( pluginHandle ) 
   
   #define PLUGIN_HANDLE void*
+  //#define PLUGIN_PREFIX "lib"
   #define PLUGIN_EXTENSION "so" 
 #endif
       
@@ -34,7 +36,7 @@
       
 #define GET_PLUGIN_IMPLEMENTATION( interfaceFunctions, interfaceFilePath, interfaceName, success ) \
   do { char interfaceFilePathExt[ 256 ]; \
-  sprintf( interfaceFilePathExt, "plugins/%s.%s", interfaceFilePath, PLUGIN_EXTENSION ); \
+  sprintf( interfaceFilePathExt, "plugins/%s." PLUGIN_EXTENSION, interfaceFilePath ); \
   printf( "trying to load plugin %s\n", interfaceFilePathExt ); \
   PLUGIN_HANDLE pluginHandle = LOAD_PLUGIN( interfaceFilePathExt ); \
   if( success != NULL ) *success = (bool) pluginHandle; \

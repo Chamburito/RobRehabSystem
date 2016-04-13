@@ -9,9 +9,14 @@
 #include <stdlib.h>
 #ifdef __unix__
   #include <unistd.h>
+  #define __declspec(dllexport)
 #endif
 
-#define DEFINE_INTERFACE_FUNCTION( rtype, interface, func, ... ) extern "C" __declspec(dllexport) rtype func( __VA_ARGS__ );
+#ifdef __cplusplus 
+extern "C" {
+#endif
+
+#define DEFINE_INTERFACE_FUNCTION( rtype, interface, func, ... ) __declspec(dllexport) rtype func( __VA_ARGS__ );
 #define DEFINE_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
 #define INIT_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) .func = func,
       
@@ -35,5 +40,9 @@
           functions( namespace, DEFINE_NAMESPACE_FUNC_PTR ) \
         } \
         namespace = { functions( namespace, INIT_NAMESPACE_FUNC_PTR ) };
+        
+#ifdef __cplusplus 
+}
+#endif
 
 #endif  // INTERFACES_H

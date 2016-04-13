@@ -7,7 +7,15 @@
 #define TIMING_H
 
 #include <time.h>
-//#include <unistd.h>
+
+#include "interfaces.h"
+
+#define TIMING_FUNCTIONS( namespace, function_init ) \
+        function_init( void, namespace, Delay, unsigned long ) \
+        function_init( unsigned long, namespace, GetExecTimeMilliseconds, void ) \
+        function_init( double, namespace, GetExecTimeSeconds, void )
+
+INIT_NAMESPACE_INTERFACE( Timing, TIMING_FUNCTIONS )
 
 // Make the calling thread wait for the given time ( in milliseconds )
 void Timing_Delay( unsigned long milliseconds )

@@ -71,7 +71,7 @@ SHMController SHMControl_InitData( const char* bufferName, enum SHMControlTypes 
 {
   char channelName[ SHARED_VARIABLE_NAME_MAX_LENGTH ];
   
-  if( controlType < 0 || controlType >= SHM_CONTROL_TYPES_NUMBER ) 
+  if( controlType >= SHM_CONTROL_TYPES_NUMBER ) 
   {
     DEBUG_PRINT( "invalid control type: %d", controlType );
     return NULL;

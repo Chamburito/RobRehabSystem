@@ -1,1 +1,0 @@
-/usr/bin/cc  -O2 -g -DNDEBUG -DDEBUG_1   CMakeFiles/RobRehabServer.dir/src/server_main.c.o  -o ../RobRehabServer -rdynamic -lpython3.4m -lpthread 

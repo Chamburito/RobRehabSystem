@@ -13,7 +13,7 @@
 
 #include "debug/async_debug.h"
 
-const unsigned long UPDATE_INTERVAL_MS = (unsigned long) CONTROL_PASS_INTERVAL * 1000;
+#define UPDATE_INTERVAL_MS (unsigned long) ( CONTROL_PASS_INTERVAL * 1000 )
 
 kvec_t( int ) robotIDsList;
 
@@ -129,10 +129,11 @@ void RobRehabControl_End()
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Control ended on thread %x", THREAD_ID );
 }
 
-const size_t AXIS_DATA_BLOCK_SIZE = SHM_AXIS_FLOATS_NUMBER * sizeof(float);
-const size_t JOINT_DATA_BLOCK_SIZE = SHM_JOINT_FLOATS_NUMBER * sizeof(float);
 void RobRehabControl_Update()
 {
+  const size_t AXIS_DATA_BLOCK_SIZE = SHM_AXIS_FLOATS_NUMBER * sizeof(float);
+  const size_t JOINT_DATA_BLOCK_SIZE = SHM_JOINT_FLOATS_NUMBER * sizeof(float);  
+
   static uint8_t controlData[ SHM_CONTROL_MAX_DATA_SIZE ];
 
   SHMControl.GetData( sharedRobotAxesData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );

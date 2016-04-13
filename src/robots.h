@@ -247,7 +247,7 @@ inline double Robots_SetJointSetpoint( Joint joint, enum ControlVariables variab
 {
   if( joint == NULL ) return 0.0;
   
-  if( variable < 0 || variable >= CONTROL_VARS_NUMBER ) return 0.0;
+  if( variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
   joint->setpointsList[ variable ] = value;
   
@@ -258,7 +258,7 @@ inline double Robots_SetAxisSetpoint( Axis axis, enum ControlVariables variable,
 {
   if( axis == NULL ) return 0.0;
   
-  if( variable < 0 || variable >= CONTROL_VARS_NUMBER ) return 0.0;
+  if( variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
   axis->setpointsList[ variable ] = value;
   
@@ -286,10 +286,10 @@ inline size_t Robots_GetDoFsNumber( int robotID )
 /////                         ASYNCRONOUS CONTROL                           /////
 /////////////////////////////////////////////////////////////////////////////////
 
-const unsigned long CONTROL_PASS_INTERVAL_MS = (unsigned long) ( 1000 * CONTROL_PASS_INTERVAL );
-
 static void* AsyncControl( void* ref_robot )
 {
+  const unsigned long CONTROL_PASS_INTERVAL_MS = (unsigned long) ( 1000 * CONTROL_PASS_INTERVAL );
+  
   Robot robot = (Robot) ref_robot;
   
   unsigned long execTime, elapsedTime;
@@ -326,7 +326,7 @@ static void* AsyncControl( void* ref_robot )
 char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
 static inline Robot LoadRobotData( const char* configFileName )
 {
-  DEBUG_PRINT( "Trying to create robot robot %s", configFileName );
+  DEBUG_PRINT( "Trying to create robot %s", configFileName );
   
   Robot newRobot = NULL;
   

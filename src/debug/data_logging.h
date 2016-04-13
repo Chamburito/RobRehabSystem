@@ -12,7 +12,7 @@
 
 #include "klib/khash.h"
 
-#include "async_debug.h"
+#include "debug/async_debug.h"
 
 const size_t DATA_LOG_MAX_PRECISION = 15;
 
@@ -25,7 +25,7 @@ typedef struct _LogData
   double* memoryBuffer;
   size_t memoryBufferLength;
   size_t memoryValuesCount;
-  size_t dataPrecision;
+  int dataPrecision;
 }
 LogData;
 
@@ -44,7 +44,7 @@ static khash_t( LogInt )* logsList = NULL;
 
 INIT_NAMESPACE_INTERFACE( DataLogging, DATA_LOGGING_FUNCTIONS )
 
-const size_t LOG_FILE_PATH_MAX_LEN = 256;
+#define LOG_FILE_PATH_MAX_LEN 256
 static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t memoryBufferLength )
 {
   static char logFilePathExt[ LOG_FILE_PATH_MAX_LEN ];
