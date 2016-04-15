@@ -1,32 +1,37 @@
 [
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DForcePIControl_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/actuator_control  -O3 -DNDEBUG -fPIC   -shared -fPIC -lm -o CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c",
+  "command": "/usr/bin/c++   -DOpenSimModel_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control -I/home/rerob/Projetos/RobRehabSystem/src/robot_control/SimTK/simbody  -O3 -DNDEBUG -fPIC   -std=gnu++11 -o CMakeFiles/OpenSimModel.dir/src/robot_control/open_sim_model.cpp.o -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/open_sim_model.cpp",
+  "file": "/home/rerob/Projetos/RobRehabSystem/src/robot_control/open_sim_model.cpp"
+},
+{
+  "directory": "/home/rerob/Projetos/RobRehabSystem/build",
+  "command": "/usr/bin/cc  -DForcePIControl_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/actuator_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DDEBUG -DROBREHAB_CONTROL -I/home/rerob/Projetos/RobRehabSystem/src  -O3 -DNDEBUG   -o CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c",
+  "command": "/usr/bin/cc  -DDEBUG -DROBREHAB_CONTROL -I/home/rerob/Projetos/RobRehabSystem/src  -O3 -DNDEBUG   -std=gnu99 -o CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DJSON_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/data_io  -O3 -DNDEBUG -fPIC   -shared -fPIC -o CMakeFiles/JSON.dir/src/data_io/json_parser.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/data_io/json_parser.c",
+  "command": "/usr/bin/cc  -DJSON_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/data_io  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/JSON.dir/src/data_io/json_parser.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/data_io/json_parser.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/data_io/json_parser.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DJSON_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/data_io  -O3 -DNDEBUG -fPIC   -shared -fPIC -o CMakeFiles/JSON.dir/src/klib/kson.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/klib/kson.c",
+  "command": "/usr/bin/cc  -DJSON_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/data_io  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/JSON.dir/src/klib/kson.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/klib/kson.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/klib/kson.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DNICANEPOS_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/signal_io  -O3 -DNDEBUG -fPIC   -shared -fPIC -o CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c",
+  "command": "/usr/bin/cc  -DNICANEPOS_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/signal_io  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DSimpleJoint_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control  -O3 -DNDEBUG -fPIC   -shared -fPIC -lm -o CMakeFiles/SimpleJoint.dir/src/robot_control/simple_joint.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c",
+  "command": "/usr/bin/cc  -DSimpleJoint_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/SimpleJoint.dir/src/robot_control/simple_joint.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c"
 }
 ]

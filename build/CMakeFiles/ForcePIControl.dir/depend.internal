@@ -5,7 +5,7 @@ CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o
  ../src/actuator_control/interface.h
  ../src/control_definitions.h
  ../src/debug/async_debug.h
- ../src/debug/debug.h
+ ../src/debug/sync_debug.h
  ../src/interfaces.h
  ../src/threads/threads_unix.h
  ../src/threads/threads_windows.h

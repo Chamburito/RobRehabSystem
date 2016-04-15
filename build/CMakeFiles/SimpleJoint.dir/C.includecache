@@ -8,19 +8,7 @@
 
 ../src/control_definitions.h
 
-../src/debug/debug.h
-stdio.h
--
-stdlib.h
--
-string.h
--
-errno.h
--
-
 ../src/interfaces.h
-debug/debug.h
-../src/debug/debug.h
 stdbool.h
 -
 stdint.h

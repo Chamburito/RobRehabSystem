@@ -32,13 +32,16 @@ int main( int argc, char* argv[] )
   
   signal( SIGINT, HandleExit );
   
-  if( SUBSYSTEM.Init( "JSON" ) != -1 )
+  if( argc > 1 )
   {
-    while( isRunning ) // Check for program termination conditions
+    if( SUBSYSTEM.Init( argv[ 1 ] ) != -1 )
     {
-      SUBSYSTEM.Update();
-    
-      nanosleep( &UPDATE_TIMESPEC, NULL ); // Sleep to give the desired loop rate.
+      while( isRunning ) // Check for program termination conditions
+      {
+        SUBSYSTEM.Update();
+      
+        nanosleep( &UPDATE_TIMESPEC, NULL ); // Sleep to give the desired loop rate.
+      }
     }
   }
   

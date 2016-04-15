@@ -77,22 +77,26 @@ int RobRehabControl_Init( const char* configType )
               sprintf( robotJointsInfo + strlen(robotJointsInfo), "%lu:%s", kv_size( robotIDsList ), robotName );
               kv_push( int, robotIDsList, robotID );
 
-              size_t dofsNumber = Robots.GetDoFsNumber( robotID );
-              for( size_t dofIndex = 0; dofIndex < dofsNumber; dofIndex++ )
+              size_t axesNumber = Robots.GetAxesNumber( robotID );
+              for( size_t axisIndex = 0; axisIndex < axesNumber; axisIndex++ )
               {
-                char* axisName = Robots.GetAxisName( robotID, dofIndex );
+                char* axisName = Robots.GetAxisName( robotID, axisIndex );
                 if( axisName != NULL ) 
                 {
                   if( strlen(robotAxesInfo) > 0 ) strcat( robotAxesInfo, "|" );
                   sprintf( robotAxesInfo + strlen(robotAxesInfo), "%lu:%s-%s", kv_size( axesList ), robotName, axisName );
-                  kv_push( Axis, axesList, Robots.GetAxis( robotID, dofIndex ) );
+                  kv_push( Axis, axesList, Robots.GetAxis( robotID, axisIndex ) );
                 }
+              }
 
-                char* jointName = Robots.GetJointName( robotID, dofIndex );
+              size_t jointsNumber = Robots.GetJointsNumber( robotID );
+              for( size_t jointIndex = 0; jointIndex < jointsNumber; jointIndex++ )
+              {
+                char* jointName = Robots.GetJointName( robotID, jointIndex );
                 if( jointName != NULL ) 
                 {
                   sprintf( robotJointsInfo + strlen(robotJointsInfo), ":%lu:%s", kv_max( robotIDsList ) + kv_size( jointsList ), jointName );
-                  kv_push( Joint, jointsList, Robots.GetJoint( robotID, dofIndex ) );
+                  kv_push( Joint, jointsList, Robots.GetJoint( robotID, jointIndex ) );
                 }
               }
             }

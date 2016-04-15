@@ -21,10 +21,10 @@ threads/threads_windows.h
 ../src/debug/threads/threads_windows.h
 threads/threads_unix.h
 ../src/debug/threads/threads_unix.h
-debug/debug.h
-../src/debug/debug/debug.h
+debug/sync_debug.h
+../src/debug/debug/sync_debug.h
 
-../src/debug/debug.h
+../src/debug/sync_debug.h
 stdio.h
 -
 stdlib.h
@@ -35,8 +35,6 @@ errno.h
 -
 
 ../src/interfaces.h
-debug/debug.h
-../src/debug/debug.h
 stdbool.h
 -
 stdint.h
@@ -77,14 +75,14 @@ errno.h
 -
 malloc.h
 -
-debug/debug.h
-../src/threads/debug/debug.h
+debug/sync_debug.h
+../src/threads/debug/sync_debug.h
 interfaces.h
 ../src/threads/interfaces.h
 
 ../src/threads/threads_windows.h
-debug/debug.h
-../src/threads/debug/debug.h
+debug/sync_debug.h
+../src/threads/debug/sync_debug.h
 interfaces.h
 ../src/threads/interfaces.h
 stdint.h

@@ -31,6 +31,8 @@ SIMPLE_DEBUG=0
 
 [CustomDefinesAndIncludes][ProjectPath0][Includes]
 1=/home/rerob/Projetos/RobRehabSystem/src/
+2=/home/rerob/Projetos/RobRehabSystem/src/robot_control/SimTK/simbody/
+3=/home/rerob/Projetos/RobRehabSystem/src/robot_control/
 
 [Defines And Includes][Compiler]
 Name=GCC
@@ -38,41 +40,23 @@ Path=gcc
 Type=GCC
 
 [Launch]
-Launch Configurations=Launch Configuration 0,Launch Configuration 1
+Launch Configurations=Launch Configuration 0
 
 [Launch][Launch Configuration 0]
 Configured Launch Modes=execute
 Configured Launchers=nativeAppLauncher
-Name=RobRehabGui
+Name=RobRehabControl
 Type=Native Application
 
 [Launch][Launch Configuration 0][Data]
-Arguments=
-Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
-Dependency Action=Nothing
+Arguments=JSON
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x1c\x00R\x00o\x00b\x00R\x00e\x00h\x00a\x00b\x00S\x00y\x00s\x00t\x00e\x00m\x00\x00\x00\x1e\x00R\x00o\x00b\x00R\x00e\x00h\x00a\x00b\x00C\x00o\x00n\x00t\x00r\x00o\x00l)
+Dependency Action=Build
 EnvironmentGroup=
-Executable=file:///home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/RobRehabGui
+Executable=file:///home/rerob/Projetos/RobRehabSystem/RobRehabControl
 External Terminal=konsole --noclose --workdir %workdir -e %exe
-Project Target=
-Use External Terminal=true
-Working Directory=
-isExecutable=true
-
-[Launch][Launch Configuration 1]
-Configured Launch Modes=execute
-Configured Launchers=nativeAppLauncher
-Name=RobRehabServer
-Type=Native Application
-
-[Launch][Launch Configuration 1][Data]
-Arguments=
-Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
-Dependency Action=Nothing
-EnvironmentGroup=
-Executable=file:///home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/RobRehabServer
-External Terminal=konsole --noclose --workdir %workdir -e %exe
-Project Target=
-Use External Terminal=true
+Project Target=RobRehabSystem,RobRehabControl
+Use External Terminal=false
 Working Directory=
 isExecutable=true
 

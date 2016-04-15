@@ -22,7 +22,7 @@
   #include "threads/threads_unix.h"
 #endif
 
-#include "debug/debug.h" 
+#include "debug/sync_debug.h" 
 
 #define NO_CODE do { } while( 0 )
 

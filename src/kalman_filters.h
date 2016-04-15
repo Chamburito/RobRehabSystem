@@ -72,11 +72,13 @@ void Kalman_DiscardFilter( KalmanFilter filter )
   Matrices_Discard( filter->state );
   Matrices_Discard( filter->error );
   
+  Matrices_Discard( filter->inputModel );
   Matrices_Discard( filter->gain );
   Matrices_Discard( filter->prediction );
   Matrices_Discard( filter->predictionCovariance );
   Matrices_Discard( filter->predictionCovarianceNoise );
-  Matrices_Discard( filter->errorCovariance );
+  filter->errorCovariance = Matrices_Resize( filter->errorCovariance, 0, 0 );
+  // Matrices_Discard( filter->errorCovariance ); // This causes a weird crash ("free(): invalid next size (fast)")
   Matrices_Discard( filter->errorCovarianceNoise );
   
   free( filter );
@@ -100,7 +102,8 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
     Matrices_SetElement( filter->inputModel, newInputIndex, stateIndex, 0.0 );
   Matrices_SetElement( filter->inputModel, newInputIndex, dimensionIndex, 1.0 );
   
-  filter->errorCovariance = Matrices_Resize( filter->errorCovariance, newInputsNumber, newInputsNumber );
+  Matrices_Discard( filter->errorCovariance );
+  filter->errorCovariance = Matrices_CreateSquare( newInputsNumber, MATRIX_ZERO );
   Matrices_Discard( filter->errorCovarianceNoise );  
   filter->errorCovarianceNoise = Matrices_CreateSquare( newInputsNumber, MATRIX_IDENTITY );
   

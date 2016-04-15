@@ -6,7 +6,7 @@
 #ifndef THREADS_H
 #define THREADS_H
 
-#include "debug/debug.h"
+#include "debug/sync_debug.h"
 #include "interfaces.h"
 
 #include <stdint.h>

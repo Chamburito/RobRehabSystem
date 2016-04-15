@@ -3,7 +3,7 @@
 
 CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/data_io/interface.h
 CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/debug/async_debug.h
-CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/debug/debug.h
+CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/debug/sync_debug.h
 CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/interfaces.h
 CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/klib/khash.h
 CMakeFiles/JSON.dir/src/data_io/json_parser.c.o: ../src/klib/kson.h

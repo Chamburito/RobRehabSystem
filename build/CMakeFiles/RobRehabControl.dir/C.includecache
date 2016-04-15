@@ -8,6 +8,16 @@
 
 ../src/control_definitions.h
 
+../src/debug/sync_debug.h
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+errno.h
+-
+
 ../src/threads/thread_safe_data.h
 threads_windows.h
 ../src/threads/threads_windows.h
@@ -35,14 +45,14 @@ errno.h
 -
 malloc.h
 -
-debug/debug.h
-../src/threads/debug/debug.h
+debug/sync_debug.h
+../src/threads/debug/sync_debug.h
 interfaces.h
 ../src/threads/interfaces.h
 
 ../src/threads/threads_windows.h
-debug/debug.h
-../src/threads/debug/debug.h
+debug/sync_debug.h
+../src/threads/debug/sync_debug.h
 interfaces.h
 ../src/threads/interfaces.h
 stdint.h
@@ -143,8 +153,8 @@ threads/threads_windows.h
 /home/rerob/Projetos/RobRehabSystem/src/debug/threads/threads_windows.h
 threads/threads_unix.h
 /home/rerob/Projetos/RobRehabSystem/src/debug/threads/threads_unix.h
-debug/debug.h
-/home/rerob/Projetos/RobRehabSystem/src/debug/debug/debug.h
+debug/sync_debug.h
+/home/rerob/Projetos/RobRehabSystem/src/debug/debug/sync_debug.h
 
 /home/rerob/Projetos/RobRehabSystem/src/debug/data_logging.h
 ansi_c.h
@@ -161,16 +171,6 @@ klib/khash.h
 /home/rerob/Projetos/RobRehabSystem/src/debug/klib/khash.h
 debug/async_debug.h
 /home/rerob/Projetos/RobRehabSystem/src/debug/debug/async_debug.h
-
-/home/rerob/Projetos/RobRehabSystem/src/debug/debug.h
-stdio.h
--
-stdlib.h
--
-string.h
--
-errno.h
--
 
 /home/rerob/Projetos/RobRehabSystem/src/emg_processing.h
 sensors.h
@@ -191,8 +191,6 @@ stdbool.h
 -
 
 /home/rerob/Projetos/RobRehabSystem/src/interfaces.h
-debug/debug.h
-/home/rerob/Projetos/RobRehabSystem/src/debug/debug.h
 stdbool.h
 -
 stdint.h

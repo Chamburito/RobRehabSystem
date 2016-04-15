@@ -3,7 +3,7 @@
 
 CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o
  ../src/debug/async_debug.h
- ../src/debug/debug.h
+ ../src/debug/sync_debug.h
  ../src/interfaces.h
  ../src/klib/khash.h
  ../src/signal_io/interface.h

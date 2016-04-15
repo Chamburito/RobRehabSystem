@@ -4,7 +4,7 @@
 CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/actuator_control/interface.h
 CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/control_definitions.h
 CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/debug/async_debug.h
-CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/debug/debug.h
+CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/debug/sync_debug.h
 CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/interfaces.h
 CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/threads/threads_unix.h
 CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o: ../src/threads/threads_windows.h

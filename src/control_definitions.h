@@ -3,6 +3,8 @@
 
 #define CONTROLLER_INVALID_HANDLE NULL
 
+#define CONTROL_PASS_INTERVAL 0.005
+
 typedef void* Controller;
 
 // Control used values enumeration

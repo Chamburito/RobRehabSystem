@@ -18,7 +18,7 @@ void EndController( Controller controller )
   
 }
 
-size_t GetDoFsNumber( Controller controller )
+size_t GetJointsNumber( Controller controller )
 {
   return DOFS_NUMBER;
 }
@@ -26,6 +26,11 @@ size_t GetDoFsNumber( Controller controller )
 char** GetJointNamesList( Controller controller )
 {
   return (char**) DOF_NAMES;
+}
+
+size_t GetAxesNumber( Controller controller )
+{
+  return DOFS_NUMBER;
 }
 
 char** GetAxisNamesList( Controller controller )

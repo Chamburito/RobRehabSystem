@@ -9,7 +9,7 @@
 #include <stdbool.h>
 
 #include "ip_connection.h"
-#include "debug.h"
+#include "sync_debug.h"
 
 #ifdef _CVI_DLL_
   #include "threads_realtime.h"

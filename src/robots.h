@@ -44,10 +44,11 @@ typedef struct _RobotData
   Joint* jointsList;
   double** jointMeasuresTable;
   double** jointSetpointsTable;
+  size_t jointsNumber;
   Axis* axesList;
   double** axisMeasuresTable;
   double** axisSetpointsTable;
-  size_t dofsNumber;
+  size_t axesNumber;
 }
 RobotData;
 
@@ -71,7 +72,8 @@ khash_t( RobotInt )* robotsList = NULL;
         function_init( double, namespace, SetJointSetpoint, Joint, enum ControlVariables, double ) \
         function_init( double, namespace, SetAxisSetpoint, Axis, enum ControlVariables, double ) \
         function_init( Actuator, namespace, GetJointActuator, Joint ) \
-        function_init( size_t, namespace, GetDoFsNumber, int )
+        function_init( size_t, namespace, GetJointsNumber, int ) \
+        function_init( size_t, namespace, GetAxesNumber, int )
 
 INIT_NAMESPACE_INTERFACE( Robots, ROBOT_FUNCTIONS )
 
@@ -102,8 +104,8 @@ int Robots_Init( const char* configFileName )
     return ROBOT_INVALID_ID;
   }
   
-  // hack
-  Robots_Enable( (int) kh_key( robotsList, newRobotIndex ) ); 
+  // temp
+  //Robots_Enable( (int) kh_key( robotsList, newRobotIndex ) ); 
   
   DEBUG_PRINT( "robot %s created (iterator %u)", configFileName, newRobotIndex );
   
@@ -142,11 +144,11 @@ bool Robots_Enable( int robotID )
   
   DEBUG_PRINT( "Enabling robot %p", robot );
   
-  for( size_t jointIndex = 0; jointIndex < robot->dofsNumber; jointIndex++ )
+  for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
   {
     Actuators.Enable( robot->jointsList[ jointIndex ]->actuator );
     
-    //if( !Actuators.IsEnabled( robot->jointsList[ jointIndex ].actuator ) ) return false;
+    if( !Actuators.IsEnabled( robot->jointsList[ jointIndex ]->actuator ) ) return false;
   }
   
   if( !robot->isControlRunning )
@@ -169,7 +171,7 @@ void Robots_Disable( int robotID )
   robot->isControlRunning = false;
   Threading.WaitExit( robot->controlThread, 5000 );
   
-  for( size_t jointIndex = 0; jointIndex < robot->dofsNumber; jointIndex++ )
+  for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
     Actuators.Disable( robot->jointsList[ jointIndex ]->actuator );
 }
 
@@ -180,7 +182,7 @@ inline Joint Robots_GetJoint( int robotID, size_t jointIndex )
   
   Robot robot = kh_value( robotsList, robotIndex );
   
-  if( jointIndex >= robot->dofsNumber ) return NULL;
+  if( jointIndex >= robot->jointsNumber ) return NULL;
   
   return robot->jointsList[ jointIndex ];
 }
@@ -192,7 +194,7 @@ inline Axis Robots_GetAxis( int robotID, size_t axisIndex )
   
   Robot robot = kh_value( robotsList, robotIndex );
   
-  if( axisIndex >= robot->dofsNumber ) return NULL;
+  if( axisIndex >= robot->axesNumber ) return NULL;
   
   return robot->axesList[ axisIndex ];
 }
@@ -204,7 +206,7 @@ inline char* Robots_GetJointName( int robotID, size_t jointIndex )
   
   Robot robot = kh_value( robotsList, robotIndex );
   
-  if( jointIndex >= robot->dofsNumber ) return NULL;
+  if( jointIndex >= robot->jointsNumber ) return NULL;
   
   char** jointNamesList = robot->GetJointNamesList( robot->controller );
   
@@ -220,7 +222,7 @@ inline char* Robots_GetAxisName( int robotID, size_t axisIndex )
   
   Robot robot = kh_value( robotsList, robotIndex );
   
-  if( axisIndex >= robot->dofsNumber ) return NULL;
+  if( axisIndex >= robot->axesNumber ) return NULL;
   
   char** axisNamesList = robot->GetAxisNamesList( robot->controller );
   
@@ -272,14 +274,24 @@ inline Actuator Robots_GetJointActuator( Joint joint )
   return joint->actuator;
 }
 
-inline size_t Robots_GetDoFsNumber( int robotID )
+inline size_t Robots_GetJointsNumber( int robotID )
 {
   khint_t robotIndex = kh_get( RobotInt, robotsList, (khint_t) robotID );
   if( robotIndex == kh_end( robotsList ) ) return 0;
   
   Robot robot = kh_value( robotsList, robotIndex );
   
-  return robot->dofsNumber;
+  return robot->jointsNumber;
+}
+
+inline size_t Robots_GetAxesNumber( int robotID )
+{
+  khint_t robotIndex = kh_get( RobotInt, robotsList, (khint_t) robotID );
+  if( robotIndex == kh_end( robotsList ) ) return 0;
+  
+  Robot robot = kh_value( robotsList, robotIndex );
+  
+  return robot->axesNumber;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -302,12 +314,12 @@ static void* AsyncControl( void* ref_robot )
   {
     execTime = Timing.GetExecTimeMilliseconds();
     
-    for( size_t jointIndex = 0; jointIndex < robot->dofsNumber; jointIndex++ )
+    for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
       (void) Actuators.UpdateMeasures( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresTable[ jointIndex ] );
   
     robot->RunControlStep( robot->controller, robot->jointMeasuresTable, robot->axisMeasuresTable, robot->jointSetpointsTable, robot->axisSetpointsTable );
   
-    for( size_t jointIndex = 0; jointIndex < robot->dofsNumber; jointIndex++ )
+    for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
       (void) Actuators.RunControl( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresTable[ jointIndex ], robot->jointSetpointsTable[ jointIndex ] );
     
     elapsedTime = Timing.GetExecTimeMilliseconds() - execTime;
@@ -345,16 +357,12 @@ static inline Robot LoadRobotData( const char* configFileName )
     if( loadSuccess )
     {
       newRobot->controller = newRobot->InitController( parser.GetStringValue( configFileID, "", "controller.id" ) );
-      newRobot->dofsNumber = newRobot->GetDoFsNumber( newRobot->controller );
-
-      newRobot->jointsList = (Joint*) calloc( newRobot->dofsNumber, sizeof(Joint) );
-      newRobot->axesList = (Axis*) calloc( newRobot->dofsNumber, sizeof(Axis) );
-      newRobot->jointMeasuresTable = (double**) calloc( newRobot->dofsNumber, sizeof(double*) );
-      newRobot->jointSetpointsTable = (double**) calloc( newRobot->dofsNumber, sizeof(double*) );
-      newRobot->axisMeasuresTable = (double**) calloc( newRobot->dofsNumber, sizeof(double*) );
-      newRobot->axisSetpointsTable = (double**) calloc( newRobot->dofsNumber, sizeof(double*) );
-
-      for( size_t jointIndex = 0; jointIndex < newRobot->dofsNumber; jointIndex++ )
+      
+      newRobot->jointsNumber = newRobot->GetJointsNumber( newRobot->controller );
+      newRobot->jointsList = (Joint*) calloc( newRobot->jointsNumber, sizeof(Joint) );
+      newRobot->jointMeasuresTable = (double**) calloc( newRobot->jointsNumber, sizeof(double*) );
+      newRobot->jointSetpointsTable = (double**) calloc( newRobot->jointsNumber, sizeof(double*) );
+      for( size_t jointIndex = 0; jointIndex < newRobot->jointsNumber; jointIndex++ )
       {
         newRobot->jointsList[ jointIndex ] = (Joint) malloc( sizeof(JointData) );
         newRobot->jointsList[ jointIndex ]->actuator = Actuators.Init( parser.GetStringValue( configFileID, "", "actuators.%lu", jointIndex ) );
@@ -364,7 +372,11 @@ static inline Robot LoadRobotData( const char* configFileName )
         if( newRobot->jointsList[ jointIndex ] == NULL ) loadSuccess = false;
       }
 
-      for( size_t axisIndex = 0; axisIndex < newRobot->dofsNumber; axisIndex++ )
+      newRobot->axesNumber = newRobot->GetAxesNumber( newRobot->controller );
+      newRobot->axesList = (Axis*) calloc( newRobot->axesNumber, sizeof(Axis) );
+      newRobot->axisMeasuresTable = (double**) calloc( newRobot->axesNumber, sizeof(double*) );
+      newRobot->axisSetpointsTable = (double**) calloc( newRobot->axesNumber, sizeof(double*) );
+      for( size_t axisIndex = 0; axisIndex < newRobot->axesNumber; axisIndex++ )
       {
         newRobot->axesList[ axisIndex ] = (Axis) malloc( sizeof(AxisData) );
         newRobot->axisMeasuresTable[ axisIndex ] = (double*) newRobot->axesList[ axisIndex ]->measuresList;
@@ -396,14 +408,14 @@ static inline void UnloadRobotData( Robot robot )
   
   robot->EndController( robot->controller );
   
-  for( size_t jointIndex = 0; jointIndex < robot->dofsNumber; jointIndex++ )
+  for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
   {
     Actuators.End( robot->jointsList[ jointIndex ]->actuator );
     free( robot->jointsList[ jointIndex ] );
   }
   free( robot->jointsList );
   
-  for( size_t axisIndex = 0; axisIndex < robot->dofsNumber; axisIndex++ )
+  for( size_t axisIndex = 0; axisIndex < robot->axesNumber; axisIndex++ )
     free( robot->axesList[ axisIndex ] );
   free( robot->axesList );
   

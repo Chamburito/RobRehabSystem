@@ -111,6 +111,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named OpenSimModel
+
+# Build rule for target.
+OpenSimModel: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 OpenSimModel
+.PHONY : OpenSimModel
+
+# fast build rule for target.
+OpenSimModel/fast:
+	$(MAKE) -f CMakeFiles/OpenSimModel.dir/build.make CMakeFiles/OpenSimModel.dir/build
+.PHONY : OpenSimModel/fast
+
+#=============================================================================
 # Target rules for targets named ForcePIControl
 
 # Build rule for target.
@@ -256,6 +269,33 @@ src/klib/kson.c.s:
 	$(MAKE) -f CMakeFiles/JSON.dir/build.make CMakeFiles/JSON.dir/src/klib/kson.c.s
 .PHONY : src/klib/kson.c.s
 
+src/robot_control/open_sim_model.o: src/robot_control/open_sim_model.cpp.o
+
+.PHONY : src/robot_control/open_sim_model.o
+
+# target to build an object file
+src/robot_control/open_sim_model.cpp.o:
+	$(MAKE) -f CMakeFiles/OpenSimModel.dir/build.make CMakeFiles/OpenSimModel.dir/src/robot_control/open_sim_model.cpp.o
+.PHONY : src/robot_control/open_sim_model.cpp.o
+
+src/robot_control/open_sim_model.i: src/robot_control/open_sim_model.cpp.i
+
+.PHONY : src/robot_control/open_sim_model.i
+
+# target to preprocess a source file
+src/robot_control/open_sim_model.cpp.i:
+	$(MAKE) -f CMakeFiles/OpenSimModel.dir/build.make CMakeFiles/OpenSimModel.dir/src/robot_control/open_sim_model.cpp.i
+.PHONY : src/robot_control/open_sim_model.cpp.i
+
+src/robot_control/open_sim_model.s: src/robot_control/open_sim_model.cpp.s
+
+.PHONY : src/robot_control/open_sim_model.s
+
+# target to generate assembly for a file
+src/robot_control/open_sim_model.cpp.s:
+	$(MAKE) -f CMakeFiles/OpenSimModel.dir/build.make CMakeFiles/OpenSimModel.dir/src/robot_control/open_sim_model.cpp.s
+.PHONY : src/robot_control/open_sim_model.cpp.s
+
 src/robot_control/simple_joint.o: src/robot_control/simple_joint.c.o
 
 .PHONY : src/robot_control/simple_joint.o
@@ -345,6 +385,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... OpenSimModel"
 	@echo "... ForcePIControl"
 	@echo "... RobRehabControl"
 	@echo "... JSON"
@@ -359,6 +400,9 @@ help:
 	@echo "... src/klib/kson.o"
 	@echo "... src/klib/kson.i"
 	@echo "... src/klib/kson.s"
+	@echo "... src/robot_control/open_sim_model.o"
+	@echo "... src/robot_control/open_sim_model.i"
+	@echo "... src/robot_control/open_sim_model.s"
 	@echo "... src/robot_control/simple_joint.o"
 	@echo "... src/robot_control/simple_joint.i"
 	@echo "... src/robot_control/simple_joint.s"

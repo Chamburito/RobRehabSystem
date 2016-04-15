@@ -57,8 +57,6 @@ typedef ActuatorData* Actuator;
 INIT_NAMESPACE_INTERFACE( Actuators, ACTUATOR_INTERFACE )
 
 
-#define CONTROL_PASS_INTERVAL 0.005
-
 const char* CONTROL_MODE_NAMES[ CONTROL_MODES_NUMBER ] = { "POSITION", "VELOCITY", "FORCE", "ACCELERATION" };
 Actuator Actuators_Init( const char* configFileName )
 {
@@ -136,7 +134,6 @@ Actuator Actuators_Init( const char* configFileName )
     DEBUG_PRINT( "created series elastic actuator %s", configFileName );
 
     Actuators_Reset( newActuator );
-    Actuators_Enable( newActuator );
   }
   else
     DEBUG_PRINT( "configuration for series elastic actuator %s is not available", configFileName );
@@ -146,8 +143,6 @@ Actuator Actuators_Init( const char* configFileName )
 
 void Actuators_End( Actuator actuator )
 {
-  DEBUG_PRINT( "ending actuator %p", actuator );
-  
   if( actuator == NULL ) return;
   
   actuator->EndController( actuator->controller );
@@ -158,7 +153,7 @@ void Actuators_End( Actuator actuator )
   for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
     Sensors.End( actuator->sensorsList[ sensorIndex ] );
   
-  if( actuator->logID != 0 ) DataLogging_EndLog( actuator->logID );
+  if( actuator->logID != DATA_LOG_INVALID_ID ) DataLogging_EndLog( actuator->logID );
 }
 
 void Actuators_Enable( Actuator actuator )
@@ -244,7 +239,7 @@ double Actuators_SetSetpoint( Actuator actuator, enum ControlVariables variable,
 {
   if( actuator == NULL ) return 0.0; 
   
-  if( variable < 0 || variable >= CONTROL_VARS_NUMBER ) return 0.0;
+  if( variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
   actuator->setpointsList[ variable ] = value;
   

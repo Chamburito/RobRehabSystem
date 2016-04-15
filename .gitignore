@@ -37,3 +37,4 @@ cvibuild.RobRehabControlGui/Debug/dlldependencies.txt
 cvibuild.RobRehabControlRT/Debug/NetworkVariableRT.obj
 *.out
 *.log
+config/shared_robots.json
