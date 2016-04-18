@@ -1,5 +1,0 @@
-{
-  "type": "robots/SimpleJoint",
-  "name": "robots/simple_joint",
-  "joints": [ "actuators/knee" ]
-}

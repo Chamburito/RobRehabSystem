@@ -1,5 +1,5 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o"
+  "CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o"
   "../plugins/signal_io/NICANEPOS.pdb"
   "../plugins/signal_io/NICANEPOS.so"
 )

@@ -57,38 +57,38 @@ include CMakeFiles/NICANEPOS.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/NICANEPOS.dir/flags.make
 
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o: CMakeFiles/NICANEPOS.dir/flags.make
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o: ../src/signal_io/dummy_io.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/rerob/Projetos/RobRehabSystem/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building C object CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o"
-	/usr/bin/cc  $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o: CMakeFiles/NICANEPOS.dir/flags.make
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o: ../src/signal_io/ni_can_epos/signal_io.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/rerob/Projetos/RobRehabSystem/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building C object CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o"
+	/usr/bin/cc  $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/ni_can_epos/signal_io.c
 
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.i"
-	/usr/bin/cc  $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c > CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.i
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.i"
+	/usr/bin/cc  $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/rerob/Projetos/RobRehabSystem/src/signal_io/ni_can_epos/signal_io.c > CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.i
 
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.s"
-	/usr/bin/cc  $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c -o CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.s
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.s"
+	/usr/bin/cc  $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/rerob/Projetos/RobRehabSystem/src/signal_io/ni_can_epos/signal_io.c -o CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.s
 
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.requires:
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.requires:
 
-.PHONY : CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.requires
+.PHONY : CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.requires
 
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.provides: CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.requires
-	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.provides.build
-.PHONY : CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.provides
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.provides: CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.requires
+	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.provides.build
+.PHONY : CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.provides
 
-CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.provides.build: CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o
+CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.provides.build: CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o
 
 
 # Object files for target NICANEPOS
 NICANEPOS_OBJECTS = \
-"CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o"
+"CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o"
 
 # External object files for target NICANEPOS
 NICANEPOS_EXTERNAL_OBJECTS =
 
-../plugins/signal_io/NICANEPOS.so: CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o
+../plugins/signal_io/NICANEPOS.so: CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o
 ../plugins/signal_io/NICANEPOS.so: CMakeFiles/NICANEPOS.dir/build.make
 ../plugins/signal_io/NICANEPOS.so: CMakeFiles/NICANEPOS.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/rerob/Projetos/RobRehabSystem/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking C shared module ../plugins/signal_io/NICANEPOS.so"
@@ -99,7 +99,7 @@ CMakeFiles/NICANEPOS.dir/build: ../plugins/signal_io/NICANEPOS.so
 
 .PHONY : CMakeFiles/NICANEPOS.dir/build
 
-CMakeFiles/NICANEPOS.dir/requires: CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o.requires
+CMakeFiles/NICANEPOS.dir/requires: CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o.requires
 
 .PHONY : CMakeFiles/NICANEPOS.dir/requires
 

@@ -56,17 +56,6 @@ CMAKE_BINARY_DIR = /home/rerob/Projetos/RobRehabSystem/build
 #=============================================================================
 # Targets provided globally by CMake.
 
-# Special rule for the target edit_cache
-edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
-	/usr/bin/ccmake -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
-.PHONY : edit_cache
-
-# Special rule for the target edit_cache
-edit_cache/fast: edit_cache
-
-.PHONY : edit_cache/fast
-
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
@@ -77,6 +66,17 @@ rebuild_cache:
 rebuild_cache/fast: rebuild_cache
 
 .PHONY : rebuild_cache/fast
+
+# Special rule for the target edit_cache
+edit_cache:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
+	/usr/bin/ccmake -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+.PHONY : edit_cache
+
+# Special rule for the target edit_cache
+edit_cache/fast: edit_cache
+
+.PHONY : edit_cache/fast
 
 # The main all target
 all: cmake_check_build_system
@@ -137,6 +137,19 @@ ForcePIControl/fast:
 .PHONY : ForcePIControl/fast
 
 #=============================================================================
+# Target rules for targets named SimpleJoint
+
+# Build rule for target.
+SimpleJoint: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 SimpleJoint
+.PHONY : SimpleJoint
+
+# fast build rule for target.
+SimpleJoint/fast:
+	$(MAKE) -f CMakeFiles/SimpleJoint.dir/build.make CMakeFiles/SimpleJoint.dir/build
+.PHONY : SimpleJoint/fast
+
+#=============================================================================
 # Target rules for targets named RobRehabControl
 
 # Build rule for target.
@@ -163,6 +176,19 @@ JSON/fast:
 .PHONY : JSON/fast
 
 #=============================================================================
+# Target rules for targets named Dummy
+
+# Build rule for target.
+Dummy: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 Dummy
+.PHONY : Dummy
+
+# fast build rule for target.
+Dummy/fast:
+	$(MAKE) -f CMakeFiles/Dummy.dir/build.make CMakeFiles/Dummy.dir/build
+.PHONY : Dummy/fast
+
+#=============================================================================
 # Target rules for targets named NICANEPOS
 
 # Build rule for target.
@@ -174,19 +200,6 @@ NICANEPOS: cmake_check_build_system
 NICANEPOS/fast:
 	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/build
 .PHONY : NICANEPOS/fast
-
-#=============================================================================
-# Target rules for targets named SimpleJoint
-
-# Build rule for target.
-SimpleJoint: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 SimpleJoint
-.PHONY : SimpleJoint
-
-# fast build rule for target.
-SimpleJoint/fast:
-	$(MAKE) -f CMakeFiles/SimpleJoint.dir/build.make CMakeFiles/SimpleJoint.dir/build
-.PHONY : SimpleJoint/fast
 
 src/actuator_control/force_pi_control.o: src/actuator_control/force_pi_control.c.o
 
@@ -356,7 +369,7 @@ src/signal_io/dummy_io.o: src/signal_io/dummy_io.c.o
 
 # target to build an object file
 src/signal_io/dummy_io.c.o:
-	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o
+	$(MAKE) -f CMakeFiles/Dummy.dir/build.make CMakeFiles/Dummy.dir/src/signal_io/dummy_io.c.o
 .PHONY : src/signal_io/dummy_io.c.o
 
 src/signal_io/dummy_io.i: src/signal_io/dummy_io.c.i
@@ -365,7 +378,7 @@ src/signal_io/dummy_io.i: src/signal_io/dummy_io.c.i
 
 # target to preprocess a source file
 src/signal_io/dummy_io.c.i:
-	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.i
+	$(MAKE) -f CMakeFiles/Dummy.dir/build.make CMakeFiles/Dummy.dir/src/signal_io/dummy_io.c.i
 .PHONY : src/signal_io/dummy_io.c.i
 
 src/signal_io/dummy_io.s: src/signal_io/dummy_io.c.s
@@ -374,8 +387,35 @@ src/signal_io/dummy_io.s: src/signal_io/dummy_io.c.s
 
 # target to generate assembly for a file
 src/signal_io/dummy_io.c.s:
-	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.s
+	$(MAKE) -f CMakeFiles/Dummy.dir/build.make CMakeFiles/Dummy.dir/src/signal_io/dummy_io.c.s
 .PHONY : src/signal_io/dummy_io.c.s
+
+src/signal_io/ni_can_epos/signal_io.o: src/signal_io/ni_can_epos/signal_io.c.o
+
+.PHONY : src/signal_io/ni_can_epos/signal_io.o
+
+# target to build an object file
+src/signal_io/ni_can_epos/signal_io.c.o:
+	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o
+.PHONY : src/signal_io/ni_can_epos/signal_io.c.o
+
+src/signal_io/ni_can_epos/signal_io.i: src/signal_io/ni_can_epos/signal_io.c.i
+
+.PHONY : src/signal_io/ni_can_epos/signal_io.i
+
+# target to preprocess a source file
+src/signal_io/ni_can_epos/signal_io.c.i:
+	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.i
+.PHONY : src/signal_io/ni_can_epos/signal_io.c.i
+
+src/signal_io/ni_can_epos/signal_io.s: src/signal_io/ni_can_epos/signal_io.c.s
+
+.PHONY : src/signal_io/ni_can_epos/signal_io.s
+
+# target to generate assembly for a file
+src/signal_io/ni_can_epos/signal_io.c.s:
+	$(MAKE) -f CMakeFiles/NICANEPOS.dir/build.make CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.s
+.PHONY : src/signal_io/ni_can_epos/signal_io.c.s
 
 # Help Target
 help:
@@ -383,14 +423,15 @@ help:
 	@echo "... all (the default if no target is provided)"
 	@echo "... clean"
 	@echo "... depend"
-	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... OpenSimModel"
 	@echo "... ForcePIControl"
+	@echo "... SimpleJoint"
 	@echo "... RobRehabControl"
 	@echo "... JSON"
+	@echo "... edit_cache"
+	@echo "... Dummy"
 	@echo "... NICANEPOS"
-	@echo "... SimpleJoint"
 	@echo "... src/actuator_control/force_pi_control.o"
 	@echo "... src/actuator_control/force_pi_control.i"
 	@echo "... src/actuator_control/force_pi_control.s"
@@ -412,6 +453,9 @@ help:
 	@echo "... src/signal_io/dummy_io.o"
 	@echo "... src/signal_io/dummy_io.i"
 	@echo "... src/signal_io/dummy_io.s"
+	@echo "... src/signal_io/ni_can_epos/signal_io.o"
+	@echo "... src/signal_io/ni_can_epos/signal_io.i"
+	@echo "... src/signal_io/ni_can_epos/signal_io.s"
 .PHONY : help
 
 

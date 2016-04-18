@@ -11,6 +11,11 @@
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
+  "command": "/usr/bin/cc  -DSimpleJoint_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/SimpleJoint.dir/src/robot_control/simple_joint.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c",
+  "file": "/home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c"
+},
+{
+  "directory": "/home/rerob/Projetos/RobRehabSystem/build",
   "command": "/usr/bin/cc  -DDEBUG -DROBREHAB_CONTROL -I/home/rerob/Projetos/RobRehabSystem/src  -O3 -DNDEBUG   -std=gnu99 -o CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c"
 },
@@ -26,12 +31,12 @@
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DNICANEPOS_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/signal_io  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/NICANEPOS.dir/src/signal_io/dummy_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c",
+  "command": "/usr/bin/cc  -DDummy_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/signal_io  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/Dummy.dir/src/signal_io/dummy_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/signal_io/dummy_io.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DSimpleJoint_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/SimpleJoint.dir/src/robot_control/simple_joint.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c",
-  "file": "/home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c"
+  "command": "/usr/bin/cc  -DNICANEPOS_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/signal_io  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/NICANEPOS.dir/src/signal_io/ni_can_epos/signal_io.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/signal_io/ni_can_epos/signal_io.c",
+  "file": "/home/rerob/Projetos/RobRehabSystem/src/signal_io/ni_can_epos/signal_io.c"
 }
 ]

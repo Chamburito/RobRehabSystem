@@ -1,8 +1,8 @@
 {
-  "interface": {
-    "type": "signal_io/NICANEPOS",
-    "name": "1",
-    "output_channel": 1
+  "output_interface": {
+    "type": "Dummy",
+    "id": "NULL",
+    "channel": 0
   },
   "output_gain": {
     "multiplier": 1,

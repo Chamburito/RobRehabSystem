@@ -166,6 +166,9 @@ CMAKE_STRIP:FILEPATH=/usr/bin/strip
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //Dependencies for target
+Dummy_LIB_DEPENDS:STATIC=
+
+//Dependencies for target
 ForcePIControl_LIB_DEPENDS:STATIC=
 
 //Dependencies for target
