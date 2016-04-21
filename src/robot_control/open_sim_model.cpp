@@ -78,7 +78,7 @@ ControllerData;
 typedef void* Controller;
 
 
-DEFINE_INTERFACE( ROBOT_CONTROL_INTERFACE ) 
+DEFINE_INTERFACE( ROBOT_CONTROL_INTERFACE )
 
 
 Controller InitController( const char* data )
@@ -88,7 +88,13 @@ Controller InitController( const char* data )
   try 
   {
     // Create an OpenSim model from XML (.osim) file
-    std::cout << "OSim: trying to load model file " << data << std::endl; newModel->osimModel = new OpenSim::Model( std::string( data ) + ".xml" );
+    std::cout << "OSim: trying to load model file " << data << std::endl; newModel->osimModel = new OpenSim::Model( std::string( "config/robots/" ) + std::string( data ) + ".osim" );
+    
+    newModel->osimModel->printBasicInfo( std::cout );
+    
+    // Initialize the system (make copy)
+    std::cout << "OSim: initialize state" << std::endl; SimTK::State& localState = newModel->osimModel->initSystem();
+    std::cout << "OSim: copy state" << std::endl; newModel->state = SimTK::State( localState );
     
     OpenSim::JointSet& jointSet = newModel->osimModel->updJointSet();
     std::cout << "OSim: found " << jointSet.getSize() << " joints" << std::endl;
@@ -122,9 +128,6 @@ Controller InitController( const char* data )
         }
       }
     }
-    
-    // Initialize the system (make copy)
-    std::cout << "OSim: initialize state" << std::endl; newModel->state = SimTK::State( newModel->osimModel->initSystem() );
     
     newModel->ikSolver = new OpenSim::InverseKinematicsSolver( *(newModel->osimModel), newModel->markersReference, newModel->coordinateReferences );
     newModel->ikSolver->setAccuracy( 1.0e-4 );

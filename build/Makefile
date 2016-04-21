@@ -124,19 +124,6 @@ OpenSimModel/fast:
 .PHONY : OpenSimModel/fast
 
 #=============================================================================
-# Target rules for targets named ForcePIControl
-
-# Build rule for target.
-ForcePIControl: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 ForcePIControl
-.PHONY : ForcePIControl
-
-# fast build rule for target.
-ForcePIControl/fast:
-	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/build
-.PHONY : ForcePIControl/fast
-
-#=============================================================================
 # Target rules for targets named SimpleJoint
 
 # Build rule for target.
@@ -148,6 +135,19 @@ SimpleJoint: cmake_check_build_system
 SimpleJoint/fast:
 	$(MAKE) -f CMakeFiles/SimpleJoint.dir/build.make CMakeFiles/SimpleJoint.dir/build
 .PHONY : SimpleJoint/fast
+
+#=============================================================================
+# Target rules for targets named ForcePIControl
+
+# Build rule for target.
+ForcePIControl: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 ForcePIControl
+.PHONY : ForcePIControl
+
+# fast build rule for target.
+ForcePIControl/fast:
+	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/build
+.PHONY : ForcePIControl/fast
 
 #=============================================================================
 # Target rules for targets named RobRehabControl
@@ -425,8 +425,8 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... OpenSimModel"
-	@echo "... ForcePIControl"
 	@echo "... SimpleJoint"
+	@echo "... ForcePIControl"
 	@echo "... RobRehabControl"
 	@echo "... JSON"
 	@echo "... edit_cache"

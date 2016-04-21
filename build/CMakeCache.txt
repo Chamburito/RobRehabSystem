@@ -166,6 +166,9 @@ CMAKE_STRIP:FILEPATH=/usr/bin/strip
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //Dependencies for target
+CppPlugin_LIB_DEPENDS:STATIC=
+
+//Dependencies for target
 Dummy_LIB_DEPENDS:STATIC=
 
 //Dependencies for target
@@ -177,8 +180,8 @@ JSON_LIB_DEPENDS:STATIC=
 //Dependencies for target
 NICANEPOS_LIB_DEPENDS:STATIC=
 
-//Dependencies for target
-OpenSimModel_LIB_DEPENDS:STATIC=
+//Dependencies for the target
+OpenSimModel_LIB_DEPENDS:STATIC=general;libSimTKcommon_d.so;general;libSimTKmath_d.so;general;libSimTKsimbody_d.so;general;libosimActuators_d.so;general;libosimAnalyses_d.so;general;libosimCommon_d.so;general;libosimLepton_d.so;general;libosimSimulation_d.so;general;libosimTools_d.so;
 
 //Value Computed by CMake
 RobRehabSystem_BINARY_DIR:STATIC=/home/rerob/Projetos/RobRehabSystem/build

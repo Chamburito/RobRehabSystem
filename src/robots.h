@@ -87,7 +87,7 @@ static void* AsyncControl( void* );
 
 int Robots_Init( const char* configFileName )
 {
-  DEBUG_EVENT( 0, "Initializing Axis Controller %s on thread %x", configFileName, THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Controller %s on thread %lx", configFileName, THREAD_ID );
   
   if( robotsList == NULL ) robotsList = kh_init( RobotInt );
   
@@ -105,7 +105,7 @@ int Robots_Init( const char* configFileName )
   }
   
   // temp
-  //Robots_Enable( (int) kh_key( robotsList, newRobotIndex ) ); 
+  Robots_Enable( (int) kh_key( robotsList, newRobotIndex ) ); 
   
   DEBUG_PRINT( "robot %s created (iterator %u)", configFileName, newRobotIndex );
   
@@ -148,7 +148,7 @@ bool Robots_Enable( int robotID )
   {
     Actuators.Enable( robot->jointsList[ jointIndex ]->actuator );
     
-    if( !Actuators.IsEnabled( robot->jointsList[ jointIndex ]->actuator ) ) return false;
+    //if( !Actuators.IsEnabled( robot->jointsList[ jointIndex ]->actuator ) ) return false;
   }
   
   if( !robot->isControlRunning )
@@ -308,7 +308,7 @@ static void* AsyncControl( void* ref_robot )
   
   robot->isControlRunning = true;
   
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "starting to run control for robot %p on thread %x", robot, THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "starting to run control for robot %p on thread %lx", robot, THREAD_ID );
   
   while( robot->isControlRunning )
   {

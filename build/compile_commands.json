@@ -6,13 +6,13 @@
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DForcePIControl_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/actuator_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c",
-  "file": "/home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c"
+  "command": "/usr/bin/cc  -DSimpleJoint_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/SimpleJoint.dir/src/robot_control/simple_joint.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c",
+  "file": "/home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DSimpleJoint_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/robot_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/SimpleJoint.dir/src/robot_control/simple_joint.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c",
-  "file": "/home/rerob/Projetos/RobRehabSystem/src/robot_control/simple_joint.c"
+  "command": "/usr/bin/cc  -DForcePIControl_EXPORTS -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/actuator_control  -O3 -DNDEBUG -fPIC   -std=gnu99 -o CMakeFiles/ForcePIControl.dir/src/actuator_control/force_pi_control.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c",
+  "file": "/home/rerob/Projetos/RobRehabSystem/src/actuator_control/force_pi_control.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",

@@ -51,6 +51,7 @@ int RobRehabControl_Init( const char* configType )
   char robotAxesInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
   char robotJointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
   
+  DEBUG_PRINT( "looking for %s configuration", configType );
   if( ConfigParsing.Init( configType ) )
   {
     int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
@@ -115,7 +116,7 @@ int RobRehabControl_Init( const char* configType )
 
 void RobRehabControl_End()
 {
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %lx", THREAD_ID );
 
   SHMControl.EndData( sharedRobotAxesInfo );
   SHMControl.EndData( sharedRobotJointsInfo );
@@ -130,7 +131,7 @@ void RobRehabControl_End()
   
   kv_destroy( robotIDsList );
 
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Control ended on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Control ended on thread %lx", THREAD_ID );
 }
 
 void RobRehabControl_Update()

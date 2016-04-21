@@ -97,43 +97,6 @@ clean: CMakeFiles/OpenSimModel.dir/clean
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/ForcePIControl.dir
-
-# All Build rule for target.
-CMakeFiles/ForcePIControl.dir/all:
-	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/depend
-	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rerob/Projetos/RobRehabSystem/build/CMakeFiles --progress-num=3,4 "Built target ForcePIControl"
-.PHONY : CMakeFiles/ForcePIControl.dir/all
-
-# Include target in all.
-all: CMakeFiles/ForcePIControl.dir/all
-
-.PHONY : all
-
-# Build rule for subdir invocation for target.
-CMakeFiles/ForcePIControl.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/rerob/Projetos/RobRehabSystem/build/CMakeFiles 2
-	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/ForcePIControl.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/rerob/Projetos/RobRehabSystem/build/CMakeFiles 0
-.PHONY : CMakeFiles/ForcePIControl.dir/rule
-
-# Convenience name for target.
-ForcePIControl: CMakeFiles/ForcePIControl.dir/rule
-
-.PHONY : ForcePIControl
-
-# clean rule for target.
-CMakeFiles/ForcePIControl.dir/clean:
-	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/clean
-.PHONY : CMakeFiles/ForcePIControl.dir/clean
-
-# clean rule for target.
-clean: CMakeFiles/ForcePIControl.dir/clean
-
-.PHONY : clean
-
-#=============================================================================
 # Target rules for target CMakeFiles/SimpleJoint.dir
 
 # All Build rule for target.
@@ -167,6 +130,43 @@ CMakeFiles/SimpleJoint.dir/clean:
 
 # clean rule for target.
 clean: CMakeFiles/SimpleJoint.dir/clean
+
+.PHONY : clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/ForcePIControl.dir
+
+# All Build rule for target.
+CMakeFiles/ForcePIControl.dir/all:
+	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/depend
+	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/rerob/Projetos/RobRehabSystem/build/CMakeFiles --progress-num=3,4 "Built target ForcePIControl"
+.PHONY : CMakeFiles/ForcePIControl.dir/all
+
+# Include target in all.
+all: CMakeFiles/ForcePIControl.dir/all
+
+.PHONY : all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/ForcePIControl.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/rerob/Projetos/RobRehabSystem/build/CMakeFiles 2
+	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/ForcePIControl.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/rerob/Projetos/RobRehabSystem/build/CMakeFiles 0
+.PHONY : CMakeFiles/ForcePIControl.dir/rule
+
+# Convenience name for target.
+ForcePIControl: CMakeFiles/ForcePIControl.dir/rule
+
+.PHONY : ForcePIControl
+
+# clean rule for target.
+CMakeFiles/ForcePIControl.dir/clean:
+	$(MAKE) -f CMakeFiles/ForcePIControl.dir/build.make CMakeFiles/ForcePIControl.dir/clean
+.PHONY : CMakeFiles/ForcePIControl.dir/clean
+
+# clean rule for target.
+clean: CMakeFiles/ForcePIControl.dir/clean
 
 .PHONY : clean
 

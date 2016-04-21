@@ -60,7 +60,7 @@
 							<!--Orientation of the joint in the parent body specified in the parent reference frame. Euler XYZ body-fixed rotation angles are used to express the orientation. Default is (0,0,0).-->
 							<orientation_in_parent>0 0 0</orientation_in_parent>
 							<!--Location of the joint in the child body specified in the child reference frame. For SIMM models, this vector is always the zero vector (i.e., the body reference frame coincides with the joint). -->
-							<location>0 0 0</location>
+							<location>-0.2 0.05 0</location>
 							<!--Orientation of the joint in the owing body specified in the owning body reference frame.  Euler XYZ body-fixed rotation angles are used to express the orientation. -->
 							<orientation>0 0 0</orientation>
 							<!--Set holding the generalized coordinates (q's) that parmeterize this joint.-->

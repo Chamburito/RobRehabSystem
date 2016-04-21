@@ -39,6 +39,7 @@
   sprintf( interfaceFilePathExt, "plugins/%s." PLUGIN_EXTENSION, interfaceFilePath ); \
   printf( "trying to load plugin %s\n", interfaceFilePathExt ); \
   PLUGIN_HANDLE pluginHandle = LOAD_PLUGIN( interfaceFilePathExt ); \
+  printf( "plugin handle: %lx\n", pluginHandle ); \
   if( success != NULL ) *success = (bool) pluginHandle; \
   LOAD_PLUGIN_FUNCTIONS( interfaceFunctions, interfaceName ) } while( 0 )
 
