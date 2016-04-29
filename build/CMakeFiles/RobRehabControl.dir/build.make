@@ -90,6 +90,10 @@ RobRehabControl_EXTERNAL_OBJECTS =
 
 ../RobRehabControl: CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o
 ../RobRehabControl: CMakeFiles/RobRehabControl.dir/build.make
+../RobRehabControl: /usr/lib64/libblas.so
+../RobRehabControl: /usr/lib64/liblapack.so
+../RobRehabControl: /usr/lib64/libblas.so
+../RobRehabControl: /usr/lib64/liblapack.so
 ../RobRehabControl: CMakeFiles/RobRehabControl.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/rerob/Projetos/RobRehabSystem/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking C executable ../RobRehabControl"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/RobRehabControl.dir/link.txt --verbose=$(VERBOSE)
