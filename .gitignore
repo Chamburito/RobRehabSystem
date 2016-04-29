@@ -27,14 +27,12 @@ data/receive_calls_server.txt
 *.filters
 *.user
 *.bat
-cvibuild.RobRehabControlGui/Debug/CC_no_dep_options.txt
-cvibuild.RobRehabControlGui/Debug/dlldependencies.txt
+cvibuild.*
 *.txt
 *.exe
 *.cvidefprots
 *.rc
 *.res
-cvibuild.RobRehabControlRT/Debug/NetworkVariableRT.obj
 *.out
 *.log
 config/shared_robots.json
