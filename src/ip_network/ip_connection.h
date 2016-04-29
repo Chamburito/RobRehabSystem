@@ -42,9 +42,9 @@
   
 #endif
 
-#include "interface.h"
+#include "interfaces.h"
   
-#include "async_debug.h"
+#include "debug/sync_debug.h"
 
 /////////////////////////////////////////////////////////////////////////  
 /////                    PREPROCESSOR DIRECTIVES                    /////
@@ -70,7 +70,7 @@ const size_t IP_MAX_MESSAGE_LENGTH = 256;
 #define IP_HOST 0
 #define IP_PORT IP_HOST_LENGTH
 
-enum Property { CLIENT = 0x01, SERVER = 0x02, NETWORK_ROLE_MASK = 0x0f, TCP = 0x10, UDP = 0x20, PROTOCOL_MASK = 0xf0 };
+enum Property { DISCONNECTED = 0x00, CLIENT = 0x01, SERVER = 0x02, LISTENER = 0x03, NETWORK_ROLE_MASK = 0x0f, TCP = 0x10, UDP = 0x20, PROTOCOL_MASK = 0xf0 };
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -110,25 +110,18 @@ static fd_set socketReadFDs; // stores all the socket file descriptors in use (f
 /////                                            INTERFACE                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define NAMESPACE IPNetwork
-
-#define NAMESPACE_FUNCTIONS( FUNCTION_INIT, namespace ) \
-        FUNCTION_INIT( char*, namespace, GetAddress, int ) \
-        FUNCTION_INIT( size_t, namespace, GetClientsNumber, int ) \
-        FUNCTION_INIT( size_t, namespace, SetMessageLength, int, size_t ) \
-        FUNCTION_INIT( int, namespace, OpenConnection, const char*, const char*, uint8_t ) \
-        FUNCTION_INIT( void, namespace, CloseConnection, int ) \
+#define IP_NETWORK_FUNCTIONS( namespace, FUNCTION_INIT ) \
+        FUNCTION_INIT( char*, namespace, GetAddress, IPConnection ) \
+        FUNCTION_INIT( size_t, namespace, GetClientsNumber, IPConnection ) \
+        FUNCTION_INIT( size_t, namespace, SetMessageLength, IPConnection, size_t ) \
+        FUNCTION_INIT( IPConnection, namespace, OpenConnection, const char*, const char*, uint8_t ) \
+        FUNCTION_INIT( void, namespace, CloseConnection, IPConnection ) \
         FUNCTION_INIT( bool, WaitEvent, IPConnection, unsigned int ) \
-        FUNCTION_INIT( char*, namespace, ReadMessage, int ) \
-        FUNCTION_INIT( int, namespace, WriteMessage, int, const char* ) \
-        FUNCTION_INIT( int, namespace, AcceptClient, int )
+        FUNCTION_INIT( char*, namespace, ReadMessage, IPConnection ) \
+        FUNCTION_INIT( int, namespace, WriteMessage, IPConnection, const char* ) \
+        FUNCTION_INIT( IPConnection, namespace, AcceptClient, IPConnection )
 
-NAMESPACE_FUNCTIONS( DEFINE_NAMESPACE_FUNCTION, NAMESPACE )
-
-const struct { NAMESPACE_FUNCTIONS( DEFINE_NAMESPACE_FUNC_PTR, NAMESPACE ) } NAMESPACE = { NAMESPACE_FUNCTIONS( INIT_NAMESPACE_FUNC_PTR, NAMESPACE ) };
-
-#undef NAMESPACE_FUNCTIONS
-#undef NAMESPACE
+INIT_NAMESPACE_INTERFACE( IPNetwork, IP_NETWORK_FUNCTIONS )
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -141,14 +134,14 @@ char* IPNetwork_GetAddress( IPConnection connection )
   static char addressString[ IP_ADDRESS_LENGTH ];
   static int error = 0;
   
-  DEBUG_EVENT( 0, "getting address string for socket fd: %d", connection->socketFD );
+  DEBUG_PRINT( "getting address string for socket fd: %d", connection->socketFD );
   
   error = getnameinfo( (struct sockaddr*) (connection->address), sizeof(struct sockaddr_in6), 
                     &addressString[ IP_HOST ], IP_HOST_LENGTH, &addressString[ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
 
   if( error != 0 )
   {
-    ERROR_EVENT( "getnameinfo: failed getting address string: %s", gai_strerror( error ) );
+    ERROR_PRINT( "getnameinfo: failed getting address string: %s", gai_strerror( error ) );
     return NULL;
   }
   
@@ -164,14 +157,14 @@ static int CompareAddresses( struct sockaddr* addr_1, struct sockaddr* addr_2 )
   error = getnameinfo( addr_1, sizeof(struct sockaddr_in6), &addressStrings[ 0 ][ IP_HOST ], IP_HOST_LENGTH, &addressStrings[ 0 ][ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
   if( error != 0 )
   {
-    ERROR_EVENT( "getnameinfo: failed getting address 1 string: %s", gai_strerror( error ) );
+    ERROR_PRINT( "getnameinfo: failed getting address 1 string: %s", gai_strerror( error ) );
     return -1;
   }
   
   error = getnameinfo( addr_2, sizeof(struct sockaddr_in6), &addressStrings[ 1 ][ IP_HOST ], IP_HOST_LENGTH, &addressStrings[ 1 ][ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
   if( error != 0 )
   {
-    ERROR_EVENT( "getnameinfo: failed getting address 2 string: %s", gai_strerror( error ) );
+    ERROR_PRINT( "getnameinfo: failed getting address 2 string: %s", gai_strerror( error ) );
     return -1;
   }
   
@@ -218,7 +211,7 @@ static IPConnection AddConnection( int socketFD, struct sockaddr* address, uint8
   connection->protocol = type & PROTOCOL_MASK;
   connection->networkRole = type & NETWORK_ROLE_MASK;
 
-  DEBUG_EVENT( 0, "socket: %d - type: %x", connection->socketFD, ( connection->protocol | connection->networkRole ) );
+  DEBUG_PRINT( "socket: %d - type: %x", connection->socketFD, ( connection->protocol | connection->networkRole ) );
   
   connection->address = (struct sockaddr_in6*) malloc( sizeof(struct sockaddr_in6) );
   *(connection->address) = *((struct sockaddr_in6*) address);
@@ -236,10 +229,10 @@ static IPConnection AddConnection( int socketFD, struct sockaddr* address, uint8
     static char addressString[ 16 * sizeof(uint8_t) ];
     for( opt = 0; opt < 16; opt++ )
       sprintf( &(addressString[ opt * sizeof(uint8_t) ]), "%3u", connection->address->sin6_addr.s6_addr[ opt ] );
-    DEBUG_EVENT( 0, "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family, connection->address->sin6_port, addressString );
+    DEBUG_PRINT( "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family, connection->address->sin6_port, addressString );
 
     //connection->address->sin6_family = AF_INET6;
-    connection->buffer = (char*) calloc( IP_CONNECTION_MSG_LEN, sizeof(char) );
+    connection->buffer = (char*) calloc( IP_MAX_MESSAGE_LENGTH, sizeof(char) );
     connection->ref_ReceiveMessage = ( connection->protocol == TCP ) ? ReceiveTCPMessage : ReceiveUDPMessage;
     connection->ref_SendMessage = ( connection->protocol == TCP ) ? SendTCPMessage : SendUDPMessage;
   }
@@ -300,7 +293,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
   unsigned int portNumber = (unsigned int) strtoul( port, NULL, 0 );
   if( portNumber < 49152 || portNumber > 65535 )
   {
-    ERROR_EVENT( "invalid port number value: %s", port );
+    ERROR_PRINT( "invalid port number value: %s", port );
     return NULL;
   }
 
@@ -313,7 +306,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
     hints.ai_socktype = SOCK_DGRAM;
   else
   {
-    DEBUG_EVENT( 0, "invalid protocol option: %x", protocol );
+    DEBUG_PRINT( "invalid protocol option: %x", protocol );
     return NULL;
   }
 
@@ -328,7 +321,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
   #ifndef _CVI_DLL_
   if( (rw = getaddrinfo( host, port, &hints, &hostsInfoList )) != 0 )
   {
-    ERROR_EVENT( "getaddrinfo: error reading host info: %s", gai_strerror( rw ) );
+    ERROR_PRINT( "getaddrinfo: error reading host info: %s", gai_strerror( rw ) );
     return NULL;
   }
   #else
@@ -348,7 +341,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
     getnameinfo( hostInfo->ai_addr, sizeof(struct sockaddr), 
                  &addressString[ IP_HOST ], IP_HOST_LENGTH, &addressString[ IP_PORT ], IP_PORT_LENGTH, NI_NUMERICHOST | NI_NUMERICSERV );
     
-    DEBUG_EVENT( 0, "trying to %s to: host: %s - port: %s - protocol: %s - version: %s", ( host == NULL ) ? "bind" : "connect",
+    DEBUG_PRINT( "trying to %s to: host: %s - port: %s - protocol: %s - version: %s", ( host == NULL ) ? "bind" : "connect",
                                                                                       &addressString[ IP_HOST ], &addressString[ IP_PORT ],
                                                                                       ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
                                                                                       ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4" );
@@ -356,7 +349,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
     // Create IP socket
     if( (socketFD = socket( hostInfo->ai_family, hostInfo->ai_socktype, hostInfo->ai_protocol )) == INVALID_SOCKET )
     {
-      ERROR_EVENT( "socket: failed opening %s %s socket", ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
+      ERROR_PRINT( "socket: failed opening %s %s socket", ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
                                                           ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4" );                                                              
       continue;
     }
@@ -368,7 +361,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
     if( fcntl( socketFD, F_SETFL, O_NONBLOCK ) == SOCKET_ERROR )
     #endif
     {
-      ERROR_EVENT( "failure setting socket %d to non-blocking state", socketFD );
+      ERROR_PRINT( "failure setting socket %d to non-blocking state", socketFD );
       close( socketFD );
       return NULL;
     }
@@ -378,7 +371,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
     if( setsockopt( socketFD, SOL_SOCKET, SO_REUSEADDR, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR ) 
     {
       
-      ERROR_EVENT( "setsockopt: failed setting socket %d option SO_REUSEADDR", socketFD );
+      ERROR_PRINT( "setsockopt: failed setting socket %d option SO_REUSEADDR", socketFD );
       close( socketFD );
       return NULL;
     }
@@ -391,7 +384,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
       // Let IPV6 servers accept IPV4 clients
       if( setsockopt( socketFD, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &rw, sizeof(rw) ) == SOCKET_ERROR )
       {
-        ERROR_EVENT( "setsockopt: failed setting socket %d option IPV6_V6ONLY", socketFD );
+        ERROR_PRINT( "setsockopt: failed setting socket %d option IPV6_V6ONLY", socketFD );
         close( socketFD );
         return NULL;
       }
@@ -399,7 +392,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
       // Bind server socket to the given local address
       if( bind( socketFD, hostInfo->ai_addr, hostInfo->ai_addrlen ) == SOCKET_ERROR )
       {
-        ERROR_EVENT( "bind: failed on binding socket %d to local port %u", socketFD, ((struct sockaddr_in6*) hostInfo->ai_addr)->sin6_port );
+        ERROR_PRINT( "bind: failed on binding socket %d to local port %u", socketFD, ((struct sockaddr_in6*) hostInfo->ai_addr)->sin6_port );
         close( socketFD );
         continue;
       }
@@ -409,7 +402,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
         // Set server socket to listen to remote connections
         if( listen( socketFD, QUEUE_SIZE ) == SOCKET_ERROR )
         {
-          ERROR_EVENT( "listen: failed listening on socket %d", socketFD );
+          ERROR_PRINT( "listen: failed listening on socket %d", socketFD );
           close( socketFD );
           continue;
         }
@@ -420,7 +413,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
       // Connect TCP client socket to given remote address
       if( connect( socketFD, hostInfo->ai_addr, hostInfo->ai_addrlen ) == SOCKET_ERROR )
       {
-        ERROR_EVENT( "connect: failed on connecting socket %d to remote address %s/%s", socketFD, &addressString[ IP_HOST ], &addressString[ IP_PORT ] );
+        ERROR_PRINT( "connect: failed on connecting socket %d to remote address %s/%s", socketFD, &addressString[ IP_HOST ], &addressString[ IP_PORT ] );
         close( socketFD );
         continue;
       }
@@ -432,7 +425,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
       local_address.ss_family = hostInfo->ai_addr->sa_family;
       if( bind( socketFD, (struct sockaddr*) &local_address, sizeof(local_address) ) == SOCKET_ERROR )
       {
-        ERROR_EVENT( "bind: failed on binding socket %d to arbitrary local port", socketFD );
+        ERROR_PRINT( "bind: failed on binding socket %d to arbitrary local port", socketFD );
         close( socketFD );
         continue;
       }
@@ -443,7 +436,7 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
   
   if( hostInfo == NULL )  
   {
-    ERROR_EVENT( "failed to create %s %s %s socket on host %s and port %s", ( host == NULL ) ? "server" : "client",
+    ERROR_PRINT( "failed to create %s %s %s socket on host %s and port %s", ( host == NULL ) ? "server" : "client",
                                                                             ( hostInfo->ai_protocol == IPPROTO_TCP ) ? "TCP" : "UDP",
                                                                             ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4",
                                                                             ( host == NULL ) ? "localhost" : host, port );
@@ -483,7 +476,7 @@ bool IPNetwork_WaitEvent( IPConnection connection, unsigned int milliseconds )
   eventsNumber = select( connection->socketFD + 1, &readFDs, NULL, NULL, &timeout );
   if( eventsNumber == SOCKET_ERROR )
   {
-    ERROR_EVENT( "select: error waiting for message on socket %d", connection->socketFD );
+    ERROR_PRINT( "select: error waiting for message on socket %d", connection->socketFD );
     return -1;
   }
   else if( eventsNumber == 0 )
@@ -500,22 +493,22 @@ static char* ReceiveTCPMessage( IPConnection connection )
 {
   int bytes_received;
   
-  memset( connection->buffer, 0, IP_CONNECTION_MSG_LEN );
+  memset( connection->buffer, 0, IP_MAX_MESSAGE_LENGTH );
   // Blocks until there is something to be read in the socket
-  bytes_received = recv( connection->socketFD, connection->buffer, IP_CONNECTION_MSG_LEN, 0 );
+  bytes_received = recv( connection->socketFD, connection->buffer, IP_MAX_MESSAGE_LENGTH, 0 );
 
   if( bytes_received == SOCKET_ERROR )
   {
-    ERROR_EVENT( "recv: error reading from socket %d", connection->socketFD );
+    ERROR_PRINT( "recv: error reading from socket %d", connection->socketFD );
     return NULL;
   }
   else if( bytes_received == 0 )
   {
-    ERROR_EVENT( "recv: remote connection with socket %d closed", connection->socketFD );
+    ERROR_PRINT( "recv: remote connection with socket %d closed", connection->socketFD );
     return NULL;
   }
   
-  DEBUG_UPDATE( "socket %d received message: %s", connection->socketFD, connection->buffer );
+  //DEBUG_PRINT( "socket %d received message: %s", connection->socketFD, connection->buffer );
   
   return connection->buffer;
 }
@@ -523,17 +516,17 @@ static char* ReceiveTCPMessage( IPConnection connection )
 // Send given message through the given TCP connection
 static int SendTCPMessage( IPConnection connection, const char* message )
 {
-  if( strlen( message ) + 1 > IP_CONNECTION_MSG_LEN )
+  if( strlen( message ) + 1 > IP_MAX_MESSAGE_LENGTH )
   {
-    ERROR_EVENT( "message too long (%u bytes) !", strlen( message ) );
+    ERROR_PRINT( "message too long (%lu bytes) !", strlen( message ) );
     return 0;
   }
   
-  DEBUG_UPDATE( "connection socket %d sending message: %s", connection->socketFD, message );
+  DEBUG_PRINT( "connection socket %d sending message: %s", connection->socketFD, message );
   
-  if( send( connection->socketFD, message, IP_CONNECTION_MSG_LEN, 0 ) == SOCKET_ERROR )
+  if( send( connection->socketFD, message, IP_MAX_MESSAGE_LENGTH, 0 ) == SOCKET_ERROR )
   {
-    ERROR_EVENT( "send: error writing to socket %d", connection->socketFD );
+    ERROR_PRINT( "send: error writing to socket %d", connection->socketFD );
     return -1;
   }
   
@@ -548,11 +541,11 @@ static char* ReceiveUDPMessage( IPConnection connection )
   static uint8_t* addressString[ 2 ];
   static char* empty_message = { '\0' };
 
-  memset( connection->buffer, 0, IP_CONNECTION_MSG_LEN );
+  memset( connection->buffer, 0, IP_MAX_MESSAGE_LENGTH );
   // Blocks until there is something to be read in the socket
-  if( recvfrom( connection->socketFD, connection->buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &address, &addressLength ) == SOCKET_ERROR )
+  if( recvfrom( connection->socketFD, connection->buffer, IP_MAX_MESSAGE_LENGTH, MSG_PEEK, (struct sockaddr *) &address, &addressLength ) == SOCKET_ERROR )
   {
-    ERROR_EVENT( "recvfrom: error reading from socket %d", connection->socketFD );
+    ERROR_PRINT( "recvfrom: error reading from socket %d", connection->socketFD );
     return NULL;
   }
 
@@ -565,7 +558,7 @@ static char* ReceiveUDPMessage( IPConnection connection )
     {
       recv( connection->socketFD, NULL, 0, 0 );
     
-      DEBUG_UPDATE( "socket %d received right message: %s", connection->socketFD, connection->buffer );
+      DEBUG_PRINT( "socket %d received right message: %s", connection->socketFD, connection->buffer );
     
       return connection->buffer;
     }
@@ -578,17 +571,17 @@ static char* ReceiveUDPMessage( IPConnection connection )
 // Send given message through the given UDP connection
 static int SendUDPMessage( IPConnection connection, const char* message )
 {
-  if( strlen( message ) + 1 > IP_CONNECTION_MSG_LEN )
+  if( strlen( message ) + 1 > IP_MAX_MESSAGE_LENGTH )
   {
-    ERROR_EVENT( "message too long (%u bytes) !", strlen( message ) );
+    ERROR_PRINT( "message too long (%lu bytes) !", strlen( message ) );
     return 0;
   }
   
-  DEBUG_UPDATE( "connection socket %d sending message: %s", connection->socketFD, message );
+  DEBUG_PRINT( "connection socket %d sending message: %s", connection->socketFD, message );
   
-  if( sendto( connection->socketFD, message, IP_CONNECTION_MSG_LEN, 0, (struct sockaddr *) connection->address, sizeof(struct sockaddr_in6) ) == SOCKET_ERROR )
+  if( sendto( connection->socketFD, message, IP_MAX_MESSAGE_LENGTH, 0, (struct sockaddr *) connection->address, sizeof(struct sockaddr_in6) ) == SOCKET_ERROR )
   {
-    ERROR_EVENT( "sendto: error writing to socket %d", connection->socketFD );
+    ERROR_PRINT( "sendto: error writing to socket %d", connection->socketFD );
     return -1;
   }
   
@@ -624,11 +617,11 @@ static IPConnection AcceptTCPClient( IPConnection server )
 
   if( clientSocketFD == INVALID_SOCKET )
   {
-    ERROR_EVENT( "accept: failed accepting connection on socket %d", server->socketFD );
+    ERROR_PRINT( "accept: failed accepting connection on socket %d", server->socketFD );
     return NULL;
   }
   
-  DEBUG_EVENT( 0, "client accepted: socket fd: %d\n", clientSocketFD );
+  DEBUG_PRINT( 0, "client accepted: socket fd: %d\n", clientSocketFD );
   
   client =  AddConnection( clientSocketFD, (struct sockaddr *) &clientAddress, CLIENT | TCP );
 
@@ -644,13 +637,13 @@ static IPConnection AcceptUDPClient( IPConnection server )
   IPConnection client;
   static struct sockaddr_storage clientAddress;
   static socklen_t addressLength = sizeof(clientAddress);
-  static char buffer[ IP_CONNECTION_MSG_LEN ];
+  static char buffer[ IP_MAX_MESSAGE_LENGTH ];
   static uint8_t* addressString[2];
   static IPConnection dummyConnection;
 
-  if( recvfrom( server->socketFD, buffer, IP_CONNECTION_MSG_LEN, MSG_PEEK, (struct sockaddr *) &clientAddress, &addressLength ) == SOCKET_ERROR )
+  if( recvfrom( server->socketFD, buffer, IP_MAX_MESSAGE_LENGTH, MSG_PEEK, (struct sockaddr *) &clientAddress, &addressLength ) == SOCKET_ERROR )
   {
-    ERROR_EVENT( "recvfrom: error reading from socket %d", server->socketFD );
+    ERROR_PRINT( "recvfrom: error reading from socket %d", server->socketFD );
     return NULL;
   }
   
@@ -658,24 +651,24 @@ static IPConnection AcceptUDPClient( IPConnection server )
   clientsNumber = *(server->ref_clientsCount);
   for( clientIndex = 0; clientIndex < clientsNumber; clientIndex++ )
   {
-    DEBUG_UPDATE( "comparing ports: %u - %u", server->clientsList[ clientIndex ]->address->sin6_port, ((struct sockaddr_in6*) &clientAddress)->sin6_port );
+    //DEBUG_PRINT( "comparing ports: %u - %u", server->clientsList[ clientIndex ]->address->sin6_port, ((struct sockaddr_in6*) &clientAddress)->sin6_port );
     
     if( server->clientsList[ clientIndex ]->address->sin6_port == ((struct sockaddr_in6*) &clientAddress)->sin6_port )
     {
       addressString[0] = server->clientsList[ clientIndex ]->address->sin6_addr.s6_addr;
       addressString[1] = ((struct sockaddr_in6*) &clientAddress)->sin6_addr.s6_addr;
       if( strncmp( (const char*) addressString[0], (const char*) addressString[1], sizeof(struct in6_addr) ) == 0 )
-        return &dummyConnection;
+        return dummyConnection;
     }
   }
   
-  DEBUG_EVENT( 0, "client accepted (clients count before: %u)", *(server->ref_clientsCount) );
+  DEBUG_PRINT( "client accepted (clients count before: %lu)", *(server->ref_clientsCount) );
   
   client = AddConnection( server->socketFD, (struct sockaddr*) &clientAddress, CLIENT | UDP );
 
   AddClient( server, client );
   
-  DEBUG_EVENT( 0, "client accepted (clients count after: %u)", *(server->ref_clientsCount) );
+  //DEBUG_PRINT( "client accepted (clients count after: %lu)", *(server->ref_clientsCount) );
   
   return client;
 }
@@ -690,13 +683,13 @@ void IPNetwork_Close( IPConnection connection )
 {
   if( connection != NULL )
   {
-    DEBUG_EVENT( 0, "closing connection for socket %d (users count before: %u)", connection->socketFD, *(connection->ref_clientsCount) );
+    //DEBUG_PRINT( "closing connection for socket %d (users count before: %u)", connection->socketFD, *(connection->ref_clientsCount) );
 
     // Each TCP connection has its own socket, so we can close it without problem. But UDP connections
     // from the same server share the socket, so we need to wait for all of them to be stopped to close the socket
     if( connection->protocol == TCP )
     {
-      DEBUG_UPDATE( "closing TCP connection unused socket fd: %d", connection->socketFD );
+      //DEBUG_PRINT( "closing TCP connection unused socket fd: %d", connection->socketFD );
       FD_CLR( connection->socketFD, &socketReadFDs );
       shutdown( connection->socketFD, SHUT_RDWR );
     }
@@ -705,7 +698,7 @@ void IPNetwork_Close( IPConnection connection )
     {
       if( connection->protocol == UDP )
       {
-        DEBUG_UPDATE( "closing UDP connection unused socket fd: %d", connection->socketFD );
+        //DEBUG_PRINT( "closing UDP connection unused socket fd: %d", connection->socketFD );
         
         FD_CLR( connection->socketFD, &socketReadFDs );
         close( connection->socketFD );
@@ -721,14 +714,14 @@ void IPNetwork_Close( IPConnection connection )
   
     if( connection->networkRole == CLIENT )
     {
-      DEBUG_UPDATE( "freeing client connection (socket %d) message buffer", connection->socketFD );
+      //DEBUG_PRINT( "freeing client connection (socket %d) message buffer", connection->socketFD );
 
       free( connection->buffer );
       connection->buffer = NULL;
     }
     else if( connection->networkRole == SERVER )
     {
-      DEBUG_UPDATE( "cleaning server connection (socket %d) client list", connection->socketFD );
+      //DEBUG_PRINT( "cleaning server connection (socket %d) client list", connection->socketFD );
       
       if( connection->clientsList != NULL )
       {
@@ -737,7 +730,7 @@ void IPNetwork_Close( IPConnection connection )
       }
     }
   
-    DEBUG_EVENT( 0, "closing connection for socket %d (users count after: %u)", connection->socketFD, 
+    //DEBUG_PRINT( 0, "closing connection for socket %d (users count after: %u)", connection->socketFD, 
                                                    ( connection->ref_clientsCount == NULL ) ? 0 : *(connection->ref_clientsCount) );
   
     free( connection );

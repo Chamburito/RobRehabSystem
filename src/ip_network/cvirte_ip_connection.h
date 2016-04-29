@@ -71,7 +71,7 @@ static khash_t( IPInt )* globalConnectionsList = NULL;
 /////                             INTERFACE                             /////
 /////////////////////////////////////////////////////////////////////////////
 
-#define ASYNC_IP_CONNECTION_FUNCTIONS( namespace, function_init ) \
+#define ASYNC_IP_NETWORK_FUNCTIONS( namespace, function_init ) \
         function_init( char*, namespace, GetAddress, int ) \
         function_init( size_t, namespace, GetActivesNumber, void ) \
         function_init( size_t, namespace, GetClientsNumber, int ) \
@@ -82,7 +82,7 @@ static khash_t( IPInt )* globalConnectionsList = NULL;
         function_init( int, namespace, WriteMessage, int, const char* ) \
         function_init( int, namespace, GetClient, int )
 
-INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_CONNECTION_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_FUNCTIONS )
 
 /////////////////////////////////////////////////////////////////////////////
 /////                         NETWORK UTILITIES                         /////

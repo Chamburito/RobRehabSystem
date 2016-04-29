@@ -9,13 +9,9 @@
 #include <stdbool.h>
 
 #include "ip_connection.h"
-#include "sync_debug.h"
+#include "debug/sync_debug.h"
 
-#ifdef _CVI_DLL_
-  #include "threads_realtime.h"
-#else
-  #include "threads_data_structures.h"
-#endif
+#include "threads/thread_safe_data.h"
 
   
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,37 +21,38 @@
 const size_t QUEUE_MAX_ITEMS = 10;
   
 // Structure that stores read and write message queues for a IPConnection struct used asyncronously
-typedef struct _AsyncIPConnection
+typedef struct _AsyncIPConnectionData
 {
-  IPConnection* baseConnection;
-  DataQueue* readQueue;
-  DataQueue* writeQueue;
+  IPConnection baseConnection;
+  ThreadSafeQueue readQueue;
+  ThreadSafeQueue writeQueue;
   Thread readThread, writeThread;
   char address[ IP_ADDRESS_LENGTH ];
 }
-AsyncIPConnection;
+AsyncIPConnectionData;
+
+typedef AsyncIPConnectionData* AsyncIPConnection;
 
 // Internal (private) list of asyncronous connections created (accessible only by index)
-static AsyncIPConnection** globalConnectionsList = NULL;
-static size_t globalConnectionsListSize = 0;
+static ThreadSafeMap globalConnectionsList = NULL;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                            INTERFACE                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define ASYNC_IP_CONNECTION_FUNCTIONS( namespace, function_init ) \
+#define ASYNC_IP_NETWORK_FUNCTIONS( namespace, function_init ) \
         function_init( char*, namespace, GetAddress, int ) \
         function_init( size_t, namespace, GetActivesNumber, void ) \
         function_init( size_t, namespace, GetClientsNumber, int ) \
         function_init( size_t, namespace, SetMessageLength, int, size_t ) \
-        function_init( int, namespace, Open, const char*, const char*, uint8_t ) \
-        function_init( void, namespace, Close, int ) \
+        function_init( int, namespace, OpenConnection, const char*, const char*, uint8_t ) \
+        function_init( void, namespace, CloseConnection, int ) \
         function_init( char*, namespace, ReadMessage, int ) \
         function_init( int, namespace, WriteMessage, int, const char* ) \
         function_init( int, namespace, GetClient, int )
 
-INIT_NAMESPACE_INTERFACE( AsyncIPConnection, ASYNC_IP_CONNECTION_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_FUNCTIONS )
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      INFORMATION UTILITIES                                      /////
@@ -80,7 +77,7 @@ static inline bool IsValidConnectionIndex( int connectionIndex )
 }
 
 // Returns the number of asyncronous connections created (method for encapsulation purposes)
-size_t AsyncIPConnection_GetActivesNumber()
+size_t AsyncIPNetwork_GetActivesNumber()
 {
   static size_t activeConnectionsNumber = 0;
   
@@ -93,7 +90,7 @@ size_t AsyncIPConnection_GetActivesNumber()
 }
 
 // Returns number of clients for the server connection of given index
-size_t AsyncIPConnection_GetClientsNumber( int serverIndex )
+size_t AsyncIPNetwork_GetClientsNumber( int serverIndex )
 {
   if( !IsValidConnectionIndex( serverIndex ) ) return 0;
   
@@ -103,11 +100,11 @@ size_t AsyncIPConnection_GetClientsNumber( int serverIndex )
     return 0;
   }
 
-  return IPConnection_GetClientsNumber( globalConnectionsList[ serverIndex ]->baseConnection );
+  return IPNetwork_GetClientsNumber( globalConnectionsList[ serverIndex ]->baseConnection );
 }
 
 // Returns address string (host and port) for the connection of given index
-inline char* AsyncIPConnection_GetAddress( int connectionIndex )
+inline char* AsyncIPNetwork_GetAddress( int connectionIndex )
 {
   if( !IsValidConnectionIndex( connectionIndex ) ) return NULL;
   
@@ -127,19 +124,19 @@ static void* AsyncAcceptClients( void* );
 // Create new AsyncIPConnection structure (from a given IPConnection structure) and add it to the internal list
 static int AddAsyncConnection( IPConnection* baseConnection )
 {
-  static AsyncIPConnection* connection;
+  static AsyncIPConnection connection;
   static char* addressString;
   
   DEBUG_EVENT( 0, "socket index: %d",  baseConnection->socketFD );
   
-  globalConnectionsList = (AsyncIPConnection**) realloc( globalConnectionsList, ( globalConnectionsListSize + 1 ) * sizeof(AsyncIPConnection*) );
-  globalConnectionsList[ globalConnectionsListSize ] = (AsyncIPConnection*) malloc( sizeof(AsyncIPConnection) );
+  globalConnectionsList = (AsyncIPConnection) realloc( globalConnectionsList, ( globalConnectionsListSize + 1 ) * sizeof(AsyncIPConnectionData) );
+  globalConnectionsList[ globalConnectionsListSize ] = (AsyncIPConnection) malloc( sizeof(AsyncIPConnectionData) );
   
   connection = globalConnectionsList[ globalConnectionsListSize ];
   
   connection->baseConnection = baseConnection;
   
-  addressString = IPConnection_GetAddress( baseConnection );
+  addressString = IPNetwork_GetAddress( baseConnection );
   strcpy( &(connection->address[ IP_HOST ]), &addressString[ IP_HOST ] );
   strcpy( &(connection->address[ IP_PORT ]), &addressString[ IP_PORT ] );
   
@@ -163,9 +160,9 @@ static int AddAsyncConnection( IPConnection* baseConnection )
 }
 
 // Creates a new IPConnection structure (from the defined properties) and add it to the asyncronous connection list
-int AsyncIPConnection_Open( const char* host, const char* port, int protocol )
+int AsyncIPNetwork_Open( const char* host, const char* port, int protocol )
 {
-  IPConnection* baseConnection = IPConnection_Open( host, port, (uint8_t) protocol );
+  IPConnection* baseConnection = IPNetwork_Open( host, port, (uint8_t) protocol );
   if( baseConnection == NULL )
   {
     ERROR_EVENT( "failed to create %s %s connection on port %s", ( protocol == TCP ) ? "TCP" : "UDP", 
@@ -184,9 +181,9 @@ int AsyncIPConnection_Open( const char* host, const char* port, int protocol )
 // Loop of message reading (storing in queue) to be called asyncronously for client connections
 static void* AsyncReadQueue( void* args )
 {
-  AsyncIPConnection* reader_buffer = (AsyncIPConnection*) args;
+  AsyncIPConnection reader_buffer = (AsyncIPConnection) args;
   IPConnection* reader = reader_buffer->baseConnection;
-  DataQueue* readQueue = reader_buffer->readQueue;
+  ThreadSafeQueue readQueue = reader_buffer->readQueue;
   
   char* lastMessage;
   
@@ -206,11 +203,11 @@ static void* AsyncReadQueue( void* args )
       DEBUG_UPDATE( "connection socket %d read cache full", reader_buffer-> baseConnection->socketFD );
     
     // Blocking call
-    if( IPConnection_WaitEvent( reader, 2000 ) != 0 ) 
+    if( IPNetwork_WaitEvent( reader, 2000 ) != 0 ) 
     {
       DEBUG_UPDATE( "message available on client socket %d", reader->socketFD );
       
-      if( (lastMessage = IPConnection_ReceiveMessage( reader )) != NULL )
+      if( (lastMessage = IPNetwork_ReceiveMessage( reader )) != NULL )
       {
         if( lastMessage[0] == '\0' ) continue;
         
@@ -229,9 +226,9 @@ static void* AsyncReadQueue( void* args )
 // Loop of message writing (removing in order from queue) to be called asyncronously
 static void* AsyncWriteQueue( void* args )
 {
-  AsyncIPConnection* writer = (AsyncIPConnection*) args;
+  AsyncIPConnection writer = (AsyncIPConnection) args;
   IPConnection* baseWriter = writer->baseConnection;
-  DataQueue* writeQueue = writer->writeQueue;
+  ThreadSafeQueue writeQueue = writer->writeQueue;
   
   char firstMessage[ IP_CONNECTION_MSG_LEN ];
 
@@ -255,7 +252,7 @@ static void* AsyncWriteQueue( void* args )
     
     DEBUG_UPDATE( "connection socket %d sending message: %s", baseWriter->socketFD, firstMessage );
     
-    if( IPConnection_SendMessage( baseWriter, firstMessage ) == -1 )
+    if( IPNetwork_SendMessage( baseWriter, firstMessage ) == -1 )
       break;
   }
   
@@ -266,10 +263,10 @@ static void* AsyncWriteQueue( void* args )
 // The message queue stores the index and address of the detected remote connection in string format
 static void* AsyncAcceptClients( void* args )
 {  
-  AsyncIPConnection* server = (AsyncIPConnection*) args;
+  AsyncIPConnection server = (AsyncIPConnection) args;
   IPConnection* baseServer = server->baseConnection;
   IPConnection* client;
-  DataQueue* clientQueue = server->readQueue;
+  ThreadSafeQueue clientQueue = server->readQueue;
 
   int lastClient;
   
@@ -293,16 +290,16 @@ static void* AsyncAcceptClients( void* args )
     }
     
     // Blocking call
-    if( IPConnection_WaitEvent( baseServer, 5000 ) != 0 ) 
+    if( IPNetwork_WaitEvent( baseServer, 5000 ) != 0 ) 
     {
       DEBUG_UPDATE( "client available on server socket %d",  baseServer->socketFD );
       
-      if( (client = IPConnection_AcceptClient( baseServer )) != NULL )
+      if( (client = IPNetwork_AcceptClient( baseServer )) != NULL )
       {
         if( client->socketFD == 0 ) continue;
         
-        DEBUG_EVENT( 0, "client accepted: socket: %d - type: %x\n\thost: %s - port: %s", &( AsyncIPConnection_GetAddress( client ) )[ IP_HOST ], 
-                     &( AsyncIPConnection_GetAddress( client ) )[ IP_PORT ], client->socketFD, (client->protocol | client->networkRole) );
+        DEBUG_EVENT( 0, "client accepted: socket: %d - type: %x\n\thost: %s - port: %s", &( AsyncIPNetwork_GetAddress( client ) )[ IP_HOST ], 
+                     &( AsyncIPNetwork_GetAddress( client ) )[ IP_PORT ], client->socketFD, (client->protocol | client->networkRole) );
         
         lastClient = globalConnectionsListSize;
         
@@ -329,9 +326,9 @@ static void* AsyncAcceptClients( void* args )
 
 // Get (and remove) message from the beginning (oldest) of the given index corresponding read queue
 // Method to be called from the main thread
-char* AsyncIPConnection_ReadMessage( int clientIndex )
+char* AsyncIPNetwork_ReadMessage( int clientIndex )
 {
-  static DataQueue* readQueue;
+  static ThreadSafeQueue readQueue;
   static char firstMessage[ IP_CONNECTION_MSG_LEN ];
 
   if( !IsValidConnectionIndex( clientIndex ) ) return NULL;
@@ -357,9 +354,9 @@ char* AsyncIPConnection_ReadMessage( int clientIndex )
   return firstMessage;
 }
 
-int AsyncIPConnection_WriteMessage( int connectionIndex, const char* message )
+int AsyncIPNetwork_WriteMessage( int connectionIndex, const char* message )
 {
-  static DataQueue* writeQueue;
+  static ThreadSafeQueue writeQueue;
 
   if( !IsValidConnectionIndex( connectionIndex ) ) return -1;
   
@@ -373,9 +370,9 @@ int AsyncIPConnection_WriteMessage( int connectionIndex, const char* message )
   return 0;
 }
 
-int AsyncIPConnection_GetClient( int serverIndex )
+int AsyncIPNetwork_GetClient( int serverIndex )
 {
-  static DataQueue* clientQueue;
+  static ThreadSafeQueue clientQueue;
   static int firstClient;
 
   if( !IsValidConnectionIndex( serverIndex ) ) return -1;
@@ -407,11 +404,11 @@ int AsyncIPConnection_GetClient( int serverIndex )
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Handle socket closing and structures destruction for the given index corresponding connection
-void AsyncIPConnection_Close( int connectionIndex )
+void AsyncIPNetwork_Close( int connectionIndex )
 {
   if( !IsValidConnectionIndex( connectionIndex ) ) return;
   
-  IPConnection_Close( globalConnectionsList[ connectionIndex ]->baseConnection );
+  IPNetwork_Close( globalConnectionsList[ connectionIndex ]->baseConnection );
   globalConnectionsList[ connectionIndex ]->baseConnection = NULL;
   
   DEBUG_EVENT( 0, "waiting threads for connection id %u", connectionIndex );
@@ -430,7 +427,7 @@ void AsyncIPConnection_Close( int connectionIndex )
   free( globalConnectionsList[ connectionIndex ] );
   globalConnectionsList[ connectionIndex ] = NULL;
   
-  if( AsyncIPConnection_GetActivesNumber() <= 0 )
+  if( AsyncIPNetwork_GetActivesNumber() <= 0 )
   {
     globalConnectionsListSize = 0;
     free( globalConnectionsList );
