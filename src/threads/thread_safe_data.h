@@ -40,6 +40,7 @@ enum TSQueueAccessMode { TSQUEUE_WAIT, TSQUEUE_NOWAIT };
 
 INIT_NAMESPACE_INTERFACE( ThreadSafeQueues, THREAD_SAFE_QUEUE_FUNCTIONS )
 
+
 ThreadSafeQueue ThreadSafeQueues_Create( size_t maxLength, size_t itemSize )
 {
   ThreadSafeQueue queue = (ThreadSafeQueue) malloc( sizeof(ThreadSafeQueueData) );
@@ -155,6 +156,7 @@ typedef TheadSafeListData* TheadSafeList;
         function_init( bool, namespace, SetItem, TheadSafeList, size_t, void* )
 
 INIT_NAMESPACE_INTERFACE( TheadSafeLists, THREAD_SAFE_LIST_FUNCTIONS )
+
 
 TheadSafeList TheadSafeLists_Create( size_t itemSize )
 {
@@ -302,11 +304,11 @@ bool TheadSafeLists_SetItem( TheadSafeList list, size_t index, void* dataIn )
 /////                                      THREAD SAFE MAP                                        /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-KHASH_MAP_INIT_INT( VoidInt, void* )
+KHASH_MAP_INIT_INT( RefInt, void* )
 
 typedef struct _ThreadSafeMapData
 {
-  khash_t( VoidInt )* hashTable;
+  khash_t( RefInt )* hashTable;
   size_t itemSize;
   ThreadLock accessLock;
 }
@@ -326,11 +328,12 @@ typedef ThreadSafeMapData* ThreadSafeMap;
         
 INIT_NAMESPACE_INTERFACE( ThreadSafeMaps, THREAD_SAFE_MAP_FUNCTIONS )
 
+
 ThreadSafeMap ThreadSafeMaps_Create( size_t itemSize )
 {
   ThreadSafeMap map = (ThreadSafeMap) malloc( sizeof(ThreadSafeMapData) );
   
-  map->hashTable = kh_init( VoidInt );
+  map->hashTable = kh_init( RefInt );
   map->itemSize = itemSize;
   map->accessLock = ThreadLocks.Create();
   
@@ -340,7 +343,15 @@ ThreadSafeMap ThreadSafeMaps_Create( size_t itemSize )
 void ThreadSafeMaps_Discard( ThreadSafeMap map )
 {
   ThreadLocks.Aquire( map->accessLock );
-  kh_destroy( VoidInt, map->hashTable );
+  if( map->itemSize > sizeof(void*) )
+  {
+    for( khint_t dataIndex = kh_begin( map->hashTable ); dataIndex != kh_end( map->hashTable ); dataIndex++ )
+    {
+      if( kh_exist( map->hashTable, dataIndex ) )
+        free( kh_value( map->hashTable, dataIndex ) );
+    }
+  }
+  kh_destroy( RefInt, map->hashTable );
   ThreadLocks.Release( map->accessLock );
   
   ThreadLocks.Discard( map->accessLock );
@@ -359,11 +370,16 @@ int ThreadSafeMaps_SetIntKeyItem( ThreadSafeMap map, const int key, void* dataIn
   
   ThreadLocks.Aquire( map->accessLock );
   
-  khint_t index = kh_get( VoidInt, map->hashTable, (khint_t) key );
-  if( index == kh_end( map->hashTable ) ) index = kh_put( VoidInt, map->hashTable, key, &insertionStatus );
+  khint_t index = kh_get( RefInt, map->hashTable, (khint_t) key );
+  if( index == kh_end( map->hashTable ) ) index = kh_put( RefInt, map->hashTable, key, &insertionStatus );
   
-  void* ref_data = kh_value( map->hashTable, index );
-  memcpy( ref_data, dataIn, map->itemSize );
+  if( map->itemSize > sizeof(void*) )
+  {
+    kh_value( map->hashTable, index ) = malloc( map->itemSize );
+    if( dataIn != NULL ) memcpy( kh_value( map->hashTable, index ), dataIn, map->itemSize );
+  }
+  else
+    kh_value( map->hashTable, index ) = dataIn;
   
   ThreadLocks.Release( map->accessLock );
   
@@ -385,7 +401,7 @@ void* ThreadSafeMaps_AquireItemRef( ThreadSafeMap map, int key )
 {
   ThreadLocks.Aquire( map->accessLock );
   
-  khint_t index = kh_get( VoidInt, map->hashTable, (khint_t) key );
+  khint_t index = kh_get( RefInt, map->hashTable, (khint_t) key );
   
   if( index == kh_end( map->hashTable ) ) return NULL;
   

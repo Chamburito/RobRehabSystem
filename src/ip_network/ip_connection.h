@@ -421,9 +421,9 @@ IPConnection IPNetwork_Open( const char* host, const char* port, uint8_t protoco
     else
     {
       // Bind UDP client socket to available local address
-      static struct sockaddr_storage local_address;
+      static struct sockaddr_storage localAddress;
       local_address.ss_family = hostInfo->ai_addr->sa_family;
-      if( bind( socketFD, (struct sockaddr*) &local_address, sizeof(local_address) ) == SOCKET_ERROR )
+      if( bind( socketFD, (struct sockaddr*) &localAddress, sizeof(localAddress) ) == SOCKET_ERROR )
       {
         ERROR_PRINT( "bind: failed on binding socket %d to arbitrary local port", socketFD );
         close( socketFD );

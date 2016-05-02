@@ -9,7 +9,7 @@
 #include <stdbool.h>
 
 #include "ip_connection.h"
-#include "debug/sync_debug.h"
+#include "debug/async_debug.h"
 
 #include "threads/thread_safe_data.h"
 
@@ -26,12 +26,14 @@ typedef struct _AsyncIPConnectionData
   IPConnection baseConnection;
   ThreadSafeQueue readQueue;
   ThreadSafeQueue writeQueue;
-  Thread readThread, writeThread;
   char address[ IP_ADDRESS_LENGTH ];
 }
 AsyncIPConnectionData;
 
 typedef AsyncIPConnectionData* AsyncIPConnection;
+
+// Thread for asyncronous connections update
+Thread updateThread = NULL;
 
 // Internal (private) list of asyncronous connections created (accessible only by index)
 static ThreadSafeMap globalConnectionsList = NULL;
@@ -61,13 +63,13 @@ INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_FUNCTIONS )
 // Verifies if connection index is valid or not already closed
 static inline bool IsValidConnectionIndex( int connectionIndex )
 {
-  if( connectionIndex < 0 || connectionIndex >= (int) globalConnectionsListSize )
+  if( connectionIndex < 0 || connectionIndex >= (int) ThreadSafeMaps.GetItemsCount( globalConnectionsList ) )
   {
     ERROR_EVENT( "invalid connection index: %d", connectionIndex );
     return false;
   }
   
-  if( globalConnectionsList[ connectionIndex ] == NULL )
+  if( !ThreadSafeMaps.GetItem( globalConnectionsList, connectionIndex, NULL ) )
   {
     ERROR_EVENT( "connection index %d already closed", connectionIndex );
     return false;
@@ -81,9 +83,10 @@ size_t AsyncIPNetwork_GetActivesNumber()
 {
   static size_t activeConnectionsNumber = 0;
   
+  size_t globalConnectionsListSize = ThreadSafeMaps.GetItemsCount( globalConnectionsList );
   for( size_t connectionIndex = 0; connectionIndex < globalConnectionsListSize; connectionIndex++ )
   {
-    if( globalConnectionsList[ connectionIndex ] != NULL ) activeConnectionsNumber++;
+    if( ThreadSafeMaps.GetItem( globalConnectionsList, connectionIndex, NULL ) ) activeConnectionsNumber++;
   }
   
   return activeConnectionsNumber;

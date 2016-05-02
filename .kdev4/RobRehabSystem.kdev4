@@ -17,8 +17,8 @@ Install Directory=
 [CustomDefinesAndIncludes][ProjectPath0]
 Path=.
 parseAmbiguousAsCPP=false
-parserArguments=-fspell-checking -Wdocumentation -std=c++11 -Wall
-parserArgumentsC=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=gnu99
+parserArguments=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c++11
+parserArgumentsC=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c99
 
 [CustomDefinesAndIncludes][ProjectPath0][Compiler]
 Name=Clang
@@ -30,9 +30,9 @@ ROBREHAB_CONTROL=1
 SIMPLE_DEBUG=0
 
 [CustomDefinesAndIncludes][ProjectPath0][Includes]
-1=/home/rerob/Projetos/RobRehabSystem/src/
-2=/home/rerob/Projetos/RobRehabSystem/src/robot_control/SimTK/simbody/
-3=/home/rerob/Projetos/RobRehabSystem/src/robot_control/
+1=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/
+2=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/robot_control/
+3=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/robot_control/SimTK/simbody/
 
 [Defines And Includes][Compiler]
 Name=GCC
