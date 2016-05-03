@@ -212,7 +212,8 @@ static int CompareSockets( const void* ref_socket_1, const void* ref_socket_2 )
 static IPConnection AddConnection( Socket socketFD, struct sockaddr* address, uint8_t type )
 {
   int opt;
-  IPConnection connection = (IPConnection) malloc( sizeof(IPConnection) );
+  IPConnection connection = (IPConnection) malloc( sizeof(IPConnectionData) );
+  memset( connection, 0, sizeof(IPConnectionData) );
   
   PollSocket cmpSocket = { .fd = socketFD };
   connection->socket = (PollSocket*) bsearch( &cmpSocket, availableSocketsList, availableSocketsNumber, sizeof(PollSocket), CompareSockets );
@@ -246,7 +247,7 @@ static IPConnection AddConnection( Socket socketFD, struct sockaddr* address, ui
     static char addressString[ 16 * sizeof(uint8_t) ];
     for( opt = 0; opt < 16; opt++ )
       sprintf( &(addressString[ opt * sizeof(uint8_t) ]), "%3u", connection->address->sin6_addr.s6_addr[ opt ] );
-    DEBUG_PRINT( "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family, connection->address->sin6_port, addressString );
+    DEBUG_PRINT( "connection added:\n\tfamily: %x\n\tport: %u\n\taddress: %s", connection->address->sin6_family, ntohs( connection->address->sin6_port ), addressString );
 
     //connection->address->sin6_family = AF_INET6;
     connection->buffer = (char*) calloc( IP_MAX_MESSAGE_LENGTH, sizeof(char) );
@@ -287,15 +288,15 @@ static inline void AddClient( IPConnection server, IPConnection client )
 // Generic method for opening a new socket and providing a corresponding IPConnection structure for use
 IPConnection IPNetwork_OpenConnection( const char* host, const char* port, uint8_t protocol )
 {
-  static IPConnection connection;
+  IPConnection connection;
 
-  static Socket socketFD;
-  static struct addrinfo hints;
-  static struct addrinfo* hostsInfoList;
-  static struct addrinfo* hostInfo;
+  Socket socketFD;
+  struct addrinfo hints;
+  struct addrinfo* hostsInfoList;
+  struct addrinfo* hostInfo;
 
-  static int rw;
-  static uint8_t networkRole = 0;
+  int rw;
+  uint8_t networkRole = 0;
   
   #ifdef WIN32
   WSADATA wsa;
@@ -335,6 +336,8 @@ IPConnection IPNetwork_OpenConnection( const char* host, const char* port, uint8
   else
     networkRole = CLIENT;
 
+  DEBUG_PRINT( "getaddrinfo for host %s and port %s", host, port );
+  
   #ifndef _CVI_DLL_
   if( (rw = getaddrinfo( host, port, &hints, &hostsInfoList )) != 0 )
   {
@@ -350,6 +353,8 @@ IPConnection IPNetwork_OpenConnection( const char* host, const char* port, uint8
   hostInfo->ai_next = NULL;
   #endif
 
+  DEBUG_PRINT( "looping through hosts info list %p", hostsInfoList );
+  
   // loop through all the results and bind to the first we can
   for( hostInfo = hostsInfoList; hostInfo != NULL; hostInfo = hostInfo->ai_next ) 
   {
@@ -735,8 +740,11 @@ void IPNetwork_CloseConnection( IPConnection connection )
     {
       //DEBUG_PRINT( "freeing client connection (socket %d) message buffer", connection->socketFD );
 
-      free( connection->buffer );
-      connection->buffer = NULL;
+      if( connection->buffer != NULL ) 
+      {
+        free( connection->buffer );
+        connection->buffer = NULL;
+      }
     }
     else if( connection->networkRole == SERVER )
     {

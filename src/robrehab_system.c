@@ -49,4 +49,6 @@ int main( int argc, char* argv[] )
   DEBUG_PRINT( "ending control program at time: %s", ctime( &rawTime ) );
 
   SUBSYSTEM.End();
+  
+  exit( 0 );
 }

@@ -133,6 +133,8 @@ static int AddAsyncConnection( IPConnection baseConnection )
   int connectionID = (int) ThreadSafeMaps.SetItem( globalConnectionsList, baseConnection, NULL );  
   connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
   
+  DEBUG_PRINT( "connection handle %p aquired", connection );
+  
   connection->baseConnection = baseConnection;
   
   addressString = IPNetwork_GetAddress( baseConnection );
@@ -147,12 +149,15 @@ static int AddAsyncConnection( IPConnection baseConnection )
   
   ThreadSafeMaps.ReleaseItem( globalConnectionsList );
   
+  DEBUG_PRINT( "connection handle %p released", connection );
+  
   return connectionID;
 }
 
 // Creates a new IPConnection structure (from the defined properties) and add it to the asyncronous connection list
 int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t protocol )
 {
+  DEBUG_PRINT( "Trying to create %s %s connection on port %s", ( protocol == TCP ) ? "TCP" : "UDP", ( host == NULL ) ? "Server" : "Client", port );
   IPConnection baseConnection = IPNetwork_OpenConnection( host, port, protocol );
   if( baseConnection == NULL )
   {
@@ -346,8 +351,8 @@ int AsyncIPNetwork_GetClient( int serverID )
         /*DEBUG_UPDATE*/DEBUG_PRINT( "new client index from connection index %d: %d", serverID, firstClient ); 
       }
     }
-    else
-      /*ERROR_EVENT*/ERROR_PRINT( "connection index %d is not a server index", serverID );
+    //else
+    //  /*ERROR_EVENT*/ERROR_PRINT( "connection index %d is not a server index", serverID );
     
     ThreadSafeMaps.ReleaseItem( globalConnectionsList );
   }
@@ -369,8 +374,6 @@ void AsyncIPNetwork_CloseConnection( int connectionID )
   IPNetwork_CloseConnection( connection->baseConnection );
   connection->baseConnection = NULL;
   
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "waiting threads for connection id %u", connectionID );
-  
   ThreadSafeQueues.Discard( connection->readQueue );
   ThreadSafeQueues.Discard( connection->writeQueue );
   
@@ -380,6 +383,8 @@ void AsyncIPNetwork_CloseConnection( int connectionID )
   
   if( ThreadSafeMaps.GetItemsCount( globalConnectionsList ) == 0 )
   {
+    isNetworkRunning = false;
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "waiting update threads %p and %p for exit", globalReadThread, globalWriteThread );
     (void) Threading.WaitExit( globalReadThread, 5000 );
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "read thread for connection id %u returned", connectionID );     
     (void) Threading.WaitExit( globalWriteThread, 5000 );

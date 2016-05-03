@@ -385,7 +385,11 @@ unsigned long ThreadSafeMaps_SetItem( ThreadSafeMap map, const void* key, void* 
   if( map->keyType == TSMAP_INT ) hash = (unsigned long) key;
   else if( key != NULL ) hash = (unsigned long) kh_str_hash_func( key );
   
+  DEBUG_PRINT( "new item hash: %lx", hash );
+  
   ThreadLocks.Aquire( map->accessLock );
+  
+  DEBUG_PRINT( "access lock %p aquired", map->accessLock );
   
   khint_t index = kh_get( RefInt, map->hashTable, hash );
   if( index == kh_end( map->hashTable ) ) 
@@ -396,11 +400,14 @@ unsigned long ThreadSafeMaps_SetItem( ThreadSafeMap map, const void* key, void* 
     
   if( dataIn != NULL ) memcpy( kh_value( map->hashTable, index ), dataIn, map->itemSize );
   
+  if( insertionStatus == -1 ) hash = 0;
+  else hash = (unsigned long) kh_key( map->hashTable, index );
+  
   ThreadLocks.Release( map->accessLock );
   
-  if( insertionStatus == -1 ) return 0;
+  DEBUG_PRINT( "access lock %p released", map->accessLock );
   
-  return (unsigned long) kh_key( map->hashTable, index );
+  return hash;
 }
 
 bool ThreadSafeMaps_RemoveItem( ThreadSafeMap map, unsigned long hash )
