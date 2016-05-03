@@ -111,6 +111,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named RobRehabServer
+
+# Build rule for target.
+RobRehabServer: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 RobRehabServer
+.PHONY : RobRehabServer
+
+# fast build rule for target.
+RobRehabServer/fast:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/build
+.PHONY : RobRehabServer/fast
+
+#=============================================================================
 # Target rules for targets named OpenSimModel
 
 # Build rule for target.
@@ -342,6 +355,7 @@ src/robrehab_system.o: src/robrehab_system.c.o
 
 # target to build an object file
 src/robrehab_system.c.o:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/src/robrehab_system.c.o
 	$(MAKE) -f CMakeFiles/RobRehabControl.dir/build.make CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o
 .PHONY : src/robrehab_system.c.o
 
@@ -351,6 +365,7 @@ src/robrehab_system.i: src/robrehab_system.c.i
 
 # target to preprocess a source file
 src/robrehab_system.c.i:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/src/robrehab_system.c.i
 	$(MAKE) -f CMakeFiles/RobRehabControl.dir/build.make CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.i
 .PHONY : src/robrehab_system.c.i
 
@@ -360,6 +375,7 @@ src/robrehab_system.s: src/robrehab_system.c.s
 
 # target to generate assembly for a file
 src/robrehab_system.c.s:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/src/robrehab_system.c.s
 	$(MAKE) -f CMakeFiles/RobRehabControl.dir/build.make CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.s
 .PHONY : src/robrehab_system.c.s
 
@@ -424,6 +440,7 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... rebuild_cache"
+	@echo "... RobRehabServer"
 	@echo "... OpenSimModel"
 	@echo "... SimpleJoint"
 	@echo "... ForcePIControl"

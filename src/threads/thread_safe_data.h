@@ -12,6 +12,7 @@
 #include "klib/khash.h"
 
 #include <stdbool.h>
+#include <stdlib.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD SAFE QUEUE                                       /////
@@ -31,14 +32,14 @@ typedef ThreadSafeQueueData* ThreadSafeQueue;
 
 enum TSQueueAccessMode { TSQUEUE_WAIT, TSQUEUE_NOWAIT };
 
-#define THREAD_SAFE_QUEUE_FUNCTIONS( namespace, function_init ) \
-        function_init( ThreadSafeQueue, namespace, Create, size_t, size_t ) \
-        function_init( void, namespace, Discard, ThreadSafeQueue ) \
-        function_init( size_t, namespace, GetItemsCount, ThreadSafeQueue ) \
-        function_init( bool, namespace, Enqueue, ThreadSafeQueue, void*, enum TSQueueAccessMode ) \
-        function_init( bool, namespace, Dequeue, ThreadSafeQueue, void*, enum TSQueueAccessMode )
+#define THREAD_SAFE_QUEUE_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( ThreadSafeQueue, Namespace, Create, size_t, size_t ) \
+        INIT_FUNCTION( void, Namespace, Discard, ThreadSafeQueue ) \
+        INIT_FUNCTION( size_t, Namespace, GetItemsCount, ThreadSafeQueue ) \
+        INIT_FUNCTION( bool, Namespace, Enqueue, ThreadSafeQueue, void*, enum TSQueueAccessMode ) \
+        INIT_FUNCTION( bool, Namespace, Dequeue, ThreadSafeQueue, void*, enum TSQueueAccessMode )
 
-INIT_NAMESPACE_INTERFACE( ThreadSafeQueues, THREAD_SAFE_QUEUE_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( ThreadSafeQueues, THREAD_SAFE_QUEUE_INTERFACE )
 
 
 ThreadSafeQueue ThreadSafeQueues_Create( size_t maxLength, size_t itemSize )
@@ -128,39 +129,40 @@ static const size_t LIST_LENGTH_INCREMENT = 10;
 
 typedef struct _Item
 {
-  size_t index;
+  int key;
   void* data;
 }
 Item;
 
-typedef struct _TheadSafeListData
+typedef struct _ThreadSafeListData
 {
   Item* data;
   size_t length, itemsCount, insertCount;
   size_t itemSize;
   ThreadLock accessLock;
 }
-TheadSafeListData;
+ThreadSafeListData;
 
-typedef TheadSafeListData* TheadSafeList;
+typedef ThreadSafeListData* ThreadSafeList;
 
-#define THREAD_SAFE_LIST_FUNCTIONS( namespace, function_init ) \
-        function_init( TheadSafeList, namespace, Create, size_t ) \
-        function_init( void, namespace, Discard, TheadSafeList ) \
-        function_init( size_t, namespace, GetItemsCount, TheadSafeList ) \
-        function_init( size_t, namespace, Insert, TheadSafeList, void* ) \
-        function_init( bool, namespace, Remove, TheadSafeList, size_t ) \
-        function_init( bool, namespace, GetItem, TheadSafeList, size_t, void* ) \
-        function_init( void*, namespace, AquireItem, TheadSafeList, size_t ) \
-        function_init( void, namespace, ReleaseItem, TheadSafeList ) \
-        function_init( bool, namespace, SetItem, TheadSafeList, size_t, void* )
+#define THREAD_SAFE_LIST_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( ThreadSafeList, Namespace, Create, size_t ) \
+        INIT_FUNCTION( void, Namespace, Discard, ThreadSafeList ) \
+        INIT_FUNCTION( size_t, Namespace, GetItemsCount, ThreadSafeList ) \
+        INIT_FUNCTION( size_t, Namespace, Insert, ThreadSafeList, void* ) \
+        INIT_FUNCTION( int, Namespace, GetIndexKey, ThreadSafeList, size_t ) \
+        INIT_FUNCTION( bool, Namespace, Remove, ThreadSafeList, int ) \
+        INIT_FUNCTION( bool, Namespace, GetItem, ThreadSafeList, int, void* ) \
+        INIT_FUNCTION( void*, Namespace, AquireItem, ThreadSafeList, int ) \
+        INIT_FUNCTION( void, Namespace, ReleaseItem, ThreadSafeList ) \
+        INIT_FUNCTION( bool, Namespace, SetItem, ThreadSafeList, int, void* )
 
-INIT_NAMESPACE_INTERFACE( TheadSafeLists, THREAD_SAFE_LIST_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( ThreadSafeLists, THREAD_SAFE_LIST_INTERFACE )
 
 
-TheadSafeList TheadSafeLists_Create( size_t itemSize )
+ThreadSafeList ThreadSafeLists_Create( size_t itemSize )
 {
-  TheadSafeList list = (TheadSafeList) malloc( sizeof(TheadSafeListData) );
+  ThreadSafeList list = (ThreadSafeList) malloc( sizeof(ThreadSafeListData) );
   
   list->data = (Item*) malloc( LIST_LENGTH_INCREMENT * sizeof(Item) );
   for( size_t position = 0; position < LIST_LENGTH_INCREMENT; position++ )
@@ -175,10 +177,12 @@ TheadSafeList TheadSafeLists_Create( size_t itemSize )
   return list;
 }
 
-void TheadSafeLists_Discard( TheadSafeList list )
+void ThreadSafeLists_Discard( ThreadSafeList list )
 {
   if( list != NULL )
   {
+    for( size_t dataIndex = 0; dataIndex < list->itemsCount; dataIndex++ )
+        free( list->data[ dataIndex ].data );
     free( list->data );
     
     ThreadLocks.Discard( list->accessLock );
@@ -188,34 +192,34 @@ void TheadSafeLists_Discard( TheadSafeList list )
   }
 }
 
-size_t TheadSafeLists_GetItemsCount( TheadSafeList list )
+size_t ThreadSafeLists_GetItemsCount( ThreadSafeList list )
 {
   return list->length;
 }
 
 int ListCompare( const void* ref_item_1, const void* ref_item_2 )
 {
-  return ( ((Item*) ref_item_1)->index - ((Item*) ref_item_2)->index );
+  return ( ((Item*) ref_item_1)->key - ((Item*) ref_item_2)->key );
 }
 
-size_t TheadSafeLists_Insert( TheadSafeList list, void* dataIn )
+size_t ThreadSafeLists_Insert( ThreadSafeList list, void* dataIn )
 {
   ThreadLocks.Aquire( list->accessLock );
-  
-  list->insertCount++;
   
   if( list->itemsCount + 1 > list->length )
   {
     list->length += LIST_LENGTH_INCREMENT;
     list->data = (Item*) realloc( list->data, list->length * sizeof(Item) );
-    list->data[ list->itemsCount ].data = (void*) malloc( list->itemSize );
   }
   
-  list->data[ list->itemsCount ].index = list->insertCount;
+  list->data[ list->itemsCount ].key = list->insertCount;
+  
+  list->data[ list->itemsCount ].data = (void*) malloc( list->itemSize );
   memcpy( list->data[ list->itemsCount ].data, dataIn, list->itemSize );
   
   qsort( (void*) list->data, list->length, list->itemSize, ListCompare );
   
+  list->insertCount++;
   list->itemsCount++;
   
   ThreadLocks.Release( list->accessLock );
@@ -223,20 +227,28 @@ size_t TheadSafeLists_Insert( TheadSafeList list, void* dataIn )
   return list->insertCount;
 }
 
-bool TheadSafeLists_Remove( TheadSafeList list, size_t index )
+int ThreadSafeLists_GetIndexKey( ThreadSafeList list, size_t index )
+{
+  if( list == NULL ) return -1;
+  
+  if( index > list->itemsCount ) return -1;
+  
+  return list->data[ index ].key;
+}
+
+bool ThreadSafeLists_Remove( ThreadSafeList list, int key )
 {
   ThreadLocks.Aquire( list->accessLock );
   
   if( list->itemsCount == 0 ) return false;
   
-  Item comparisonItem = { index, NULL };
+  Item comparisonItem = { key, NULL };
   
   Item* foundItem = (Item*) bsearch( (void*) &comparisonItem, (void*) list->data, list->length, list->itemSize, ListCompare );
-  TheadSafeListData
   if( foundItem == NULL ) return false;
   
   free( foundItem->data );
-  foundItem->index = INFINITE;
+  foundItem->key = INFINITE;
   
   qsort( (void*) list->data, list->length, list->itemSize, ListCompare );
   
@@ -253,50 +265,49 @@ bool TheadSafeLists_Remove( TheadSafeList list, size_t index )
   return true;
 }
 
-void* TheadSafeLists_AquireItemRef( TheadSafeList list, size_t index )
+void* ThreadSafeLists_AquireItem( ThreadSafeList list, int key )
 {
-  Item comparisonItem = { index, NULL };
+  Item comparisonItem = { key, NULL };
   
   ThreadLocks.Aquire( list->accessLock );
   
   Item* foundItem = (Item*) bsearch( (void*) &comparisonItem, (void*) list->data, list->length, list->itemSize, ListCompare );
-  
   if( foundItem == NULL ) return NULL;
   
   return foundItem->data;
 }
 
-void TheadSafeLists_ReleaseItemRef( TheadSafeList list )
+void ThreadSafeLists_ReleaseItem( ThreadSafeList list )
 {
   ThreadLocks.Release( list->accessLock );
 }
 
-bool TheadSafeLists_GetItem( TheadSafeList list, size_t index, void* dataOut )
+bool ThreadSafeLists_GetItem( ThreadSafeList list, int key, void* dataOut )
 {
-  void* foundData = TheadSafeLists_AquireItemRef( list, index );
-  
+  void* foundData = ThreadSafeLists_AquireItem( list, key );
   if( foundData == NULL ) return false;
   
+  if( list->itemSize > sizeof(void*) ) foundData = &foundData;
+    
   if( dataOut != NULL ) memcpy( dataOut, foundData, list->itemSize );
     
-  TheadSafeLists_ReleaseItemRef( list );
+  ThreadSafeLists_ReleaseItem( list );
   
   return true;
 }
 
-bool TheadSafeLists_SetItem( TheadSafeList list, size_t index, void* dataIn )
+bool ThreadSafeLists_SetItem( ThreadSafeList list, int key, void* dataIn )
 {
-  Item comparisonItem = { index, NULL };
+  void* foundData = ThreadSafeLists_AquireItem( list, key );
+  if( foundData == NULL ) return false;
   
-  ThreadLocks.Aquire( list->accessLock );
+  if( list->itemSize > sizeof(void*) ) foundData = &foundData;
   
-  Item* foundItem = (Item*) bsearch( (void*) &comparisonItem, (void*) list->data, list->length, list->itemSize, ListCompare );
+  if( dataIn != NULL ) memcpy( foundData, dataIn, list->itemSize );
   
-  if( foundItem != NULL && dataIn != NULL ) memcpy( foundItem->data, dataIn, list->itemSize );
+  ThreadSafeLists_ReleaseItem( list );
   
-  ThreadLocks.Release( list->accessLock );
-  
-  return foundItem->data;
+  return true;
 }
 
 
@@ -304,11 +315,14 @@ bool TheadSafeLists_SetItem( TheadSafeList list, size_t index, void* dataIn )
 /////                                      THREAD SAFE MAP                                        /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-KHASH_MAP_INIT_INT( RefInt, void* )
+enum TSMapKeyType { TSMAP_INT, TSMAP_STR };
+
+KHASH_MAP_INIT_INT64( RefInt, void* )
 
 typedef struct _ThreadSafeMapData
 {
   khash_t( RefInt )* hashTable;
+  enum TSMapKeyType keyType;
   size_t itemSize;
   ThreadLock accessLock;
 }
@@ -316,24 +330,26 @@ ThreadSafeMapData;
 
 typedef ThreadSafeMapData* ThreadSafeMap;
 
-#define THREAD_SAFE_MAP_FUNCTIONS( namespace, function_init ) \
-        function_init( ThreadSafeMap, namespace, Create, size_t ) \
-        function_init( void, namespace, Discard, ThreadSafeMap ) \
-        function_init( size_t, namespace, GetItemsCount, ThreadSafeMap ) \
-        function_init( int, namespace, SetIntKeyItem, ThreadSafeMap, const int, void* ) \
-        function_init( int, namespace, SetStrKeyItem, ThreadSafeMap, const char*, void* ) \
-        function_init( void*, namespace, AquireItemRef, ThreadSafeMap, int ) \
-        function_init( void, namespace, ReleaseItemRef, ThreadSafeMap ) \
-        function_init( bool, namespace, GetItem, ThreadSafeMap, int, void* )
+#define THREAD_SAFE_MAP_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( ThreadSafeMap, Namespace, Create, enum TSMapKeyType, size_t ) \
+        INIT_FUNCTION( void, Namespace, Discard, ThreadSafeMap ) \
+        INIT_FUNCTION( size_t, Namespace, GetItemsCount, ThreadSafeMap ) \
+        INIT_FUNCTION( unsigned long, Namespace, SetItem, ThreadSafeMap, const void*, void* ) \
+        INIT_FUNCTION( bool, Namespace, RemoveItem, ThreadSafeMap, unsigned long ) \
+        INIT_FUNCTION( void*, Namespace, AquireItem, ThreadSafeMap, unsigned long ) \
+        INIT_FUNCTION( void, Namespace, ReleaseItem, ThreadSafeMap ) \
+        INIT_FUNCTION( bool, Namespace, GetItem, ThreadSafeMap, unsigned long, void* ) \
+        INIT_FUNCTION( void, Namespace, RunForAll, ThreadSafeMap, void (*)( void* ) )
         
-INIT_NAMESPACE_INTERFACE( ThreadSafeMaps, THREAD_SAFE_MAP_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( ThreadSafeMaps, THREAD_SAFE_MAP_INTERFACE )
 
 
-ThreadSafeMap ThreadSafeMaps_Create( size_t itemSize )
+ThreadSafeMap ThreadSafeMaps_Create( enum TSMapKeyType keyType, size_t itemSize )
 {
   ThreadSafeMap map = (ThreadSafeMap) malloc( sizeof(ThreadSafeMapData) );
   
   map->hashTable = kh_init( RefInt );
+  map->keyType = keyType;
   map->itemSize = itemSize;
   map->accessLock = ThreadLocks.Create();
   
@@ -343,13 +359,10 @@ ThreadSafeMap ThreadSafeMaps_Create( size_t itemSize )
 void ThreadSafeMaps_Discard( ThreadSafeMap map )
 {
   ThreadLocks.Aquire( map->accessLock );
-  if( map->itemSize > sizeof(void*) )
+  for( khint_t dataIndex = kh_begin( map->hashTable ); dataIndex != kh_end( map->hashTable ); dataIndex++ )
   {
-    for( khint_t dataIndex = kh_begin( map->hashTable ); dataIndex != kh_end( map->hashTable ); dataIndex++ )
-    {
-      if( kh_exist( map->hashTable, dataIndex ) )
-        free( kh_value( map->hashTable, dataIndex ) );
-    }
+    if( kh_exist( map->hashTable, dataIndex ) )
+      free( kh_value( map->hashTable, dataIndex ) );
   }
   kh_destroy( RefInt, map->hashTable );
   ThreadLocks.Release( map->accessLock );
@@ -364,66 +377,94 @@ size_t ThreadSafeMaps_GetItemsCount( ThreadSafeMap map )
   return kh_size( map->hashTable );
 }
 
-int ThreadSafeMaps_SetIntKeyItem( ThreadSafeMap map, const int key, void* dataIn )
+unsigned long ThreadSafeMaps_SetItem( ThreadSafeMap map, const void* key, void* dataIn )
 {
+  unsigned long hash = 0;
   int insertionStatus = 0;
+  
+  if( map->keyType == TSMAP_INT ) hash = (unsigned long) key;
+  else if( key != NULL ) hash = (unsigned long) kh_str_hash_func( key );
   
   ThreadLocks.Aquire( map->accessLock );
   
-  khint_t index = kh_get( RefInt, map->hashTable, (khint_t) key );
-  if( index == kh_end( map->hashTable ) ) index = kh_put( RefInt, map->hashTable, key, &insertionStatus );
-  
-  if( map->itemSize > sizeof(void*) )
+  khint_t index = kh_get( RefInt, map->hashTable, hash );
+  if( index == kh_end( map->hashTable ) ) 
   {
+    index = kh_put( RefInt, map->hashTable, hash, &insertionStatus );
     kh_value( map->hashTable, index ) = malloc( map->itemSize );
-    if( dataIn != NULL ) memcpy( kh_value( map->hashTable, index ), dataIn, map->itemSize );
   }
-  else
-    kh_value( map->hashTable, index ) = dataIn;
+    
+  if( dataIn != NULL ) memcpy( kh_value( map->hashTable, index ), dataIn, map->itemSize );
   
   ThreadLocks.Release( map->accessLock );
   
   if( insertionStatus == -1 ) return 0;
   
-  return (int) kh_key( map->hashTable, index );
+  return (unsigned long) kh_key( map->hashTable, index );
 }
 
-int ThreadSafeMaps_SetStrKeyItem( ThreadSafeMap map, const char* key, void* dataIn )
-{
-  if( key == NULL ) return 0;
-  
-  int hash = kh_str_hash_func( key );
-  
-  return ThreadSafeMaps_SetIntKeyItem( map, hash, dataIn );
-}
-
-void* ThreadSafeMaps_AquireItemRef( ThreadSafeMap map, int key )
+bool ThreadSafeMaps_RemoveItem( ThreadSafeMap map, unsigned long hash )
 {
   ThreadLocks.Aquire( map->accessLock );
   
-  khint_t index = kh_get( RefInt, map->hashTable, (khint_t) key );
+  khint_t index = kh_get( RefInt, map->hashTable, (khint64_t) hash );
   
-  if( index == kh_end( map->hashTable ) ) return NULL;
+  if( index == kh_end( map->hashTable ) ) return false;
+  
+  free( kh_value( map->hashTable, index ) );
+  kh_del( RefInt, map->hashTable, index );
+  
+  ThreadLocks.Release( map->accessLock );
+  
+  return true;
+}
+
+void* ThreadSafeMaps_AquireItem( ThreadSafeMap map, unsigned long hash )
+{
+  ThreadLocks.Aquire( map->accessLock );
+  
+  khint_t index = kh_get( RefInt, map->hashTable, (khint64_t) hash );
+  
+  if( index == kh_end( map->hashTable ) ) 
+  {
+    ThreadLocks.Release( map->accessLock );
+    return NULL;
+  }
   
   return kh_value( map->hashTable, index );
 }
 
-void ThreadSafeMaps_ReleaseItemRef( ThreadSafeMap map )
+void ThreadSafeMaps_ReleaseItem( ThreadSafeMap map )
 {
   ThreadLocks.Release( map->accessLock );
 }
 
-bool ThreadSafeMaps_GetItem( ThreadSafeMap map, int key, void* dataOut )
+bool ThreadSafeMaps_GetItem( ThreadSafeMap map, unsigned long hash, void* dataOut )
 {
-  void* ref_data = ThreadSafeMaps_AquireItemRef( map, key );
+  void* ref_data = ThreadSafeMaps_AquireItem( map, hash );
   
   if( ref_data == NULL ) return false;
   
   if( dataOut != NULL ) memcpy( dataOut, ref_data, map->itemSize );
   
-  ThreadSafeMaps_ReleaseItemRef( map );
+  ThreadSafeMaps_ReleaseItem( map );
   
   return true;
+}
+
+void ThreadSafeMaps_RunForAll( ThreadSafeMap map, void (*objectOperator)(void*) )
+{
+  if( map == NULL ) return;
+  
+  ThreadLocks.Aquire( map->accessLock );
+  
+  for( khint_t dataIndex = kh_begin( map->hashTable ); dataIndex != kh_end( map->hashTable ); dataIndex++ )
+  {
+    if( kh_exist( map->hashTable, dataIndex ) )
+      objectOperator( kh_value( map->hashTable, dataIndex ) );
+  }
+  
+  ThreadLocks.Release( map->accessLock );
 }
 
 

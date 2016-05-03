@@ -22,7 +22,7 @@ add_library( SimpleJoint MODULE src/robot_control/simple_joint.c )
 # add_library( CppPlugin MODULE src/robot_control/cpp_plugin.cpp )
 add_library( OpenSimModel MODULE src/robot_control/open_sim_model.cpp )
 
-#add_executable( RobRehabServer src/robrehab_system.c )
+add_executable( RobRehabServer src/robrehab_system.c )
 
 include_directories( ${CMAKE_SOURCE_DIR}/src )
 link_directories( ${CMAKE_SOURCE_DIR}/libs )
@@ -62,7 +62,7 @@ set_target_properties( OpenSimModel PROPERTIES PREFIX "" )
 target_include_directories( OpenSimModel PUBLIC src/robot_control/ src/robot_control/SimTK/simbody )
 target_link_libraries( OpenSimModel libSimTKcommon_d.so libSimTKmath_d.so libSimTKsimbody_d.so libosimActuators_d.so libosimAnalyses_d.so libosimCommon_d.so libosimLepton_d.so libosimSimulation_d.so libosimTools_d.so )
 
-#target_compile_definitions( RobRehabServer PUBLIC -DROBREHAB_SERVER -DDEBUG )
-#target_link_libraries( RobRehabServer ${CMAKE_THREAD_LIBS_INIT} )
+target_compile_definitions( RobRehabServer PUBLIC -DROBREHAB_SERVER -DDEBUG )
+target_link_libraries( RobRehabServer ${CMAKE_THREAD_LIBS_INIT} )
 
 # install( TARGETS RobRehabGui RobRehabServer RUNTIME DESTINATION . )

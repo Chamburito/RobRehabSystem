@@ -20,7 +20,7 @@ CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/emg_processing.h
 CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/interfaces.h
 CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/ip_network/async_ip_network.h
 CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/ip_network/cvirte_ip_connection.h
-CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/ip_network/ip_connection.h
+CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/ip_network/ip_network.h
 CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/kalman_filters.h
 CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/klib/khash.h
 CMakeFiles/RobRehabControl.dir/src/robrehab_system.c.o: ../src/klib/kvec.h

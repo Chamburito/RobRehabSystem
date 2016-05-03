@@ -13,13 +13,13 @@
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
 
-#include "config_parser.h"
+//#include "config_parser.h"
 
 #include "klib/kvec.h"
 
 #include "debug/async_debug.h"
 
-const unsigned long UPDATE_INTERVAL_MS = 5;
+#define UPDATE_INTERVAL_MS 5
 
 static int eventServerConnectionID;
 static int axisServerConnectionID;
@@ -50,7 +50,7 @@ INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_NETWORK_FUNCTIONS )
 
 int RobRehabNetwork_Init( const char* configType )
 {
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %lx", THREAD_ID );
   if( (eventServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50000", TCP )) == IP_CONNECTION_INVALID_ID )
     return -1;
   if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( NULL, "50001", UDP )) == IP_CONNECTION_INVALID_ID )
@@ -72,14 +72,14 @@ int RobRehabNetwork_Init( const char* configType )
   sharedRobotAxesData = SHMControl.InitData( "robot_axes_data", SHM_CONTROL_OUT );
   sharedRobotJointsData = SHMControl.InitData( "robot_joints_data", SHM_CONTROL_OUT );
   
-  DEBUG_EVENT( 0, "RobRehab Network initialized on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network initialized on thread %lx", THREAD_ID );
   
   return 0;
 }
 
 void RobRehabNetwork_End()
 {
-  DEBUG_EVENT( 0, "ending RobRehab Network on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "ending RobRehab Network on thread %lx", THREAD_ID );
   
   for( size_t eventClientIndex = 0; eventClientIndex < kv_size( eventClientsList ); eventClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( eventClientsList, eventClientIndex ) );
@@ -104,14 +104,14 @@ void RobRehabNetwork_End()
   kv_destroy( eventClientsList );
   DEBUG_EVENT( 6, "info clients list %p destroyed", eventClientsList );
   kv_destroy( axisClientsList );
-  DEBUG_EVENT( 7, "data clients list %d destroyed", axisClientsList );
+  DEBUG_EVENT( 7, "data clients list %p destroyed", axisClientsList );
   kv_destroy( jointClientsList );
-  DEBUG_EVENT( 8, "joint clients list %d destroyed", jointClientsList );
+  DEBUG_EVENT( 8, "joint clients list %p destroyed", jointClientsList );
   
   kv_destroy( axisNetworkControllersList );
   kv_destroy( jointNetworkControllersList );
   
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network ended on thread %x", THREAD_ID );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network ended on thread %lx", THREAD_ID );
 }
 
 static void UpdateClientEvent( int );
@@ -120,7 +120,7 @@ static void UpdateClientJoint( int );
 
 void RobRehabNetwork_Update()
 {
-  DEBUG_UPDATE( "updating connections on thread %x", THREAD_ID );
+  DEBUG_UPDATE( "updating connections on thread %lx", THREAD_ID );
   
   int newEventClientID = AsyncIPNetwork.GetClient( eventServerConnectionID );
   if( newEventClientID != IP_CONNECTION_INVALID_ID )
@@ -235,7 +235,7 @@ static void UpdateClientAxis( int clientID )
   
   if( messageOut[ 0 ] > 0 ) 
   {
-    DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", messageOut, clientID, measureByteIndex );
+    DEBUG_UPDATE( "sending message %s to client %d (%u axes)", messageOut, clientID, messageOut[ 0 ] );
     AsyncIPNetwork.WriteMessage( clientID, messageOut );
   }
 }
@@ -261,7 +261,7 @@ static void UpdateClientJoint( int clientID )
   
   if( messageOut[ 0 ] > 0 ) 
   {
-    DEBUG_UPDATE( "sending message %s to client %d (%u bytes)", messageOut, clientID, measureByteIndex );
+    DEBUG_UPDATE( "sending message %s to client %d (%u joints)", messageOut, clientID, messageOut[ 0 ] );
     AsyncIPNetwork.WriteMessage( clientID, messageOut );
   }
 }

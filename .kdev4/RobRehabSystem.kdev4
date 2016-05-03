@@ -18,7 +18,7 @@ Install Directory=
 Path=.
 parseAmbiguousAsCPP=false
 parserArguments=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c++11
-parserArgumentsC=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=c99
+parserArgumentsC=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunused-parameter -Wunreachable-code -Wall -std=gnu99
 
 [CustomDefinesAndIncludes][ProjectPath0][Compiler]
 Name=Clang

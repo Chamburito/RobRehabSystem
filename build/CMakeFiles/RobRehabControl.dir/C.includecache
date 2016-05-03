@@ -29,6 +29,8 @@ klib/khash.h
 ../src/threads/klib/khash.h
 stdbool.h
 -
+stdlib.h
+-
 
 ../src/threads/threads_unix.h
 pthread.h
@@ -203,20 +205,14 @@ unistd.h
 -
 
 /home/rerob/Projetos/RobRehabSystem/src/ip_network/async_ip_network.h
-iostream
+stdbool.h
 -
-string
--
-deque
--
-thread
--
-mutex
--
-chrono
--
-ip_connection.h
-/home/rerob/Projetos/RobRehabSystem/src/ip_network/ip_connection.h
+ip_network.h
+/home/rerob/Projetos/RobRehabSystem/src/ip_network/ip_network.h
+debug/async_debug.h
+/home/rerob/Projetos/RobRehabSystem/src/ip_network/debug/async_debug.h
+threads/thread_safe_data.h
+/home/rerob/Projetos/RobRehabSystem/src/ip_network/threads/thread_safe_data.h
 
 /home/rerob/Projetos/RobRehabSystem/src/ip_network/cvirte_ip_connection.h
 threads/thread_safe_data.h
@@ -238,7 +234,7 @@ utility.h
 userint.h
 -
 
-/home/rerob/Projetos/RobRehabSystem/src/ip_network/ip_connection.h
+/home/rerob/Projetos/RobRehabSystem/src/ip_network/ip_network.h
 stdlib.h
 -
 string.h
@@ -261,16 +257,20 @@ sys/types.h
 -
 sys/socket.h
 -
+stropts.h
+-
+poll.h
+-
 netinet/in.h
 -
 arpa/inet.h
 -
 netdb.h
 -
-interface.h
-/home/rerob/Projetos/RobRehabSystem/src/ip_network/interface.h
-async_debug.h
-/home/rerob/Projetos/RobRehabSystem/src/ip_network/async_debug.h
+interfaces.h
+/home/rerob/Projetos/RobRehabSystem/src/ip_network/interfaces.h
+debug/sync_debug.h
+/home/rerob/Projetos/RobRehabSystem/src/ip_network/debug/sync_debug.h
 
 /home/rerob/Projetos/RobRehabSystem/src/kalman_filters.h
 interfaces.h
@@ -419,8 +419,6 @@ shm_axis_control.h
 /home/rerob/Projetos/RobRehabSystem/src/shm_axis_control.h
 shm_joint_control.h
 /home/rerob/Projetos/RobRehabSystem/src/shm_joint_control.h
-config_parser.h
-/home/rerob/Projetos/RobRehabSystem/src/config_parser.h
 klib/kvec.h
 /home/rerob/Projetos/RobRehabSystem/src/klib/kvec.h
 debug/async_debug.h
