@@ -64,9 +64,9 @@ typedef struct sockaddr* IPAddress;                 // Opaque IP address type
 
 const int IP_CONNECTION_INVALID_ID = -1;
 
-#define IP_HOST_LENGTH 40
-#define IP_PORT_LENGTH 6
-#define IP_ADDRESS_LENGTH IP_HOST_LENGTH + IP_PORT_LENGTH
+#define IP_ADDRESS_LENGTH INET6_ADDRSTRLEN                    // Maximum length of IPv6 address (host+port) string
+#define IP_PORT_LENGTH 6                                      // Maximum length of short integer string representation
+#define IP_HOST_LENGTH IP_ADDRESS_LENGTH - IP_PORT_LENGTH     // Maximum length of IPv6 host string
 
 #define IP_HOST 0
 #define IP_PORT IP_HOST_LENGTH
@@ -339,7 +339,9 @@ IPAddress LoadAddressInfo( const char* host, const char* port )
   #else
   addressData.sin_family = AF_INET;
   addressData.sin_port = htons( (short) portNumber );
-  addressData.sin_addr = htonl( INADDR_ANY );
+  if( host == NULL ) addressData.sin_addr.s_addr = htonl( INADDR_ANY );
+  else if( inet_aton( host, &(addressData.sin_addr) ) == 0 ) 
+    return NULL;
   #endif
   
   return (IPAddress) &addressData;
