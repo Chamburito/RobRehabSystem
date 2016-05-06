@@ -20,7 +20,7 @@
 #define DEFINE_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
 #define INIT_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) .func = func,
       
-#define DEFINE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) static rtype namespace##_##func( __VA_ARGS__ );
+#define DEFINE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) rtype namespace##_##func( __VA_ARGS__ );
 #define DEFINE_NAMESPACE_FUNC_PTR( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
 #define INIT_NAMESPACE_FUNC_PTR( rtype, namespace, func, ... ) .func = namespace##_##func,
 

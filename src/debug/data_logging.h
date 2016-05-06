@@ -45,7 +45,7 @@ static khash_t( LogInt )* logsList = NULL;
 INIT_NAMESPACE_INTERFACE( DataLogging, DATA_LOGGING_FUNCTIONS )
 
 #define LOG_FILE_PATH_MAX_LEN 256
-static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t memoryBufferLength )
+int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t memoryBufferLength )
 {
   static char logFilePathExt[ LOG_FILE_PATH_MAX_LEN ];
   
@@ -83,7 +83,7 @@ static int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber,
   return (int) kh_key( logsList, newLogIndex );
 }
 
-static void DataLogging_EndLog( int logID )
+void DataLogging_EndLog( int logID )
 {
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;
@@ -106,7 +106,7 @@ static void DataLogging_EndLog( int logID )
   }
 }
 
-static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )
+void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )
 {
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;
@@ -122,7 +122,7 @@ static void DataLogging_SaveData( int logID, double* dataList, size_t dataListSi
   }
 }
 
-static void DataLogging_RegisterValues( int logID, size_t valuesNumber, ... )
+void DataLogging_RegisterValues( int logID, size_t valuesNumber, ... )
 {
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;
@@ -147,7 +147,7 @@ static void DataLogging_RegisterValues( int logID, size_t valuesNumber, ... )
   va_end( logValues );
 }
 
-static void DataLogging_RegisterList( int logID, size_t valuesNumber, double* valuesList )
+void DataLogging_RegisterList( int logID, size_t valuesNumber, double* valuesList )
 {
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;
@@ -166,7 +166,7 @@ static void DataLogging_RegisterList( int logID, size_t valuesNumber, double* va
   log->memoryValuesCount += valuesNumber;
 }
 
-static void DataLogging_SetDataPrecision( int logID, size_t decimalPlacesNumber )
+void DataLogging_SetDataPrecision( int logID, size_t decimalPlacesNumber )
 {
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );
   if( logIndex == kh_end( logsList ) ) return;

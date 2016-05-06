@@ -19,6 +19,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   
 const size_t QUEUE_MAX_ITEMS = 10;
+const int IP_CONNECTION_INVALID_ID = -1;
   
 // Structure that stores read and write message queues for a IPConnection struct used asyncronously
 typedef struct _AsyncIPConnectionData
@@ -50,7 +51,7 @@ static ThreadSafeMap globalConnectionsList = NULL;
         function_init( size_t, namespace, GetActivesNumber, void ) \
         function_init( size_t, namespace, GetClientsNumber, int ) \
         function_init( size_t, namespace, SetMessageLength, int, size_t ) \
-        function_init( int, namespace, OpenConnection, const char*, const char*, uint8_t ) \
+        function_init( int, namespace, OpenConnection, uint8_t, const char*, uint16_t ) \
         function_init( void, namespace, CloseConnection, int ) \
         function_init( char*, namespace, ReadMessage, int ) \
         function_init( int, namespace, WriteMessage, int, const char* ) \
@@ -82,7 +83,7 @@ size_t AsyncIPNetwork_GetClientsNumber( int serverIndex )
   AsyncIPConnection connection = (AsyncIPConnection) ThreadSafeMaps.AquireItem( globalConnectionsList, serverIndex );
   if( connection == NULL ) return 0;
   
-  size_t clientsNumber = IPNetwork_GetClientsNumber( connection->baseConnection );
+  size_t clientsNumber = IPNetwork.GetClientsNumber( connection->baseConnection );
   
   ThreadSafeMaps.ReleaseItem( globalConnectionsList );
 
@@ -119,33 +120,33 @@ static int AddAsyncConnection( IPConnection baseConnection )
     globalWriteThread = Threading.StartThread( AsyncWriteQueues, (void*) globalConnectionsList, THREAD_JOINABLE );
   }
   
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "socket index: %d", baseConnection->socket->fd );
+  ///*DEBUG_EVENT( 0,*/DEBUG_PRINT( "socket index: %d", baseConnection->socket->fd );
   
   AsyncIPConnectionData connectionData = { .baseConnection = baseConnection };
   
-  char* addressString = IPNetwork_GetAddress( baseConnection );
+  char* addressString = IPNetwork.GetAddress( baseConnection );
   strcpy( &(connectionData.address[ IP_HOST ]), &addressString[ IP_HOST ] );
   strcpy( &(connectionData.address[ IP_PORT ]), &addressString[ IP_PORT ] );
   
-  size_t readQueueItemSize = ( !IPNetwork_IsServer( baseConnection ) ) ? IP_MAX_MESSAGE_LENGTH : sizeof(int);
+  size_t readQueueItemSize = ( !IPNetwork.IsServer( baseConnection ) ) ? IP_MAX_MESSAGE_LENGTH : sizeof(int);
   connectionData.readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, readQueueItemSize );  
   connectionData.writeQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, IP_MAX_MESSAGE_LENGTH );
   
   int connectionID = (int) ThreadSafeMaps.SetItem( globalConnectionsList, baseConnection, &connectionData );  
   
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "last connection index: %lu - socket fd: %d", ThreadSafeMaps.GetItemsCount( globalConnectionsList ), baseConnection->socket->fd );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "last connection index: %lu - connection: %p", ThreadSafeMaps.GetItemsCount( globalConnectionsList ), baseConnection );
   
   return connectionID;
 }
 
 // Creates a new IPConnection structure (from the defined properties) and add it to the asyncronous connection list
-int AsyncIPNetwork_OpenConnection( const char* host, const char* port, uint8_t protocol )
+int AsyncIPNetwork_OpenConnection( uint8_t connectionType, const char* host, uint16_t port )
 {
-  DEBUG_PRINT( "Trying to create %s connection on host %s and port %s", ( protocol == IP_TCP ) ? "TCP" : "UDP", ( host == NULL ) ? "0.0.0.0" : host, port );
-  IPConnection baseConnection = IPNetwork_OpenConnection( host, port, protocol );
+  DEBUG_PRINT( "Trying to create connection type %x on host %s and port %u", connectionType, host, port );
+  IPConnection baseConnection = IPNetwork.OpenConnection( connectionType, host, port );
   if( baseConnection == NULL )
   {
-    /*ERROR_EVENT*/ERROR_PRINT( "failed to create %s connection on host %s and port %s", ( protocol == IP_TCP ) ? "TCP" : "UDP", ( host == NULL ) ? "0.0.0.0" : host, port );
+    /*ERROR_EVENT*/ERROR_PRINT( "failed to create connection type %x on host %s and port %u", connectionType, host, port );
     return -1;
   } 
   
@@ -157,7 +158,7 @@ size_t AsyncIPNetwork_SetMessageLength( int connectionID, size_t messageLength )
   AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
   if( connection == NULL ) return 0;
   
-  messageLength = IPNetwork_SetMessageLength( connection->baseConnection, messageLength );
+  messageLength = IPNetwork.SetMessageLength( connection->baseConnection, messageLength );
   
   ThreadSafeMaps.ReleaseItem( globalConnectionsList );
   
@@ -179,17 +180,17 @@ static void ReadToQueue( void* ref_connection )
     return;
   }
   
-  if( IPNetwork_IsDataAvailable( connection->baseConnection ) )
+  if( IPNetwork.IsDataAvailable( connection->baseConnection ) )
   {
-    if( IPNetwork_IsServer( connection->baseConnection ) )
+    if( IPNetwork.IsServer( connection->baseConnection ) )
     {
-      IPConnection newClient = IPNetwork_AcceptClient( connection->baseConnection );
+      IPConnection newClient = IPNetwork.AcceptClient( connection->baseConnection );
       if( newClient != NULL )
       {
-        if( newClient->socket->fd != 0 )
+        char* addressString = IPNetwork.GetAddress( newClient );
+        if( addressString != NULL )
         {
-          char* addressString = IPNetwork_GetAddress( newClient );
-          DEBUG_PRINT( "client accepted: socket: %d - host: %s - port: %s", newClient->socket->fd, &(addressString[ IP_HOST ]), &(addressString[ IP_PORT ]) );
+          DEBUG_PRINT( "client accepted: connection: %p - host: %s - port: %s", newClient, &(addressString[ IP_HOST ]), &(addressString[ IP_PORT ]) );
           ThreadSafeQueues.Enqueue( connection->readQueue, newClient, TSQUEUE_WAIT );
           AddAsyncConnection( newClient );
         }
@@ -197,7 +198,7 @@ static void ReadToQueue( void* ref_connection )
     }
     else
     {
-      char* lastMessage = IPNetwork_ReceiveMessage( connection->baseConnection );
+      char* lastMessage = IPNetwork.ReceiveMessage( connection->baseConnection );
       if( lastMessage != NULL )
       {
         if( lastMessage[ 0 ] != '\0' )
@@ -220,7 +221,7 @@ static void* AsyncReadQueues( void* args )
   while( isNetworkRunning )
   {    
     // Blocking call
-    if( IPNetwork_WaitEvent( 5000 ) > 0 ) 
+    if( IPNetwork.WaitEvent( 5000 ) > 0 ) 
       ThreadSafeMaps.RunForAll( globalConnectionsList, ReadToQueue );
   }
   
@@ -244,7 +245,7 @@ static void WriteFromQueue( void* ref_connection )
   
   //DEBUG_UPDATE( "connection socket %d sending message: %s", writer->baseConnection->socket->fd, firstMessage );
   
-  if( IPNetwork_SendMessage( connection->baseConnection, firstMessage ) == -1 )
+  if( IPNetwork.SendMessage( connection->baseConnection, firstMessage ) == -1 )
     return;
 }
 
@@ -275,7 +276,7 @@ char* AsyncIPNetwork_ReadMessage( int clientID )
   AsyncIPConnection client = ThreadSafeMaps.AquireItem( globalConnectionsList, clientID );
   if( client != NULL )
   {
-    if( !IPNetwork_IsServer( client->baseConnection ) )
+    if( !IPNetwork.IsServer( client->baseConnection ) )
     {
       if( ThreadSafeQueues.GetItemsCount( client->readQueue ) > 0 )
       {
@@ -324,7 +325,7 @@ int AsyncIPNetwork_GetClient( int serverID )
   AsyncIPConnection server = ThreadSafeMaps.AquireItem( globalConnectionsList, serverID );
   if( server != NULL )
   {
-    if( IPNetwork_IsServer( server->baseConnection ) )
+    if( IPNetwork.IsServer( server->baseConnection ) )
     {
       if( ThreadSafeQueues.GetItemsCount( server->readQueue ) > 0 )
       {
@@ -353,7 +354,7 @@ void AsyncIPNetwork_CloseConnection( int connectionID )
   AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
   if( connection == NULL ) return;
   
-  IPNetwork_CloseConnection( connection->baseConnection );
+  IPNetwork.CloseConnection( connection->baseConnection );
   connection->baseConnection = NULL;
   
   ThreadSafeQueues.Discard( connection->readQueue );

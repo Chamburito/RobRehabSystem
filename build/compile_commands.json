@@ -1,8 +1,13 @@
 [
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",
-  "command": "/usr/bin/cc  -DDEBUG -DROBREHAB_SERVER -I/home/rerob/Projetos/RobRehabSystem/src  -O3 -DNDEBUG   -std=gnu99 -o CMakeFiles/RobRehabServer.dir/src/robrehab_system.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c",
+  "command": "/usr/bin/cc  -DDEBUG -DROBREHAB_SERVER -D_DEFAULT_SOURCE=__STRICT_ANSI__ -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/ip_network  -O3 -DNDEBUG   -std=gnu99 -o CMakeFiles/RobRehabServer.dir/src/robrehab_system.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c",
   "file": "/home/rerob/Projetos/RobRehabSystem/src/robrehab_system.c"
+},
+{
+  "directory": "/home/rerob/Projetos/RobRehabSystem/build",
+  "command": "/usr/bin/cc  -DDEBUG -DROBREHAB_SERVER -D_DEFAULT_SOURCE=__STRICT_ANSI__ -I/home/rerob/Projetos/RobRehabSystem/src -I/home/rerob/Projetos/RobRehabSystem/src/ip_network  -O3 -DNDEBUG   -std=gnu99 -o CMakeFiles/RobRehabServer.dir/src/ip_network/ip_network.c.o   -c /home/rerob/Projetos/RobRehabSystem/src/ip_network/ip_network.c",
+  "file": "/home/rerob/Projetos/RobRehabSystem/src/ip_network/ip_network.c"
 },
 {
   "directory": "/home/rerob/Projetos/RobRehabSystem/build",

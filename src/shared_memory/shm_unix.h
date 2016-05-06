@@ -46,7 +46,7 @@ INIT_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_FUNCTIONS )
  * @param flags bitfield containing access permissions ( read-only, write-only or read-write )
  * @return generic (void*) pointer to the created memory area (returns (void*) -1 when fails)
  */
-static void* SharedObjects_CreateObject( const char* mappingName , size_t objectSize, int flags )
+void* SharedObjects_CreateObject( const char* mappingName , size_t objectSize, int flags )
 {
   char mappingFilePath[ SHARED_OBJECT_PATH_MAX_LENGTH ];
   
@@ -109,7 +109,7 @@ static void* SharedObjects_CreateObject( const char* mappingName , size_t object
  * Discards shared memory area and remove its pointer from the hash table
  * @param sharedObject pointer to the shared memory area
  */
-static void SharedObjects_DestroyObject( void* sharedObject )
+void SharedObjects_DestroyObject( void* sharedObject )
 {
   for( khint_t sharedObjectID = 0; sharedObjectID != kh_end( sharedObjectsList ); sharedObjectID++ )
   {

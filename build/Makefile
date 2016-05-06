@@ -268,6 +268,33 @@ src/data_io/json_parser.c.s:
 	$(MAKE) -f CMakeFiles/JSON.dir/build.make CMakeFiles/JSON.dir/src/data_io/json_parser.c.s
 .PHONY : src/data_io/json_parser.c.s
 
+src/ip_network/ip_network.o: src/ip_network/ip_network.c.o
+
+.PHONY : src/ip_network/ip_network.o
+
+# target to build an object file
+src/ip_network/ip_network.c.o:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/src/ip_network/ip_network.c.o
+.PHONY : src/ip_network/ip_network.c.o
+
+src/ip_network/ip_network.i: src/ip_network/ip_network.c.i
+
+.PHONY : src/ip_network/ip_network.i
+
+# target to preprocess a source file
+src/ip_network/ip_network.c.i:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/src/ip_network/ip_network.c.i
+.PHONY : src/ip_network/ip_network.c.i
+
+src/ip_network/ip_network.s: src/ip_network/ip_network.c.s
+
+.PHONY : src/ip_network/ip_network.s
+
+# target to generate assembly for a file
+src/ip_network/ip_network.c.s:
+	$(MAKE) -f CMakeFiles/RobRehabServer.dir/build.make CMakeFiles/RobRehabServer.dir/src/ip_network/ip_network.c.s
+.PHONY : src/ip_network/ip_network.c.s
+
 src/klib/kson.o: src/klib/kson.c.o
 
 .PHONY : src/klib/kson.o
@@ -455,6 +482,9 @@ help:
 	@echo "... src/data_io/json_parser.o"
 	@echo "... src/data_io/json_parser.i"
 	@echo "... src/data_io/json_parser.s"
+	@echo "... src/ip_network/ip_network.o"
+	@echo "... src/ip_network/ip_network.i"
+	@echo "... src/ip_network/ip_network.s"
 	@echo "... src/klib/kson.o"
 	@echo "... src/klib/kson.i"
 	@echo "... src/klib/kson.s"
