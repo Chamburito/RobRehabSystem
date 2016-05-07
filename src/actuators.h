@@ -1,13 +1,7 @@
 #ifndef ACTUATOR_H
 #define ACTUATOR_H 
 
-#ifdef _LINK_LV_CVRT_
-  #include "time/timing_cvi_rt.h"
-#elif WIN32
-  #include "time/timing_windows.h"
-#else
-  #include "time/timing_unix.h"
-#endif
+#include "time/timing.h"
 
 #include "actuator_control/interface.h"
 #include "plugin_loader.h"

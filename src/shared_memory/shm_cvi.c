@@ -1,6 +1,3 @@
-#ifndef SHARED_MEMORY_H
-#define SHARED_MEMORY_H
-
 #include "asynctmr.h"
 #include <cvinetv.h>
 #include <cvirte.h>		
@@ -10,9 +7,7 @@
 
 #include "debug/async_debug.h"
 
-#define SHM_READ 0x0f
-#define SHM_WRITE 0xf0
-#define SHM_READ_WRITE ( SHM_READ | SHM_WRITE )
+#include "shared_memory/shared_memory.h"
 
 typedef struct _SharedObjectData
 {
@@ -31,17 +26,15 @@ typedef SharedObjectData* SharedObject;
 KHASH_MAP_INIT_INT( SOInt, SharedObject )
 khash_t( SOInt )* sharedObjectsList = NULL;
 
-#define SHARED_MEMORY_FUNCTIONS( namespace, function_init ) \
-        function_init( void*, namespace, CreateObject, const char*, size_t, int ) \
-        function_init( void, namespace, DestroyObject, void* )
 
-INIT_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_INTERFACE )
+
 
 void CVICALLBACK UpdateDataIn( void*, CNVData, void* );
 int CVICALLBACK UpdateDataOut( int, int, int, void*, int, int );
 
 #define SHARED_VARIABLE_PATH_MAX_LENGTH 256
-void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, int flags )
+void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, uint8_t flags )
 {
   char variablePathName[ SHARED_VARIABLE_PATH_MAX_LENGTH ];
   
@@ -213,5 +206,3 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
   
   return 0;
 }
-
-#endif // SHARED_MEMORY_H

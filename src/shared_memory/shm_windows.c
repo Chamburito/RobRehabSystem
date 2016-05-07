@@ -1,15 +1,10 @@
-#ifndef SHARED_MEMORY_H
-#define SHARED_MEMORY_H
-
 #include <windows.h>
 
 #include "klib/khash.h"
 
 #include "debug/async_debug.h"
 
-#define SHM_READ FILE_MAP_READ
-#define SHM_WRITE FILE_MAP_WRITE
-#define SHM_READ_WRITE FILE_MAP_ALL_ACCESS
+#include "shared_memory/shared_memory.h"
 
 typedef struct _SharedObject
 {
@@ -21,19 +16,16 @@ SharedObject;
 KHASH_MAP_INIT_STR( SO, SharedObject )
 khash_t( SO )* sharedObjectsList = NULL;
 
-void* CreateObject( const char*, size_t, int );
-void DestroyObject( void* );
 
-const struct 
-{ 
-  void* (*CreateObject)( const char*, size_t, int );
-  void (*DestroyObject)( void* );
-} 
-SharedObjects = { CreateObject, DestroyObject };
+DEFINE_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_INTERFACE )
 
-void* CreateObject( const char* mappingName, size_t objectSize, int flags )
+
+void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, uint8_t flags )
 {
-  HANDLE mappedFile = OpenFileMapping( flags, FALSE, mappingName );
+  int accessFlag = FILE_MAP_ALL_ACCESS;
+  if( flags == SHM_READ ) accessFlag = FILE_MAP_READ;
+  if( flags == SHM_WRITE ) accessFlag = FILE_MAP_WRITE;
+  HANDLE mappedFile = OpenFileMapping( accessFlag, FALSE, mappingName );
   if( mappedFile == NULL )
   {
     mappedFile = CreateFileMapping( INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, objectSize, mappingName );
@@ -54,7 +46,7 @@ void* CreateObject( const char* mappingName, size_t objectSize, int flags )
   return kh_value( sharedObjectsList, newSharedMemoryID ).data;
 }
 
-void DestroyObject( void* sharedObjectData )
+void SharedObjects_DestroyObject( void* sharedObjectData )
 {
   for( khint_t sharedObjectID = 0; sharedObjectID != kh_end( sharedObjectsList ); sharedObjectID++ )
   {
@@ -76,6 +68,3 @@ void DestroyObject( void* sharedObjectData )
     }
   }
 }
-
-
-#endif // SHARED_MEMORY_H

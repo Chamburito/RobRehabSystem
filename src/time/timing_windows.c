@@ -3,19 +3,11 @@
 ///// using low level operating system native methods (Windows Version)   /////
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TIMING_H
-#define TIMING_H
+#include "time/timing.h"
 
 #include <Windows.h>
 
-#include "interfaces.h"
-
-#define TIMING_FUNCTIONS( namespace, function_init ) \
-        function_init( void, namespace, Delay, unsigned long ) \
-        function_init( unsigned long, namespace, GetExecTimeMilliseconds, void ) \
-        function_init( double, namespace, GetExecTimeSeconds, void )
-
-INIT_NAMESPACE_INTERFACE( Timing, TIMING_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( Timing, TIMING_INTERFACE )
 
 LARGE_INTEGER TICKS_PER_SECOND;
 
@@ -54,5 +46,3 @@ double Timing_GetExecTimeSeconds()
     
     return exec_time;
 }
-
-#endif /* TIMING_H */

@@ -3,9 +3,6 @@
 ///// using low level operating system native methods (Posix Version)     /////
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef THREADS_H
-#define THREADS_H
-
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
@@ -15,21 +12,12 @@
 #include <malloc.h>
 
 #include "debug/sync_debug.h"
-#include "interfaces.h"
+
+#include "threads/threading.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING                                       /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define THREAD_INVALID_HANDLE NULL
-#define INFINITE 0xFFFFFFFF
-  
-// Returns unique identifier of the calling thread
-#define THREAD_ID pthread_self()
-
-// Controls the thread opening mode. JOINABLE if you want the thread to only end and free its resources
-// when calling wait_thread_end on it. DETACHED if you want it to do that by itself.
-enum { THREAD_DETACHED, THREAD_JOINABLE };
 
 typedef struct _ThreadController
 {
@@ -39,16 +27,7 @@ typedef struct _ThreadController
   void* result;
 } ThreadController;
 
-// Aliases for platform abstraction
-typedef pthread_t* Thread;
-
-typedef void* (*AsyncFunction)( void* );
-
-#define THREAD_FUNCTIONS( namespace, function_init ) \
-        function_init( Thread, namespace, StartThread, AsyncFunction, void*, int ) \
-        function_init( uint32_t, namespace, WaitExit, Thread, unsigned int )
-
-INIT_NAMESPACE_INTERFACE( Threading, THREAD_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( Threading, THREAD_INTERFACE )
 
 // Setup new thread to run the given method asyncronously
 Thread Threading_StartThread( void* (*function)( void* ), void* args, int mode )
@@ -65,7 +44,7 @@ Thread Threading_StartThread( void* (*function)( void* ), void* args, int mode )
   
   if( mode == THREAD_DETACHED ) pthread_detach( *handle );
 
-  return handle;
+  return (Thread) handle;
 }
 
 // Waiter function to be called asyncronously
@@ -87,7 +66,7 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milisseconds )
 {
   static struct timespec timeout;
   pthread_t controlHandle;
-  ThreadController controlArgs = { *handle };
+  ThreadController controlArgs = { .handle = *((pthread_t*) handle) };
   int controlResult;
 
   if( handle != THREAD_INVALID_HANDLE )
@@ -138,63 +117,49 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milisseconds )
   return 0;
 }
 
+unsigned long Threading_GetCurrentThreadID()
+{
+  return (unsigned long) pthread_self();
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD LOCK (MUTEX)                                     /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef pthread_mutex_t* ThreadLock;
-
-#define THREAD_LOCK_FUNCTIONS( namespace, function_init ) \
-        function_init( ThreadLock, namespace, Create, void ) \
-        function_init( void, namespace, Discard, ThreadLock ) \
-        function_init( void, namespace, Aquire, ThreadLock ) \
-        function_init( void, namespace, Release, ThreadLock )
-
-INIT_NAMESPACE_INTERFACE( ThreadLocks, THREAD_LOCK_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( ThreadLocks, THREAD_LOCK_INTERFACE )
 
 // Request new unique mutex for using in thread syncronization
 ThreadLock ThreadLocks_Create()
 {
   pthread_mutex_t* newLock = (pthread_mutex_t*) malloc( sizeof(pthread_mutex_t) );
   pthread_mutex_init( newLock, NULL );
-  return newLock;
+  return (ThreadLock) newLock;
 }
 
-extern inline void ThreadLocks_Discard( pthread_mutex_t* lock )
+void ThreadLocks_Discard( ThreadLock lock )
 {
-  pthread_mutex_destroy( lock );
+  pthread_mutex_destroy( (pthread_mutex_t*) lock );
   free( lock );
 }
 
 // Mutex aquisition and release
-extern inline void ThreadLocks_Aquire( pthread_mutex_t* lock ) { pthread_mutex_lock( lock ); }
-extern inline void ThreadLocks_Release( pthread_mutex_t* lock ) { pthread_mutex_unlock( lock ); }
+void ThreadLocks_Aquire( ThreadLock lock ) { pthread_mutex_lock( (pthread_mutex_t*) lock ); }
+void ThreadLocks_Release( ThreadLock lock ) { pthread_mutex_unlock( (pthread_mutex_t*) lock ); }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                       THREAD SEMAPHORE                                      /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct 
+struct _SemaphoreData
 {
   sem_t upCounter;
   sem_t downCounter;
   size_t maxCount;
-}
-SemaphoreData;
+};
 
-typedef SemaphoreData* Semaphore;
-
-#define SEMAPHORE_FUNCTIONS( namespace, function_init ) \
-        function_init( Semaphore, namespace, Create, size_t, size_t ) \
-        function_init( void, namespace, Discard, Semaphore ) \
-        function_init( void, namespace, Increment, Semaphore ) \
-        function_init( void, namespace, Decrement, Semaphore ) \
-        function_init( size_t, namespace, GetCount, Semaphore ) \
-        function_init( void, namespace, SetCount, Semaphore, size_t )
-
-INIT_NAMESPACE_INTERFACE( Semaphores, SEMAPHORE_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( Semaphores, SEMAPHORE_INTERFACE )
 
 Semaphore Semaphores_Create( size_t startCount, size_t maxCount )
 {
@@ -207,26 +172,26 @@ Semaphore Semaphores_Create( size_t startCount, size_t maxCount )
   return sem;
 }
 
-inline void Semaphores_Discard( Semaphore sem )
+void Semaphores_Discard( Semaphore sem )
 {
   sem_destroy( &(sem->upCounter) );
   sem_destroy( &(sem->downCounter) );
   free( sem );
 }
 
-inline void Semaphores_Increment( Semaphore sem )
+void Semaphores_Increment( Semaphore sem )
 {
   sem_wait( &(sem->upCounter) );
   sem_post( &(sem->downCounter) );  
 }
 
-inline void Semaphores_Decrement( Semaphore sem )
+void Semaphores_Decrement( Semaphore sem )
 {
   sem_wait( &(sem->downCounter) );
   sem_post( &(sem->upCounter) ); 
 }
 
-inline size_t Semaphores_GetCount( Semaphore sem )
+size_t Semaphores_GetCount( Semaphore sem )
 {
   int countValue;
   sem_getvalue( &(sem->downCounter), &countValue );
@@ -234,7 +199,7 @@ inline size_t Semaphores_GetCount( Semaphore sem )
   return (size_t) countValue;
 }
 
-inline void Semaphores_SetCount( Semaphore sem, size_t count )
+void Semaphores_SetCount( Semaphore sem, size_t count )
 {
   if( count <= sem->maxCount )
   {
@@ -252,6 +217,3 @@ inline void Semaphores_SetCount( Semaphore sem, size_t count )
     }
   }
 }
-
-
-#endif /* THREADS_H */

@@ -9,6 +9,7 @@
 
 #include "klib/khash.h"
 
+#include "threads/threading.h"
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
 

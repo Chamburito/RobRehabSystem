@@ -25,7 +25,7 @@
 #define DECLARE_MODULE_INTERFACE_REF( INTERFACE ) INTERFACE( NULL, DECLARE_MODULE_FUNC_REF )
 
       
-#define DECLARE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) rtype namespace##_##func( __VA_ARGS__ );
+#define DECLARE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) static rtype namespace##_##func( __VA_ARGS__ );
 #define DECLARE_NAMESPACE_FUNC_REF( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
 #define DEFINE_NAMESPACE_FUNC_REF( rtype, namespace, func, ... ) .func = namespace##_##func,
       
@@ -37,13 +37,13 @@
         namespace = { functions( namespace, DEFINE_NAMESPACE_FUNC_REF ) };
         
 #define DECLARE_NAMESPACE_INTERFACE( Namespace, INTERFACE ) \
-        INTERFACE( Namespace, DECLARE_NAMESPACE_FUNCTION ) \
         extern const struct Namespace { \
           INTERFACE( Namespace, DECLARE_NAMESPACE_FUNC_REF ) \
         } \
         Namespace;
         
 #define DEFINE_NAMESPACE_INTERFACE( Namespace, INTERFACE ) \
+        INTERFACE( Namespace, DECLARE_NAMESPACE_FUNCTION ) \
         const struct Namespace \
         Namespace = { INTERFACE( Namespace, DEFINE_NAMESPACE_FUNC_REF ) };
 

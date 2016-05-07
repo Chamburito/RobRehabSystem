@@ -3,39 +3,19 @@
 ///// using low level operating system native methods (Windows Version)   /////
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef THREADS_H
-#define THREADS_H
-
 #include "debug/sync_debug.h"
-#include "interfaces.h"
 
 #include <stdint.h>
 #include <Windows.h>
 //#include <process.h>
+
+#include "threads/threading.h"
 	
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING 									                    /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define THREAD_INVALID_HANDLE NULL
-
-// Returns unique identifier of the calling thread
-#define THREAD_ID GetCurrentThreadId()
-
-// Controls the thread opening mode. THREAD_JOINABLE if you want the thread to only end and free its resources
-// when calling Threading_WaitExit on it. THREAD_DETACHED if you want it to do that by itself.
-enum { THREAD_DETACHED, THREAD_JOINABLE };
-
-// Aliases for platform abstraction
-typedef HANDLE Thread;
-
-typedef void* (*AsyncFunction)( void* );
-
-#define THREAD_FUNCTIONS( namespace, function_init ) \
-        function_init( Thread, namespace, StartThread, AsyncFunction, void*, int ) \
-        function_init( uint32_t, namespace, WaitExit, Thread, unsigned int )
-
-INIT_NAMESPACE_INTERFACE( Threading, THREAD_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( Threading, THREAD_INTERFACE )
 
 // Setup new thread to run the given method asyncronously
 Thread Threading_StartThread( AsyncFunction function, void* args, int mode )
@@ -53,7 +33,7 @@ Thread Threading_StartThread( AsyncFunction function, void* args, int mode )
   
   if( mode == THREAD_DETACHED ) CloseHandle( handle );
 
-  return handle;
+  return (Thread) handle;
 }
 
 // Wait for the thread of the given manipulator to exit and return its exiting value
@@ -62,9 +42,9 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milliseconds )
   static DWORD exitCode = 0;
   static DWORD exitStatus = WAIT_OBJECT_0;
 
-  if( handle != THREAD_INVALID_HANDLE )
+  if( (HANDLE) handle != THREAD_INVALID_HANDLE )
   {
-    DEBUG_PRINT( "waiting thread %x", handle );
+    DEBUG_PRINT( "waiting thread %x", (HANDLE) handle );
 
     exitStatus = WaitForSingleObject( handle, (DWORD) milliseconds );
   
@@ -80,68 +60,55 @@ uint32_t Threading_WaitExit( Thread handle, unsigned int milliseconds )
         DEBUG_PRINT( "thread exit code: %u", exitCode ); 
     }
   
-    if( CloseHandle( handle ) == 0 )
-      ERROR_PRINT( "CloseHandle: error trying to close thread handle %x: code: %x", handle, GetLastError() );
+    if( CloseHandle( (HANDLE) handle ) == 0 )
+      ERROR_PRINT( "CloseHandle: error trying to close thread handle %x: code: %x", (HANDLE) handle, GetLastError() );
   }
 
   return exitCode;
 }
 
+unsigned long Threading_GetCurrentThreadID()
+{
+  return GetCurrentThreadId();
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-/////                                     THREAD LOCK (MUTEX)									                    /////
+/////                                     THREAD LOCK (MUTEX)                                     /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef CRITICAL_SECTION* ThreadLock;
-
-#define THREAD_LOCK_FUNCTIONS( namespace, function_init ) \
-        function_init( ThreadLock, namespace, Create, void ) \
-        function_init( void, namespace, Discard, ThreadLock ) \
-        function_init( void, namespace, Aquire, ThreadLock ) \
-        function_init( void, namespace, Release, ThreadLock )
-
-INIT_NAMESPACE_INTERFACE( ThreadLocks, THREAD_LOCK_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( ThreadLocks, THREAD_LOCK_INTERFACE )
 
 // Request new unique mutex for using in thread syncronization
-inline ThreadLock ThreadLocks_Create()
+ThreadLock ThreadLocks_Create()
 {
   CRITICAL_SECTION* lock = malloc( sizeof(CRITICAL_SECTION) );
   InitializeCriticalSection( lock );
-  return lock;
+  return (ThreadLock) lock;
 }
 
-inline void ThreadLocks_Discard( ThreadLock lock )
+void ThreadLocks_Discard( ThreadLock lock )
 {
-  DeleteCriticalSection( lock );
+  DeleteCriticalSection( (CRITICAL_SECTION*) lock );
   free( lock );
 }
 
 // Mutex aquisition and release
-inline void ThreadLocks_Aquire( ThreadLock lock ) { EnterCriticalSection( lock ); }
-inline void ThreadLocks_Release( ThreadLock lock ) { LeaveCriticalSection( lock ); }
+void ThreadLocks_Aquire( ThreadLock lock ) { EnterCriticalSection( (CRITICAL_SECTION*) lock ); }
+void ThreadLocks_Release( ThreadLock lock ) { LeaveCriticalSection( (CRITICAL_SECTION*) lock ); }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                       THREAD SEMAPHORE                                      /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct {
+struct _SemaphoreData
+{
   HANDLE counter;
   size_t count, maxCount;
-}
-SemaphoreData;
+};
 
-typedef SemaphoreData* Semaphore;
-
-#define SEMAPHORE_FUNCTIONS( namespace, function_init ) \
-        function_init( Semaphore, namespace, Create, size_t, size_t ) \
-        function_init( void, namespace, Discard, Semaphore ) \
-        function_init( void, namespace, Increment, Semaphore ) \
-        function_init( void, namespace, Decrement, Semaphore ) \
-        function_init( size_t, namespace, GetCount, Semaphore ) \
-        function_init( void, namespace, SetCount, Semaphore, size_t )
-
-INIT_NAMESPACE_INTERFACE( Semaphores, SEMAPHORE_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( Semaphores, SEMAPHORE_INTERFACE )
 
 inline Semaphore Semaphores_Create( size_t startCount, size_t maxCount )
 {
@@ -153,32 +120,32 @@ inline Semaphore Semaphores_Create( size_t startCount, size_t maxCount )
   return sem;
 }
 
-inline void Semaphores_Discard( Semaphore sem )
+void Semaphores_Discard( Semaphore sem )
 {
   CloseHandle( sem->counter );
   free( sem );
 }
 
-inline void Semaphores_Increment( Semaphore sem )
+void Semaphores_Increment( Semaphore sem )
 {
   ReleaseSemaphore( sem->counter, 1, &(sem->count) );
   sem->count++;  
 }
 
-inline void Semaphores_Decrement( Semaphore sem )
+void Semaphores_Decrement( Semaphore sem )
 {
   WaitForSingleObject( sem->counter, INFINITE );
   sem->count--;
 }
 
-inline size_t Semaphores_GetCount( Semaphore sem )
+size_t Semaphores_GetCount( Semaphore sem )
 {
   if( sem == NULL ) return 0;
   
   return sem->count;
 }
 
-inline void Semaphores_SetCount( Semaphore sem, size_t count )
+void Semaphores_SetCount( Semaphore sem, size_t count )
 {
   if( sem == NULL ) return;
   
@@ -196,6 +163,3 @@ inline void Semaphores_SetCount( Semaphore sem, size_t count )
       Semaphores_Decrement( sem ); 
   }
 }
-
-
-#endif /* THREADS_H */ 

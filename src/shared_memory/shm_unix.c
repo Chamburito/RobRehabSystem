@@ -1,10 +1,3 @@
-/*! \file shared_memory_unix.h
-    \brief Memory sharing functions using the POSIX (shm*) API.
-*/
-
-#ifndef SHARED_MEMORY_H
-#define SHARED_MEMORY_H
-
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -15,38 +8,18 @@
 
 #include "debug/async_debug.h"
 
-// Access permissions
-#define SHM_READ S_IRUSR
-#define SHM_WRITE S_IWUSR
-#define SHM_READ_WRITE ( S_IRUSR | S_IWUSR )
+#include "shared_memory/shared_memory.h"
 
-#define SHARED_OBJECT_PATH_MAX_LENGTH 256
-
-/**
- * A hash table 
- * Stores pointers to the created shared memory areas
- */
+/// A hash table 
+/// Stores pointers to the created shared memory areas
 KHASH_MAP_INIT_STR( SOStr, void* )
 khash_t( SOStr )* sharedObjectsList = NULL;
 
-/** 
- * Function definitions and pointers structure macro
- * Struct exported as our shared memory interface 
- */
-#define SHARED_MEMORY_FUNCTIONS( namespace, function_init ) \
-        function_init( void*, namespace, CreateObject, const char*, size_t, int ) \
-        function_init( void, namespace, DestroyObject, void* )
 
-INIT_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( SharedObjects, SHARED_MEMORY_INTERFACE )
 
-/**
- * Creates shared memory area and returns its pointer
- * @param mappingName name of the shared memory area (mapped file)
- * @param objectSize size in bytes of the shared memory area
- * @param flags bitfield containing access permissions ( read-only, write-only or read-write )
- * @return generic (void*) pointer to the created memory area (returns (void*) -1 when fails)
- */
-void* SharedObjects_CreateObject( const char* mappingName , size_t objectSize, int flags )
+
+void* SharedObjects_CreateObject( const char* mappingName , size_t objectSize, uint8_t flags )
 {
   char mappingFilePath[ SHARED_OBJECT_PATH_MAX_LENGTH ];
   
@@ -75,7 +48,10 @@ void* SharedObjects_CreateObject( const char* mappingName , size_t objectSize, i
   }
   
   // Reserves shared memory area and returns a file descriptor to it
-  int sharedMemoryID = shmget( sharedKey, objectSize, IPC_CREAT | /*flags*/ 0660 );
+  int accessFlags = 0;
+  if( flags & SHM_READ ) accessFlags |= S_IRUSR;
+  if( flags & SHM_WRITE ) accessFlags |= S_IWUSR;
+  int sharedMemoryID = shmget( sharedKey, objectSize, IPC_CREAT | /*accessFlags*/ 0660 );
   if( sharedMemoryID == -1 )
   {
     perror( "Failed to create shared memory segment" );
@@ -105,10 +81,6 @@ void* SharedObjects_CreateObject( const char* mappingName , size_t objectSize, i
   return newSharedObject;
 }
 
-/**
- * Discards shared memory area and remove its pointer from the hash table
- * @param sharedObject pointer to the shared memory area
- */
 void SharedObjects_DestroyObject( void* sharedObject )
 {
   for( khint_t sharedObjectID = 0; sharedObjectID != kh_end( sharedObjectsList ); sharedObjectID++ )
@@ -131,6 +103,3 @@ void SharedObjects_DestroyObject( void* sharedObject )
     }
   }
 }
-
-
-#endif // SHARED_MEMORY_H

@@ -8,25 +8,14 @@
 #include <string.h>
 #include <stdarg.h>
 
-#ifdef _LINK_CVI_LVRT_
-  #include "time/timing_realtime.h"
-#elif WIN32
-  #include "time/timing_windows.h"
-#else
-  #include "time/timing_unix.h"
-#endif
-
-#ifdef WIN32
-  #include "threads/threads_windows.h"
-#else
-  #include "threads/threads_unix.h"
-#endif
+#include "time/timing.h"
+#include "threads/threading.h"
 
 #include "debug/sync_debug.h" 
 
 #define NO_CODE do { } while( 0 )
 
-const size_t DEBUG_MESSAGE_LENGTH = 256;
+#define DEBUG_MESSAGE_LENGTH 256
   
 #if defined SIMPLE_DEBUG || defined DEEP_DEBUG
 

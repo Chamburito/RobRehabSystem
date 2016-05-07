@@ -1,11 +1,7 @@
 #ifndef THREAD_SAFE_DATA_H
 #define THREAD_SAFE_DATA_H
 
-#ifdef WIN32
-  #include "threads_windows.h"
-#else
-  #include "threads_unix.h"
-#endif
+#include "threads/threading.h"
 
 #include "interfaces.h"
 
@@ -56,7 +52,7 @@ ThreadSafeQueue ThreadSafeQueues_Create( size_t maxLength, size_t itemSize )
   queue->first = queue->last = 0;
   
   queue->accessLock = ThreadLocks.Create();
-  queue->countLock = Semaphores_Create( 0, queue->maxLength );
+  queue->countLock = Semaphores.Create( 0, queue->maxLength );
   
   return queue;
 }
@@ -70,7 +66,7 @@ void ThreadSafeQueues_Discard( ThreadSafeQueue queue )
     free( queue->cache );
     
     ThreadLocks.Discard( queue->accessLock );
-    Semaphores_Discard( queue->countLock );
+    Semaphores.Discard( queue->countLock );
 
     free( queue );
     queue = NULL;
@@ -86,7 +82,7 @@ bool ThreadSafeQueues_Enqueue( ThreadSafeQueue queue, void* buffer, enum TSQueue
 {
   static void* dataIn = NULL;
   
-  if( mode == TSQUEUE_WAIT ) Semaphores_Increment( queue->countLock );
+  if( mode == TSQUEUE_WAIT ) Semaphores.Increment( queue->countLock );
   
   ThreadLocks.Aquire( queue->accessLock );
   
@@ -107,7 +103,7 @@ bool ThreadSafeQueues_Dequeue( ThreadSafeQueue queue, void* buffer, enum TSQueue
   if( mode == TSQUEUE_NOWAIT && ThreadSafeQueues_GetItemsCount( queue ) == 0 )
     return false;
   
-  Semaphores_Decrement( queue->countLock );
+  Semaphores.Decrement( queue->countLock );
   
   ThreadLocks.Aquire( queue->accessLock );
   

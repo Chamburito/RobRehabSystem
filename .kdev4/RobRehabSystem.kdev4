@@ -1,26 +1,5 @@
-[Buildset]
-BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x1c\x00R\x00o\x00b\x00R\x00e\x00h\x00a\x00b\x00S\x00y\x00s\x00t\x00e\x00m)
-
 [CMake]
-Build Directory Count=2
-Current Build Directory Index=1
-ProjectRootRelative=./
-
-[CMake][CMake Build Directory 0]
-Build Directory Path=/home/rerob/Projetos/RobRehabSystem/build
-Build Type=Release
-CMake Binary=/usr/bin/cmake
-Environment Profile=
-Extra Arguments=
-Install Directory=
-
-[CMake][CMake Build Directory 1]
-Build Directory Path=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/build
-Build Type=Debug
-CMake Binary=/usr/bin/cmake
-Environment Profile=
-Extra Arguments=
-Install Directory=
+Temporary Build Directory Index=1
 
 [CustomDefinesAndIncludes][ProjectPath0]
 Path=.
@@ -41,35 +20,3 @@ SIMPLE_DEBUG=0
 1=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/
 2=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/robot_control/
 3=/home/leonardojc/Projetos/Trabalhos_C-C++/RobRehabSystem/src/robot_control/SimTK/simbody/
-
-[Defines And Includes][Compiler]
-Name=GCC
-Path=gcc
-Type=GCC
-
-[Launch]
-Launch Configurations=Launch Configuration 0
-
-[Launch][Launch Configuration 0]
-Configured Launch Modes=execute
-Configured Launchers=nativeAppLauncher
-Name=RobRehabControl
-Type=Native Application
-
-[Launch][Launch Configuration 0][Data]
-Arguments=JSON
-Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x1c\x00R\x00o\x00b\x00R\x00e\x00h\x00a\x00b\x00S\x00y\x00s\x00t\x00e\x00m\x00\x00\x00\x1e\x00R\x00o\x00b\x00R\x00e\x00h\x00a\x00b\x00C\x00o\x00n\x00t\x00r\x00o\x00l)
-Dependency Action=Build
-EnvironmentGroup=
-Executable=file:///home/rerob/Projetos/RobRehabSystem/RobRehabControl
-External Terminal=konsole --noclose --workdir %workdir -e %exe
-Project Target=RobRehabSystem,RobRehabControl
-Use External Terminal=false
-Working Directory=
-isExecutable=true
-
-[MakeBuilder]
-Number Of Jobs=3
-
-[Project]
-VersionControlSupport=kdevgit

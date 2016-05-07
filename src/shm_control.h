@@ -1,13 +1,7 @@
 #ifndef SHM_CONTROL_H
 #define SHM_CONTROL_H
 
-#ifdef _CVI_
-  #include "shared_memory/shm_cvi.h"
-#elif WIN32
-  #include "shared_memory/shm_windows.h"
-#else
-  #include "shared_memory/shm_unix.h"
-#endif
+#include "shared_memory/shared_memory.h"
 
 #include "debug/async_debug.h"
 

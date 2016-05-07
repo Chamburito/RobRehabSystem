@@ -158,7 +158,7 @@ static void UpdateClientEvent( int clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   
-  char* messageIn = AsyncIPNetwork_ReadMessage( clientID );
+  char* messageIn = AsyncIPNetwork.ReadMessage( clientID );
   if( messageIn != NULL ) 
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
@@ -192,7 +192,7 @@ static void UpdateClientAxis( int clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   
-  char* messageIn = AsyncIPNetwork_ReadMessage( clientID );
+  char* messageIn = AsyncIPNetwork.ReadMessage( clientID );
   if( messageIn != NULL ) 
   {
     DEBUG_UPDATE( "received input message: %s", messageIn );
