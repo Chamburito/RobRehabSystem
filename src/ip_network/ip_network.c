@@ -39,23 +39,29 @@
   typedef int Socket;
   typedef struct pollfd PollSocket;
 #endif
+
+#define PORT_LENGTH 6                                           // Maximum length of short integer string representation
   
 #ifndef IP_NETWORK_LEGACY
-typedef struct sockaddr_in6 IPAddressData;          // IPv6 structure can store both IPv4 and IPv6 data
-#define IS_IPV6_MULTICAST_ADDRESS( address ) ( ((IPAddressData*) address)->sin6_addr.s6_addr[ 0 ] == 0xFF )
+  #define ADDRESS_LENGTH INET6_ADDRSTRLEN                       // Maximum length of IPv6 address (host+port) string
+  typedef struct sockaddr_in6 IPAddressData;                    // IPv6 structure can store both IPv4 and IPv6 data
+  #define IS_IPV6_MULTICAST_ADDRESS( address ) ( ((IPAddressData*) address)->sin6_addr.s6_addr[ 0 ] == 0xFF )
 #else
-typedef struct sockaddr_in IPAddressData;           // Legacy mode only works with IPv4 addresses
-#define IS_IPV6_MULTICAST_ADDRESS( address ) false
+  #define ADDRESS_LENGTH INET_ADDRSTRLEN + PORT_LENGTH          // Maximum length of IPv4 address (host+port) string
+  typedef struct sockaddr_in IPAddressData;                     // Legacy mode only works with IPv4 addresses
+  #define IS_IPV6_MULTICAST_ADDRESS( address ) false
 #endif
-typedef struct sockaddr* IPAddress;                 // Opaque IP address type
+typedef struct sockaddr* IPAddress;                             // Opaque IP address type
 #define IS_IPV4_MULTICAST_ADDRESS( address ) ( (ntohl( ((struct sockaddr_in*) address)->sin_addr.s_addr ) & 0xF0000000) == 0xE0000000 )
 
 #define IS_IP_MULTICAST_ADDRESS( address ) ( IS_IPV4_MULTICAST_ADDRESS( address ) || IS_IPV6_MULTICAST_ADDRESS( address ) )
 
-#define QUEUE_SIZE 20
+#include "ip_network/ip_network.h"
 
-#include "ip_network.h"
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                      INTERFACE DEFINITION                                       /////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Generic structure to store methods and data of any connection type handled by the library
 struct _IPConnectionData
@@ -80,17 +86,21 @@ struct _IPConnectionData
   };
 };
 
+DEFINE_NAMESPACE_INTERFACE( IPNetwork, IP_NETWORK_INTERFACE )
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                        GLOBAL VARIABLES                                         /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static PollSocket availableSocketsList[ IP_CONNECTIONS_MAX ];
+#define MAX_CONNECTIONS_NUMBER 1024
+static PollSocket availableSocketsList[ MAX_CONNECTIONS_NUMBER ];
 static size_t availableSocketsNumber = 0;
 
 /////////////////////////////////////////////////////////////////////////////
 /////                        FORWARD DECLARATIONS                       /////
 /////////////////////////////////////////////////////////////////////////////
+
 
 static char* ReceiveTCPMessage( IPConnection );
 static char* ReceiveUDPMessage( IPConnection );
@@ -110,25 +120,24 @@ static void CloseUDPClient( IPConnection );
 
 // System calls for getting IP address strings
 char* GetAddressString( IPAddress address )
-{
-  static char addressString[ IP_ADDRESS_LENGTH ];
+{                                           
+  static char addressString[ ADDRESS_LENGTH ];
   
   DEBUG_PRINT( "getting address string for address pointer %p", address );
   
-  char* hostString = &addressString[ IP_HOST ];
-  char* portString = &addressString[ IP_PORT ];
   #ifndef IP_NETWORK_LEGACY
-  int flags = NI_NUMERICHOST | NI_NUMERICSERV;
-  int error = getnameinfo( address, sizeof(IPAddressData), hostString, IP_HOST_LENGTH, portString, IP_PORT_LENGTH, flags );
+  int error = getnameinfo( address, sizeof(IPAddressData), addressString, ADDRESS_LENGTH - PORT_LENGTH, NULL, 0, NI_NUMERICHOST );
+  error = getnameinfo( address, sizeof(IPAddressData), NULL, 0, addressString + strlen( addressString ) + 1, PORT_LENGTH, NI_NUMERICSERV );
   if( error != 0 )
   {
     ERROR_PRINT( "getnameinfo: failed getting address string: %s", gai_strerror( error ) );
     return NULL;
   }
   #else
-  sprintf( hostString, "%s", inet_ntoa( ((IPAddressData*) address)->sin_addr ) );
-  sprintf( portString, "%d", ((IPAddressData*) address)->sin_port ) );
+  sprintf( addressString, "%s", inet_ntoa( ((IPAddressData*) address)->sin_addr ) );
+  sprintf( addressString + strlen( addressString ) + 1, "%u", ((IPAddressData*) address)->sin_port ) );
   #endif
+  addressString[ strlen( addressString ) ] = '/';
   
   return addressString;
 }
@@ -204,9 +213,6 @@ static IPConnection AddConnection( Socket socketFD, IPAddress address, uint8_t t
   }
   else
   { 
-    char* addressString = GetAddressString( (IPAddress) &(connection->addressData) );
-    DEBUG_PRINT( "connection added:\n\tfamily: %x\n\tport: %s\n\thost: %s", transportProtocol, &addressString[ IP_PORT ], &addressString[ IP_HOST ] );
-
     //connection->address->sin6_family = AF_INET6;
     connection->buffer = (char*) calloc( IP_MAX_MESSAGE_LENGTH, sizeof(char) );
     connection->ref_ReceiveMessage = ( transportProtocol == IP_TCP ) ? ReceiveTCPMessage : ReceiveUDPMessage;
@@ -214,6 +220,8 @@ static IPConnection AddConnection( Socket socketFD, IPAddress address, uint8_t t
     connection->ref_Close = ( transportProtocol == IP_TCP ) ? CloseTCPClient : CloseUDPClient;
     connection->server = NULL;
   }
+  
+  DEBUG_PRINT( "connection added: transport: %x - address: %s", transportProtocol, GetAddressString( (IPAddress) &(connection->addressData) ) );
   
   return connection;
 }
@@ -289,7 +297,7 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
     char* addressString = GetAddressString( hostInfo->ai_addr );
     if( addressString == NULL ) continue;
     
-    DEBUG_PRINT( "found %s address %s/%s", ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4", &addressString[ IP_HOST ], &addressString[ IP_PORT ] );
+    DEBUG_PRINT( "found %s address %s", ( hostInfo->ai_family == AF_INET6 ) ? "IPv6" : "IPv4", addressString );
     
     memcpy( &addressData, hostInfo->ai_addr, hostInfo->ai_addrlen );
     break;
@@ -303,6 +311,7 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
   addressData.sin_port = htons( (short) portNumber );
   if( host == NULL ) addressData.sin_addr.s_addr = htonl( INADDR_ANY );
   else if( inet_aton( host, &(addressData.sin_addr) ) == 0 ) return NULL;
+  DEBUG_PRINT( "found IPv4 address %s", GetAddressString( (IPAddress) &addressData ) );
   #endif
   
   return (IPAddress) &addressData;
@@ -388,6 +397,8 @@ bool BindServerSocket( int socketFD, IPAddress address )
 
 bool BindTCPServerSocket( int socketFD, IPAddress address )
 {
+  const size_t QUEUE_SIZE = 20;
+  
   if( !BindServerSocket( socketFD, address ) ) return false;
   
   // Set server socket to listen to remote connections
@@ -523,7 +534,7 @@ bool ConnectUDPClientSocket( int socketFD, IPAddress address )
 IPConnection IPNetwork_OpenConnection( uint8_t connectionType, const char* host, uint16_t port )
 {
   const uint8_t TRANSPORT_MASK = 0xF0, ROLE_MASK = 0x0F;
-  static char portString[ IP_PORT_LENGTH ];
+  static char portString[ PORT_LENGTH ];
   
   DEBUG_PRINT( "trying to %s to host %s and port %u (%s)", ( (connectionType & ROLE_MASK) == IP_SERVER ) ? "bind" : "connect", 
                                                            host, port, ( (connectionType & TRANSPORT_MASK) == IPPROTO_TCP ) ? "TCP" : "UDP" );

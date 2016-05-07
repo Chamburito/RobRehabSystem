@@ -16,29 +16,35 @@
   #define C_FUNCTION
 #endif
 
-#define DEFINE_INTERFACE_FUNCTION( rtype, interface, func, ... ) C_FUNCTION __declspec(dllexport) rtype func( __VA_ARGS__ );
-#define DEFINE_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) rtype (*func)( __VA_ARGS__ );
-#define INIT_INTERFACE_FUNC_PTR( rtype, interface, func, ... ) .func = func,
+
+#define DECLARE_MODULE_FUNCTION( rtype, Namespace, func, ... ) C_FUNCTION __declspec(dllexport) rtype func( __VA_ARGS__ );
+#define DECLARE_MODULE_FUNC_REF( rtype, Namespace, func, ... ) rtype (*func)( __VA_ARGS__ );
+#define DEFINE_MODULE_FUNC_REF( rtype, Namespace, func, ... ) .func = func,
       
-#define DEFINE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) rtype namespace##_##func( __VA_ARGS__ );
-#define DEFINE_NAMESPACE_FUNC_PTR( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
-#define INIT_NAMESPACE_FUNC_PTR( rtype, namespace, func, ... ) .func = namespace##_##func,
+#define DECLARE_MODULE_INTERFACE( INTERFACE ) INTERFACE( NULL, DECLARE_MODULE_FUNCTION )
+#define DECLARE_MODULE_INTERFACE_REF( INTERFACE ) INTERFACE( NULL, DECLARE_MODULE_FUNC_REF )
 
-
-#define DEFINE_INTERFACE( interfaceFunctions ) interfaceFunctions( NULL, DEFINE_INTERFACE_FUNCTION )
-#define DEFINE_INTERFACE_REF( interfaceFunctions ) interfaceFunctions( NULL, DEFINE_INTERFACE_FUNC_PTR )
-
-#define DEFINE_INTERFACE_MODULE( interfaceName, interfaceFunctions ) \
-        typedef struct { \
-          interfaceFunctions( interfaceName, DEFINE_INTERFACE_FUNC_PTR ) \
-        } \
-        interfaceName##Interface;
+      
+#define DECLARE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) rtype namespace##_##func( __VA_ARGS__ );
+#define DECLARE_NAMESPACE_FUNC_REF( rtype, namespace, func, ... ) rtype (*func)( __VA_ARGS__ );        
+#define DEFINE_NAMESPACE_FUNC_REF( rtype, namespace, func, ... ) .func = namespace##_##func,
       
 #define INIT_NAMESPACE_INTERFACE( namespace, functions ) \
-        functions( namespace, DEFINE_NAMESPACE_FUNCTION ) \
+        functions( namespace, DECLARE_NAMESPACE_FUNCTION ) \
         const struct { \
-          functions( namespace, DEFINE_NAMESPACE_FUNC_PTR ) \
+          functions( namespace, DECLARE_NAMESPACE_FUNC_REF ) \
         } \
-        namespace = { functions( namespace, INIT_NAMESPACE_FUNC_PTR ) };
+        namespace = { functions( namespace, DEFINE_NAMESPACE_FUNC_REF ) };
+        
+#define DECLARE_NAMESPACE_INTERFACE( Namespace, INTERFACE ) \
+        INTERFACE( Namespace, DECLARE_NAMESPACE_FUNCTION ) \
+        extern const struct Namespace { \
+          INTERFACE( Namespace, DECLARE_NAMESPACE_FUNC_REF ) \
+        } \
+        Namespace;
+        
+#define DEFINE_NAMESPACE_INTERFACE( Namespace, INTERFACE ) \
+        const struct Namespace \
+        Namespace = { INTERFACE( Namespace, DEFINE_NAMESPACE_FUNC_REF ) };
 
 #endif  // INTERFACES_H

@@ -55,9 +55,9 @@ int RobRehabControl_Init( const char* configType )
   if( ConfigParsing.Init( configType ) )
   {
     int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
-    if( configFileID != PARSED_DATA_INVALID_ID )
+    if( configFileID != DATA_INVALID_ID )
     {
-      ParserInterface parser = ConfigParsing.GetParser(); 
+      ConfigParser parser = ConfigParsing.GetParser(); 
       
       if( parser.HasKey( configFileID, "robots" ) )
       {

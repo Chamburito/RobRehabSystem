@@ -1,6 +1,3 @@
-#ifndef JSON_PARSER_H
-#define JSON_PARSER_H
-
 #include "data_io/interface.h"
 
 #include "klib/kson.h"
@@ -12,18 +9,18 @@ typedef struct _JSONData
 {
   kson_t* nodeTree;
   kson_node_t* currentNode;
-  char searchPath[ PARSER_MAX_KEY_PATH_LENGTH ];
+  char searchPath[ DATA_IO_MAX_KEY_PATH_LENGTH ];
 }
 JSONData;
                                                 
 KHASH_MAP_INIT_INT( JSONInt, JSONData )
 static khash_t( JSONInt )* jsonDataList = NULL;
 
-DEFINE_INTERFACE( PARSER_FUNCTIONS )
+DECLARE_MODULE_INTERFACE( DATA_IO_INTERFACE )
 
 int LoadStringData( const char* configString )
 {
-  if( configString == NULL ) return PARSED_DATA_INVALID_ID;
+  if( configString == NULL ) return DATA_INVALID_ID;
   
   if( jsonDataList == NULL ) jsonDataList = kh_init( JSONInt );
   
@@ -40,7 +37,7 @@ int LoadStringData( const char* configString )
     if( kh_value( jsonDataList, newDataIndex ).nodeTree == NULL )
     {
       UnloadData( (int) newDataIndex );
-      return PARSED_DATA_INVALID_ID;
+      return DATA_INVALID_ID;
     }
   
     kh_value( jsonDataList, newDataIndex ).currentNode = kh_value( jsonDataList, newDataIndex ).nodeTree->root;
@@ -53,15 +50,15 @@ int LoadStringData( const char* configString )
 
 int LoadFileData( const char* filePath )
 {
-  if( filePath == NULL ) return PARSED_DATA_INVALID_ID;
+  if( filePath == NULL ) return DATA_INVALID_ID;
   
-  char filePathExt[ PARSER_MAX_FILE_PATH_LENGTH ];
+  char filePathExt[ DATA_IO_MAX_FILE_PATH_LENGTH ];
   sprintf( filePathExt, "%s.json", filePath );
   
   DEBUG_PRINT( "looking for file: %s", filePathExt );
   
   FILE* configFile = fopen( filePathExt, "r" );
-  if( configFile == NULL ) return PARSED_DATA_INVALID_ID;
+  if( configFile == NULL ) return DATA_INVALID_ID;
   
   fseek( configFile, 0, SEEK_END );
   long int fileSize = ftell( configFile );
@@ -74,7 +71,7 @@ int LoadFileData( const char* filePath )
 
   free( configString );
   
-  if( newDataID != PARSED_DATA_INVALID_ID ) DEBUG_PRINT( "file %s data inserted", filePathExt );
+  if( newDataID != DATA_INVALID_ID ) DEBUG_PRINT( "file %s data inserted", filePathExt );
 
   return newDataID;
 }
@@ -103,7 +100,7 @@ static inline const kson_node_t* GetPathNode( int dataID, const char* pathFormat
   const kson_node_t* currentNode = kh_value( jsonDataList, dataIndex ).currentNode;
   char* searchPath = kh_value( jsonDataList, dataIndex ).searchPath;
   
-  vsnprintf( searchPath, PARSER_MAX_KEY_PATH_LENGTH, pathFormat, pathArgs );
+  vsnprintf( searchPath, DATA_IO_MAX_KEY_PATH_LENGTH, pathFormat, pathArgs );
   
   DEBUG_PRINT( "Search path: %s", searchPath );
   
@@ -193,7 +190,7 @@ size_t GetListSize( int dataID, const char* pathFormat, ... )
   
   if( listNode->type != KSON_TYPE_BRACKET ) return 0;
   
-  DEBUG_PRINT( "List %s size: %u", pathFormat, (size_t) listNode->n );
+  DEBUG_PRINT( "List %s size: %lu", pathFormat, (size_t) listNode->n );
   
   return (size_t) listNode->n;
 }
@@ -208,5 +205,3 @@ bool HasKey( int dataID, const char* pathFormat, ... )
   
   return true;
 }
-
-#endif // JSON_PARSER_H

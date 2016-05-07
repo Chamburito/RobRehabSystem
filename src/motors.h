@@ -14,7 +14,7 @@
       
 typedef struct _MotorData
 {
-  DEFINE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
+  DECLARE_MODULE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
   int interfaceID;
   unsigned int outputChannel;
   double outputGain, outputOffset;
@@ -39,7 +39,7 @@ typedef MotorData* Motor;
 INIT_NAMESPACE_INTERFACE( Motors, MOTORS_FUNCTIONS )
 
 
-char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
+char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
 Motor Motors_Init( const char* configFileName )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing Axis Motor %s", configFileName );
@@ -48,9 +48,9 @@ Motor Motors_Init( const char* configFileName )
   
   sprintf( filePath, "motors/%s", configFileName );
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
-  if( configFileID != PARSED_DATA_INVALID_ID )
+  if( configFileID != DATA_INVALID_ID )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
+    ConfigParser parser = ConfigParsing.GetParser();
     
     newMotor = (Motor) malloc( sizeof(MotorData) );
     memset( newMotor, 0, sizeof(MotorData) );

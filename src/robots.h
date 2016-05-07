@@ -37,7 +37,7 @@ typedef AxisData* Axis;
 
 typedef struct _RobotData
 {
-  DEFINE_INTERFACE_REF( ROBOT_CONTROL_INTERFACE );
+  DECLARE_MODULE_INTERFACE_REF( ROBOT_CONTROL_INTERFACE );
   Controller controller;
   Thread controlThread;
   bool isControlRunning;
@@ -335,7 +335,7 @@ static void* AsyncControl( void* ref_robot )
 /////                   CONFIGURATION LOADING/UNLOADING                     /////
 /////////////////////////////////////////////////////////////////////////////////
 
-char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
+char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
 static inline Robot LoadRobotData( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to create robot %s", configFileName );
@@ -344,9 +344,9 @@ static inline Robot LoadRobotData( const char* configFileName )
   
   sprintf( filePath, "robots/%s", configFileName );
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
-  if( configFileID != PARSED_DATA_INVALID_ID )
+  if( configFileID != DATA_INVALID_ID )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
+    ConfigParser parser = ConfigParsing.GetParser();
     
     newRobot = (Robot) malloc( sizeof(RobotData) );
     memset( newRobot, 0, sizeof(RobotData) );

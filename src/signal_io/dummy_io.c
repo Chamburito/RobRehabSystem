@@ -22,7 +22,7 @@ typedef SignalIOTaskData* SignalIOTask;
 KHASH_MAP_INIT_INT( TaskInt, SignalIOTask )
 static khash_t( TaskInt )* tasksList = NULL;
 
-DEFINE_INTERFACE( SIGNAL_IO_INTERFACE ) 
+DECLARE_MODULE_INTERFACE( SIGNAL_IO_INTERFACE ) 
 
 static inline bool IsTaskStillUsed( SignalIOTask );
 

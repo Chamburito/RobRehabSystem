@@ -19,7 +19,7 @@ typedef SensorData* Sensor;
 
 struct _SensorData
 {
-  DEFINE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
+  DECLARE_MODULE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
   int taskID;
   unsigned int channel;
   double* inputBuffer;
@@ -43,7 +43,7 @@ struct _SensorData
 INIT_NAMESPACE_INTERFACE( Sensors, SENSOR_FUNCTIONS )
 
 
-char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
+char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
 Sensor Sensors_Init( const char* configFileName )
 {
   DEBUG_PRINT( "Trying to load sensor %s data", configFileName );
@@ -52,9 +52,9 @@ Sensor Sensors_Init( const char* configFileName )
   
   sprintf( filePath, "sensors/%s", configFileName );
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
-  if( configFileID != PARSED_DATA_INVALID_ID )
+  if( configFileID != DATA_INVALID_ID )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
+    ConfigParser parser = ConfigParsing.GetParser();
     
     newSensor = (Sensor) malloc( sizeof(SensorData) );
     memset( newSensor, 0, sizeof(SensorData) );

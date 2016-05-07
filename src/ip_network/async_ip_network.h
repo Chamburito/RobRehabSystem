@@ -8,7 +8,7 @@
 
 #include <stdbool.h>
 
-#include "ip_network.h"
+#include "ip_network/ip_network.h"
 #include "debug/async_debug.h"
 
 #include "threads/thread_safe_data.h"
@@ -27,7 +27,6 @@ typedef struct _AsyncIPConnectionData
   IPConnection baseConnection;
   ThreadSafeQueue readQueue;
   ThreadSafeQueue writeQueue;
-  char address[ IP_ADDRESS_LENGTH ];
 }
 AsyncIPConnectionData;
 
@@ -46,7 +45,7 @@ static ThreadSafeMap globalConnectionsList = NULL;
 /////                                            INTERFACE                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define ASYNC_IP_NETWORK_FUNCTIONS( namespace, function_init ) \
+#define ASYNC_IP_NETWORK_INTERFACE( namespace, function_init ) \
         function_init( char*, namespace, GetAddress, int ) \
         function_init( size_t, namespace, GetActivesNumber, void ) \
         function_init( size_t, namespace, GetClientsNumber, int ) \
@@ -57,7 +56,7 @@ static ThreadSafeMap globalConnectionsList = NULL;
         function_init( int, namespace, WriteMessage, int, const char* ) \
         function_init( int, namespace, GetClient, int )
 
-INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_FUNCTIONS )
+INIT_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_INTERFACE )
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      INFORMATION UTILITIES                                      /////
@@ -91,14 +90,14 @@ size_t AsyncIPNetwork_GetClientsNumber( int serverIndex )
 }
 
 // Returns address string (host and port) for the connection of given index
-inline char* AsyncIPNetwork_GetAddress( int connectionIndex )
+char* AsyncIPNetwork_GetAddress( int connectionIndex )
 {
   AsyncIPConnection connection = (AsyncIPConnection) ThreadSafeMaps.AquireItem( globalConnectionsList, connectionIndex );
   if( connection == NULL ) return 0;
   
   ThreadSafeMaps.ReleaseItem( globalConnectionsList );
   
-  return connection->address;
+  return IPNetwork.GetAddress( connection->baseConnection );
 }
 
 
@@ -123,10 +122,6 @@ static int AddAsyncConnection( IPConnection baseConnection )
   ///*DEBUG_EVENT( 0,*/DEBUG_PRINT( "socket index: %d", baseConnection->socket->fd );
   
   AsyncIPConnectionData connectionData = { .baseConnection = baseConnection };
-  
-  char* addressString = IPNetwork.GetAddress( baseConnection );
-  strcpy( &(connectionData.address[ IP_HOST ]), &addressString[ IP_HOST ] );
-  strcpy( &(connectionData.address[ IP_PORT ]), &addressString[ IP_PORT ] );
   
   size_t readQueueItemSize = ( !IPNetwork.IsServer( baseConnection ) ) ? IP_MAX_MESSAGE_LENGTH : sizeof(int);
   connectionData.readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, readQueueItemSize );  
@@ -190,7 +185,7 @@ static void ReadToQueue( void* ref_connection )
         char* addressString = IPNetwork.GetAddress( newClient );
         if( addressString != NULL )
         {
-          DEBUG_PRINT( "client accepted: connection: %p - host: %s - port: %s", newClient, &(addressString[ IP_HOST ]), &(addressString[ IP_PORT ]) );
+          DEBUG_PRINT( "client accepted: connection: %p - address: %s", newClient, addressString );
           ThreadSafeQueues.Enqueue( connection->readQueue, newClient, TSQUEUE_WAIT );
           AddAsyncConnection( newClient );
         }

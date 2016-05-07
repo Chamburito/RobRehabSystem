@@ -50,7 +50,7 @@ Curve LoadCurveData( int configDataID )
   Curve newCurve = (Curve) malloc( sizeof(CurveData) );
   memset( newCurve, 0, sizeof(CurveData) );
 
-  ParserInterface parser = ConfigParsing.GetParser();
+  ConfigParser parser = ConfigParsing.GetParser();
   
   newCurve->scaleFactor = 1.0;
   newCurve->maxAbsoluteValue = parser.GetRealValue( configDataID, -1.0, "max_amplitude" );

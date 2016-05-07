@@ -20,7 +20,7 @@ add_library( NICANEPOS MODULE src/signal_io/ni_can_epos/signal_io.c )
 add_library( ForcePIControl MODULE src/actuator_control/force_pi_control.c )
 add_library( SimpleJoint MODULE src/robot_control/simple_joint.c )
 # add_library( CppPlugin MODULE src/robot_control/cpp_plugin.cpp )
-add_library( OpenSimModel MODULE src/robot_control/open_sim_model.cpp )
+# add_library( OpenSimModel MODULE src/robot_control/open_sim_model.cpp )
 
 add_executable( RobRehabServer src/robrehab_system.c src/ip_network/ip_network.c )
 
@@ -57,10 +57,10 @@ target_include_directories( SimpleJoint PUBLIC src/robot_control/ )
 # set_target_properties( CppPlugin PROPERTIES PREFIX "" )
 # target_include_directories( CppPlugin PUBLIC src/robot_control/ )
 
-set_target_properties( OpenSimModel PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/robot_control/ )
-set_target_properties( OpenSimModel PROPERTIES PREFIX "" )
-target_include_directories( OpenSimModel PUBLIC src/robot_control/ src/robot_control/SimTK/simbody )
-target_link_libraries( OpenSimModel libSimTKcommon_d.so libSimTKmath_d.so libSimTKsimbody_d.so libosimActuators_d.so libosimAnalyses_d.so libosimCommon_d.so libosimLepton_d.so libosimSimulation_d.so libosimTools_d.so )
+# set_target_properties( OpenSimModel PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/robot_control/ )
+# set_target_properties( OpenSimModel PROPERTIES PREFIX "" )
+# target_include_directories( OpenSimModel PUBLIC src/robot_control/ src/robot_control/SimTK/simbody )
+# target_link_libraries( OpenSimModel libSimTKcommon_d.so libSimTKmath_d.so libSimTKsimbody_d.so libosimActuators_d.so libosimAnalyses_d.so libosimCommon_d.so libosimLepton_d.so libosimSimulation_d.so libosimTools_d.so )
 
 target_include_directories( RobRehabServer PUBLIC src/ip_network/ )
 target_compile_definitions( RobRehabServer PUBLIC -DROBREHAB_SERVER -D_DEFAULT_SOURCE=__STRICT_ANSI__ -DDEBUG )

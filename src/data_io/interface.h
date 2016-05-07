@@ -1,5 +1,5 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef DATA_IO_H
+#define DATA_IO_H
 
 #include "interfaces.h"
 
@@ -17,23 +17,21 @@
 
 #include <stdarg.h>
 
-#define PARSER_MAX_FILE_PATH_LENGTH 256
-#define PARSER_MAX_KEY_PATH_LENGTH 256
-#define PARSER_MAX_VALUE_LENGTH 128
+#define DATA_IO_MAX_FILE_PATH_LENGTH 256
+#define DATA_IO_MAX_KEY_PATH_LENGTH 256
+#define DATA_IO_MAX_VALUE_LENGTH 128
 
-const int PARSED_DATA_INVALID_ID = -1;
+const int DATA_INVALID_ID = -1;
 
-#define PARSER_FUNCTIONS( interface, function_init ) \
-        function_init( int, interface, LoadFileData, const char* ) \
-        function_init( int, interface, LoadStringData, const char* ) \
-        function_init( void, interface, UnloadData, int ) \
-        function_init( long, interface, GetIntegerValue, int, long, const char*, ... ) \
-        function_init( double, interface, GetRealValue, int, double, const char*, ... ) \
-        function_init( char*, interface, GetStringValue, int, char*, const char*, ... ) \
-        function_init( bool, interface, GetBooleanValue, int, bool, const char*, ... ) \
-        function_init( size_t, interface, GetListSize, int, const char*, ... ) \
-        function_init( bool, interface, HasKey, int, const char*, ... )
+#define DATA_IO_INTERFACE( Interface, INIT_FUNCTION ) \
+        INIT_FUNCTION( int, Interface, LoadFileData, const char* ) \
+        INIT_FUNCTION( int, Interface, LoadStringData, const char* ) \
+        INIT_FUNCTION( void, Interface, UnloadData, int ) \
+        INIT_FUNCTION( long, Interface, GetIntegerValue, int, long, const char*, ... ) \
+        INIT_FUNCTION( double, Interface, GetRealValue, int, double, const char*, ... ) \
+        INIT_FUNCTION( char*, Interface, GetStringValue, int, char*, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, GetBooleanValue, int, bool, const char*, ... ) \
+        INIT_FUNCTION( size_t, Interface, GetListSize, int, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, HasKey, int, const char*, ... )
 
-DEFINE_INTERFACE_MODULE( Parser, PARSER_FUNCTIONS )
-
-#endif // PARSER_H
+#endif // DATA_IO_H

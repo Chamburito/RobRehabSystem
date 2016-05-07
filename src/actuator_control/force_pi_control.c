@@ -10,7 +10,7 @@ typedef struct _ControlData
 }
 ControlData;
 
-DEFINE_INTERFACE( ACTUATOR_CONTROL_INTERFACE )
+DECLARE_MODULE_INTERFACE( ACTUATOR_CONTROL_INTERFACE )
 
 Controller InitController( void )
 {

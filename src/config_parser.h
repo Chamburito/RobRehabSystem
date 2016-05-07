@@ -8,33 +8,38 @@
 
 #include <string.h>
 
-static ParserInterface parser;
+typedef struct
+{
+  DECLARE_MODULE_INTERFACE_REF( DATA_IO_INTERFACE );
+}
+ConfigParser;
+static ConfigParser parser;
 static bool pluginLoaded = false;
 
 #define CONFIG_PARSING_FUNCTIONS( namespace, function_init ) \
         function_init( bool, namespace, Init, const char* ) \
         function_init( int, namespace, LoadConfigFile, const char* ) \
         function_init( int, namespace, LoadConfigString, const char* ) \
-        function_init( ParserInterface, namespace, GetParser, void )
+        function_init( ConfigParser, namespace, GetParser, void )
 
 INIT_NAMESPACE_INTERFACE( ConfigParsing, CONFIG_PARSING_FUNCTIONS )
 
 bool ConfigParsing_Init( const char* pluginName )
 {
-  char searchPath[ PARSER_MAX_FILE_PATH_LENGTH ];
-  snprintf( searchPath, PARSER_MAX_FILE_PATH_LENGTH, "data_io/%s", pluginName );
+  char searchPath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
+  snprintf( searchPath, DATA_IO_MAX_FILE_PATH_LENGTH, "data_io/%s", pluginName );
   
-  GET_PLUGIN_IMPLEMENTATION( PARSER_FUNCTIONS, searchPath, (&parser), (&pluginLoaded) );
+  GET_PLUGIN_IMPLEMENTATION( DATA_IO_INTERFACE, searchPath, (&parser), (&pluginLoaded) );
   
   return pluginLoaded;
 }
 
-inline int ConfigParsing_LoadConfigFile( const char* configFilePath )
+int ConfigParsing_LoadConfigFile( const char* configFilePath )
 {
-  if( !pluginLoaded ) return PARSED_DATA_INVALID_ID;
+  if( !pluginLoaded ) return DATA_INVALID_ID;
   
-  char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
-  snprintf( filePath, PARSER_MAX_FILE_PATH_LENGTH, "config/%s", configFilePath );
+  char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
+  snprintf( filePath, DATA_IO_MAX_FILE_PATH_LENGTH, "config/%s", configFilePath );
   
   DEBUG_PRINT( "looking for config file %s", configFilePath );
   
@@ -43,12 +48,12 @@ inline int ConfigParsing_LoadConfigFile( const char* configFilePath )
 
 inline int ConfigParsing_LoadConfigString( const char* configString )
 {
-  if( !pluginLoaded ) return PARSED_DATA_INVALID_ID;
+  if( !pluginLoaded ) return DATA_INVALID_ID;
   
   return parser.LoadStringData( configString );
 }
 
-ParserInterface ConfigParsing_GetParser( void )
+ConfigParser ConfigParsing_GetParser( void )
 {
   return parser;
 }

@@ -6,7 +6,7 @@
 
 const char* DOF_NAMES[ DOFS_NUMBER ] = { "angle" };
 
-DEFINE_INTERFACE( ROBOT_CONTROL_INTERFACE ) 
+DECLARE_MODULE_INTERFACE( ROBOT_CONTROL_INTERFACE ) 
 
 Controller InitController( const char* data )
 {

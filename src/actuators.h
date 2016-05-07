@@ -22,7 +22,7 @@
 
 typedef struct _ActuatorData
 {
-  DEFINE_INTERFACE_REF( ACTUATOR_CONTROL_INTERFACE );
+  DECLARE_MODULE_INTERFACE_REF( ACTUATOR_CONTROL_INTERFACE );
   Controller controller;
   enum ControlVariables controlMode;
   Motor motor;
@@ -60,7 +60,7 @@ INIT_NAMESPACE_INTERFACE( Actuators, ACTUATOR_INTERFACE )
 const char* CONTROL_MODE_NAMES[ CONTROL_MODES_NUMBER ] = { "POSITION", "VELOCITY", "FORCE", "ACCELERATION" };
 Actuator Actuators_Init( const char* configFileName )
 {
-  char filePath[ PARSER_MAX_FILE_PATH_LENGTH ];
+  char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
   
   DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
   
@@ -68,9 +68,9 @@ Actuator Actuators_Init( const char* configFileName )
   
   sprintf( filePath, "actuators/%s", configFileName );
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
-  if( configFileID != PARSED_DATA_INVALID_ID )
+  if( configFileID != DATA_INVALID_ID )
   {
-    ParserInterface parser = ConfigParsing.GetParser();
+    ConfigParser parser = ConfigParsing.GetParser();
   
     newActuator = (Actuator) malloc( sizeof(ActuatorData) );
     memset( newActuator, 0, sizeof(ActuatorData) );
