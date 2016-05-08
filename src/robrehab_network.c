@@ -1,13 +1,8 @@
-#ifndef ROBREHAB_NETWORK_H
-#define ROBREHAB_NETWORK_H
-
 #ifdef _CVI_
   #include "ip_network/cvirte_ip_connection.h"
 #else
   #include "ip_network/async_ip_network.h"
 #endif
-
-#include "namespaces.h"
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
@@ -19,7 +14,11 @@
 
 #include "debug/async_debug.h"
 
-#define UPDATE_INTERVAL_MS 5
+#include "robrehab_subsystem.h"
+
+
+const unsigned long UPDATE_INTERVAL_MS = 5;
+
 
 static int eventServerConnectionID;
 static int axisServerConnectionID;
@@ -39,16 +38,10 @@ SHMController sharedRobotJointsData;
 static kvec_t( int ) axisNetworkControllersList;
 static kvec_t( int ) jointNetworkControllersList;
 
-#define SUBSYSTEM RobRehabNetwork
+DEFINE_NAMESPACE_INTERFACE( SubSystem, ROBREHAB_SUBSYSTEM_INTERFACE )
 
-#define ROBREHAB_NETWORK_FUNCTIONS( namespace, function_init ) \
-        function_init( int, namespace, Init, const char* ) \
-        function_init( void, namespace, End, void ) \
-        function_init( void, namespace, Update, void )
 
-INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_NETWORK_FUNCTIONS )
-
-int RobRehabNetwork_Init( const char* configType )
+int SubSystem_Init( const char* configType )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %lx", THREAD_ID );
   if( (eventServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_TCP, NULL, 50000 )) == IP_CONNECTION_INVALID_ID )
@@ -78,7 +71,7 @@ int RobRehabNetwork_Init( const char* configType )
   return 0;
 }
 
-void RobRehabNetwork_End()
+void SubSystem_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "ending RobRehab Network on thread %lx", THREAD_ID );
   
@@ -119,7 +112,7 @@ static void UpdateClientEvent( int );
 static void UpdateClientAxis( int );
 static void UpdateClientJoint( int );
 
-void RobRehabNetwork_Update()
+void SubSystem_Update()
 {
   DEBUG_UPDATE( "updating connections on thread %lx", THREAD_ID );
   
@@ -266,5 +259,3 @@ static void UpdateClientJoint( int clientID )
     AsyncIPNetwork.WriteMessage( clientID, messageOut );
   }
 }
-
-#endif //ROBREHAB_NETWORK_H

@@ -1,19 +1,14 @@
 #define _XOPEN_SOURCE 700
 
-#ifdef ROBREHAB_SERVER
-  #include "robrehab_network.h"
-#elif ROBREHAB_CONTROL
-  #include "robrehab_control.h"
-#elif ROBREHAB_EMG
-  #include "robrehab_emg.h"
-#endif
-
 #include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
 #include <signal.h>
 
-const struct timespec UPDATE_TIMESPEC = { .tv_nsec = 1000000 * UPDATE_INTERVAL_MS };
+#include "debug/async_debug.h"
+
+#include "robrehab_subsystem.h"
+
 
 static volatile bool isRunning = true;
 
@@ -25,7 +20,9 @@ void HandleExit( int dummyData )
 
 /* Program entry-point */
 int main( int argc, char* argv[] )
-{  
+{
+  const struct timespec UPDATE_TIMESPEC = { .tv_nsec = 1000000 * UPDATE_INTERVAL_MS };
+  
   time_t rawTime;
   time( &rawTime );
   DEBUG_PRINT( "starting control program at time: %s", ctime( &rawTime ) );
@@ -34,11 +31,11 @@ int main( int argc, char* argv[] )
   
   if( argc > 1 )
   {
-    if( SUBSYSTEM.Init( argv[ 1 ] ) != -1 )
+    if( SubSystem.Init( argv[ 1 ] ) != -1 )
     {
       while( isRunning ) // Check for program termination conditions
       {
-        SUBSYSTEM.Update();
+        SubSystem.Update();
       
         nanosleep( &UPDATE_TIMESPEC, NULL ); // Sleep to give the desired loop rate.
       }
@@ -48,7 +45,7 @@ int main( int argc, char* argv[] )
   time( &rawTime );
   DEBUG_PRINT( "ending control program at time: %s", ctime( &rawTime ) );
 
-  SUBSYSTEM.End();
+  SubSystem.End();
   
   exit( 0 );
 }

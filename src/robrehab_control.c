@@ -26,18 +26,10 @@ SHMController sharedRobotJointsData;
 kvec_t( Axis ) axesList;
 kvec_t( Joint ) jointsList;
 
-
-#define SUBSYSTEM RobRehabControl
-
-#define ROBREHAB_CONTROL_FUNCTIONS( namespace, function_init ) \
-        function_init( int, namespace, Init, const char* ) \
-        function_init( void, namespace, End, void ) \
-        function_init( void, namespace, Update, void )
-
-INIT_NAMESPACE_INTERFACE( SUBSYSTEM, ROBREHAB_CONTROL_FUNCTIONS )
+DEFINE_NAMESPACE_INTERFACE( SubSystem, ROBREHAB_SUBSYSTEM_INTERFACE )
 
 
-int RobRehabControl_Init( const char* configType )
+int SubSystem_Init( const char* configType )
 {
   kv_init( robotIDsList );
   
@@ -113,7 +105,7 @@ int RobRehabControl_Init( const char* configType )
   return 0;
 }
 
-void RobRehabControl_End()
+void SubSystem_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %lx", THREAD_ID );
 
@@ -133,7 +125,7 @@ void RobRehabControl_End()
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Control ended on thread %lx", THREAD_ID );
 }
 
-void RobRehabControl_Update()
+void SubSystem_Update()
 {
   const size_t AXIS_DATA_BLOCK_SIZE = SHM_AXIS_FLOATS_NUMBER * sizeof(float);
   const size_t JOINT_DATA_BLOCK_SIZE = SHM_JOINT_FLOATS_NUMBER * sizeof(float);  
