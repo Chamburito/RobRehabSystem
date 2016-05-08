@@ -25,7 +25,7 @@ link_directories( ${CMAKE_SOURCE_DIR}/libs )
 
 
 # (REAL-TIME) CONTROL APPLICATION
-add_executable( RobRehabControl src/robrehab_system.c ${PLATFORM_SOURCES} )
+add_executable( RobRehabControl src/robrehab_system.c src/shm_control.c src/matrices.c src/kalman_filters.c src/robots.c src/actuators.c src/config_parser.c src/debug/data_logging.c src/sensors.c src/signal_processing.c src/motors.c src/curve_interpolation.c ${PLATFORM_SOURCES} )
 target_compile_definitions( RobRehabControl PUBLIC -DROBREHAB_CONTROL -DDEBUG )
 target_link_libraries( RobRehabControl -lm ${CMAKE_DL_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 if( UNIX AND NOT APPLE )
@@ -33,7 +33,7 @@ if( UNIX AND NOT APPLE )
 endif()
 
 # (AXIS/JOINT) SERVER
-add_executable( RobRehabServer src/robrehab_system.c src/ip_network/ip_network.c src/ip_network/async_ip_network.c ${PLATFORM_SOURCES} )
+add_executable( RobRehabServer src/robrehab_system.c src/ip_network/ip_network.c src/ip_network/async_ip_network.c src/threads/thread_safe_data.c src/shm_control.c ${PLATFORM_SOURCES} )
 target_include_directories( RobRehabServer PUBLIC src/ip_network/ )
 target_compile_definitions( RobRehabServer PUBLIC -DROBREHAB_SERVER -D_DEFAULT_SOURCE=__STRICT_ANSI__ -DDEBUG )
 target_link_libraries( RobRehabServer ${CMAKE_THREAD_LIBS_INIT} )

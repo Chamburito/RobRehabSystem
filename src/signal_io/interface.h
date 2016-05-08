@@ -5,21 +5,21 @@
 
 #define SIGNAL_INPUT_CHANNEL_MAX_USES 5
 
-const int SIGNAL_IO_TASK_INVALID_ID = -1;
+#define SIGNAL_IO_TASK_INVALID_ID -1
 
-#define SIGNAL_IO_INTERFACE( interface, function_init ) \
-        function_init( int, interface, InitTask, const char* ) \
-        function_init( void, interface, EndTask, int ) \
-        function_init( void, interface, Reset, int ) \
-        function_init( bool, interface, HasError, int ) \
-        function_init( size_t, interface, GetMaxInputSamplesNumber, int ) \
-        function_init( size_t, interface, Read, int, unsigned int, double* ) \
-        function_init( bool, interface, AquireInputChannel, int, unsigned int ) \
-        function_init( void, interface, ReleaseInputChannel, int, unsigned int ) \
-        function_init( void, interface, EnableOutput, int, bool ) \
-        function_init( bool, interface, IsOutputEnabled, int ) \
-        function_init( bool, interface, Write, int, unsigned int, double ) \
-        function_init( bool, interface, AquireOutputChannel, int, unsigned int ) \
-        function_init( void, interface, ReleaseOutputChannel, int, unsigned int ) 
+#define SIGNAL_IO_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( int, Namespace, InitTask, const char* ) \
+        INIT_FUNCTION( void, Namespace, EndTask, int ) \
+        INIT_FUNCTION( void, Namespace, Reset, int ) \
+        INIT_FUNCTION( bool, Namespace, HasError, int ) \
+        INIT_FUNCTION( size_t, Namespace, GetMaxInputSamplesNumber, int ) \
+        INIT_FUNCTION( size_t, Namespace, Read, int, unsigned int, double* ) \
+        INIT_FUNCTION( bool, Namespace, AquireInputChannel, int, unsigned int ) \
+        INIT_FUNCTION( void, Namespace, ReleaseInputChannel, int, unsigned int ) \
+        INIT_FUNCTION( void, Namespace, EnableOutput, int, bool ) \
+        INIT_FUNCTION( bool, Namespace, IsOutputEnabled, int ) \
+        INIT_FUNCTION( bool, Namespace, Write, int, unsigned int, double ) \
+        INIT_FUNCTION( bool, Namespace, AquireOutputChannel, int, unsigned int ) \
+        INIT_FUNCTION( void, Namespace, ReleaseOutputChannel, int, unsigned int ) 
 
 #endif // SIGNAL_IO_INTERFACE_H 

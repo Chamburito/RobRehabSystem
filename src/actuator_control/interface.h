@@ -4,11 +4,9 @@
 #include "interfaces.h"
 #include "control_definitions.h"
 
-#include "debug/async_debug.h"
-
-#define ACTUATOR_CONTROL_INTERFACE( interface, function_init ) \
-        function_init( Controller, interface, InitController, void ) \
-        function_init( double*, interface, RunControlStep, Controller, double*, double*, double, double* ) \
-        function_init( void, interface, EndController, Controller )
+#define ACTUATOR_CONTROL_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( Controller, Namespace, InitController, void ) \
+        INIT_FUNCTION( double*, Namespace, RunControlStep, Controller, double*, double*, double, double* ) \
+        INIT_FUNCTION( void, Namespace, EndController, Controller )
 
 #endif  // ACTUATOR_CONTROL_INTERFACE_H

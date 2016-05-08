@@ -61,7 +61,7 @@ void CANNetwork_Reset()
   u8 payload[8] = { 0x82 }; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );
   
-  Timing_Delay( 200 );
+  Timing.Delay( 200 );
   
   payload[0] = 0x01; // Rest of the array as 0x0
   CANFrame_Write( NMT, payload );

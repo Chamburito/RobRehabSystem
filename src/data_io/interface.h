@@ -21,7 +21,7 @@
 #define DATA_IO_MAX_KEY_PATH_LENGTH 256
 #define DATA_IO_MAX_VALUE_LENGTH 128
 
-const int DATA_INVALID_ID = -1;
+#define DATA_INVALID_ID -1
 
 #define DATA_IO_INTERFACE( Interface, INIT_FUNCTION ) \
         INIT_FUNCTION( int, Interface, LoadFileData, const char* ) \

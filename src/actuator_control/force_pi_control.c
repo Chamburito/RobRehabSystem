@@ -1,5 +1,7 @@
 #include "actuator_control/interface.h"
 
+#include <string.h>
+
 typedef struct _ControlData
 {
   double positionErrorSum, positionSetpointSum;
