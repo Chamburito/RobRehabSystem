@@ -1,7 +1,7 @@
 #ifndef MATRICES_H
 #define MATRICES_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 #define MATRIX_SIZE_MAX 50 
 

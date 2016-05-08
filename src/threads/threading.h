@@ -6,7 +6,9 @@
 #ifndef THREADING_H
 #define THREADING_H
 
-#include "interfaces.h"
+#include <stdint.h>
+
+#include "namespaces.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                      THREADS HANDLING                                       /////

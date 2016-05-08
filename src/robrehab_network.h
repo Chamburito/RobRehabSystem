@@ -7,7 +7,7 @@
   #include "ip_network/async_ip_network.h"
 #endif
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 #include "shm_control.h"
 #include "shm_axis_control.h"

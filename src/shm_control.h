@@ -1,7 +1,14 @@
 #ifndef SHM_CONTROL_H
 #define SHM_CONTROL_H
 
-#include "interfaces.h"
+#include <stdbool.h>
+#include <stdint.h>
+#ifdef __unix__
+  #include <unistd.h>
+#endif
+
+#include "namespaces.h"
+
 
 enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER };
 
@@ -28,13 +35,13 @@ enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER
 typedef struct _SHMControlData SHMControlData;
 typedef SHMControlData* SHMController;
 
-#define SHM_CONTROL_INTERFACE( namespace, function_init ) \
-        function_init( SHMController, namespace, InitData, const char*, enum SHMControlTypes ) \
-        function_init( void, namespace, EndData, SHMController ) \
-        function_init( bool, namespace, GetData, SHMController, void*, size_t, size_t ) \
-        function_init( bool, namespace, SetData, SHMController, void*, size_t, size_t ) \
-        function_init( uint8_t, namespace, GetMaskByte, SHMController, size_t ) \
-        function_init( uint8_t, namespace, SetMaskByte, SHMController, size_t, uint8_t )
+#define SHM_CONTROL_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( SHMController, Namespace, InitData, const char*, enum SHMControlTypes ) \
+        INIT_FUNCTION( void, Namespace, EndData, SHMController ) \
+        INIT_FUNCTION( bool, Namespace, GetData, SHMController, void*, size_t, size_t ) \
+        INIT_FUNCTION( bool, Namespace, SetData, SHMController, void*, size_t, size_t ) \
+        INIT_FUNCTION( uint8_t, Namespace, GetMaskByte, SHMController, size_t ) \
+        INIT_FUNCTION( uint8_t, Namespace, SetMaskByte, SHMController, size_t, uint8_t )
 
 DECLARE_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_INTERFACE )
 

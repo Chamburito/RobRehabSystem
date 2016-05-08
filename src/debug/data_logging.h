@@ -1,7 +1,7 @@
 #ifndef DATA_LOGGING_H
 #define DATA_LOGGING_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 
 #define LOG_FILE_PATH_MAX_LEN 256

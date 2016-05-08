@@ -4,7 +4,6 @@
 #include "config_parser.h"
 
 #include "signal_io/interface.h"
-#include "plugin_loader.h"
 #include "curve_interpolation.h"
 
 #include "debug/async_debug.h"
@@ -41,48 +40,46 @@ Sensor Sensors_Init( const char* configFileName )
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
-    ConfigParser parser = ConfigParsing.GetParser();
-    
     newSensor = (Sensor) malloc( sizeof(SensorData) );
     memset( newSensor, 0, sizeof(SensorData) );
     
     bool loadSuccess;
-    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "input_interface.type" ) );
-    GET_PLUGIN_IMPLEMENTATION( SIGNAL_IO_INTERFACE, filePath, newSensor, &loadSuccess );
+    sprintf( filePath, "signal_io/%s", ConfigParsing.GetParser()->GetStringValue( configFileID, "", "input_interface.type" ) );
+    LOAD_MODULE_IMPLEMENTATION( SIGNAL_IO_INTERFACE, filePath, newSensor, &loadSuccess );
     if( loadSuccess )
     {
-      newSensor->taskID = newSensor->InitTask( parser.GetStringValue( configFileID, "", "input_interface.id" ) );
+      newSensor->taskID = newSensor->InitTask( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "input_interface.id" ) );
       if( newSensor->taskID != SIGNAL_IO_TASK_INVALID_ID )
       {
-        newSensor->channel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "input_interface.channel" );
+        newSensor->channel = (unsigned int) ConfigParsing.GetParser()->GetIntegerValue( configFileID, -1, "input_interface.channel" );
         loadSuccess = newSensor->AquireInputChannel( newSensor->taskID, newSensor->channel );
         
         newSensor->maxInputSamplesNumber = newSensor->GetMaxInputSamplesNumber( newSensor->taskID );
         newSensor->inputBuffer = (double*) calloc( newSensor->maxInputSamplesNumber, sizeof(double) );
         
         uint8_t processingFlags = 0x00;
-        if( parser.GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) processingFlags |= SIGNAL_PROCESSING_RECTIFY;
-        if( parser.GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) processingFlags |= SIGNAL_PROCESSING_NORMALIZE;
+        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) processingFlags |= SIGNAL_PROCESSING_RECTIFY;
+        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) processingFlags |= SIGNAL_PROCESSING_NORMALIZE;
         newSensor->processor = SignalProcessing.CreateProcessor( processingFlags );
 
-        double inputGain = parser.GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
-        inputGain /= parser.GetRealValue( configFileID, 1.0, "input_gain.divisor" );
+        double inputGain = ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
+        inputGain /= ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "input_gain.divisor" );
         SignalProcessing.SetInputGain( newSensor->processor, inputGain );
           
-        double relativeCutFrequency = parser.GetRealValue( configFileID, 0.0, "signal_processing.relative_cut_frequency" );
+        double relativeCutFrequency = ConfigParsing.GetParser()->GetRealValue( configFileID, 0.0, "signal_processing.relative_cut_frequency" );
         SignalProcessing.SetMaxFrequency( newSensor->processor, relativeCutFrequency );
         
-        newSensor->measurementCurve = CurveInterpolation.LoadCurveString( parser.GetStringValue( configFileID, NULL, "conversion_curve" ) );
+        newSensor->measurementCurve = CurveInterpolation.LoadCurveString( ConfigParsing.GetParser()->GetStringValue( configFileID, NULL, "conversion_curve" ) );
         
         newSensor->logID = DATA_LOG_INVALID_ID;
-        if( parser.GetBooleanValue( configFileID, false, "log_data" ) )
+        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "log_data" ) )
         {
           sprintf( filePath, "sensors/%s", configFileName );
           newSensor->logID = DataLogging.InitLog( filePath, newSensor->maxInputSamplesNumber + 3, 1000 );
           DataLogging.SetDataPrecision( newSensor->logID, 4 );
         }
         
-        char* referenceName = parser.GetStringValue( configFileID, "", "relative_to" );
+        char* referenceName = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "relative_to" );
         if( strcmp( referenceName, configFileName ) != 0 && strcmp( referenceName, "" ) != 0 ) newSensor->reference = Sensors_Init( referenceName );
         
         newSensor->Reset( newSensor->taskID );
@@ -90,7 +87,7 @@ Sensor Sensors_Init( const char* configFileName )
       else loadSuccess = false;
     }
 
-    parser.UnloadData( configFileID );
+    ConfigParsing.GetParser()->UnloadData( configFileID );
     
     if( !loadSuccess )
     {

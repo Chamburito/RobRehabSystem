@@ -6,7 +6,10 @@
 #ifndef IP_NETWORK_H
 #define IP_NETWORK_H
 
-#include "interfaces.h"
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "namespaces.h"
   
 #include "debug/sync_debug.h"
 

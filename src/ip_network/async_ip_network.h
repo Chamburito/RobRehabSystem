@@ -6,7 +6,7 @@
 #ifndef ASYNC_IP_CONNECTION_H
 #define ASYNC_IP_CONNECTION_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 #include "ip_network/ip_network.h"
 
@@ -25,16 +25,16 @@ typedef AsyncIPConnectionData* AsyncIPConnection;
 /////                                            INTERFACE                                            /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define ASYNC_IP_NETWORK_INTERFACE( namespace, function_init ) \
-        function_init( char*, namespace, GetAddress, int ) \
-        function_init( size_t, namespace, GetActivesNumber, void ) \
-        function_init( size_t, namespace, GetClientsNumber, int ) \
-        function_init( size_t, namespace, SetMessageLength, int, size_t ) \
-        function_init( int, namespace, OpenConnection, uint8_t, const char*, uint16_t ) \
-        function_init( void, namespace, CloseConnection, int ) \
-        function_init( char*, namespace, ReadMessage, int ) \
-        function_init( int, namespace, WriteMessage, int, const char* ) \
-        function_init( int, namespace, GetClient, int )
+#define ASYNC_IP_NETWORK_INTERFACE( Namespace, INIT_FUNCTION ) \
+        INIT_FUNCTION( char*, Namespace, GetAddress, int ) \
+        INIT_FUNCTION( size_t, Namespace, GetActivesNumber, void ) \
+        INIT_FUNCTION( size_t, Namespace, GetClientsNumber, int ) \
+        INIT_FUNCTION( size_t, Namespace, SetMessageLength, int, size_t ) \
+        INIT_FUNCTION( int, Namespace, OpenConnection, uint8_t, const char*, uint16_t ) \
+        INIT_FUNCTION( void, Namespace, CloseConnection, int ) \
+        INIT_FUNCTION( char*, Namespace, ReadMessage, int ) \
+        INIT_FUNCTION( int, Namespace, WriteMessage, int, const char* ) \
+        INIT_FUNCTION( int, Namespace, GetClient, int )
 
 DECLARE_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_INTERFACE )
 

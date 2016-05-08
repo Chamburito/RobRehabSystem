@@ -1,7 +1,7 @@
 #ifndef CURVE_INTERPOLATION_H
 #define CURVE_INTERPOLATION_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 
 typedef struct _CurveData CurveData;

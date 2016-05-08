@@ -39,27 +39,25 @@ Curve LoadCurveData( int configDataID )
 {
   Curve newCurve = (Curve) malloc( sizeof(CurveData) );
   memset( newCurve, 0, sizeof(CurveData) );
-
-  ConfigParser parser = ConfigParsing.GetParser();
   
   newCurve->scaleFactor = 1.0;
-  newCurve->maxAbsoluteValue = parser.GetRealValue( configDataID, -1.0, "max_amplitude" );
+  newCurve->maxAbsoluteValue = ConfigParsing.GetParser()->GetRealValue( configDataID, -1.0, "max_amplitude" );
 
-  size_t segmentsNumber = parser.GetListSize( configDataID, "segments" );
+  size_t segmentsNumber = ConfigParsing.GetParser()->GetListSize( configDataID, "segments" );
 
   for( size_t segmentIndex = 0; segmentIndex < segmentsNumber; segmentIndex++ )
   {
     double curveBounds[ 2 ];
-    curveBounds[ 0 ] = parser.GetRealValue( configDataID, 0.0, "segments.%lu.bounds.0", segmentIndex );
-    curveBounds[ 1 ] = parser.GetRealValue( configDataID, 1.0, "segments.%lu.bounds.1", segmentIndex );
+    curveBounds[ 0 ] = ConfigParsing.GetParser()->GetRealValue( configDataID, 0.0, "segments.%lu.bounds.0", segmentIndex );
+    curveBounds[ 1 ] = ConfigParsing.GetParser()->GetRealValue( configDataID, 1.0, "segments.%lu.bounds.1", segmentIndex );
 
-    int parametersNumber = (int) parser.GetListSize( configDataID, "segments.%lu.parameters", segmentIndex );
+    int parametersNumber = (int) ConfigParsing.GetParser()->GetListSize( configDataID, "segments.%lu.parameters", segmentIndex );
 
     double* curveParameters = (double*) calloc( parametersNumber, sizeof(double) );
     for( int parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-      curveParameters[ parametersNumber - parameterIndex - 1 ] = parser.GetRealValue( configDataID, 0.0, "segments.%lu.parameters.%d", segmentIndex, parameterIndex );
+      curveParameters[ parametersNumber - parameterIndex - 1 ] = ConfigParsing.GetParser()->GetRealValue( configDataID, 0.0, "segments.%lu.parameters.%d", segmentIndex, parameterIndex );
 
-    char* curveType = parser.GetStringValue( configDataID, "", "segments.%lu.type", segmentIndex );
+    char* curveType = ConfigParsing.GetParser()->GetStringValue( configDataID, "", "segments.%lu.type", segmentIndex );
     if( strcmp( curveType, "cubic_spline" ) == 0 && parametersNumber == SPLINE3_COEFFS_NUMBER ) 
       (void) AddSpline3Segment( newCurve, curveParameters, curveBounds );
     else if( strcmp( curveType, "polynomial" ) == 0 ) 
@@ -70,7 +68,7 @@ Curve LoadCurveData( int configDataID )
 
   newCurve->segmentsNumber = segmentsNumber;
 
-  parser.UnloadData( configDataID );
+  ConfigParsing.GetParser()->UnloadData( configDataID );
   
   return newCurve;
 }

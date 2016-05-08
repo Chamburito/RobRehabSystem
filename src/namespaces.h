@@ -1,28 +1,5 @@
-#ifndef INTERFACES_H
-#define INTERFACES_H
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#ifdef __unix__
-  #include <unistd.h>
-  #define __declspec(dllexport)
-#endif
-
-#ifdef __cplusplus 
-  #define C_FUNCTION extern "C"
-#else
-  #define C_FUNCTION
-#endif
-
-
-#define DECLARE_MODULE_FUNCTION( rtype, Namespace, func, ... ) C_FUNCTION __declspec(dllexport) rtype func( __VA_ARGS__ );
-#define DECLARE_MODULE_FUNC_REF( rtype, Namespace, func, ... ) rtype (*func)( __VA_ARGS__ );
-#define DEFINE_MODULE_FUNC_REF( rtype, Namespace, func, ... ) .func = func,
-      
-#define DECLARE_MODULE_INTERFACE( INTERFACE ) INTERFACE( NULL, DECLARE_MODULE_FUNCTION )
-#define DECLARE_MODULE_INTERFACE_REF( INTERFACE ) INTERFACE( NULL, DECLARE_MODULE_FUNC_REF )
+#ifndef NAMESPACES_H
+#define NAMESPACES_H
 
       
 #define DECLARE_NAMESPACE_FUNCTION( rtype, namespace, func, ... ) static rtype namespace##_##func( __VA_ARGS__ );
@@ -47,4 +24,4 @@
         const struct Namespace \
         Namespace = { INTERFACE( Namespace, DEFINE_NAMESPACE_FUNC_REF ) };
 
-#endif  // INTERFACES_H
+#endif  // NAMESPACES_H

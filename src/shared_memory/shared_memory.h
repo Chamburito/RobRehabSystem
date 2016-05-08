@@ -4,7 +4,7 @@
 #ifndef SHARED_MEMORY_H
 #define SHARED_MEMORY_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 // Access permissions
 #define SHM_READ 0xF0

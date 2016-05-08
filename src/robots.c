@@ -9,7 +9,6 @@
 #include "debug/data_logging.h"
 
 #include "robot_control/interface.h"
-#include "plugin_loader.h"
 #include "robots.h"
 
 
@@ -319,17 +318,15 @@ Robot LoadRobotData( const char* configFileName )
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
-    ConfigParser parser = ConfigParsing.GetParser();
-    
     newRobot = (Robot) malloc( sizeof(RobotData) );
     memset( newRobot, 0, sizeof(RobotData) );
   
     bool loadSuccess = false;
-    sprintf( filePath, "robot_control/%s", parser.GetStringValue( configFileID, "", "controller.type" ) );
-    GET_PLUGIN_IMPLEMENTATION( ROBOT_CONTROL_INTERFACE, filePath, newRobot, &loadSuccess );
+    sprintf( filePath, "robot_control/%s", ConfigParsing.GetParser()->GetStringValue( configFileID, "", "controller.type" ) );
+    LOAD_MODULE_IMPLEMENTATION( ROBOT_CONTROL_INTERFACE, filePath, newRobot, &loadSuccess );
     if( loadSuccess )
     {
-      newRobot->controller = newRobot->InitController( parser.GetStringValue( configFileID, "", "controller.id" ) );
+      newRobot->controller = newRobot->InitController( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "controller.id" ) );
       
       newRobot->jointsNumber = newRobot->GetJointsNumber( newRobot->controller );
       newRobot->jointsList = (Joint*) calloc( newRobot->jointsNumber, sizeof(Joint) );
@@ -338,7 +335,7 @@ Robot LoadRobotData( const char* configFileName )
       for( size_t jointIndex = 0; jointIndex < newRobot->jointsNumber; jointIndex++ )
       {
         newRobot->jointsList[ jointIndex ] = (Joint) malloc( sizeof(JointData) );
-        newRobot->jointsList[ jointIndex ]->actuator = Actuators.Init( parser.GetStringValue( configFileID, "", "actuators.%lu", jointIndex ) );
+        newRobot->jointsList[ jointIndex ]->actuator = Actuators.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "actuators.%lu", jointIndex ) );
         newRobot->jointMeasuresTable[ jointIndex ] = (double*) newRobot->jointsList[ jointIndex ]->measuresList;
         newRobot->jointSetpointsTable[ jointIndex ] = (double*) newRobot->jointsList[ jointIndex ]->setpointsList;
         
@@ -357,7 +354,7 @@ Robot LoadRobotData( const char* configFileName )
       }
     }
     
-    parser.UnloadData( configFileID );
+    ConfigParsing.GetParser()->UnloadData( configFileID );
 
     if( !loadSuccess )
     {

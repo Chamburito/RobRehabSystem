@@ -1,7 +1,7 @@
 #ifndef ACTUATOR_CONTROL_INTERFACE_H
 #define ACTUATOR_CONTROL_INTERFACE_H
 
-#include "interfaces.h"
+#include "modules.h"
 #include "control_definitions.h"
 
 #define ACTUATOR_CONTROL_INTERFACE( Namespace, INIT_FUNCTION ) \

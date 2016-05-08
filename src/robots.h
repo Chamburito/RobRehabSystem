@@ -1,7 +1,7 @@
 #ifndef ROBOTS_H
 #define ROBOTS_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 #include "actuators.h"
 #include "control_definitions.h"

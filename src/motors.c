@@ -1,8 +1,7 @@
+#include "config_parser.h"
+
 #include "signal_io/interface.h"
 
-#include "config_parser.h"
-#include "plugin_loader.h"
-      
 #include "debug/async_debug.h"
 
 #include "motors.h"
@@ -30,33 +29,31 @@ Motor Motors_Init( const char* configFileName )
   int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
-    ConfigParser parser = ConfigParsing.GetParser();
-    
     newMotor = (Motor) malloc( sizeof(MotorData) );
     memset( newMotor, 0, sizeof(MotorData) );
 
     bool loadSuccess = true;
-    sprintf( filePath, "signal_io/%s", parser.GetStringValue( configFileID, "", "output_interface.type" ) );
-    GET_PLUGIN_IMPLEMENTATION( SIGNAL_IO_INTERFACE, filePath, newMotor, &loadSuccess );
+    sprintf( filePath, "signal_io/%s", ConfigParsing.GetParser()->GetStringValue( configFileID, "", "output_interface.type" ) );
+    LOAD_MODULE_IMPLEMENTATION( SIGNAL_IO_INTERFACE, filePath, newMotor, &loadSuccess );
     if( loadSuccess )
     {
-      newMotor->interfaceID = newMotor->InitTask( parser.GetStringValue( configFileID, "", "output_interface.id" ) );
+      newMotor->interfaceID = newMotor->InitTask( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "output_interface.id" ) );
       if( newMotor->interfaceID != SIGNAL_IO_TASK_INVALID_ID ) 
       {
-        newMotor->outputChannel = (unsigned int) parser.GetIntegerValue( configFileID, -1, "output_interface.channel" );
+        newMotor->outputChannel = (unsigned int) ConfigParsing.GetParser()->GetIntegerValue( configFileID, -1, "output_interface.channel" );
         DEBUG_PRINT( "trying to aquire channel %u from interface %d", newMotor->outputChannel, newMotor->interfaceID );
         loadSuccess = newMotor->AquireOutputChannel( newMotor->interfaceID, newMotor->outputChannel );
       }
       else loadSuccess = false;
     }
 
-    newMotor->outputGain = parser.GetRealValue( configFileID, 1.0, "output_gain.multiplier" );
-    newMotor->outputGain /= parser.GetRealValue( configFileID, 1.0, "output_gain.divisor" );
+    newMotor->outputGain = ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "output_gain.multiplier" );
+    newMotor->outputGain /= ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "output_gain.divisor" );
     
-    newMotor->outputMin = parser.GetRealValue( configFileID, 0.0, "output_limits.min" );
-    newMotor->outputMax = parser.GetRealValue( configFileID, 0.0, "output_limits.max" );
+    newMotor->outputMin = ConfigParsing.GetParser()->GetRealValue( configFileID, 0.0, "output_limits.min" );
+    newMotor->outputMax = ConfigParsing.GetParser()->GetRealValue( configFileID, 0.0, "output_limits.max" );
 
-    parser.UnloadData( configFileID );
+    ConfigParsing.GetParser()->UnloadData( configFileID );
 
     if( !loadSuccess )
     {

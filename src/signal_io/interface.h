@@ -1,7 +1,7 @@
 #ifndef SIGNAL_IO_INTERFACE_H
 #define SIGNAL_IO_INTERFACE_H
 
-#include "interfaces.h"
+#include "modules.h"
 
 #define SIGNAL_INPUT_CHANNEL_MAX_USES 5
 

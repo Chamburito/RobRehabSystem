@@ -1,7 +1,7 @@
 #ifndef ROBOT_CONTROL_INTERFACE_H
 #define ROBOT_CONTROL_INTERFACE_H
 
-#include "interfaces.h"
+#include "modules.h"
 #include "control_definitions.h"
 
 #define ROBOT_CONTROL_INTERFACE( interface, function_init ) \

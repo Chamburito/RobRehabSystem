@@ -6,7 +6,7 @@
 #ifndef TIMING_H
 #define TIMING_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 #define TIMING_INTERFACE( Namespace, INIT_FUNCTION ) \
         INIT_FUNCTION( void, Namespace, Delay, unsigned long ) \

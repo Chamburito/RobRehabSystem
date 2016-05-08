@@ -1,6 +1,8 @@
 #ifndef ROBREHAB_CONTROL_H
 #define ROBREHAB_CONTROL_H
 
+#include "namespaces.h"
+
 #include "shm_control.h"
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
@@ -57,18 +59,16 @@ int RobRehabControl_Init( const char* configType )
     int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
     if( configFileID != DATA_INVALID_ID )
     {
-      ConfigParser parser = ConfigParsing.GetParser(); 
-      
-      if( parser.HasKey( configFileID, "robots" ) )
+      if( ConfigParsing.GetParser()->HasKey( configFileID, "robots" ) )
       {
-        size_t sharedRobotsNumber = parser.GetListSize( configFileID, "robots" );
+        size_t sharedRobotsNumber = ConfigParsing.GetParser()->GetListSize( configFileID, "robots" );
         kv_resize( int, robotIDsList, sharedRobotsNumber );
 
         DEBUG_PRINT( "List size: %lu", sharedRobotsNumber );
 
         for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
         {
-          char* robotName = parser.GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
+          char* robotName = ConfigParsing.GetParser()->GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
           if( robotName != NULL )
           {
             int robotID = Robots.Init( robotName );
@@ -105,7 +105,7 @@ int RobRehabControl_Init( const char* configType )
         }
       }
 
-      parser.UnloadData( configFileID );
+      ConfigParsing.GetParser()->UnloadData( configFileID );
     }
   }
   else

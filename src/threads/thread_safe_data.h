@@ -1,7 +1,7 @@
 #ifndef THREAD_SAFE_DATA_H
 #define THREAD_SAFE_DATA_H
 
-#include "interfaces.h"
+#include "namespaces.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 /////                                     THREAD SAFE QUEUE                                       /////
