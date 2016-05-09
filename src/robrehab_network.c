@@ -1,8 +1,8 @@
-#ifdef _CVI_
-  #include "ip_network/cvirte_ip_connection.h"
-#else
+//#ifdef _CVI_
+//  #include "ip_network/cvirte_ip_connection.h"
+//#else
   #include "ip_network/async_ip_network.h"
-#endif
+//#endif
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
@@ -20,9 +20,9 @@
 const unsigned long UPDATE_INTERVAL_MS = 5;
 
 
-static int eventServerConnectionID;
-static int axisServerConnectionID;
-static int jointServerConnectionID;
+static int eventServerConnectionID = IP_CONNECTION_INVALID_ID;
+static int axisServerConnectionID = IP_CONNECTION_INVALID_ID;
+static int jointServerConnectionID = IP_CONNECTION_INVALID_ID;
 
 static kvec_t( int ) eventClientsList;
 const size_t INFO_BLOCK_SIZE = 2;
@@ -46,8 +46,7 @@ int SubSystem_Init( const char* configType )
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %lx", THREAD_ID );
   if( (eventServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_TCP, NULL, 50000 )) == IP_CONNECTION_INVALID_ID )
     return -1;
-  //if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_UDP, NULL, 50001 )) == IP_CONNECTION_INVALID_ID )
-  if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_UDP, "226.1.1.1", 50001 )) == IP_CONNECTION_INVALID_ID )
+  if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_UDP, NULL, 50001 )) == IP_CONNECTION_INVALID_ID )
     return -1;
   if( (jointServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_UDP, NULL, 50002 )) == IP_CONNECTION_INVALID_ID )
     return -1;

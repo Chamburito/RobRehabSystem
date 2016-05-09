@@ -3,6 +3,7 @@
 ///// as server or client, using TCP or UDP protocols                           /////
 /////////////////////////////////////////////////////////////////////////////////////
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -20,13 +21,13 @@
   #define poll WSAPoll
   
   typedef SOCKET Socket;
-  typedef WSAPOLLFD PollSocket;
 #else
   #include <fcntl.h>
   #include <unistd.h>
   #include <errno.h>
   #include <sys/types.h>
   #include <sys/socket.h>
+  #include <sys/time.h>
   #include <stropts.h>
   #include <poll.h>
   #include <netinet/in.h>
@@ -37,16 +38,19 @@
   const int INVALID_SOCKET = -1;
 
   typedef int Socket;
-  typedef struct pollfd PollSocket;
 #endif
 
 #define PORT_LENGTH 6                                           // Maximum length of short integer string representation
   
 #ifndef IP_NETWORK_LEGACY
+  typedef struct pollfd SocketPoller;
+  typedef SocketPoller SocketPollerSet[ 1024 ];
   #define ADDRESS_LENGTH INET6_ADDRSTRLEN                       // Maximum length of IPv6 address (host+port) string
   typedef struct sockaddr_in6 IPAddressData;                    // IPv6 structure can store both IPv4 and IPv6 data
   #define IS_IPV6_MULTICAST_ADDRESS( address ) ( ((IPAddressData*) address)->sin6_addr.s6_addr[ 0 ] == 0xFF )
 #else
+  typedef struct { Socket fd; } SocketPoller;
+  typedef fd_set SocketPollerSet;
   #define ADDRESS_LENGTH INET_ADDRSTRLEN + PORT_LENGTH          // Maximum length of IPv4 address (host+port) string
   typedef struct sockaddr_in IPAddressData;                     // Legacy mode only works with IPv4 addresses
   #define IS_IPV6_MULTICAST_ADDRESS( address ) false
@@ -67,7 +71,7 @@ typedef struct sockaddr* IPAddress;                             // Opaque IP add
 struct _IPConnectionData
 {
   //Socket socketFD;
-  PollSocket* socket;
+  SocketPoller* socket;
   union {
     char* (*ref_ReceiveMessage)( IPConnection );
     IPConnection (*ref_AcceptClient)( IPConnection );
@@ -93,9 +97,8 @@ DEFINE_NAMESPACE_INTERFACE( IPNetwork, IP_NETWORK_INTERFACE )
 /////                                        GLOBAL VARIABLES                                         /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define MAX_CONNECTIONS_NUMBER 1024
-static PollSocket availableSocketsList[ MAX_CONNECTIONS_NUMBER ];
-static size_t availableSocketsNumber = 0;
+static SocketPollerSet polledSocketsSet = { 0 };
+static size_t polledSocketsNumber = 0;
 
 /////////////////////////////////////////////////////////////////////////////
 /////                        FORWARD DECLARATIONS                       /////
@@ -135,7 +138,7 @@ char* GetAddressString( IPAddress address )
   }
   #else
   sprintf( addressString, "%s", inet_ntoa( ((IPAddressData*) address)->sin_addr ) );
-  sprintf( addressString + strlen( addressString ) + 1, "%u", ((IPAddressData*) address)->sin_port ) );
+  sprintf( addressString + strlen( addressString ) + 1, "%u", ((IPAddressData*) address)->sin_port );
   #endif
   addressString[ strlen( addressString ) ] = '/';
   
@@ -174,10 +177,12 @@ bool IPNetwork_IsServer( IPConnection connection )
 /////                             INITIALIZATION                             /////
 //////////////////////////////////////////////////////////////////////////////////
 
+#ifndef IP_NETWORK_LEGACY
 static int CompareSockets( const void* ref_socket_1, const void* ref_socket_2 )
 {
-  return ( ((struct pollfd*) ref_socket_1)->fd - ((struct pollfd*) ref_socket_2)->fd );
+  return ( ((SocketPoller*) ref_socket_1)->fd - ((SocketPoller*) ref_socket_2)->fd );
 }
+#endif
 
 // Handle construction of a IPConnection structure with the defined properties
 static IPConnection AddConnection( Socket socketFD, IPAddress address, uint8_t transportProtocol, uint8_t networkRole )
@@ -185,15 +190,23 @@ static IPConnection AddConnection( Socket socketFD, IPAddress address, uint8_t t
   IPConnection connection = (IPConnection) malloc( sizeof(IPConnectionData) );
   memset( connection, 0, sizeof(IPConnectionData) );
   
-  PollSocket cmpSocket = { .fd = socketFD };
-  connection->socket = (PollSocket*) bsearch( &cmpSocket, availableSocketsList, availableSocketsNumber, sizeof(PollSocket), CompareSockets );
+  #ifndef IP_NETWORK_LEGACY
+  SocketPoller cmpPoller = { .fd = socketFD };
+  connection->socket = (SocketPoller*) bsearch( &cmpPoller, polledSocketsSet, polledSocketsNumber, sizeof(SocketPoller), CompareSockets );
   if( connection->socket == NULL )
   {
-    connection->socket = &(availableSocketsList[ availableSocketsNumber ]);
+    connection->socket = &(polledSocketsSet[ polledSocketsNumber ]);
     connection->socket->fd = socketFD;
     connection->socket->events = POLLRDNORM | POLLRDBAND;
-    availableSocketsNumber++;
+    polledSocketsNumber++;
+    qsort( polledSocketsSet, polledSocketsNumber, sizeof(SocketPoller), CompareSockets );
   }
+  #else
+  connection->socket = (SocketPoller*) malloc( sizeof(SocketPoller) );
+  FD_SET( socketFD, &polledSocketsSet );
+  if( socketFD >= polledSocketsNumber ) polledSocketsNumber = socketFD + 1;
+  connection->socket->fd = socketFD;
+  #endif
   
   connection->messageLength = IP_MAX_MESSAGE_LENGTH;
 
@@ -254,10 +267,6 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
 {
   static IPAddressData addressData;
   
-  struct addrinfo hints = { 0 };
-  struct addrinfo* hostsInfoList;
-  struct addrinfo* hostInfo = NULL;
-  
   #ifdef WIN32
   static WSADATA wsa;
   if( wsa.wVersion == 0 )
@@ -271,7 +280,10 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
   #endif
   
   #ifndef IP_NETWORK_LEGACY
-  hints.ai_family = AF_UNSPEC;                        // IPv6 (AF_INET6) or IPv4 (AF_INET) address
+  struct addrinfo hints = { .ai_family = AF_UNSPEC }; // IPv6 (AF_INET6) or IPv4 (AF_INET) address
+  struct addrinfo* hostsInfoList;
+  struct addrinfo* hostInfo = NULL;
+                        
   if( host == NULL )
   {
     if( networkRole == IP_SERVER )
@@ -308,9 +320,10 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
   if( hostInfo == NULL ) return NULL;
   #else
   addressData.sin_family = AF_INET;   // IPv4 address
-  addressData.sin_port = htons( (short) portNumber );
-  if( host == NULL ) addressData.sin_addr.s_addr = htonl( INADDR_ANY );
-  else if( inet_aton( host, &(addressData.sin_addr) ) == 0 ) return NULL;
+  addressData.sin_port = htons( (short) port );
+  if( host == NULL ) addressData.sin_addr.s_addr = INADDR_ANY;
+  else if( strcmp( host, "255.255.255.255" ) == 0 ) addressData.sin_addr.s_addr = INADDR_BROADCAST; 
+  else if ( (addressData.sin_addr.s_addr = inet_addr( host )) == INADDR_NONE ) return NULL;
   DEBUG_PRINT( "found IPv4 address %s", GetAddressString( (IPAddress) &addressData ) );
   #endif
   
@@ -489,6 +502,7 @@ bool ConnectUDPClientSocket( int socketFD, IPAddress address )
     return false;
   }
   
+  #ifndef IP_NETWORK_LEGACY
   // Joint the multicast group
   if( address->sa_family == AF_INET6 )
   {
@@ -526,6 +540,7 @@ bool ConnectUDPClientSocket( int socketFD, IPAddress address )
       }
     }
   }
+  #endif
   
   return true;
 }
@@ -537,7 +552,7 @@ IPConnection IPNetwork_OpenConnection( uint8_t connectionType, const char* host,
   static char portString[ PORT_LENGTH ];
   
   DEBUG_PRINT( "trying to %s to host %s and port %u (%s)", ( (connectionType & ROLE_MASK) == IP_SERVER ) ? "bind" : "connect", 
-                                                           host, port, ( (connectionType & TRANSPORT_MASK) == IPPROTO_TCP ) ? "TCP" : "UDP" );
+                                                           ( host == NULL ) ? "(ANY)" : host, port, ( (connectionType & TRANSPORT_MASK) == IP_TCP ) ? "TCP" : "UDP" );
   
   // Assure that the port number is in the Dynamic/Private range (49152-65535)
   if( port < 49152 || port > 65535 )
@@ -611,9 +626,14 @@ inline IPConnection IPNetwork_AcceptClient( IPConnection connection ) { return c
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
 int IPNetwork_WaitEvent( unsigned int milliseconds )
 {
-  int eventsNumber = poll( availableSocketsList, availableSocketsNumber, milliseconds );
-  
-  if( eventsNumber == SOCKET_ERROR ) ERROR_PRINT( "select: error waiting for events on %lu FDs", availableSocketsNumber );
+  #ifndef IP_NETWORK_LEGACY
+  int eventsNumber = poll( polledSocketsSet, polledSocketsNumber, milliseconds );
+  #else
+  struct timeval waitTime = { .tv_sec = milliseconds / 1000, .tv_usec = ( milliseconds % 1000 ) * 1000 };
+  fd_set readFDSet = (fd_set) polledSocketsSet;
+  int eventsNumber = select( polledSocketsNumber, &readFDSet, NULL, NULL, &waitTime );
+  #endif
+  if( eventsNumber == SOCKET_ERROR ) ERROR_PRINT( "select: error waiting for events on %lu FDs", polledSocketsNumber );
     
   return eventsNumber;
 }
@@ -622,8 +642,12 @@ bool IPNetwork_IsDataAvailable( IPConnection connection )
 {
   if( connection == NULL ) return false;
   
+  #ifndef IP_NETWORK_LEGACY
   if( connection->socket->revents & POLLRDNORM ) return true;
   else if( connection->socket->revents & POLLRDBAND ) return true;
+  #else
+  if( FD_ISSET( connection->socket->fd, &polledSocketsSet ) ) return true;
+  #endif
   
   return false;
 }
@@ -788,10 +812,30 @@ static IPConnection AcceptUDPClient( IPConnection server )
 //////////////////////////////////////////////////////////////////////////////////
 
 // Handle proper destruction of any given connection type
+
+static inline void RemoveSocket( Socket socketFD )
+{
+  #ifndef IP_NETWORK_LEGACY
+  SocketPoller cmpPoller = { .fd = socketFD };
+  SocketPoller* poller = bsearch( &cmpPoller, polledSocketsSet, polledSocketsNumber, sizeof(SocketPoller), CompareSockets );
+  if( poller != NULL )
+  {
+    poller->fd = (Socket) 0xFFFF;
+    qsort( polledSocketsSet, polledSocketsNumber, sizeof(SocketPoller), CompareSockets );
+    polledSocketsNumber--;
+  }
+  #else
+  FD_CLR( socketFD, &polledSocketsSet );
+  //if( socketFD + 1 >= polledSocketsNumber ) polledSocketsNumber = socketFD - 1;
+  #endif
+  close( socketFD );
+}
+
 void CloseTCPServer( IPConnection server )
 {
   DEBUG_PRINT( "closing TCP server unused socket fd: %d", server->socket->fd );
   shutdown( server->socket->fd, SHUT_RDWR );
+  RemoveSocket( server->socket->fd );
   free( server->ref_clientsCount );
   if( server->clientsList != NULL ) free( server->clientsList );
   free( server );
@@ -803,7 +847,7 @@ void CloseUDPServer( IPConnection server )
   if( *(server->ref_clientsCount) == 0 )
   {
     DEBUG_PRINT( "closing UDP server unused socket fd: %d", server->socket->fd );
-    close( server->socket->fd );
+    RemoveSocket( server->socket->fd );
     free( server->ref_clientsCount );
     if( server->clientsList != NULL ) free( server->clientsList );
     free( server );
@@ -831,6 +875,7 @@ void CloseTCPClient( IPConnection client )
   DEBUG_PRINT( "closing TCP client unused socket fd: %d", client->socket->fd );
   RemoveClient( client->server, client );
   shutdown( client->socket->fd, SHUT_RDWR );
+  RemoveSocket( client->socket->fd );
   if( client->buffer != NULL ) free( client->buffer );
   free( client );
 }

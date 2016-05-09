@@ -38,3 +38,7 @@ cvibuild.*
 *.out
 *.log
 config/shared_robots.json
+RobRehabControlRT.lib
+RobRehabServerRT.lib
+RobRehabControlRT.dll
+RobRehabServerRT.dll

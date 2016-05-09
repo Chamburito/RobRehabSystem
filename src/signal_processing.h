@@ -1,6 +1,8 @@
 #ifndef SIGNAL_PROCESSING_H
 #define SIGNAL_PROCESSING_H
 
+#include <stdint.h>
+
 #include "namespaces.h"
 
 

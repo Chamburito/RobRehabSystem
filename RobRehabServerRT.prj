@@ -1,16 +1,16 @@
 [Project Header]
-Version = 1500
+Version = 1302
 Pathname = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/RobRehabServerRT.prj"
 Project Label = "RobRehabServerRT"
-CVI Dir = "/c/program files (x86)/national instruments/cvi2015"
+CVI Dir = "/c/program files (x86)/national instruments/cvi2013"
 CVI Shared Dir = "/C/Program Files (x86)/National Instruments/Shared/CVI"
-CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2015"
+CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2013"
 CVI Pub Global Dir = "/C/ProgramData/National Instruments/CVI"
 IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
-Number of Files = 12
+Number of Files = 22
 Target Type = "Dynamic Link Library"
 Flags = 2064
 Copied From Locked InstrDrv Directory = False
@@ -21,20 +21,21 @@ Don't Display Deploy InstrDrv Dialog = False
 [Folders]
 User Interface Files Folder Not Added Yet = True
 Instrument Files Folder Not Added Yet = True
-Library Files Folder Not Added Yet = True
 Folder 0 = "Include Files"
 FolderEx 0 = "Include Files"
 Folder 1 = "Source Files"
 FolderEx 1 = "Source Files"
+Folder 2 = "Library Files"
+FolderEx 2 = "Library Files"
 
 [File 0001]
 File Type = "Include"
 Res Id = 1
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/ip_network/async_ip_connection.h"
+Path Rel Path = "src/ip_network/async_ip_network.h"
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_network/async_ip_"
-Path Line0002 = "connection.h"
+Path Line0002 = "network.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -71,8 +72,9 @@ File Type = "Include"
 Res Id = 4
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/klib/khash.h"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/klib/khash.h"
+Path Rel Path = "src/ip_network/ip_network.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_network/ip_networ"
+Path Line0002 = "k.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -83,8 +85,8 @@ File Type = "Include"
 Res Id = 5
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/robrehab_network.h"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.h"
+Path Rel Path = "src/klib/khash.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/klib/khash.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -95,9 +97,8 @@ File Type = "Include"
 Res Id = 6
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/shared_memory/shared_memory_cvi.h"
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
-Path Line0002 = "_memory_cvi.h"
+Path Rel Path = "src/robrehab_subsystem.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_subsystem.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -108,8 +109,9 @@ File Type = "Include"
 Res Id = 7
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/shm_axis_control.h"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_axis_control.h"
+Path Rel Path = "src/shared_memory/shared_memory.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
+Path Line0002 = "_memory.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -120,8 +122,8 @@ File Type = "Include"
 Res Id = 8
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/shm_emg_control.h"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_emg_control.h"
+Path Rel Path = "src/shm_axis_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_axis_control.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -132,9 +134,8 @@ File Type = "Include"
 Res Id = 9
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/threads/thread_safe_data.h"
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/thread_safe_"
-Path Line0002 = "data.h"
+Path Rel Path = "src/shm_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_control.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
@@ -145,30 +146,94 @@ File Type = "Include"
 Res Id = 10
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/threads/threads_windows.h"
-Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_wind"
-Path Line0002 = "ows.h"
+Path Rel Path = "src/shm_emg_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_emg_control.h"
 Exclude = False
 Project Flags = 0
 Folder = "Include Files"
 Folder Id = 0
 
 [File 0011]
-File Type = "CSource"
+File Type = "Include"
 Res Id = 11
 Path Is Rel = True
 Path Rel To = "Project"
-Path Rel Path = "src/klib/kson.c"
-Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/klib/kson.c"
+Path Rel Path = "src/shm_joint_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_joint_control.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0012]
+File Type = "Include"
+Res Id = 12
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/thread_safe_data.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/thread_safe_"
+Path Line0002 = "data.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0013]
+File Type = "Include"
+Res Id = 13
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threading.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threading.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0014]
+File Type = "CSource"
+Res Id = 14
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/ip_network/async_ip_network.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_network/async_ip_"
+Path Line0002 = "network.c"
 Exclude = False
 Compile Into Object File = False
 Project Flags = 0
 Folder = "Source Files"
 Folder Id = 1
 
-[File 0012]
+[File 0015]
 File Type = "CSource"
-Res Id = 12
+Res Id = 15
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/ip_network/ip_network.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_network/ip_networ"
+Path Line0002 = "k.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0016]
+File Type = "CSource"
+Res Id = 16
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/robrehab_network.c"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_network.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0017]
+File Type = "CSource"
+Res Id = 17
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/robrehab_system_rt.c"
@@ -178,6 +243,75 @@ Compile Into Object File = False
 Project Flags = 0
 Folder = "Source Files"
 Folder Id = 1
+
+[File 0018]
+File Type = "CSource"
+Res Id = 18
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/shm_control.c"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_control.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0019]
+File Type = "CSource"
+Res Id = 19
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/shared_memory/shm_cvi.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shm_cv"
+Path Line0002 = "i.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0020]
+File Type = "CSource"
+Res Id = 20
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/thread_safe_data.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/thread_safe_"
+Path Line0002 = "data.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0021]
+File Type = "CSource"
+Res Id = 21
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threads_windows.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_wind"
+Path Line0002 = "ows.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0022]
+File Type = "Library"
+Res Id = 22
+Path Is Rel = True
+Path Rel To = "CVI"
+Path Rel To Override = "CVI"
+Path Rel Path = "sdk/lib/msvc/WSock32_lvrt.Lib"
+Path Line0001 = "/c/Program Files (x86)/National Instruments/CVI2013/sdk/lib/msvc/WSock32_lvrt.Li"
+Path Line0002 = "b"
+Exclude = False
+Project Flags = 0
+Folder = "Library Files"
+Folder Id = 2
 
 [Custom Build Configs]
 Num Custom Build Configs = 0
@@ -209,7 +343,7 @@ Stack Reserve = 1048576
 Stack Commit = 4096
 Image Base Address = 268435456
 Image Base Address x64 = 268435456
-Compiler Defines = "/DWIN32_LEAN_AND_MEAN /DROBREHAB_SERVER /DDEBUG"
+Compiler Defines = "/DWIN32_LEAN_AND_MEAN /DROBREHAB_SERVER /DDEBUG /DIP_NETWORK_LEGACY"
 Sign = False
 Sign Store = ""
 Sign Certificate = ""
@@ -247,7 +381,7 @@ File Version = "1.0"
 File Version Ex = "%f1.%f2"
 Internal Name = "RobRehabServerRT"
 Internal Name Ex = "%basename"
-Legal Copyright = "Copyright   2015"
+Legal Copyright = "Copyright   2016"
 Legal Copyright Ex = "Copyright  %company %Y"
 Legal Trademarks = ""
 Legal Trademarks Ex = ""
