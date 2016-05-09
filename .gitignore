@@ -16,6 +16,8 @@ data/message_dispatch_times.txt
 data/send_calls_server.txt
 data/send_calls_client.txt
 data/receive_calls_server.txt
+src/klib
+src/klib/*
 *.suo
 *.sdf
 *.ipch
