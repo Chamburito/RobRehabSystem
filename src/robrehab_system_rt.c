@@ -51,16 +51,16 @@ void CVIFUNC_C RTmain( void )
 	if( InitCVIRTE( 0, 0, 0 ) == 0 )
 		return;
 	
-	/*int status;
-	int systemStarted = 0;
+	//int status;
+	//int systemStarted = 0;
 	
-	while( !RTIsShuttingDown() && !systemStarted )
-	{
-		status = CNVProcessIsRunning( "system", &systemStarted );
-		SleepUS( 10000 );
-	}
+	//while( !RTIsShuttingDown() && !systemStarted )
+	//{
+	//	status = CNVProcessIsRunning( "Shared", &systemStarted );
+	//	SleepUS( 10000 );
+	//}
   
-  DEBUG_PRINT( "Network variables ready on thread %lx", THREAD_ID );*/
+  //fprintf( stderr, "Network variables ready\n" );
   
   SetDir( "C:\\ni-rt" );
   

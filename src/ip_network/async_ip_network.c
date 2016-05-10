@@ -4,6 +4,7 @@
 
 #include "debug/async_debug.h"
 
+#include "time/timing.h"
 #include "threads/thread_safe_data.h"
 
   
@@ -226,7 +227,11 @@ static void* AsyncWriteQueues( void* args )
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "sending messages on thread %lx", THREAD_ID );
   
   while( isNetworkRunning )
+  {
     ThreadSafeMaps.RunForAll( globalConnectionsList, WriteFromQueue );
+    
+    Timing.Delay( 1 );
+  }
   
   return NULL;//(void*) 1;
 }
