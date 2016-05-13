@@ -1,6 +1,7 @@
 #include "shm_control.h"
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
+#include "control_definitions.h"
 #include "robots.h"
 
 #include "klib/kvec.h"
@@ -151,17 +152,17 @@ void SubSystem_Update()
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_STIFFNESS ) ) Robots.SetAxisSetpoint( axis, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_DAMPING ) ) Robots.SetAxisSetpoint( axis, CONTROL_DAMPING, controlSetpointsList[ SHM_AXIS_DAMPING ] );
     
-    double* axisMeasuresList = Robots.GetAxisMeasuresList( axis );
-    if( axisMeasuresList != NULL )
+    ControlVariables* axisMeasures = Robots.GetAxisMeasuresList( axis );
+    if( axisMeasures != NULL )
     {
       float* controlMeasuresList = (float*) controlData;
       
-      controlMeasuresList[ SHM_AXIS_POSITION ] = (float) axisMeasuresList[ CONTROL_POSITION ];
-      controlMeasuresList[ SHM_AXIS_VELOCITY ] = (float) axisMeasuresList[ CONTROL_VELOCITY ];
-      controlMeasuresList[ SHM_AXIS_ACCELERATION ] = (float) axisMeasuresList[ CONTROL_ACCELERATION ];
-      controlMeasuresList[ SHM_AXIS_FORCE ] = (float) axisMeasuresList[ CONTROL_FORCE ];
-      controlMeasuresList[ SHM_AXIS_STIFFNESS ] = (float) axisMeasuresList[ CONTROL_STIFFNESS ];
-      controlMeasuresList[ SHM_AXIS_DAMPING ] = (float) axisMeasuresList[ CONTROL_DAMPING ];
+      controlMeasuresList[ SHM_AXIS_POSITION ] = (float) axisMeasures->position;
+      controlMeasuresList[ SHM_AXIS_VELOCITY ] = (float) axisMeasures->velocity;
+      controlMeasuresList[ SHM_AXIS_ACCELERATION ] = (float) axisMeasures->acceleration;
+      controlMeasuresList[ SHM_AXIS_FORCE ] = (float) axisMeasures->force;
+      controlMeasuresList[ SHM_AXIS_STIFFNESS ] = (float) axisMeasures->stiffness;
+      controlMeasuresList[ SHM_AXIS_DAMPING ] = (float) axisMeasures->damping;
       
       //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlValuesList[ SHM_CONTROL_POSITION ], controlValuesList[ SHM_CONTROL_VELOCITY ], controlValuesList[ SHM_CONTROL_FORCE ] );
       
@@ -210,14 +211,14 @@ void SubSystem_Update()
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_FORCE ) ) Robots.SetJointSetpoint( joint, CONTROL_FORCE, controlSetpointsList[ SHM_JOINT_FORCE ] );
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_STIFFNESS ) ) Robots.SetJointSetpoint( joint, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );
     
-    double* jointMeasuresList = Robots.GetJointMeasuresList( joint );
-    if( jointMeasuresList != NULL )
+    ControlVariables* jointMeasures = Robots.GetJointMeasuresList( joint );
+    if( jointMeasures != NULL )
     {
       float* controlMeasuresList = (float*) controlData;
       
-      controlMeasuresList[ SHM_JOINT_POSITION ] = (float) jointMeasuresList[ CONTROL_POSITION ];
-      controlMeasuresList[ SHM_JOINT_FORCE ] = (float) jointMeasuresList[ CONTROL_FORCE ];
-      controlMeasuresList[ SHM_JOINT_STIFFNESS ] = (float) jointMeasuresList[ CONTROL_STIFFNESS ];
+      controlMeasuresList[ SHM_JOINT_POSITION ] = (float) jointMeasures->position;
+      controlMeasuresList[ SHM_JOINT_FORCE ] = (float) jointMeasures->force;
+      controlMeasuresList[ SHM_JOINT_STIFFNESS ] = (float) jointMeasures->stiffness;
       
       SHMControl.SetMaskByte( sharedRobotJointsData, jointIndex, 0xFF );
       SHMControl.SetData( sharedRobotJointsData, (void*) controlData, jointIndex * JOINT_DATA_BLOCK_SIZE, JOINT_DATA_BLOCK_SIZE );

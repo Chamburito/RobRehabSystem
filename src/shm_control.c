@@ -81,6 +81,8 @@ bool SHMControl_GetData( SHMController controller, void* valuesList, size_t data
   if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return false;
   
   if( valuesList == NULL ) return false;
+  
+  //if( memcmp( valuesList, controller->channelIn->data + dataOffset, dataLength ) == 0 ) return false;
     
   memcpy( valuesList, controller->channelIn->data + dataOffset, dataLength );
   
@@ -96,6 +98,8 @@ bool SHMControl_SetData( SHMController controller, void* valuesList, size_t data
   if( dataOffset + dataLength > SHM_CONTROL_MAX_DATA_SIZE ) return false;
   
   if( valuesList == NULL ) return false;
+  
+  //if( memcmp( controller->channelOut->data + dataOffset, valuesList, dataLength ) == 0 ) return false;
   
   memcpy( controller->channelOut->data + dataOffset, valuesList, dataLength );
     

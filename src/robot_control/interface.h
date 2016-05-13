@@ -11,6 +11,6 @@
         function_init( char**, interface, GetJointNamesList, Controller ) \
         function_init( size_t, interface, GetAxesNumber, Controller ) \
         function_init( char**, interface, GetAxisNamesList, Controller ) \
-        function_init( void, interface, RunControlStep, Controller, double**, double**, double**, double** )
+        function_init( void, interface, RunControlStep, Controller, ControlVariables**, ControlVariables**, ControlVariables**, ControlVariables** )
 
 #endif  // ROBOT_CONTROL_INTERFACE_H

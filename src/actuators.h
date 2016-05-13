@@ -19,9 +19,9 @@ typedef ActuatorData* Actuator;
         INIT_FUNCTION( void, Namespace, Calibrate, Actuator ) \
         INIT_FUNCTION( bool, Namespace, IsEnabled, Actuator ) \
         INIT_FUNCTION( bool, Namespace, HasError, Actuator ) \
-        INIT_FUNCTION( double, Namespace, SetSetpoint, Actuator, enum ControlVariables, double ) \
-        INIT_FUNCTION( double*, Namespace, UpdateMeasures, Actuator, double* ) \
-        INIT_FUNCTION( double, Namespace, RunControl, Actuator, double*, double* )
+        INIT_FUNCTION( double, Namespace, SetSetpoint, Actuator, enum ControlVariable, double ) \
+        INIT_FUNCTION( ControlVariables*, Namespace, UpdateMeasures, Actuator, ControlVariables* ) \
+        INIT_FUNCTION( double, Namespace, RunControl, Actuator, ControlVariables*, ControlVariables* )
 
 DECLARE_NAMESPACE_INTERFACE( Actuators, ACTUATOR_INTERFACE )
 

@@ -78,7 +78,7 @@ ControllerData;
 typedef void* Controller;
 
 
-DEFINE_INTERFACE( ROBOT_CONTROL_INTERFACE )
+DECLARE_MODULE_INTERFACE( ROBOT_CONTROL_INTERFACE )
 
 
 Controller InitController( const char* data )
@@ -220,7 +220,7 @@ char** GetAxisNamesList( Controller controller )
   return model->axisNames.data();
 }
 
-void RunControlStep( Controller controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
+void RunControlStep( Controller controller, ControlVariables** jointMeasuresList, ControlVariables** axisMeasuresList, ControlVariables** jointSetpointsList, ControlVariables** axisSetpointsList )
 {
   if( controller == NULL ) return;
   
@@ -228,8 +228,8 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   
   for( int jointIndex = 0; jointIndex < model->coordinatesList.getSize(); jointIndex++ )
   {
-    model->coordinatesList[ jointIndex ].setValue( model->state, jointMeasuresTable[ jointIndex ][ CONTROL_POSITION ] );
-    model->coordinatesList[ jointIndex ].setSpeedValue( model->state, jointMeasuresTable[ jointIndex ][ CONTROL_VELOCITY ] );
+    model->coordinatesList[ jointIndex ].setValue( model->state, jointMeasuresList[ jointIndex ]->position );
+    model->coordinatesList[ jointIndex ].setSpeedValue( model->state, jointMeasuresList[ jointIndex ]->velocity );
   }
   
   model->manager->integrate( model->state );
@@ -251,12 +251,12 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
     model->osimModel->getSimbodyEngine().getVelocity( model->state, model->markers[ markerIndex ].getBody(), model->markers[ markerIndex ].getOffset(), markerVelocity );
     model->osimModel->getSimbodyEngine().getAcceleration( model->state, model->markers[ markerIndex ].getBody(), model->markers[ markerIndex ].getOffset(), markerAcceleration );
     
-    axisMeasuresTable[ markerIndex ][ CONTROL_POSITION ] = markerPosition[ model->markerReferenceAxes[ markerIndex ] ];
-    axisMeasuresTable[ markerIndex ][ CONTROL_VELOCITY ] = markerVelocity[ model->markerReferenceAxes[ markerIndex ] ];
-    axisMeasuresTable[ markerIndex ][ CONTROL_ACCELERATION ] = markerAcceleration[ model->markerReferenceAxes[ markerIndex ] ];
+    axisMeasuresList[ markerIndex ]->position = markerPosition[ model->markerReferenceAxes[ markerIndex ] ];
+    axisMeasuresList[ markerIndex ]->velocity = markerVelocity[ model->markerReferenceAxes[ markerIndex ] ];
+    axisMeasuresList[ markerIndex ]->acceleration = markerAcceleration[ model->markerReferenceAxes[ markerIndex ] ];
     //axisMeasuresTable[ 0 ][ CONTROL_FORCE ] = jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
     
-    markerPosition[ model->markerReferenceAxes[ markerIndex ] ] = axisSetpointsTable[ markerIndex ][ CONTROL_POSITION ];
+    markerPosition[ model->markerReferenceAxes[ markerIndex ] ] = axisSetpointsList[ markerIndex ]->position;
     model->markersReference.setValue( markerIndex, markerPosition );
   }
   
@@ -264,9 +264,9 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   
   for( int jointIndex = 0; jointIndex < model->coordinatesList.getSize(); jointIndex++ )
   {
-    jointSetpointsTable[ 0 ][ CONTROL_POSITION ] = model->coordinatesList[ jointIndex ].getValue( model->state );
-    jointSetpointsTable[ 0 ][ CONTROL_VELOCITY ] = model->coordinatesList[ jointIndex ].getSpeedValue( model->state );
-    jointSetpointsTable[ 0 ][ CONTROL_ACCELERATION ] = model->coordinatesList[ jointIndex ].getAccelerationValue( model->state );
+    jointSetpointsList[ 0 ]->position = model->coordinatesList[ jointIndex ].getValue( model->state );
+    jointSetpointsList[ 0 ]->velocity = model->coordinatesList[ jointIndex ].getSpeedValue( model->state );
+    jointSetpointsList[ 0 ]->acceleration = model->coordinatesList[ jointIndex ].getAccelerationValue( model->state );
     //jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = axisSetpointsTable[ 0 ][ CONTROL_FORCE ];
   }
   

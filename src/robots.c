@@ -19,14 +19,14 @@
 struct _JointData
 {
   Actuator actuator;
-  double measuresList[ CONTROL_VARS_NUMBER ];
-  double setpointsList[ CONTROL_VARS_NUMBER ];
+  ControlVariables measures;
+  ControlVariables setpoints;
 };
 
 struct _AxisData
 {
-  double measuresList[ CONTROL_VARS_NUMBER ];
-  double setpointsList[ CONTROL_VARS_NUMBER ];
+  ControlVariables measures;
+  ControlVariables setpoints;
 };
 
 struct _RobotData
@@ -36,12 +36,12 @@ struct _RobotData
   Thread controlThread;
   bool isControlRunning;
   Joint* jointsList;
-  double** jointMeasuresTable;
-  double** jointSetpointsTable;
+  ControlVariables** jointMeasuresList;
+  ControlVariables** jointSetpointsList;
   size_t jointsNumber;
   Axis* axesList;
-  double** axisMeasuresTable;
-  double** axisSetpointsTable;
+  ControlVariables** axisMeasuresList;
+  ControlVariables** axisSetpointsList;
   size_t axesNumber;
 };
 
@@ -202,38 +202,40 @@ char* Robots_GetAxisName( int robotID, size_t axisIndex )
   return axisNamesList[ axisIndex ];
 }
 
-double* Robots_GetJointMeasuresList( Joint joint )
+ControlVariables* Robots_GetJointMeasuresList( Joint joint )
 {
   if( joint == NULL ) return NULL;
     
-  return (double*) joint->measuresList;
+  return &(joint->measures);
 }
 
-double* Robots_GetAxisMeasuresList( Axis axis )
+ControlVariables* Robots_GetAxisMeasuresList( Axis axis )
 {
   if( axis == NULL ) return NULL;
     
-  return (double*) axis->measuresList;
+  return &(axis->measures);
 }
 
-double Robots_SetJointSetpoint( Joint joint, enum ControlVariables variable, double value )
+double Robots_SetJointSetpoint( Joint joint, enum ControlVariable variable, double value )
 {
   if( joint == NULL ) return 0.0;
   
   if( variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
-  joint->setpointsList[ variable ] = value;
+  double* setpointsList = (double*) &(joint->setpoints);
+  setpointsList[ variable ] = value;
   
   return value;
 }
 
-double Robots_SetAxisSetpoint( Axis axis, enum ControlVariables variable, double value )
+double Robots_SetAxisSetpoint( Axis axis, enum ControlVariable variable, double value )
 {
   if( axis == NULL ) return 0.0;
   
   if( variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
-  axis->setpointsList[ variable ] = value;
+  double* setpointsList = (double*) &(axis->setpoints);
+  setpointsList[ variable ] = value;
   
   return value;
 }
@@ -286,12 +288,12 @@ static void* AsyncControl( void* ref_robot )
     execTime = Timing.GetExecTimeMilliseconds();
     
     for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
-      (void) Actuators.UpdateMeasures( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresTable[ jointIndex ] );
+      (void) Actuators.UpdateMeasures( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresList[ jointIndex ] );
   
-    robot->RunControlStep( robot->controller, robot->jointMeasuresTable, robot->axisMeasuresTable, robot->jointSetpointsTable, robot->axisSetpointsTable );
+    robot->RunControlStep( robot->controller, robot->jointMeasuresList, robot->axisMeasuresList, robot->jointSetpointsList, robot->axisSetpointsList );
   
     for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
-      (void) Actuators.RunControl( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresTable[ jointIndex ], robot->jointSetpointsTable[ jointIndex ] );
+      (void) Actuators.RunControl( robot->jointsList[ jointIndex ]->actuator, robot->jointMeasuresList[ jointIndex ], robot->jointSetpointsList[ jointIndex ] );
     
     elapsedTime = Timing.GetExecTimeMilliseconds() - execTime;
     ///*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (before delay): %lu ms", robot, elapsedTime );
@@ -330,27 +332,27 @@ Robot LoadRobotData( const char* configFileName )
       
       newRobot->jointsNumber = newRobot->GetJointsNumber( newRobot->controller );
       newRobot->jointsList = (Joint*) calloc( newRobot->jointsNumber, sizeof(Joint) );
-      newRobot->jointMeasuresTable = (double**) calloc( newRobot->jointsNumber, sizeof(double*) );
-      newRobot->jointSetpointsTable = (double**) calloc( newRobot->jointsNumber, sizeof(double*) );
+      newRobot->jointMeasuresList = (ControlVariables**) calloc( newRobot->jointsNumber, sizeof(ControlVariables*) );
+      newRobot->jointSetpointsList = (ControlVariables**) calloc( newRobot->jointsNumber, sizeof(ControlVariables*) );
       for( size_t jointIndex = 0; jointIndex < newRobot->jointsNumber; jointIndex++ )
       {
         newRobot->jointsList[ jointIndex ] = (Joint) malloc( sizeof(JointData) );
         newRobot->jointsList[ jointIndex ]->actuator = Actuators.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "actuators.%lu", jointIndex ) );
-        newRobot->jointMeasuresTable[ jointIndex ] = (double*) newRobot->jointsList[ jointIndex ]->measuresList;
-        newRobot->jointSetpointsTable[ jointIndex ] = (double*) newRobot->jointsList[ jointIndex ]->setpointsList;
+        newRobot->jointMeasuresList[ jointIndex ] = (ControlVariables*) &(newRobot->jointsList[ jointIndex ]->measures);
+        newRobot->jointSetpointsList[ jointIndex ] = (ControlVariables*) &(newRobot->jointsList[ jointIndex ]->setpoints);
         
         if( newRobot->jointsList[ jointIndex ] == NULL ) loadSuccess = false;
       }
 
       newRobot->axesNumber = newRobot->GetAxesNumber( newRobot->controller );
       newRobot->axesList = (Axis*) calloc( newRobot->axesNumber, sizeof(Axis) );
-      newRobot->axisMeasuresTable = (double**) calloc( newRobot->axesNumber, sizeof(double*) );
-      newRobot->axisSetpointsTable = (double**) calloc( newRobot->axesNumber, sizeof(double*) );
+      newRobot->axisMeasuresList = (ControlVariables**) calloc( newRobot->axesNumber, sizeof(ControlVariables*) );
+      newRobot->axisSetpointsList = (ControlVariables**) calloc( newRobot->axesNumber, sizeof(ControlVariables*) );
       for( size_t axisIndex = 0; axisIndex < newRobot->axesNumber; axisIndex++ )
       {
         newRobot->axesList[ axisIndex ] = (Axis) malloc( sizeof(AxisData) );
-        newRobot->axisMeasuresTable[ axisIndex ] = (double*) newRobot->axesList[ axisIndex ]->measuresList;
-        newRobot->axisSetpointsTable[ axisIndex ] = (double*) newRobot->axesList[ axisIndex ]->setpointsList;
+        newRobot->axisMeasuresList[ axisIndex ] = (ControlVariables*) &(newRobot->axesList[ axisIndex ]->measures);
+        newRobot->axisSetpointsList[ axisIndex ] = (ControlVariables*) &(newRobot->axesList[ axisIndex ]->setpoints);
       }
     }
     
@@ -389,10 +391,10 @@ void UnloadRobotData( Robot robot )
     free( robot->axesList[ axisIndex ] );
   free( robot->axesList );
   
-  free( robot->jointMeasuresTable );
-  free( robot->jointSetpointsTable );
-  free( robot->axisMeasuresTable );
-  free( robot->axisSetpointsTable );
+  free( robot->jointMeasuresList );
+  free( robot->jointSetpointsList );
+  free( robot->axisMeasuresList );
+  free( robot->axisSetpointsList );
     
   free( robot );
 

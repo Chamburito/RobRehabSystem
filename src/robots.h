@@ -30,10 +30,10 @@ typedef RobotData* Robot;
         INIT_FUNCTION( Axis, namespace, GetAxis, int, size_t ) \
         INIT_FUNCTION( char*, namespace, GetJointName, int, size_t ) \
         INIT_FUNCTION( char*, namespace, GetAxisName, int, size_t ) \
-        INIT_FUNCTION( double*, namespace, GetAxisMeasuresList, Axis ) \
-        INIT_FUNCTION( double*, namespace, GetJointMeasuresList, Joint ) \
-        INIT_FUNCTION( double, namespace, SetJointSetpoint, Joint, enum ControlVariables, double ) \
-        INIT_FUNCTION( double, namespace, SetAxisSetpoint, Axis, enum ControlVariables, double ) \
+        INIT_FUNCTION( ControlVariables*, namespace, GetAxisMeasuresList, Axis ) \
+        INIT_FUNCTION( ControlVariables*, namespace, GetJointMeasuresList, Joint ) \
+        INIT_FUNCTION( double, namespace, SetJointSetpoint, Joint, enum ControlVariable, double ) \
+        INIT_FUNCTION( double, namespace, SetAxisSetpoint, Axis, enum ControlVariable, double ) \
         INIT_FUNCTION( Actuator, namespace, GetJointActuator, Joint ) \
         INIT_FUNCTION( size_t, namespace, GetJointsNumber, int ) \
         INIT_FUNCTION( size_t, namespace, GetAxesNumber, int )
