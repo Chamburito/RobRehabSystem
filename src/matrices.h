@@ -1,6 +1,8 @@
 #ifndef MATRICES_H
 #define MATRICES_H
 
+#include <stdint.h>
+
 #include "namespaces.h"
 
 #define MATRIX_SIZE_MAX 50 

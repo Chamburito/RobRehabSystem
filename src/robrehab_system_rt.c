@@ -35,14 +35,6 @@
 
 /* Include files */
 
-#ifdef ROBREHAB_SERVER
-  #include "robrehab_network.h"
-#elif ROBREHAB_CONTROL
-  #include "robrehab_control.h"
-#elif ROBREHAB_EMG
-  #include "robrehab_emg.h"
-#endif
-
 #include <utility.h>
 #include <rtutil.h>
 #include <analysis.h>
@@ -50,36 +42,39 @@
 #include <cvirte.h>
 #include <ansi_c.h>
 
+#include "robrehab_subsystem.h" 
+
+
 /* Program entry-point */
 void CVIFUNC_C RTmain( void )
 {
-	if( InitCVIRTE( 0, 0, 0 ) == 0 )
-		return;
-	
-	/*int status;
-	int systemStarted = 0;
-	
-	while( !RTIsShuttingDown() && !systemStarted )
-	{
-		status = CNVProcessIsRunning( "system", &systemStarted );
-		SleepUS( 10000 );
-	}
+  if( InitCVIRTE( 0, 0, 0 ) == 0 )
+    return;
+
+  //int status;
+  //int systemStarted = 0;
+
+  //while( !RTIsShuttingDown() && !systemStarted )
+  //{
+  //	status = CNVProcessIsRunning( "Shared", &systemStarted );
+  //	SleepUS( 10000 );
+  //}
   
-  DEBUG_PRINT( "Network variables ready on thread %lx", THREAD_ID );*/
+  //fprintf( stderr, "Network variables ready\n" );
   
   SetDir( "C:\\ni-rt" );
   
-  if( SUBSYSTEM.Init( "JSON" ) != -1 )
+  if( SubSystem.Init( "JSON" ) != -1 )
   {
   	while( !RTIsShuttingDown() ) // Check for program termination conditions
   	{
-      SUBSYSTEM.Update();
+      SubSystem.Update();
     
       SleepUntilNextMultipleUS( 1000 * UPDATE_INTERVAL_MS ); // Sleep to give the desired loop rate.
   	}
   }
 
-  SUBSYSTEM.End();
+  SubSystem.End();
 
 	CloseCVIRTE();
 }

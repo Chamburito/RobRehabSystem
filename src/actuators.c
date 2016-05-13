@@ -38,7 +38,7 @@ Actuator Actuators_Init( const char* configFileName )
 {
   char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
   
-  DEBUG_PRINT( "trying to create series elastic actuator %s", configFileName );
+  DEBUG_PRINT( "trying to create actuator %s", configFileName );
   
   Actuator newActuator = NULL;
   

@@ -4,6 +4,7 @@
 
 #include "debug/async_debug.h"
 
+#include "time/timing.h"
 #include "threads/thread_safe_data.h"
 
   
@@ -22,8 +23,8 @@ struct _AsyncIPConnectionData
 };
 
 // Thread for asyncronous connections update
-static Thread globalReadThread = NULL;
-static Thread globalWriteThread = NULL;
+static Thread globalReadThread = THREAD_INVALID_HANDLE;
+static Thread globalWriteThread = THREAD_INVALID_HANDLE;
 static bool isNetworkRunning = false;
 
 // Internal (private) list of asyncronous connections created (accessible only by index)
@@ -111,11 +112,11 @@ static int AddAsyncConnection( IPConnection baseConnection )
 // Creates a new IPConnection structure (from the defined properties) and add it to the asyncronous connection list
 int AsyncIPNetwork_OpenConnection( uint8_t connectionType, const char* host, uint16_t port )
 {
-  DEBUG_PRINT( "Trying to create connection type %x on host %s and port %u", connectionType, host, port );
+  DEBUG_PRINT( "Trying to create connection type %x on host %s and port %u", connectionType, ( host == NULL ) ? "(ANY)" : host, port );
   IPConnection baseConnection = IPNetwork.OpenConnection( connectionType, host, port );
   if( baseConnection == NULL )
   {
-    /*ERROR_EVENT*/ERROR_PRINT( "failed to create connection type %x on host %s and port %u", connectionType, host, port );
+    /*ERROR_EVENT*/ERROR_PRINT( "failed to create connection type %x on host %s and port %u", connectionType, ( host == NULL ) ? "(ANY)" : host, port );
     return -1;
   } 
   
@@ -226,7 +227,11 @@ static void* AsyncWriteQueues( void* args )
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "sending messages on thread %lx", THREAD_ID );
   
   while( isNetworkRunning )
+  {
     ThreadSafeMaps.RunForAll( globalConnectionsList, WriteFromQueue );
+    
+    Timing.Delay( 1 );
+  }
   
   return NULL;//(void*) 1;
 }

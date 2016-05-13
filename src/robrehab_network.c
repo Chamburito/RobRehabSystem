@@ -1,8 +1,8 @@
-#ifdef _CVI_
-  #include "ip_network/cvirte_ip_connection.h"
-#else
+//#ifdef _CVI_
+//  #include "ip_network/cvirte_ip_connection.h"
+//#else
   #include "ip_network/async_ip_network.h"
-#endif
+//#endif
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
@@ -20,9 +20,9 @@
 const unsigned long UPDATE_INTERVAL_MS = 5;
 
 
-static int eventServerConnectionID;
-static int axisServerConnectionID;
-static int jointServerConnectionID;
+static int eventServerConnectionID = IP_CONNECTION_INVALID_ID;
+static int axisServerConnectionID = IP_CONNECTION_INVALID_ID;
+static int jointServerConnectionID = IP_CONNECTION_INVALID_ID;
 
 static kvec_t( int ) eventClientsList;
 const size_t INFO_BLOCK_SIZE = 2;

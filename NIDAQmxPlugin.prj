@@ -1,16 +1,16 @@
 [Project Header]
-Version = 1500
+Version = 1302
 Pathname = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/NIDAQmxPlugin.prj"
 Project Label = "NIDAQmxPlugin"
-CVI Dir = "/c/program files (x86)/national instruments/cvi2015"
+CVI Dir = "/c/program files (x86)/national instruments/cvi2013"
 CVI Shared Dir = "/C/Program Files (x86)/National Instruments/Shared/CVI"
-CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2015"
+CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2013"
 CVI Pub Global Dir = "/C/ProgramData/National Instruments/CVI"
 IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
-Number of Files = 2
+Number of Files = 4
 Target Type = "Dynamic Link Library"
 Flags = 2064
 Copied From Locked InstrDrv Directory = False
@@ -41,13 +41,39 @@ Folder = "Include Files"
 Folder Id = 0
 
 [File 0002]
-File Type = "CSource"
+File Type = "Include"
 Res Id = 2
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threading.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threading.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 0
+
+[File 0003]
+File Type = "CSource"
+Res Id = 3
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/signal_io/ni_daqmx/signal_io.c"
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_io/ni_daqmx/s"
 Path Line0002 = "ignal_io.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0004]
+File Type = "CSource"
+Res Id = 4
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threads_windows.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_wind"
+Path Line0002 = "ows.c"
 Exclude = False
 Compile Into Object File = False
 Project Flags = 0
