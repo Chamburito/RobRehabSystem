@@ -1,8 +1,24 @@
-//#ifdef _CVI_
-//  #include "ip_network/cvirte_ip_connection.h"
-//#else
-  #include "ip_network/async_ip_network.h"
-//#endif
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  This file is part of RobRehabSystem.                                      //
+//                                                                            //
+//  RobRehabSystem is free software: you can redistribute it and/or modify    //
+//  it under the terms of the GNU Lesser General Public License as published  //
+//  by the Free Software Foundation, either version 3 of the License, or      //
+//  (at your option) any later version.                                       //
+//                                                                            //
+//  RobRehabSystem is distributed in the hope that it will be useful,         //
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of            //
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the              //
+//  GNU Lesser General Public License for more details.                       //
+//                                                                            //
+//  You should have received a copy of the GNU Lesser General Public License  //
+//  along with Foobar. If not, see <http://www.gnu.org/licenses/>.            //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+
+#include "ip_network/async_ip_network.h"
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
