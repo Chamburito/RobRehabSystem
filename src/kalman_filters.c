@@ -1,5 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
+//  Copyright (c) 2016 Leonardo José Consoni                                  //
+//                                                                            //
 //  This file is part of RobRehabSystem.                                      //
 //                                                                            //
 //  RobRehabSystem is free software: you can redistribute it and/or modify    //
@@ -13,7 +15,7 @@
 //  GNU Lesser General Public License for more details.                       //
 //                                                                            //
 //  You should have received a copy of the GNU Lesser General Public License  //
-//  along with Foobar. If not, see <http://www.gnu.org/licenses/>.            //
+//  along with RobRehabSystem. If not, see <http://www.gnu.org/licenses/>.    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
