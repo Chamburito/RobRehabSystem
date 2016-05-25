@@ -1,6 +1,6 @@
 {
   "controller": {
-    "type": "SimpleJoint",
+    "type": "rLQRControl",
     "id": "simple_joint"
   },
   "actuators": [ "simple_joint_actuator" ]

@@ -268,13 +268,13 @@ void Matrices_Print( Matrix matrix )
 {
   if( matrix == NULL ) return;
 
-  printf( "[%lux%lu] matrix:\n", matrix->rowsNumber, matrix->columnsNumber );
+  fprintf( stderr, "[%lux%lu] matrix:\n", matrix->rowsNumber, matrix->columnsNumber );
   for( size_t row = 0; row < matrix->rowsNumber; row++ )
   {
-    printf( "[" );
+    fprintf( stderr, "[" );
     for( size_t column = 0; column < matrix->columnsNumber; column++ )
-      printf( " %.6f", matrix->data[ row * matrix->columnsNumber + column ] );
-    printf( " ]\n" );
+      fprintf( stderr, " %.6f", matrix->data[ row * matrix->columnsNumber + column ] );
+    fprintf( stderr, " ]\n" );
   }
-  printf( "\n" );
+  fprintf( stderr, "\n" );
 }
