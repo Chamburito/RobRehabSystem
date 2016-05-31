@@ -258,11 +258,11 @@ ControlVariables* Actuators_UpdateMeasures( Actuator actuator, ControlVariables*
   (void) Kalman.Predict( actuator->sensorFilter, (double*) &(actuator->measures) );
   (void) Kalman.Update( actuator->sensorFilter, NULL, (double*) &(actuator->measures) );
   
-  actuator->measures.position = Sensors.Update( actuator->sensorsList[ 0 ] );
-  actuator->measures.velocity = Sensors.Update( actuator->sensorsList[ 1 ] );
-  actuator->measures.force = Sensors.Update( actuator->sensorsList[ 2 ] );
-  
   DEBUG_PRINT( "position: %g - velocity: %g - force: %g", actuator->measures.position, actuator->measures.velocity, actuator->measures.force );
+  
+  //actuator->measures.position = Sensors.Update( actuator->sensorsList[ 0 ] );
+  //actuator->measures.velocity = Sensors.Update( actuator->sensorsList[ 1 ] );
+  //actuator->measures.force = Sensors.Update( actuator->sensorsList[ 2 ] );
   
   if( measuresBuffer == NULL ) return &(actuator->measures);
   
@@ -296,7 +296,7 @@ double Actuators_RunControl( Actuator actuator, ControlVariables* measures, Cont
                                                     actuator->controlError, controlOutputsList[ actuator->controlMode ] );
   }
   
-  // If the motor is being actually controlled, call control pass algorhitm
+  // If the motor is being actually controlled, write its control output
   if( Motors.IsEnabled( actuator->motor ) ) Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
   
   return controlOutputsList[ actuator->controlMode ];

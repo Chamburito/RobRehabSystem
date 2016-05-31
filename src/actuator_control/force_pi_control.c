@@ -1,23 +1,3 @@
-////////////////////////////////////////////////////////////////////////////////
-//                                                                            //
-//  This file is part of RobRehabSystem.                                      //
-//                                                                            //
-//  RobRehabSystem is free software: you can redistribute it and/or modify    //
-//  it under the terms of the GNU Lesser General Public License as published  //
-//  by the Free Software Foundation, either version 3 of the License, or      //
-//  (at your option) any later version.                                       //
-//                                                                            //
-//  RobRehabSystem is distributed in the hope that it will be useful,         //
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of            //
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the              //
-//  GNU Lesser General Public License for more details.                       //
-//                                                                            //
-//  You should have received a copy of the GNU Lesser General Public License  //
-//  along with Foobar. If not, see <http://www.gnu.org/licenses/>.            //
-//                                                                            //
-////////////////////////////////////////////////////////////////////////////////
-
-
 #include "actuator_control/interface.h"
 
 #include <string.h>
@@ -44,6 +24,9 @@ Controller InitController( void )
 
 ControlVariables* RunControlStep( Controller controller, ControlVariables* measures, ControlVariables* setpoints, double* ref_error )
 {
+  const double K_P = 1.6527; // 370 * ( F_in_max / V_out_max )
+  const double K_I = 0.0156; // 3.5 * ( F_in_max / V_out_max )
+  
   ControlData* controlData = (ControlData*) controller;
   
   controlData->outputs.position = setpoints->position;
@@ -71,9 +54,7 @@ ControlVariables* RunControlStep( Controller controller, ControlVariables* measu
 
   controlData->forceError[ 0 ] = forceSetpoint - measures->force;
   
-  //controlData->velocitySetpoint += 370.0 * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + 3.5 * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
-  // dividido por 150 (ganho de saída do motor = redução) e multiplicado por 670 (valor máximo de força na mola)
-  controlData->velocitySetpoint += 1652.7 * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + 15.6 * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
+  controlData->velocitySetpoint += K_P * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + K_I * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
   controlData->outputs.velocity = controlData->velocitySetpoint;
   
   //velocitySetpoint[0] = 0.9822 * velocitySetpoint[1] + 0.01407 * velocitySetpoint[2] + 338.6 * forceError[1] - 337.4 * forceError[2]; //5ms

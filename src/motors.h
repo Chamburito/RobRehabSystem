@@ -13,6 +13,7 @@ typedef MotorData* Motor;
         INIT_FUNCTION( void, Namespace, Enable, Motor ) \
         INIT_FUNCTION( void, Namespace, Disable, Motor ) \
         INIT_FUNCTION( void, Namespace, Reset, Motor ) \
+        INIT_FUNCTION( void, Namespace, SetGain, Motor, double ) \
         INIT_FUNCTION( void, Namespace, SetOffset, Motor, double ) \
         INIT_FUNCTION( bool, Namespace, IsEnabled, Motor ) \
         INIT_FUNCTION( bool, Namespace, HasError, Motor ) \

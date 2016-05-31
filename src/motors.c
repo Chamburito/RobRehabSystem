@@ -33,8 +33,8 @@ struct _MotorData
   DECLARE_MODULE_INTERFACE_REF( SIGNAL_IO_INTERFACE );
   int interfaceID;
   unsigned int outputChannel;
-  double outputGain, outputOffset;
-  double outputMin, outputMax;
+  double outputGain, outputBaseGain;
+  double outputOffset;
 };
 
 DEFINE_NAMESPACE_INTERFACE( Motors, MOTOR_INTERFACE )
@@ -69,11 +69,9 @@ Motor Motors_Init( const char* configFileName )
       else loadSuccess = false;
     }
 
-    newMotor->outputGain = ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "output_gain.multiplier" );
-    newMotor->outputGain /= ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "output_gain.divisor" );
-    
-    newMotor->outputMin = ConfigParsing.GetParser()->GetRealValue( configFileID, 0.0, "output_limits.min" );
-    newMotor->outputMax = ConfigParsing.GetParser()->GetRealValue( configFileID, 0.0, "output_limits.max" );
+    newMotor->outputBaseGain = ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "output_gain.multiplier" );
+    newMotor->outputBaseGain /= ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "output_gain.divisor" );
+    newMotor->outputGain = newMotor->outputBaseGain;
 
     ConfigParsing.GetParser()->UnloadData( configFileID );
 
@@ -122,6 +120,13 @@ inline void Motors_Reset( Motor motor )
   motor->Reset( motor->interfaceID );
 }
 
+inline void Motors_SetGain( Motor motor, double gainFactor )
+{
+  if( motor == NULL ) return;
+  
+  motor->outputGain = gainFactor * motor->outputBaseGain;
+}
+
 inline void Motors_SetOffset( Motor motor, double offset )
 {
   if( motor == NULL ) return;
@@ -147,10 +152,12 @@ void Motors_WriteControl( Motor motor, double setpoint )
 {
   if( motor == NULL ) return;
   
-  setpoint = ( setpoint + motor->outputOffset ) * motor->outputGain;
+  if( setpoint > 1.0 ) setpoint = 1.0;
+  else if( setpoint < -1.0 ) setpoint = -1.0;
   
-  if( setpoint > motor->outputMax ) setpoint = motor->outputMax;
-  else if( setpoint < motor->outputMin ) setpoint = motor->outputMin;
+  DEBUG_PRINT( "motor output: %g * %.5f = %g", motor->outputGain, setpoint, setpoint * motor->outputGain );
+  
+  setpoint = ( setpoint + motor->outputOffset ) * motor->outputGain;
   
   motor->Write( motor->interfaceID, motor->outputChannel, setpoint );
 }

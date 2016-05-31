@@ -133,7 +133,7 @@ void AddSpline3Segment( Curve curve, double* splineValues, double splineBounds[ 
   double finalValue = splineValues[ 1 ];
   double finalDerivative = splineValues[ 0 ];
   
-  // Curve ( x = d + c*t + b*t^2 + a*t^3 ) coefficients calculation
+  // Curve ( y = d + c*(x-offset) + b*(x-offset)^2 + a*(x-offset)^3 ) coefficients calculation
   splineValues[ 0 ] = initialValue;
   splineValues[ 1 ] = initialDerivative;
   splineValues[ 2 ] = ( 3 * ( finalValue - initialValue ) - splineLength * ( 2 * initialDerivative + finalDerivative ) ) / pow( splineLength, 2 );
@@ -167,21 +167,21 @@ Segment AddPolySegment( Curve curve, double* polyCoeffs, size_t coeffsNumber, do
   return newSegment;
 }
 
-inline void CurveInterpolation_SetScale( Curve curve, double scaleFactor )
+void CurveInterpolation_SetScale( Curve curve, double scaleFactor )
 {
   if( curve == NULL ) return;
   
   curve->scaleFactor = scaleFactor;
 }
 
-inline void CurveInterpolation_SetOffset( Curve curve, double offset )
+void CurveInterpolation_SetOffset( Curve curve, double offset )
 {
   if( curve == NULL ) return;
   
   curve->offset = offset;
 }
 
-inline void CurveInterpolation_SetMaxAmplitude( Curve curve, double maxAmplitude )
+void CurveInterpolation_SetMaxAmplitude( Curve curve, double maxAmplitude )
 {
   if( curve == NULL ) return;
   
