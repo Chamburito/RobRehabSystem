@@ -62,7 +62,7 @@ Curve LoadCurveData( int configDataID )
   Curve newCurve = (Curve) malloc( sizeof(CurveData) );
   memset( newCurve, 0, sizeof(CurveData) );
   
-  newCurve->scaleFactor = 1.0;
+  newCurve->scaleFactor = ConfigParsing.GetParser()->GetRealValue( configDataID, 1.0, "scale_factor" );
   newCurve->maxAbsoluteValue = ConfigParsing.GetParser()->GetRealValue( configDataID, -1.0, "max_amplitude" );
 
   size_t segmentsNumber = ConfigParsing.GetParser()->GetListSize( configDataID, "segments" );

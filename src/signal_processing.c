@@ -181,7 +181,7 @@ void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalP
 {
   if( processor == NULL ) return;
   
-  if( newProcessingPhase < 0 || newProcessingPhase >= SIGNAL_PROCESSING_PHASES_NUMBER ) return;
+  if( newProcessingPhase >= SIGNAL_PROCESSING_PHASES_NUMBER ) return;
 
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {

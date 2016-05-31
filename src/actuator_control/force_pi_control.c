@@ -71,7 +71,9 @@ ControlVariables* RunControlStep( Controller controller, ControlVariables* measu
 
   controlData->forceError[ 0 ] = forceSetpoint - measures->force;
   
-  controlData->velocitySetpoint += 370.0 * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + 3.5 * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
+  //controlData->velocitySetpoint += 370.0 * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + 3.5 * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
+  // dividido por 150 (ganho de saída do motor = redução) e multiplicado por 670 (valor máximo de força na mola)
+  controlData->velocitySetpoint += 1652.7 * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + 15.6 * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
   controlData->outputs.velocity = controlData->velocitySetpoint;
   
   //velocitySetpoint[0] = 0.9822 * velocitySetpoint[1] + 0.01407 * velocitySetpoint[2] + 338.6 * forceError[1] - 337.4 * forceError[2]; //5ms

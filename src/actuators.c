@@ -262,7 +262,7 @@ ControlVariables* Actuators_UpdateMeasures( Actuator actuator, ControlVariables*
   actuator->measures.velocity = Sensors.Update( actuator->sensorsList[ 1 ] );
   actuator->measures.force = Sensors.Update( actuator->sensorsList[ 2 ] );
   
-  //DEBUG_PRINT( "position: %g - velocity: %g - force: %g", actuator->measures[ CONTROL_POSITION ], actuator->measures[ CONTROL_VELOCITY ], actuator->measures[ CONTROL_FORCE ] );
+  DEBUG_PRINT( "position: %g - velocity: %g - force: %g", actuator->measures.position, actuator->measures.velocity, actuator->measures.force );
   
   if( measuresBuffer == NULL ) return &(actuator->measures);
   
