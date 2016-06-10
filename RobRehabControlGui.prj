@@ -1,16 +1,16 @@
 [Project Header]
-Version = 1500
+Version = 1302
 Pathname = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/RobRehabControlGui.prj"
 Project Label = "RobRehabClientGui"
-CVI Dir = "/c/program files (x86)/national instruments/cvi2015"
+CVI Dir = "/c/program files (x86)/national instruments/cvi2013"
 CVI Shared Dir = "/C/Program Files (x86)/National Instruments/Shared/CVI"
-CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2015"
+CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2013"
 CVI Pub Global Dir = "/C/ProgramData/National Instruments/CVI"
 IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
-Number of Files = 9
+Number of Files = 22
 Target Type = "Executable"
 Flags = 16
 Copied From Locked InstrDrv Directory = False
@@ -55,8 +55,102 @@ Folder = "Source Files"
 Folder Id = 1
 
 [File 0003]
-File Type = "Include"
+File Type = "CSource"
 Res Id = 3
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/shm_control.c"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_control.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0004]
+File Type = "CSource"
+Res Id = 4
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/shared_memory/shm_cvi.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shm_cv"
+Path Line0002 = "i.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0005]
+File Type = "CSource"
+Res Id = 5
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/thread_safe_data.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/thread_safe_"
+Path Line0002 = "data.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0006]
+File Type = "CSource"
+Res Id = 6
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threads_windows.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threads_wind"
+Path Line0002 = "ows.c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0007]
+File Type = "CSource"
+Res Id = 7
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/time/timing_windows.c"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/time/timing_windows."
+Path Line0002 = "c"
+Exclude = False
+Compile Into Object File = False
+Project Flags = 0
+Folder = "Source Files"
+Folder Id = 1
+
+[File 0008]
+File Type = "Include"
+Res Id = 8
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/debug/async_debug.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug/async_debug.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0009]
+File Type = "Include"
+Res Id = 9
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/control_definitions.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/control_definitions."
+Path Line0002 = "h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0010]
+File Type = "Include"
+Res Id = 10
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/RobRehabClientGUI.h"
@@ -66,9 +160,22 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 2
 
-[File 0004]
+[File 0011]
 File Type = "Include"
-Res Id = 4
+Res Id = 11
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/shared_memory/shared_memory.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
+Path Line0002 = "_memory.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0012]
+File Type = "Include"
+Res Id = 12
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/shm_axis_control.h"
@@ -78,9 +185,9 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 2
 
-[File 0005]
+[File 0013]
 File Type = "Include"
-Res Id = 5
+Res Id = 13
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/shm_control.h"
@@ -90,9 +197,9 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 2
 
-[File 0006]
+[File 0014]
 File Type = "Include"
-Res Id = 6
+Res Id = 14
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/shared_memory/shm_cvi.h"
@@ -103,9 +210,9 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 2
 
-[File 0007]
+[File 0015]
 File Type = "Include"
-Res Id = 7
+Res Id = 15
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/shm_emg_control.h"
@@ -115,9 +222,58 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 2
 
-[File 0008]
+[File 0016]
 File Type = "Include"
-Res Id = 8
+Res Id = 16
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/shm_joint_control.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_joint_control.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0017]
+File Type = "Include"
+Res Id = 17
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/debug/sync_debug.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug/sync_debug.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0018]
+File Type = "Include"
+Res Id = 18
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/thread_safe_data.h"
+Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/thread_safe_"
+Path Line0002 = "data.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0019]
+File Type = "Include"
+Res Id = 19
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/threads/threading.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/threads/threading.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0020]
+File Type = "Include"
+Res Id = 20
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/threads/threads_windows.h"
@@ -128,9 +284,21 @@ Project Flags = 0
 Folder = "Include Files"
 Folder Id = 2
 
-[File 0009]
+[File 0021]
 File Type = "Include"
-Res Id = 9
+Res Id = 21
+Path Is Rel = True
+Path Rel To = "Project"
+Path Rel Path = "src/time/timing.h"
+Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/time/timing.h"
+Exclude = False
+Project Flags = 0
+Folder = "Include Files"
+Folder Id = 2
+
+[File 0022]
+File Type = "Include"
+Res Id = 22
 Path Is Rel = True
 Path Rel To = "Project"
 Path Rel Path = "src/time/timing_windows.h"
@@ -209,7 +377,7 @@ File Version = "1.0"
 File Version Ex = "%f1.%f2"
 Internal Name = "RobRehabClientGUI"
 Internal Name Ex = "%basename"
-Legal Copyright = "Copyright ©  2015"
+Legal Copyright = "Copyright ©  2016"
 Legal Copyright Ex = "Copyright © %company %Y"
 Legal Trademarks = ""
 Legal Trademarks Ex = ""

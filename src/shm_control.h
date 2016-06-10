@@ -16,8 +16,8 @@ enum SHMControlTypes { SHM_CONTROL_OUT, SHM_CONTROL_IN, SHM_CONTROL_TYPES_NUMBER
 #define SHM_CONTROL_MAX_DATA_SIZE ( 8 * SHM_CONTROL_MASK_SIZE )
 #define SHARED_VARIABLE_NAME_MAX_LENGTH 128
 
-//const bool SHM_CONTROL_PEEK = false;
-//const bool SHM_CONTROL_REMOVE = true;
+#define SHM_CONTROL_PEEK false
+#define SHM_CONTROL_REMOVE true
 
 #define SHM_CONTROL_BIT_INDEX( index ) ( 1 << (index) )
 #define SHM_CONTROL_SET_BIT( field, index ) ( (field) |= SHM_CONTROL_BIT_INDEX( index ) )
@@ -40,7 +40,7 @@ typedef SHMControlData* SHMController;
         INIT_FUNCTION( void, Namespace, EndData, SHMController ) \
         INIT_FUNCTION( bool, Namespace, GetData, SHMController, void*, size_t, size_t ) \
         INIT_FUNCTION( bool, Namespace, SetData, SHMController, void*, size_t, size_t ) \
-        INIT_FUNCTION( uint8_t, Namespace, GetMaskByte, SHMController, size_t ) \
+        INIT_FUNCTION( uint8_t, Namespace, GetMaskByte, SHMController, size_t, bool ) \
         INIT_FUNCTION( uint8_t, Namespace, SetMaskByte, SHMController, size_t, uint8_t )
 
 DECLARE_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_INTERFACE )

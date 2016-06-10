@@ -26,7 +26,7 @@
 //#endif
 
 #ifdef DEBUG
-  #define DEBUG_PRINT( format, ... ) printf( "debug: %s: " format "\n", __func__, __VA_ARGS__ )
+  #define DEBUG_PRINT( format, ... ) fprintf( stderr, "debug: %s: " format "\n", __func__, __VA_ARGS__ )
 #else
   #define DEBUG_PRINT( format, ... ) do { } while( 0 )
 #endif

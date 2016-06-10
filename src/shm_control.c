@@ -128,7 +128,7 @@ bool SHMControl_SetData( SHMController controller, void* valuesList, size_t data
   return true;
 }
 
-uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex )
+uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex, bool remove )
 {
   if( controller == NULL ) return 0;
   
@@ -136,7 +136,11 @@ uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex )
   
   if( maskByteIndex >= SHM_CONTROL_MASK_SIZE ) return 0;
   
-  return controller->channelIn->dataMask[ maskByteIndex ];
+  uint8_t maskByte = controller->channelIn->dataMask[ maskByteIndex ];
+  
+  if( remove ) controller->channelIn->dataMask[ maskByteIndex ] = 0x00;
+  
+  return maskByte;
 }
 
 uint8_t SHMControl_SetMaskByte( SHMController controller, size_t maskByteIndex, uint8_t maskByteValue )

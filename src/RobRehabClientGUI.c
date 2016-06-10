@@ -40,9 +40,14 @@
 #include <cvirte.h>		
 #include <userint.h>
 
+#include "threads/threading.h"
+#include "time/timing.h"
+
 #include "shm_control.h"
 #include "shm_axis_control.h"
 #include "shm_emg_control.h"
+
+#include "control_definitions.h"
 
 #include "RobRehabClientGUI.h"
 
@@ -54,8 +59,13 @@ static int panel;
 /* Function prototypes */
 static void* UpdateData( void* );
 
-SHMController axisMotorController;
-SHMController jointEMGController;
+SHMController sharedRobotAxesInfo;
+SHMController sharedRobotJointsInfo;
+SHMController sharedRobotAxesData;
+SHMController sharedRobotJointsData;
+
+char robotAxesInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
+char robotJointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
 
 Thread dataConnectionThreadID = THREAD_INVALID_HANDLE;
 bool isDataUpdateRunning = false;
@@ -85,8 +95,10 @@ int main( int argc, char *argv[] )
   isDataUpdateRunning = false;
   Threading.WaitExit( dataConnectionThreadID, 5000 );
   
-  SHMControl.EndData( axisMotorController );
-  SHMControl.EndData( jointEMGController );
+  SHMControl.EndData( sharedRobotAxesInfo );
+  SHMControl.EndData( sharedRobotJointsInfo );
+  SHMControl.EndData( sharedRobotAxesData );
+  SHMControl.EndData( sharedRobotJointsData );
   
 	DiscardPanel( panel );
 	
@@ -100,21 +112,21 @@ static void* UpdateData( void* callbackData )
   const size_t WAIT_SAMPLES = 2;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
-  float measuresList[ SHM_CONTROL_MAX_FLOATS_NUMBER ], setpointsList[ SHM_CONTROL_MAX_FLOATS_NUMBER ];
+  uint8_t controlData[ SHM_CONTROL_MAX_DATA_SIZE ];
   
   double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueIDValues[ NUM_POINTS ], torqueEMGValues[ NUM_POINTS ];
   size_t axisMeasureIndex = 0, jointMeasureIndex = 0, setpointIndex = 0;
   
-  double initialTime = Timing_GetExecTimeSeconds();
+  double initialTime = Timing.GetExecTimeSeconds();
   double elapsedTime = 0.0, deltaTime = 0.0, setpointTime = 0.0, absoluteTime = initialTime; 
   
   isDataUpdateRunning = true;
   
   while( isDataUpdateRunning )
   {
-    deltaTime = ( Timing_GetExecTimeSeconds() - absoluteTime );
+    deltaTime = ( Timing.GetExecTimeSeconds() - absoluteTime );
     setpointTime += deltaTime;
-    absoluteTime = Timing_GetExecTimeSeconds();
+    absoluteTime = Timing.GetExecTimeSeconds();
     elapsedTime = absoluteTime - initialTime;
     
     if( deltaTime > CONTROL_SAMPLING_INTERVAL )
@@ -124,6 +136,8 @@ static void* UpdateData( void* callbackData )
       
       //fprintf( stderr, "measure %u of %u\r", axisMeasureIndex, NUM_POINTS );
     }
+
+    /*SHMControl.GetData( sharedRobotAxesData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
     
     uint8_t axisDataMask = SHMControl.GetData( axisMotorController, measuresList, SHM_CONTROL_REMOVE );
     if( axisDataMask )
@@ -174,7 +188,7 @@ static void* UpdateData( void* callbackData )
       setpointTime = 0.0;
       
       SHMControl.SetData( axisMotorController, setpointsList, 0xFF );
-    }
+    }*/
   }
   
   return NULL;
@@ -192,7 +206,7 @@ static void InitUserInterface( void )
 
 int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-  char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "192.168.0.181:";
+  //char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "192.168.0.181:";
   
 	if( event == EVENT_COMMIT )
 	{
@@ -201,15 +215,27 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
     {
       // Connect to shared variables
       
-      GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
-      fprintf( stderr, "connecting to axis %s\n", sharedVarName );
-      axisMotorController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
-      if( axisMotorController != NULL ) fprintf( stderr, "connected to axis %s\n\n", sharedVarName );
+      sharedRobotAxesInfo = SHMControl.InitData( "192.168.0.181:robot_axes_info", SHM_CONTROL_OUT );
+      sharedRobotJointsInfo = SHMControl.InitData( "192.168.0.181:robot_joints_info", SHM_CONTROL_OUT );
+      sharedRobotAxesData = SHMControl.InitData( "192.168.0.181:robot_axes_data", SHM_CONTROL_OUT );
+      sharedRobotJointsData = SHMControl.InitData( "192.168.0.181:robot_joints_data", SHM_CONTROL_OUT );
       
-      GetCtrlVal( panel, PANEL_JOINT_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
-      fprintf( stderr, "connecting to joint %s\n", sharedVarName );
-      jointEMGController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
-      if( jointEMGController != NULL ) fprintf( stderr, "connected to joint %s\n\n", sharedVarName );
+      SHMControl.SetMaskByte( sharedRobotAxesInfo, 0, 0xFF );
+      
+      SHMControl.GetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      fprintf( stderr, "Read shared axes info: %s\n", robotAxesInfo );
+      SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      fprintf( stderr, "Writing shared joints info: %s\n", robotJointsInfo );
+      
+      //GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
+      //fprintf( stderr, "connecting to axis %s\n", sharedVarName );
+      //axisMotorController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
+      //if( axisMotorController != NULL ) fprintf( stderr, "connected to axis %s\n\n", sharedVarName );
+      
+      //GetCtrlVal( panel, PANEL_JOINT_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
+      //fprintf( stderr, "connecting to joint %s\n", sharedVarName );
+      //jointEMGController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
+      //if( jointEMGController != NULL ) fprintf( stderr, "connected to joint %s\n\n", sharedVarName );
       
       if( dataConnectionThreadID == THREAD_INVALID_HANDLE )
         dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
@@ -230,14 +256,14 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
       int enabled;
       GetCtrlVal( panel, control, &enabled );
 
-      if( enabled == 1 ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_ENABLE );
-      else SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_DISABLE );
+      //if( enabled == 1 ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_ENABLE );
+      //else SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_DISABLE );
     }
-    else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_OFFSET );
-    else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_CALIBRATE );
-    else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_OFFSET );
-    else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_CALIBRATION );
-    else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_SAMPLING );
+    //else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_OFFSET );
+    //else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_CALIBRATE );
+    //else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_OFFSET );
+    //else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_CALIBRATION );
+    //else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_SAMPLING );
 	}
   
 	return 0;
@@ -252,7 +278,7 @@ int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* ca
       // Get the new value.
       //double maxStiffness;
       GetCtrlVal( panel, control, &maxStiffness );
-      SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
+      //SHMControl.SetNumericValue( axisMotorController, SHM_AXIS_STIFFNESS, maxStiffness );
     }
 	}
 	return 0;

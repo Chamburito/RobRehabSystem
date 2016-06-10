@@ -258,7 +258,7 @@ ControlVariables* Actuators_UpdateMeasures( Actuator actuator, ControlVariables*
   (void) Kalman.Predict( actuator->sensorFilter, (double*) &(actuator->measures) );
   (void) Kalman.Update( actuator->sensorFilter, NULL, (double*) &(actuator->measures) );
   
-  DEBUG_PRINT( "position: %g - velocity: %g - force: %g", actuator->measures.position, actuator->measures.velocity, actuator->measures.force );
+  //DEBUG_PRINT( "position: %g - velocity: %g - force: %g", actuator->measures.position, actuator->measures.velocity, actuator->measures.force );
   
   //actuator->measures.position = Sensors.Update( actuator->sensorsList[ 0 ] );
   //actuator->measures.velocity = Sensors.Update( actuator->sensorsList[ 1 ] );
