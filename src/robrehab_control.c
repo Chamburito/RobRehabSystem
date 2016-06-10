@@ -209,6 +209,8 @@ void SubSystem_Update()
 
 void LoadSharedRobotsInfo()
 {
+  static uint8_t infoWriteCount;
+  
   int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
   if( configFileID != DATA_INVALID_ID )
   {
@@ -263,6 +265,8 @@ void LoadSharedRobotsInfo()
   
   DEBUG_PRINT( "Writing shared axes info: %s", robotAxesInfo );
   SHMControl.SetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
+  SHMControl.SetMaskByte( sharedRobotAxesInfo, 0, ++infoWriteCount );
   DEBUG_PRINT( "Writing shared joints info: %s", robotJointsInfo );
   SHMControl.SetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
+  SHMControl.SetMaskByte( sharedRobotJointsInfo, 0, ++infoWriteCount );
 }

@@ -99,7 +99,7 @@ void* SharedObjects_CreateObject( const char* mappingName, size_t objectSize, ui
       #ifdef _LINK_CVI_LVRT_
       if( (newSharedObject->timerID = NewAsyncTimerWithPriority( 0.001, -1, 1, UpdateDataOut, newSharedObject, 0 )) < 0 )
       #else
-      if( (newSharedObject->timerID = NewAsyncTimer( 0.001, -1, 1, UpdateDataOut, newSharedObject)) < 0 )
+      if( (newSharedObject->timerID = NewAsyncTimer( 0.003, -1, 1, UpdateDataOut, newSharedObject)) < 0 )
       #endif
       {
         DEBUG_PRINT( "error creating async timer: code: %d", newSharedObject->timerID );
@@ -195,7 +195,7 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
           return 0;
         }
         
-        DEBUG_UPDATE( "writing data %p on writer %p", sharedObject->networkData, sharedObject->writer );
+        DEBUG_UPDATE( "writing data %p on writer %p\n", sharedObject->networkData, sharedObject->writer );
         
         memcpy( sharedObject->oldData, sharedObject->data, sharedObject->dataSize );
         

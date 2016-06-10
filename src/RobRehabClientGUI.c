@@ -207,6 +207,7 @@ static void InitUserInterface( void )
 int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
   //char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "192.168.0.181:";
+  static uint8_t listRequestCount;
   
 	if( event == EVENT_COMMIT )
 	{
@@ -220,12 +221,12 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
       sharedRobotAxesData = SHMControl.InitData( "192.168.0.181:robot_axes_data", SHM_CONTROL_OUT );
       sharedRobotJointsData = SHMControl.InitData( "192.168.0.181:robot_joints_data", SHM_CONTROL_OUT );
       
-      SHMControl.SetMaskByte( sharedRobotAxesInfo, 0, 0xFF );
+      SHMControl.SetMaskByte( sharedRobotAxesInfo, 0, ++listRequestCount );
       
       SHMControl.GetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
       fprintf( stderr, "Read shared axes info: %s\n", robotAxesInfo );
       SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
-      fprintf( stderr, "Writing shared joints info: %s\n", robotJointsInfo );
+      fprintf( stderr, "Read shared joints info: %s\n", robotJointsInfo );
       
       //GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
       //fprintf( stderr, "connecting to axis %s\n", sharedVarName );

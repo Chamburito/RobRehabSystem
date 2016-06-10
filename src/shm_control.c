@@ -138,7 +138,7 @@ uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex, 
   
   uint8_t maskByte = controller->channelIn->dataMask[ maskByteIndex ];
   
-  if( remove ) controller->channelIn->dataMask[ maskByteIndex ] = 0x00;
+  /*if( remove )*/ controller->channelIn->dataMask[ maskByteIndex ] = 0x00;
   
   return maskByte;
 }
