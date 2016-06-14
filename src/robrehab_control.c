@@ -217,10 +217,11 @@ void LoadSharedRobotsInfo()
     if( ConfigParsing.GetParser()->HasKey( configFileID, "robots" ) )
     {
       size_t sharedRobotsNumber = ConfigParsing.GetParser()->GetListSize( configFileID, "robots" );
-      //kv_resize( int, robotIDsList, sharedRobotsNumber );
+      kv_resize( int, robotIDsList, sharedRobotsNumber );
 
       DEBUG_PRINT( "List size: %lu", sharedRobotsNumber );
 
+      char jointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
       for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
       {
         char* robotName = ConfigParsing.GetParser()->GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
@@ -229,7 +230,7 @@ void LoadSharedRobotsInfo()
           int robotID = Robots.Init( robotName );
           if( robotID != ROBOT_INVALID_ID )
           {
-            if( strlen(robotJointsInfo) > 0 ) strcat( robotJointsInfo, "|" );
+            if( strlen(robotJointsInfo) > 0 ) strcat( robotJointsInfo, ":" );
             sprintf( robotJointsInfo + strlen(robotJointsInfo), "%lu:%s", kv_size( robotIDsList ), robotName );
             kv_push( int, robotIDsList, robotID );
 
@@ -251,22 +252,28 @@ void LoadSharedRobotsInfo()
               char* jointName = Robots.GetJointName( robotID, jointIndex );
               if( jointName != NULL )
               {
-                sprintf( robotJointsInfo + strlen(robotJointsInfo), ":%lu:%s", kv_max( robotIDsList ) + kv_size( jointsList ), jointName );
+                if( strlen(jointsInfo) > 0 ) strcat( jointsInfo, ":" );
+                sprintf( jointsInfo + strlen(jointsInfo), "%lu:%s", kv_max( robotIDsList ) + kv_size( jointsList ), jointName );
                 kv_push( Joint, jointsList, Robots.GetJoint( robotID, jointIndex ) );
               }
             }
           }
         }
       }
+      
+      strcat( robotJointsInfo, "|" );
+      strcat( robotJointsInfo, jointsInfo );
     }
 
     ConfigParsing.GetParser()->UnloadData( configFileID );
   }
   
-  DEBUG_PRINT( "Writing shared axes info: %s", robotAxesInfo );
   SHMControl.SetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
   SHMControl.SetMaskByte( sharedRobotAxesInfo, 0, ++infoWriteCount );
-  DEBUG_PRINT( "Writing shared joints info: %s", robotJointsInfo );
+  SHMControl.SetMaskByte( sharedRobotAxesInfo, 1, (uint8_t) kv_size( axesList ) );
+  
   SHMControl.SetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
   SHMControl.SetMaskByte( sharedRobotJointsInfo, 0, ++infoWriteCount );
+  SHMControl.SetMaskByte( sharedRobotJointsInfo, 1, (uint8_t) kv_size( robotIDsList ) );
+  SHMControl.SetMaskByte( sharedRobotJointsInfo, 2, (uint8_t) kv_size( jointsList ) );
 }

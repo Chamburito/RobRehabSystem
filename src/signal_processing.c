@@ -100,6 +100,9 @@ void SignalProcessing_SetMaxFrequency( SignalProcessor processor, double relativ
   processor->inputFilterCoeffs[ 0 ] = relativeFrequency * relativeFrequency / outputGain;
   processor->inputFilterCoeffs[ 1 ] = 2 * processor->inputFilterCoeffs[ 0 ];
   processor->inputFilterCoeffs[ 2 ] = processor->inputFilterCoeffs[ 0 ];
+  
+  //DEBUG_PRINT( "filter: y(%+g %+g %+g) x(%+g %+g %+g)", -processor->outputFilterCoeffs[ 0 ], -processor->outputFilterCoeffs[ 1 ], -processor->outputFilterCoeffs[ 2 ]
+  //                                                      processor->inputFilterCoeffs[ 0 ], processor->inputFilterCoeffs[ 1 ], processor->inputFilterCoeffs[ 2 ] );
 }
 
 double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInputValuesList, size_t newValuesNumber )
@@ -122,7 +125,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInpu
     {
       newInputValue = newInputValuesList[ valueIndex ] * processor->inputGain - processor->signalOffset;
 
-      /*if( processor->rectify ) newInputValue = fabs( newInputValue );
+      if( processor->rectify ) newInputValue = fabs( newInputValue );
 
       for( int sampleIndex = FILTER_LENGTH - 1; sampleIndex > 0; sampleIndex-- )
       {
@@ -153,7 +156,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInpu
 
           newInputValue = newInputValue / ( processor->signalLimitsList[ 1 ] - processor->signalLimitsList[ 0 ] );
         }
-      }*/
+      }
     }
   }
   

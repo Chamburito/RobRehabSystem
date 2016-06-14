@@ -146,7 +146,6 @@ void DataLogging_RegisterList( int logID, size_t valuesNumber, double* valuesLis
   log->memoryValuesCount += valuesNumber;
 }
 
-const size_t DATA_LOG_MAX_PRECISION = 15;
 void DataLogging_SetDataPrecision( int logID, size_t decimalPlacesNumber )
 {
   khint_t logIndex = kh_get( LogInt, logsList, (khint_t) logID );

@@ -7,6 +7,8 @@
 #define LOG_FILE_PATH_MAX_LEN 256
 #define DATA_LOG_INVALID_ID -1
 
+#define DATA_LOG_MAX_PRECISION 15
+
 typedef struct _LogData LogData;
 typedef LogData* Log;
 
