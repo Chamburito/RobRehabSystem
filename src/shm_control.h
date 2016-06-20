@@ -40,8 +40,8 @@ typedef SHMControlData* SHMController;
         INIT_FUNCTION( void, Namespace, EndData, SHMController ) \
         INIT_FUNCTION( bool, Namespace, GetData, SHMController, void*, size_t, size_t ) \
         INIT_FUNCTION( bool, Namespace, SetData, SHMController, void*, size_t, size_t ) \
-        INIT_FUNCTION( uint8_t, Namespace, GetMaskByte, SHMController, size_t, bool ) \
-        INIT_FUNCTION( uint8_t, Namespace, SetMaskByte, SHMController, size_t, uint8_t )
+        INIT_FUNCTION( uint8_t, Namespace, GetControlByte, SHMController, size_t, bool ) \
+        INIT_FUNCTION( uint8_t, Namespace, SetControlByte, SHMController, size_t, uint8_t )
 
 DECLARE_NAMESPACE_INTERFACE( SHMControl, SHM_CONTROL_INTERFACE )
 

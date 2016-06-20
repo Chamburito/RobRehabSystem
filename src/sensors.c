@@ -177,6 +177,7 @@ inline void Sensors_Reset( Sensor sensor )
 {
   if( sensor == NULL ) return;
   
+  SignalProcessing.SetProcessorState( sensor->processor, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
   sensor->Reset( sensor->taskID );
 }
 

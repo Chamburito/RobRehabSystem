@@ -45,7 +45,7 @@
 
 #include "shm_control.h"
 #include "shm_axis_control.h"
-#include "shm_emg_control.h"
+#include "shm_joint_control.h"
 
 #include "control_definitions.h"
 
@@ -206,7 +206,6 @@ static void InitUserInterface( void )
 
 int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-  //char sharedVarName[ SHARED_VARIABLE_NAME_MAX_LENGTH ] = "192.168.0.181:";
   static uint8_t listRequestCount;
   
 	if( event == EVENT_COMMIT )
@@ -221,22 +220,12 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
       sharedRobotAxesData = SHMControl.InitData( "192.168.0.181:robot_axes_data", SHM_CONTROL_OUT );
       sharedRobotJointsData = SHMControl.InitData( "192.168.0.181:robot_joints_data", SHM_CONTROL_OUT );
       
-      SHMControl.SetMaskByte( sharedRobotAxesInfo, 0, ++listRequestCount );
+      SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++listRequestCount );
       
       SHMControl.GetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
       fprintf( stderr, "Read shared axes info: %s\n", robotAxesInfo );
       SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
       fprintf( stderr, "Read shared joints info: %s\n", robotJointsInfo );
-      
-      //GetCtrlVal( panel, PANEL_AXIS_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
-      //fprintf( stderr, "connecting to axis %s\n", sharedVarName );
-      //axisMotorController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
-      //if( axisMotorController != NULL ) fprintf( stderr, "connected to axis %s\n\n", sharedVarName );
-      
-      //GetCtrlVal( panel, PANEL_JOINT_STRING, sharedVarName + strlen( "192.168.0.181:" ) );
-      //fprintf( stderr, "connecting to joint %s\n", sharedVarName );
-      //jointEMGController = SHMControl.InitData( sharedVarName, SHM_CONTROL_OUT );
-      //if( jointEMGController != NULL ) fprintf( stderr, "connected to joint %s\n\n", sharedVarName );
       
       if( dataConnectionThreadID == THREAD_INVALID_HANDLE )
         dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
@@ -250,21 +239,15 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
 {
 	if( event == EVENT_COMMIT )
 	{
+    // Get the new value.
+    int enabled;
+    GetCtrlVal( panel, control, &enabled );
+    
     // Write the new value to the appropriate network variable.
-    if( control == PANEL_MOTOR_TOGGLE )
-    {
-      // Get the new value.
-      int enabled;
-      GetCtrlVal( panel, control, &enabled );
-
-      //if( enabled == 1 ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_ENABLE );
-      //else SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_DISABLE );
-    }
-    //else if( control == PANEL_MOTOR_OFFSET_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_OFFSET );
-    //else if( control == PANEL_MOTOR_CAL_TOGGLE ) SHMControl.SetControlByte( axisMotorController, SHM_COMMAND_CALIBRATE );
-    //else if( control == PANEL_EMG_OFFSET_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_OFFSET );
-    //else if( control == PANEL_EMG_CAL_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_CALIBRATION );
-    //else if( control == PANEL_EMG_SAMPLE_TOGGLE ) SHMControl.SetControlByte( jointEMGController, SHM_EMG_SAMPLING );
+    if( control == PANEL_MOTOR_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, enabled == 1 ? SHM_ROBOT_ENABLE : SHM_ROBOT_DISABLE );
+    else if( control == PANEL_OFFSET_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, enabled == 1 ? SHM_JOINT_OFFSET : SHM_JOINT_MEASURE );
+    else if( control == PANEL_CAL_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, enabled == 1 ? SHM_JOINT_CALIBRATE : SHM_JOINT_MEASURE );
+    else if( control == PANEL_SAMPLE_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, enabled == 1 ? SHM_JOINT_SAMPLE : SHM_JOINT_MEASURE );
 	}
   
 	return 0;

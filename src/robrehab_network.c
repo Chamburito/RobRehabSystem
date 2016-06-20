@@ -168,6 +168,7 @@ void SubSystem_Update()
 static void UpdateClientEvent( int clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
+  static uint8_t eventsCount;
   
   char* messageIn = AsyncIPNetwork.ReadMessage( clientID );
   if( messageIn != NULL ) 
@@ -181,7 +182,7 @@ static void UpdateClientEvent( int clientID )
       uint8_t command = (uint8_t) *(messageIn++);
       DEBUG_PRINT( "received event %u command: %u", eventIndex, command );
       
-      SHMControl.SetMaskByte( sharedRobotJointsInfo, eventIndex, 1 );
+      SHMControl.SetControlByte( sharedRobotJointsInfo, eventIndex, ++eventsCount );
       SHMControl.SetData( sharedRobotJointsInfo, (void*) &command, eventIndex, sizeof(uint8_t) );
     }
     
@@ -222,7 +223,7 @@ static void UpdateClientAxis( int clientID )
       else if( kv_A( axisNetworkControllersList, axisIndex ) != clientID ) continue;
       
       DEBUG_UPDATE( "receiving axis %u setpoints (mask: %x)", axisIndex, axisMask );
-      SHMControl.SetMaskByte( sharedRobotAxesData, axisIndex, axisMask );
+      SHMControl.SetControlByte( sharedRobotAxesData, axisIndex, axisMask );
       SHMControl.SetData( sharedRobotAxesData, messageIn, axisIndex * AXIS_DATA_BLOCK_SIZE, AXIS_DATA_BLOCK_SIZE );
       
       messageIn += AXIS_DATA_BLOCK_SIZE;

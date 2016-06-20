@@ -9,7 +9,8 @@
   },
   "signal_processing": {
     "rectified": true,
-    "normalized": true
+    "normalized": true,
+    "relative_cut_frequency": 0.001
   },
-  "log_data": false
+  "log_data": true
 }

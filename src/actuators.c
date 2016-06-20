@@ -166,9 +166,9 @@ void Actuators_Disable( Actuator actuator )
   Motors.Disable( actuator->motor );
 }
 
-void Actuators_Reset( Actuator actuator )
+bool Actuators_Reset( Actuator actuator )
 {
-  if( actuator == NULL ) return;
+  if( actuator == NULL ) return false;
     
   Motors.Reset( actuator->motor );
   
@@ -176,37 +176,43 @@ void Actuators_Reset( Actuator actuator )
     Sensors.Reset( actuator->sensorsList[ sensorIndex ] );
   
   Kalman.Reset( actuator->sensorFilter );
+  
+  return true;
 }
 
-void Actuators_SetOffset( Actuator actuator )
+bool Actuators_ToggleOffset( Actuator actuator )
 {
-  if( actuator == NULL ) return;
+  if( actuator == NULL ) return false;
 
   if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
     for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
       Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+    return false;
   }
   else
   {
     for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
       Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_OFFSET );
+    return true;
   }
 }
 
-void Actuators_Calibrate( Actuator actuator )
+bool Actuators_ToggleCalibration( Actuator actuator )
 {
-  if( actuator == NULL ) return;
+  if( actuator == NULL ) return false;
 
   if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_CALIBRATION )
   {
     for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
       Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+    return false;
   }
   else
   {
     for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
-      Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_CALIBRATION ); 
+      Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_CALIBRATION );
+    return true;
   }
 }
 

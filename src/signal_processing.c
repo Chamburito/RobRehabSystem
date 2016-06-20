@@ -101,8 +101,8 @@ void SignalProcessing_SetMaxFrequency( SignalProcessor processor, double relativ
   processor->inputFilterCoeffs[ 1 ] = 2 * processor->inputFilterCoeffs[ 0 ];
   processor->inputFilterCoeffs[ 2 ] = processor->inputFilterCoeffs[ 0 ];
   
-  //DEBUG_PRINT( "filter: y(%+g %+g %+g) x(%+g %+g %+g)", -processor->outputFilterCoeffs[ 0 ], -processor->outputFilterCoeffs[ 1 ], -processor->outputFilterCoeffs[ 2 ]
-  //                                                      processor->inputFilterCoeffs[ 0 ], processor->inputFilterCoeffs[ 1 ], processor->inputFilterCoeffs[ 2 ] );
+  DEBUG_PRINT( "filter: y(%+g %+g %+g) x(%+g %+g %+g)", -processor->outputFilterCoeffs[ 0 ], -processor->outputFilterCoeffs[ 1 ], -processor->outputFilterCoeffs[ 2 ],
+                                                        processor->inputFilterCoeffs[ 0 ], processor->inputFilterCoeffs[ 1 ], processor->inputFilterCoeffs[ 2 ] );
 }
 
 double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInputValuesList, size_t newValuesNumber )
@@ -190,6 +190,8 @@ void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalP
   {
     if( processor->recordedSamplesCount > 0 ) 
       processor->signalOffset = processor->signalMean / processor->recordedSamplesCount;
+    
+    DEBUG_PRINT( "new signal offset: %g", processor->signalOffset );
   }
   
   if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )

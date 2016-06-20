@@ -128,7 +128,7 @@ bool SHMControl_SetData( SHMController controller, void* valuesList, size_t data
   return true;
 }
 
-uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex, bool remove )
+uint8_t SHMControl_GetControlByte( SHMController controller, size_t maskByteIndex, bool remove )
 {
   if( controller == NULL ) return 0;
   
@@ -143,7 +143,7 @@ uint8_t SHMControl_GetMaskByte( SHMController controller, size_t maskByteIndex, 
   return maskByte;
 }
 
-uint8_t SHMControl_SetMaskByte( SHMController controller, size_t maskByteIndex, uint8_t maskByteValue )
+uint8_t SHMControl_SetControlByte( SHMController controller, size_t maskByteIndex, uint8_t maskByteValue )
 {
   if( controller == NULL ) return 0;
   
