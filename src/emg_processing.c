@@ -259,11 +259,14 @@ double EMGProcessing_GetJointMuscleTorque( int jointID, size_t muscleIndex, doub
 const char* MUSCLE_CURVE_NAMES[ MUSCLE_CURVES_NUMBER ] = { "active_force", "passive_force", "moment_arm", "normalized_length", "penation_angle" };
 static EMGMuscle LoadEMGMuscleData( const char* configFileName )
 {
+  static char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
+  
   DEBUG_PRINT( "Trying to load muscle %s EMG data", configFileName );
   
   EMGMuscle newMuscle = NULL;
   
-  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  sprintf( filePath, "muscles/%s", configFileName );
+  int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
     newMuscle = (EMGMuscle) malloc( sizeof(EMGMuscleData) );
@@ -293,11 +296,14 @@ static EMGMuscle LoadEMGMuscleData( const char* configFileName )
 
 static EMGJoint LoadEMGJointData( const char* configFileName )
 {
+  static char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
+  
   DEBUG_PRINT( "Trying to load joint %s EMG data", configFileName );
   
   EMGJoint newJoint = NULL;
   
-  int configFileID = ConfigParsing.LoadConfigFile( configFileName );
+  sprintf( filePath, "joints/%s", configFileName );
+  int configFileID = ConfigParsing.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
     newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );

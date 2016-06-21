@@ -1,8 +1,8 @@
 {
-  "interface": {
-    "type": "signal_io/NIDAQmx",
-    "name": "EMGReadTask",
-    "input_channel": 4
+  "input_interface": {
+    "type": "NIDAQmx",
+    "id": "EMGReadTask",
+    "channel": 4
   },
   "input_gain": {
     "divisor": 909

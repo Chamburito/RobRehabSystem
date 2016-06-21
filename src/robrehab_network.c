@@ -169,6 +169,7 @@ static void UpdateClientEvent( int clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   static uint8_t eventsCount;
+  static uint8_t listRequestsCount;
   
   char* messageIn = AsyncIPNetwork.ReadMessage( clientID );
   if( messageIn != NULL ) 
@@ -176,6 +177,20 @@ static void UpdateClientEvent( int clientID )
     DEBUG_UPDATE( "received input message: %s", messageIn );
     
     uint8_t commandBlocksNumber = (uint8_t) *(messageIn++);
+    
+    if( commandBlocksNumber == 0xFF )
+    {
+      memset( messageOut, 0, IP_MAX_MESSAGE_LENGTH * sizeof(char) );
+      
+      SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++listRequestsCount );
+      Timing.Delay( 0.1 );
+      
+      SHMControl.GetData( sharedRobotAxesInfo, (void*) messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      AsyncIPNetwork.WriteMessage( clientID, messageOut );
+      SHMControl.GetData( sharedRobotJointsInfo, (void*) messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      AsyncIPNetwork.WriteMessage( clientID, messageOut );
+    }
+    
     for( uint8_t commandBlockIndex = 0; commandBlockIndex < commandBlocksNumber; commandBlockIndex++ )
     {
       uint8_t eventIndex = (uint8_t) *(messageIn++);
@@ -185,21 +200,9 @@ static void UpdateClientEvent( int clientID )
       SHMControl.SetControlByte( sharedRobotJointsInfo, eventIndex, ++eventsCount );
       SHMControl.SetData( sharedRobotJointsInfo, (void*) &command, eventIndex, sizeof(uint8_t) );
     }
-    
-    memset( messageOut, 0, IP_MAX_MESSAGE_LENGTH * sizeof(char) );
-    
-    uint8_t updateCommand = (uint8_t) *(messageIn++);
-    if( updateCommand != 0 )
-    {
-      if( updateCommand == SHM_AXES_LIST ) SHMControl.GetData( sharedRobotAxesInfo, messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
-      else if( updateCommand == SHM_JOINTS_LIST ) SHMControl.GetData( sharedRobotJointsInfo, messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
-      
-      AsyncIPNetwork.WriteMessage( clientID, messageOut );
-    }
   }
 }
 
-const size_t AXIS_DATA_BLOCK_SIZE = SHM_AXIS_FLOATS_NUMBER * sizeof(float);
 static void UpdateClientAxis( int clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
@@ -253,7 +256,7 @@ static void UpdateClientAxis( int clientID )
   }
 }
 
-const size_t JOINT_DATA_BLOCK_SIZE = SHM_JOINT_FLOATS_NUMBER * sizeof(float);
+
 static void UpdateClientJoint( int clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];

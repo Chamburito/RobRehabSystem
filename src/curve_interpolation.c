@@ -208,7 +208,10 @@ double CurveInterpolation_GetValue( Curve curve, double valuePosition, double de
           curveValue = 0.0;
           double relativePosition = valuePosition - positionOffset;
           for( size_t coeffIndex = 0; coeffIndex < coeffsNumber; coeffIndex++ )
-            curveValue += curveCoeffs[ coeffIndex ] * pow( relativePosition, coeffIndex );
+          {
+            if( relativePosition != 0.0 )
+              curveValue += curveCoeffs[ coeffIndex ] * pow( relativePosition, (double) coeffIndex );
+          }
           
           break;
         }

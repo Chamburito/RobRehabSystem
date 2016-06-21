@@ -123,7 +123,8 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInpu
   {
     for( size_t valueIndex = 0; valueIndex < newValuesNumber; valueIndex++ )
     {
-      newInputValue = newInputValuesList[ valueIndex ] * processor->inputGain - processor->signalOffset;
+      //newInputValue = newInputValuesList[ valueIndex ] * processor->inputGain - processor->signalOffset;
+      newInputValue = ( rand() % 31 - 15 ) * processor->inputGain - processor->signalOffset;
 
       if( processor->rectify ) newInputValue = fabs( newInputValue );
 

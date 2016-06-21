@@ -89,21 +89,30 @@ int SubSystem_Init( const char* configType )
   {
     SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
     
+    sprintf( robotJointsInfo, "0:simple_joint|1:angle" );
+    
+    DEBUG_PRINT( "found robots/joints info: %s", robotJointsInfo );
+    
     char* robotsInfo = strtok( robotJointsInfo, "|" );
+    char* jointsInfo = strtok( NULL, "|" );
+    
     robotsNumber = 0;
     if( robotsInfo != NULL )
     {
+      DEBUG_PRINT( "found robots info: %s", robotsInfo );
+      
       for( char* robotIDString = strtok( robotsInfo, ":" ); robotIDString != NULL; robotIDString = strtok( NULL, ":" ) )
         robotsNumber++;
     }
     
-    char* jointsInfo = strtok( NULL, "|" );
     if( jointsInfo != NULL )
     {
       for( char* jointIDString = strtok( jointsInfo, ":" ); jointIDString != NULL; jointIDString = strtok( NULL, ":" ) )
       {
         uint8_t jointIndex = (uint8_t) strtoul( jointIDString, NULL, 0 );
         char* jointName = strtok( NULL, ":" );
+        
+        DEBUG_PRINT( "found joint %s", jointName );
         
         SHMJointData newSharedJoint = { .lastJointPhase = SHM_JOINT_CALIBRATION };
         if( (newSharedJoint.samplingData.jointID = EMGProcessing.InitJoint( jointName )) != EMG_JOINT_INVALID_ID )
@@ -160,7 +169,7 @@ void SubSystem_Update( void )
 {
   static uint8_t controlData[ SHM_CONTROL_MAX_DATA_SIZE ];
   
-  SHMControl.GetData( sharedRobotJointsInfo, controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
+  SHMControl.GetData( sharedRobotJointsData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
   
   for( size_t jointIndex = 0; jointIndex < kv_size( sharedJointsList ); jointIndex++ )
   {
@@ -168,54 +177,54 @@ void SubSystem_Update( void )
     
     uint8_t jointPhase = SHMControl.GetControlByte( sharedRobotJointsInfo, robotsNumber + jointIndex, SHM_CONTROL_PEEK );
     
-    //jointPhase = SHM_JOINT_SAMPLING;
-    if( jointPhase != sharedJoint->lastJointPhase )
+    if( jointPhase != 0x00 )
     {
-      if( jointPhase == SHM_JOINT_OFFSET )
+      if( jointPhase != sharedJoint->lastJointPhase )
       {
-        DEBUG_PRINT( "starting offset phase for joint %d", sharedJoint->samplingData.jointID );
-        EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_OFFSET );
-      }
-      else if( jointPhase == SHM_JOINT_CALIBRATION )
-      {
-        DEBUG_PRINT( "starting calibration for joint %d", sharedJoint->samplingData.jointID );
-        EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_CALIBRATION );
-      }
-      else if( jointPhase == SHM_JOINT_SAMPLING )
-      {
-        DEBUG_PRINT( "reseting sampling count for joint %d", sharedJoint->samplingData.jointID );
-        EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
-        sharedJoint->samplingData.samplesCount = 0;
-      }
-      else if( jointPhase == SHM_JOINT_MEASUREMENT )
-      {
-        size_t parametersNumber = sharedJoint->samplingData.musclesCount * MUSCLE_GAINS_NUMBER + 1;
-        if( sharedJoint->lastJointPhase == SHM_JOINT_SAMPLING && parametersNumber > 0 )
+        if( jointPhase == SHM_JOINT_OFFSET )
         {
-          DEBUG_PRINT( "starting optimization for shared joint %d", sharedJoint->samplingData.jointID );
-        
-          double* parametersList = (double*) calloc( parametersNumber, sizeof(double) );
-          for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
-          {
-            for( size_t parameterIndex = 0; parameterIndex < MUSCLE_GAINS_NUMBER; parameterIndex++ )
-            {
-              //double initialValue = ( MUSCLE_MIN_GAINS[ parameterIndex ] + MUSCLE_MAX_GAINS[ parameterIndex ] ) / 2.0;
-              parametersList[ muscleIndex * MUSCLE_GAINS_NUMBER + parameterIndex ] = 0.0;
-            }
-          }
-        
-          //Optimization.Run( parametersList, parametersNumber, CalculateMuscleParametersError, &(sharedJoint->samplingData), OPTIMIZATION_MINIMIZE, 100 );
-        
-          free( parametersList );
+          DEBUG_PRINT( "starting offset phase for joint %d", sharedJoint->samplingData.jointID );
+          EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_OFFSET );
         }
-      }
+        else if( jointPhase == SHM_JOINT_CALIBRATION )
+        {
+          DEBUG_PRINT( "starting calibration for joint %d", sharedJoint->samplingData.jointID );
+          EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_CALIBRATION );
+        }
+        else if( jointPhase == SHM_JOINT_SAMPLING )
+        {
+          DEBUG_PRINT( "reseting sampling count for joint %d", sharedJoint->samplingData.jointID );
+          EMGProcessing.SetProcessingPhase( sharedJoint->samplingData.jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+          sharedJoint->samplingData.samplesCount = 0;
+        }
+        else if( jointPhase == SHM_JOINT_MEASUREMENT )
+        {
+          size_t parametersNumber = sharedJoint->samplingData.musclesCount * MUSCLE_GAINS_NUMBER + 1;
+          if( sharedJoint->lastJointPhase == SHM_JOINT_SAMPLING && parametersNumber > 0 )
+          {
+            DEBUG_PRINT( "starting optimization for shared joint %d", sharedJoint->samplingData.jointID );
+        
+            double* parametersList = (double*) calloc( parametersNumber, sizeof(double) );
+            for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
+            {
+              for( size_t parameterIndex = 0; parameterIndex < MUSCLE_GAINS_NUMBER; parameterIndex++ )
+              {
+                //double initialValue = ( MUSCLE_MIN_GAINS[ parameterIndex ] + MUSCLE_MAX_GAINS[ parameterIndex ] ) / 2.0;
+                parametersList[ muscleIndex * MUSCLE_GAINS_NUMBER + parameterIndex ] = 0.0;
+              }
+            }
+        
+            //Optimization.Run( parametersList, parametersNumber, CalculateMuscleParametersError, &(sharedJoint->samplingData), OPTIMIZATION_MINIMIZE, 100 );
+        
+            free( parametersList );
+          }
+        }
       
-      sharedJoint->lastJointPhase = jointPhase;
+        sharedJoint->lastJointPhase = jointPhase;
+      }
     }
     
-    //DEBUG_PRINT( "updating joint %lu", jointIndex );
-    
-    float* jointControlMeasures = (float*) controlData;
+    float* jointControlMeasures = (float*) (controlData + jointIndex * JOINT_DATA_BLOCK_SIZE);
     double jointAngle = (double) jointControlMeasures[ SHM_JOINT_POSITION ] * 360.0;
     double jointIDTorque = (double) jointControlMeasures[ SHM_JOINT_FORCE ];
 
@@ -245,15 +254,17 @@ void SubSystem_Update( void )
     }
     else
     {
-      //double jointEMGTorque = EMGProcessing.GetJointTorque( sharedJoint->samplingData.jointID, jointAngle );
-      //double jointEMGStiffness = EMGProcessing.GetJointStiffness( sharedJoint->samplingData.jointID, jointAngle );
+      //jointControlMeasures[ SHM_JOINT_FORCE ] = (float) EMGProcessing.GetJointTorque( sharedJoint->samplingData.jointID, jointAngle );
+      //jointControlMeasures[ SHM_JOINT_STIFFNESS ] = (float) EMGProcessing.GetJointStiffness( sharedJoint->samplingData.jointID, jointAngle );
 
-      //DEBUG_PRINT( "Joint position: %.3f", jointAngle );
+      //DEBUG_PRINT( "Joint pos: %.3f - force: %.3f - stiff: %.3f", jointAngle, jointControlMeasures[ SHM_JOINT_FORCE ], jointControlMeasures[ SHM_JOINT_STIFFNESS ] );
 
-      //SHMControl.SetNumericValue( sharedJoint->controller, SHM_JOINT_EMG_TORQUE, jointEMGTorque );
-      //SHMControl.SetNumericValue( sharedJoint->controller, SHM_JOINT_EMG_STIFFNESS, jointEMGStiffness );
+      for( size_t muscleIndex = 0; muscleIndex < sharedJoint->samplingData.musclesCount; muscleIndex++ )
+          jointControlMeasures[ SHM_JOINT_EMG_1 + muscleIndex ] = (float) EMGProcessing.GetJointMuscleSignal( sharedJoint->samplingData.jointID, muscleIndex );
     }
   }
+  
+  SHMControl.SetData( sharedRobotJointsData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
 }
 
 

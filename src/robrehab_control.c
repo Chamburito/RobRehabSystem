@@ -142,8 +142,6 @@ void UpdateEvents()
 
 void UpdateAxes()
 {
-  const size_t AXIS_DATA_BLOCK_SIZE = SHM_AXIS_FLOATS_NUMBER * sizeof(float);
-  
   static uint8_t measureData[ SHM_CONTROL_MAX_DATA_SIZE ], setpointData[ SHM_CONTROL_MAX_DATA_SIZE ];
   static uint8_t updateCount;
   
@@ -171,8 +169,8 @@ void UpdateAxes()
     {
       float* controlMeasuresList = (float*) (measureData + axisIndex * AXIS_DATA_BLOCK_SIZE);
       
-      if( fabs( controlMeasuresList[ SHM_AXIS_POSITION ] - (float) axisMeasures->position ) > 0.05 )
-      {
+      //if( fabs( controlMeasuresList[ SHM_AXIS_POSITION ] - (float) axisMeasures->position ) > 0.05 )
+      //{
         controlMeasuresList[ SHM_AXIS_POSITION ] = (float) axisMeasures->position;
         controlMeasuresList[ SHM_AXIS_VELOCITY ] = (float) axisMeasures->velocity;
         controlMeasuresList[ SHM_AXIS_ACCELERATION ] = (float) axisMeasures->acceleration;
@@ -183,7 +181,7 @@ void UpdateAxes()
         //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlMeasuresList[ SHM_AXIS_POSITION ], controlMeasuresList[ SHM_AXIS_VELOCITY ], controlMeasuresList[ SHM_AXIS_FORCE ] );
       
         SHMControl.SetControlByte( sharedRobotAxesData, axisIndex, ++updateCount );
-      }
+      //}
     }
   }
   
@@ -192,8 +190,6 @@ void UpdateAxes()
 
 void UpdateJoints()
 {
-  const size_t JOINT_DATA_BLOCK_SIZE = SHM_JOINT_FLOATS_NUMBER * sizeof(float);  
-  
   static uint8_t measureData[ SHM_CONTROL_MAX_DATA_SIZE ], setpointData[ SHM_CONTROL_MAX_DATA_SIZE ];
   static uint8_t updateCount;
   
@@ -215,14 +211,14 @@ void UpdateJoints()
     {
       float* controlMeasuresList = (float*) (measureData + jointIndex * JOINT_DATA_BLOCK_SIZE);
       
-      if( fabs( controlMeasuresList[ SHM_JOINT_POSITION ] - (float) jointMeasures->position ) > 0.05 )
-      {
+      //if( fabs( controlMeasuresList[ SHM_JOINT_POSITION ] - (float) jointMeasures->position ) > 0.05 )
+      //{
         controlMeasuresList[ SHM_JOINT_POSITION ] = (float) jointMeasures->position;
         controlMeasuresList[ SHM_JOINT_FORCE ] = (float) jointMeasures->force;
         controlMeasuresList[ SHM_JOINT_STIFFNESS ] = (float) jointMeasures->stiffness;
       
         SHMControl.SetControlByte( sharedRobotJointsData, jointIndex, ++updateCount );
-      }
+      //}
     }
   }
   
@@ -291,8 +287,7 @@ void LoadSharedRobotsInfo()
         }
       }
       
-      strcat( robotJointsInfo, "|" );
-      strcat( robotJointsInfo, jointsInfo );
+      if( strlen( jointsInfo ) > 0 ) sprintf( robotJointsInfo + strlen( robotJointsInfo ), "|%s", jointsInfo );
     }
 
     ConfigParsing.GetParser()->UnloadData( configFileID );
