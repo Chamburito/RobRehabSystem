@@ -295,9 +295,11 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
   {
     if( WSAStartup( MAKEWORD( 2, 2 ), &wsa ) != 0 )
     {
-      fprintf( stderr, "%s: error initialiasing windows sockets: code: %d", __func__, WSAGetLastError() );
+      fprintf( stderr, "%s: error initialiasing windows sockets: code: %d\n", __func__, WSAGetLastError() );
       return NULL;
     }
+    
+    fprintf( stderr, "%s: initialiasing windows sockets version: %d\n", __func__, wsa.wVersion );
   }
   #endif
   
@@ -462,7 +464,7 @@ bool BindUDPServerSocket( int socketFD, IPAddress address )
       return false;
     }
     unsigned int interfaceIndex = 0; // 0 means default interface
-	if( setsockopt( socketFD, IPPROTO_IPV6, IPV6_MULTICAST_IF, (const char*) &interfaceIndex, sizeof(interfaceIndex)) != 0 ) 
+	  if( setsockopt( socketFD, IPPROTO_IPV6, IPV6_MULTICAST_IF, (const char*) &interfaceIndex, sizeof(interfaceIndex)) != 0 ) 
     {
       ERROR_PRINT( "setsockopt: failed setting socket %d option IPV6_MULTICAST_IF", socketFD );
       close( socketFD );
@@ -478,7 +480,7 @@ bool BindUDPServerSocket( int socketFD, IPAddress address )
       return false;
     }
     in_addr_t interface = htonl( INADDR_ANY );
-	if( setsockopt( socketFD, IPPROTO_IP, IP_MULTICAST_IF, (const char*) &interface, sizeof(interface)) != 0 ) 
+	  if( setsockopt( socketFD, IPPROTO_IP, IP_MULTICAST_IF, (const char*) &interface, sizeof(interface)) != 0 ) 
     {
       ERROR_PRINT( "setsockopt: failed setting socket %d option IP_MULTICAST_IF", socketFD );
       close( socketFD );
@@ -638,7 +640,7 @@ inline int IPNetwork_SendMessage( IPConnection connection, const char* message )
     return 0;
   }
   
-  //DEBUG_PRINT( "connection socket %d sending message: %s", connection->socket->fd, message );
+  DEBUG_PRINT( "connection socket %d sending message: %s", connection->socket->fd, message );
   
   return connection->ref_SendMessage( connection, message ); 
 }
@@ -656,7 +658,7 @@ int IPNetwork_WaitEvent( unsigned int milliseconds )
   int eventsNumber = select( polledSocketsNumber, &readFDSet, NULL, NULL, &waitTime );
   #endif
   if( eventsNumber == SOCKET_ERROR ) ERROR_PRINT( "select: error waiting for events on %lu FDs", polledSocketsNumber );
-    
+  
   return eventsNumber;
 }
 
@@ -668,7 +670,15 @@ bool IPNetwork_IsDataAvailable( IPConnection connection )
   if( connection->socket->revents & POLLRDNORM ) return true;
   else if( connection->socket->revents & POLLRDBAND ) return true;
   #else
-  if( FD_ISSET( connection->socket->fd, &polledSocketsSet ) ) return true;
+  fd_set readFDSet;
+  FD_ZERO( &readFDSet );
+  FD_SET( connection->socket->fd, &readFDSet );
+  struct timeval waitTime = { .tv_sec = 20 };
+  int eventsNumber = select( connection->socket->fd + 1, &readFDSet, NULL, NULL, &waitTime );
+  if( eventsNumber == SOCKET_ERROR ) ERROR_PRINT( "select: error waiting for events on FD %d", connection->socket->fd );
+  DEBUG_PRINT( "%d events detected", eventsNumber );
+  if( FD_ISSET( connection->socket->fd, &readFDSet ) ) return true;
+  //if( FD_ISSET( connection->socket->fd, &polledSocketsSet ) ) return true;
   #endif
   
   return false;
@@ -776,6 +786,8 @@ static IPConnection AcceptTCPClient( IPConnection server )
   int clientSocketFD;
   static struct sockaddr_storage clientAddress;
   static socklen_t addressLength = sizeof(clientAddress);
+  
+  DEBUG_PRINT( "calling accept on socket FD %d", server->socket->fd );
   
   clientSocketFD = accept( server->socket->fd, (struct sockaddr *) &clientAddress, &addressLength );
 

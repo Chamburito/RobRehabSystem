@@ -20,6 +20,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
+#include <ws2tcpip.h>
+#include <stdint.h>
+#include <time.h>
+  
+#pragma comment(lib, "Ws2_32.lib")
+
 #include "ip_network/async_ip_network.h"
 
 #include "shm_control.h"
@@ -62,6 +68,34 @@ DEFINE_NAMESPACE_INTERFACE( SubSystem, ROBREHAB_SUBSYSTEM_INTERFACE )
 int SubSystem_Init( const char* configType )
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Initializing RobRehab Network on thread %lx", THREAD_ID );
+  
+  static WSADATA wsa;
+  if( wsa.wVersion == 0 )
+  {
+    if( WSAStartup( MAKEWORD( 2, 2 ), &wsa ) != 0 )
+      fprintf( stderr, "%s: error initialiasing windows sockets: code: %d\n", __func__, WSAGetLastError() );
+    else
+      fprintf( stderr, "%s: initialiasing windows sockets version: %d\n", __func__, wsa.wVersion );
+  }
+  
+  int socketFD = socket( AF_INET, SOCK_STREAM, 0 );
+  DEBUG_PRINT( "socket returns %d", socketFD );
+  struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons( 50000 ) };   // IPv4 address
+  //address.sin_addr.s_addr = inet_addr( "192.168.0.102" );
+  //int status = connect( socketFD, (struct sockaddr*) &address, sizeof(struct sockaddr_in) );
+  //DEBUG_PRINT( "connect returns %d", status );
+  //status = send( socketFD, "Hello", strlen( "Hello" ) + 1, 0 );
+  address.sin_addr.s_addr = INADDR_ANY;
+  int status = bind( socketFD, (struct sockaddr*) &address, sizeof(struct sockaddr_in) );
+  DEBUG_PRINT( "bind returns %d", status );
+  status = listen( socketFD, 10 );
+  DEBUG_PRINT( "listen returns %d", status );
+  struct sockaddr_in clientAddress;
+  socklen_t addressLength = sizeof(clientAddress);
+  int client = accept( socketFD, (struct sockaddr *) &clientAddress, &addressLength );
+  DEBUG_PRINT( "accepted client %d", client );
+  closesocket( socketFD );
+  
   if( (eventServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_TCP, NULL, 50000 )) == IP_CONNECTION_INVALID_ID )
     return -1;
   if( (axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_UDP, NULL, 50001 )) == IP_CONNECTION_INVALID_ID )

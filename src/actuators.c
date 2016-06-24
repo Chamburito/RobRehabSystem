@@ -44,7 +44,6 @@ struct _ActuatorData
   Motor motor;
   Sensor* sensorsList;
   size_t sensorsNumber;
-  enum SignalProcessingPhase sensorState;
   KalmanFilter sensorFilter;
   ControlVariables measures;
   ControlVariables setpoints;
@@ -94,8 +93,6 @@ Actuator Actuators_Init( const char* configFileName )
           }
         }
       }
-      
-      newActuator->sensorState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
     }
     
     if( (newActuator->motor = Motors.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "motor.id" ) )) == NULL ) loadSuccess = false;
@@ -166,9 +163,9 @@ void Actuators_Disable( Actuator actuator )
   Motors.Disable( actuator->motor );
 }
 
-bool Actuators_Reset( Actuator actuator )
+void Actuators_Reset( Actuator actuator )
 {
-  if( actuator == NULL ) return false;
+  if( actuator == NULL ) return;
     
   Motors.Reset( actuator->motor );
   
@@ -176,44 +173,26 @@ bool Actuators_Reset( Actuator actuator )
     Sensors.Reset( actuator->sensorsList[ sensorIndex ] );
   
   Kalman.Reset( actuator->sensorFilter );
+}
+
+void Actuators_SetOffset( Actuator actuator, bool enabled )
+{
+  if( actuator == NULL ) return;
+
+  enum SignalProcessorState sensorsState = enabled ? SIGNAL_PROCESSING_PHASE_OFFSET : SIGNAL_PROCESSING_PHASE_MEASUREMENT; 
   
-  return true;
+  for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
+    Sensors.SetState( actuator->sensorsList[ sensorIndex ], sensorsState );
 }
 
-bool Actuators_ToggleOffset( Actuator actuator )
+void Actuators_SetCalibration( Actuator actuator, bool enabled )
 {
-  if( actuator == NULL ) return false;
+  if( actuator == NULL ) return;
 
-  if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_OFFSET )
-  {
-    for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
-      Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_MEASUREMENT );
-    return false;
-  }
-  else
-  {
-    for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
-      Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_OFFSET );
-    return true;
-  }
-}
-
-bool Actuators_ToggleCalibration( Actuator actuator )
-{
-  if( actuator == NULL ) return false;
-
-  if( actuator->sensorState == SIGNAL_PROCESSING_PHASE_CALIBRATION )
-  {
-    for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
-      Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_MEASUREMENT );
-    return false;
-  }
-  else
-  {
-    for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
-      Sensors.SetState( actuator->sensorsList[ sensorIndex ], SIGNAL_PROCESSING_PHASE_CALIBRATION );
-    return true;
-  }
+  enum SignalProcessorState sensorsState = enabled ? SIGNAL_PROCESSING_PHASE_CALIBRATION : SIGNAL_PROCESSING_PHASE_MEASUREMENT; 
+ 
+  for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
+    Sensors.SetState( actuator->sensorsList[ sensorIndex ], sensorsState );
 }
 
 bool Actuators_IsEnabled( Actuator actuator )

@@ -131,9 +131,25 @@ void UpdateEvents()
       DEBUG_PRINT( "Joint %lu received command %u", eventIndex, jointByte );
       Actuator jointActuator = Robots.GetJointActuator( kv_A( jointsList, jointIndex ) );
 
-      if( jointByte == SHM_JOINT_RESET ) jointByte = Actuators.Reset( jointActuator ) ? SHM_JOINT_MEASUREMENT : SHM_JOINT_ERROR;
-      else if( jointByte == SHM_JOINT_OFFSET ) jointByte = Actuators.ToggleOffset( jointActuator ) ? SHM_JOINT_OFFSET : SHM_JOINT_MEASUREMENT;
-      else if( jointByte == SHM_JOINT_CALIBRATE ) jointByte = Actuators.ToggleCalibration( jointActuator ) ? SHM_JOINT_CALIBRATION : SHM_JOINT_MEASUREMENT;
+      if( jointByte == SHM_JOINT_RESET ) Actuators.Reset( jointActuator );
+      else if( jointByte == SHM_JOINT_OFFSET ) 
+      {
+        Actuators.SetOffset( jointActuator, true );
+        jointByte = SHM_JOINT_OFFSET;
+      }
+      else if( jointByte == SHM_JOINT_CALIBRATE ) 
+      {
+        Actuators.SetCalibration( jointActuator, true );
+        jointByte = SHM_JOINT_CALIBRATION;
+      }
+      else if( jointByte == SHM_JOINT_MEASURE ) 
+      {
+        Actuators.SetOffset( jointActuator, false );
+        Actuators.SetCalibration( jointActuator, false );
+        jointByte = SHM_JOINT_MEASUREMENT;
+      }
+      
+      if( Actuators.HasError( jointActuator ) ) jointByte = SHM_JOINT_ERROR;
 
       SHMControl.SetControlByte( sharedRobotJointsInfo, eventIndex, jointByte );
     }

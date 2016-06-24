@@ -11,6 +11,7 @@ const char* DOF_NAMES[ DOFS_NUMBER ] = { "angle" };
 
 typedef struct _ControlData
 {
+  ControlVariables measuresMaxList[ DOFS_NUMBER ];
   Matrix statesProbability;
   Matrix Aux_rec, Aux;
   Matrix W, Z, V, U;
@@ -26,6 +27,8 @@ DECLARE_MODULE_INTERFACE( ROBOT_CONTROL_INTERFACE )
 Controller InitController( const char* data )
 {
   ControlData* newController = (ControlData*) malloc( sizeof(ControlData) );
+  
+  newController->measuresMaxList[ 0 ].position = 1.0;
   
   double stateProbabilityData[ 3 ][ 3 ] = { { 0.9317, 0.0595, 0.0088 }, { 0.0175, 0.9708, 0.0117 }, { 0.0088, 0.04, 0.9512 } };
   newController->statesProbability = Matrices.Create( (double*) stateProbabilityData, 3, 3 );
@@ -121,7 +124,10 @@ void RunControlStep( Controller ref_controller, ControlVariables** jointMeasures
   
   ControlData* controller = (ControlData*) ref_controller;
   
-  double jointPosition = jointMeasuresList[ 0 ]->position;
+  if( fabs( jointMeasuresList[ 0 ]->position ) > controller->measuresMaxList[ 0 ].position ) controller->measuresMaxList[ 0 ].position = fabs( jointMeasuresList[ 0 ]->position );
+  if( fabs( controller->measuresMaxList[ 0 ].position ) < 0.0001 ) controller->measuresMaxList[ 0 ].position = 0.0001;
+  
+  double jointPosition = jointMeasuresList[ 0 ]->position / controller->measuresMaxList[ 0 ].position;
   size_t jointSector = 0;
   double jointSectorLength = 2.0 / 3;
   
@@ -164,5 +170,5 @@ void RunControlStep( Controller ref_controller, ControlVariables** jointMeasures
   
   jointSetpointsList[ 0 ]->force = result;
   
-  //if( jointSetpointsList[ 0 ]->stiffness == 0.0 ) jointSetpointsList[ 0 ]->force = 0.0;
+  if( jointSetpointsList[ 0 ]->stiffness == 0.0 ) jointSetpointsList[ 0 ]->force = 0.0;
 }

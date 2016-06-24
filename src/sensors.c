@@ -160,7 +160,7 @@ double Sensors_Update( Sensor sensor )
   if( sensor->logID != DATA_LOG_INVALID_ID )
   {
     DataLogging.RegisterList( sensor->logID, sensor->maxInputSamplesNumber, sensor->inputBuffer );
-    //DataLogging.RegisterValues( sensor->logID, 3, sensorOutput, referenceOutput, sensorMeasure );
+    DataLogging.RegisterValues( sensor->logID, 3, sensorOutput, referenceOutput, sensorMeasure );
   }
   
   return sensorMeasure;

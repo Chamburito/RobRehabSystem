@@ -155,7 +155,7 @@ void Motors_WriteControl( Motor motor, double setpoint )
   if( setpoint > 1.0 ) setpoint = 1.0;
   else if( setpoint < -1.0 ) setpoint = -1.0;
   
-  DEBUG_PRINT( "motor output: %g * %.5f = %g", motor->outputGain, setpoint, setpoint * motor->outputGain );
+  //DEBUG_PRINT( "motor output: %g * %.5f = %g", motor->outputGain, setpoint, setpoint * motor->outputGain );
   
   setpoint = ( setpoint + motor->outputOffset ) * motor->outputGain;
   

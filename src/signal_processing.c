@@ -123,8 +123,7 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInpu
   {
     for( size_t valueIndex = 0; valueIndex < newValuesNumber; valueIndex++ )
     {
-      //newInputValue = newInputValuesList[ valueIndex ] * processor->inputGain - processor->signalOffset;
-      newInputValue = ( rand() % 31 - 15 ) * processor->inputGain - processor->signalOffset;
+      newInputValue = newInputValuesList[ valueIndex ] * processor->inputGain - processor->signalOffset;
 
       if( processor->rectify ) newInputValue = fabs( newInputValue );
 
@@ -187,6 +186,8 @@ void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalP
   
   if( newProcessingPhase >= SIGNAL_PROCESSING_PHASES_NUMBER ) return;
 
+  DEBUG_PRINT( "current: %x - new: %x", processor->processingPhase, newProcessingPhase );
+  
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
     if( processor->recordedSamplesCount > 0 ) 
@@ -194,6 +195,9 @@ void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalP
     
     DEBUG_PRINT( "new signal offset: %g", processor->signalOffset );
   }
+  
+  if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+    DEBUG_PRINT( "new signal limits: %g %g", processor->signalLimitsList[ 0 ], processor->signalLimitsList[ 1 ] );
   
   if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
   {

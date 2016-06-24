@@ -40,12 +40,18 @@
 #include <cvirte.h>		
 #include <userint.h>
 
+//#include <ws2tcpip.h>
+//#include <stdint.h>
+//#include <time.h>
+  
+//#pragma comment(lib, "Ws2_32.lib")
+
 #include "threads/threading.h"
 #include "time/timing.h"
 
-#include "ip_network/async_ip_network.h"
+//#include "ip_network/async_ip_network.h"
 
-//#include "shm_control.h"
+#include "shm_control.h"
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
 
@@ -61,17 +67,17 @@ static int panel;
 /* Function prototypes */
 static void* UpdateData( void* );
 
-static int eventServerConnectionID = IP_CONNECTION_INVALID_ID;
-static int axisServerConnectionID = IP_CONNECTION_INVALID_ID;
-static int jointServerConnectionID = IP_CONNECTION_INVALID_ID;
+//static int eventServerConnectionID = IP_CONNECTION_INVALID_ID;
+//static int axisServerConnectionID = IP_CONNECTION_INVALID_ID;
+//static int jointServerConnectionID = IP_CONNECTION_INVALID_ID;
 
-//SHMController sharedRobotAxesInfo;
-//SHMController sharedRobotJointsInfo;
-//SHMController sharedRobotAxesData;
-//SHMController sharedRobotJointsData;
+SHMController sharedRobotAxesInfo;
+SHMController sharedRobotJointsInfo;
+SHMController sharedRobotAxesData;
+SHMController sharedRobotJointsData;
 
-char robotAxesInfo[ IP_MAX_MESSAGE_LENGTH ] = "";
-char robotJointsInfo[ IP_MAX_MESSAGE_LENGTH ] = "";
+char robotAxesInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
+char robotJointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
 
 Thread dataConnectionThreadID = THREAD_INVALID_HANDLE;
 bool isDataUpdateRunning = false;
@@ -101,14 +107,14 @@ int main( int argc, char *argv[] )
   isDataUpdateRunning = false;
   Threading.WaitExit( dataConnectionThreadID, 5000 );
   
-  AsyncIPNetwork.CloseConnection( eventServerConnectionID );
-  AsyncIPNetwork.CloseConnection( axisServerConnectionID );
-  AsyncIPNetwork.CloseConnection( jointServerConnectionID );
+  //AsyncIPNetwork.CloseConnection( eventServerConnectionID );
+  //AsyncIPNetwork.CloseConnection( axisServerConnectionID );
+  //AsyncIPNetwork.CloseConnection( jointServerConnectionID );
   
-  //SHMControl.EndData( sharedRobotAxesInfo );
-  //SHMControl.EndData( sharedRobotJointsInfo );
-  //SHMControl.EndData( sharedRobotAxesData );
-  //SHMControl.EndData( sharedRobotJointsData );
+  SHMControl.EndData( sharedRobotAxesInfo );
+  SHMControl.EndData( sharedRobotJointsInfo );
+  SHMControl.EndData( sharedRobotAxesData );
+  SHMControl.EndData( sharedRobotJointsData );
   
 	DiscardPanel( panel );
 	
@@ -122,7 +128,7 @@ static void* UpdateData( void* callbackData )
   const size_t WAIT_SAMPLES = 2;
   const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
   
-  uint8_t controlData[ IP_MAX_MESSAGE_LENGTH ];
+  uint8_t controlData[ SHM_CONTROL_MAX_DATA_SIZE ];
   
   double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ], angleValues[ NUM_POINTS ];
   size_t axisMeasureIndex = 0, jointMeasureIndex = 0, setpointIndex = 0;
@@ -152,7 +158,7 @@ static void* UpdateData( void* callbackData )
 
     float* measuresList = (float*) controlData;
     
-    //SHMControl.GetData( sharedRobotAxesData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
+    SHMControl.GetData( sharedRobotAxesData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
     
     if( axisMeasureIndex >= NUM_POINTS )
     {
@@ -168,7 +174,7 @@ static void* UpdateData( void* callbackData )
 
     SetCtrlVal( panel, PANEL_MEASURE_SLIDER, positionValues[ axisMeasureIndex ] * 180.0 / 3.14 );
     
-    //SHMControl.GetData( sharedRobotJointsData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
+    SHMControl.GetData( sharedRobotJointsData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
 
     if( jointMeasureIndex >= NUM_POINTS )
     {
@@ -216,7 +222,7 @@ static void InitUserInterface( void )
 
 int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callbackData, int eventData1, int eventData2 )
 {
-  const char listRequest[ 2 ] = "\xff";
+  static uint8_t listRequestsCount;
   
 	if( event == EVENT_COMMIT )
 	{
@@ -225,22 +231,43 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
     {
       // Connect to robot server
       
-      eventServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_TCP, "192.168.0.181", 50000 );
-      axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_UDP, "192.168.0.181", 50001 );
-      jointServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_UDP, "192.168.0.181", 50002 );
+      /*static WSADATA wsa;
+      if( wsa.wVersion == 0 )
+      {
+        if( WSAStartup( MAKEWORD( 2, 2 ), &wsa ) != 0 )
+          fprintf( stderr, "%s: error initialiasing windows sockets: code: %d\n", __func__, WSAGetLastError() );
+        else
+          fprintf( stderr, "%s: initialiasing windows sockets version: %d\n", __func__, wsa.wVersion );
+      }
+  
+      int socketFD = socket( AF_INET, SOCK_STREAM, 0 );
+      fprintf( stderr, "socket returns %d\n", socketFD );
+      struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons( 50000 ) };   // IPv4 address
+      address.sin_addr.s_addr = inet_addr( "192.168.0.181" );
+      int status = connect( socketFD, (struct sockaddr*) &address, sizeof(struct sockaddr_in) );
+      fprintf( stderr, "connect returns %d\n", status );
+      closesocket( socketFD );*/
       
-      //sharedRobotAxesInfo = SHMControl.InitData( "192.168.0.181:robot_axes_info", SHM_CONTROL_OUT );
-      //sharedRobotJointsInfo = SHMControl.InitData( "192.168.0.181:robot_joints_info", SHM_CONTROL_OUT );
-      //sharedRobotAxesData = SHMControl.InitData( "192.168.0.181:robot_axes_data", SHM_CONTROL_OUT );
-      //sharedRobotJointsData = SHMControl.InitData( "192.168.0.181:robot_joints_data", SHM_CONTROL_OUT );
+      //eventServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_TCP, "192.168.0.181", 50000 );
+      //axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_UDP, "192.168.0.181", 50001 );
+      //jointServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_UDP, "192.168.0.181", 50002 );
       
-      AsyncIPNetwork.WriteMessage( eventServerConnectionID, listRequest );
-      //SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++listRequestCount );
+      SetCtrlVal( panel, PANEL_MOTOR_TOGGLE, 1 );
       
-      //SHMControl.GetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
-      //fprintf( stderr, "Read shared axes info: %s\n", robotAxesInfo );
-      //SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
-      //fprintf( stderr, "Read shared joints info: %s\n", robotJointsInfo );
+      sharedRobotAxesInfo = SHMControl.InitData( "192.168.0.181:robot_axes_info", SHM_CONTROL_OUT );
+      sharedRobotJointsInfo = SHMControl.InitData( "192.168.0.181:robot_joints_info", SHM_CONTROL_OUT );
+      sharedRobotAxesData = SHMControl.InitData( "192.168.0.181:robot_axes_data", SHM_CONTROL_OUT );
+      sharedRobotJointsData = SHMControl.InitData( "192.168.0.181:robot_joints_data", SHM_CONTROL_OUT );
+      
+      //AsyncIPNetwork.WriteMessage( eventServerConnectionID, listRequest );
+      //AsyncIPNetwork.WriteMessage( axisServerConnectionID, listRequest );
+      //AsyncIPNetwork.WriteMessage( jointServerConnectionID, listRequest );
+      SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++listRequestsCount );
+      
+      SHMControl.GetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      fprintf( stderr, "Read shared axes info: %s\n", robotAxesInfo );
+      SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      fprintf( stderr, "Read shared joints info: %s\n", robotJointsInfo );
       
       if( dataConnectionThreadID == THREAD_INVALID_HANDLE )
         dataConnectionThreadID = Threading.StartThread( UpdateData, NULL, THREAD_JOINABLE );
@@ -258,11 +285,17 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
     int enabled;
     GetCtrlVal( panel, control, &enabled );
     
+    // Reset command values
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 0, 0x00 );
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 1, 0x00 );
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 1, 0x00 );
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 1, 0x00 );
+    
     // Write the new value to the appropriate network variable.
-    //if( control == PANEL_MOTOR_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, enabled == 1 ? SHM_ROBOT_ENABLE : SHM_ROBOT_DISABLE );
-    //else if( control == PANEL_OFFSET_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, enabled == 1 ? SHM_JOINT_OFFSET : SHM_JOINT_MEASURE );
-    //else if( control == PANEL_CAL_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, enabled == 1 ? SHM_JOINT_CALIBRATE : SHM_JOINT_MEASURE );
-    //else if( control == PANEL_SAMPLE_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, enabled == 1 ? SHM_JOINT_SAMPLE : SHM_JOINT_MEASURE );
+    if( control == PANEL_MOTOR_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_ENABLE : SHM_ROBOT_DISABLE );
+    else if( control == PANEL_OFFSET_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, ( enabled == 1 ) ? SHM_JOINT_OFFSET : SHM_JOINT_MEASURE );
+    else if( control == PANEL_CAL_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, ( enabled == 1 ) ? SHM_JOINT_CALIBRATE : SHM_JOINT_MEASURE );
+    else if( control == PANEL_SAMPLE_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, ( enabled == 1 ) ? SHM_JOINT_SAMPLE : SHM_JOINT_MEASURE );
 	}
   
 	return 0;
