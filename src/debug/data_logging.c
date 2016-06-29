@@ -20,6 +20,8 @@ struct _LogData
   int dataPrecision;
 };
 
+static char baseDirectoryPath[ LOG_FILE_PATH_MAX_LEN ] = "logs";
+
 KHASH_MAP_INIT_INT( LogInt, Log );
 static khash_t( LogInt )* logsList = NULL;
 
@@ -34,7 +36,17 @@ int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t
   
   int logKey = (int) kh_str_hash_func( logFilePath );
   
-  sprintf( logFilePathExt, "logs/%s-%lu.log", logFilePath, time( NULL ) );
+  time_t timeStamp = time( NULL );
+  char timeStampString[ 32 ];
+  strncpy( timeStampString, asctime( localtime( &timeStamp ) ), 32 );
+  for( size_t charIndex = 0; charIndex < 32; charIndex++ )
+  {
+    char c = timeStampString[ charIndex ];
+    if( c == ' ' || c == ':' ) timeStampString[ charIndex ] = '_';
+    else if( c == '\n' || c == '\r' ) timeStampString[ charIndex ] = '\0';
+  }
+  
+  sprintf( logFilePathExt, "%s/%s-%s.log", baseDirectoryPath, logFilePath, timeStampString );
   
   int insertionStatus;
   khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
@@ -84,6 +96,11 @@ void DataLogging_EndLog( int logID )
     
     logsList = NULL;
   }
+}
+
+void DataLogging_SetBaseDirectory( const char* directoryPath )
+{
+  sprintf( baseDirectoryPath, "logs/%s", ( directoryPath != NULL ) ? directoryPath : "" );
 }
 
 void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )

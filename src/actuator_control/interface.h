@@ -6,7 +6,7 @@
 
 #define ACTUATOR_CONTROL_INTERFACE( Namespace, INIT_FUNCTION ) \
         INIT_FUNCTION( Controller, Namespace, InitController, void ) \
-        INIT_FUNCTION( ControlVariables*, Namespace, RunControlStep, Controller, ControlVariables*, ControlVariables*, double* ) \
+        INIT_FUNCTION( double*, Namespace, RunControlStep, Controller, double*, double*, double* ) \
         INIT_FUNCTION( void, Namespace, EndController, Controller )
 
 #endif  // ACTUATOR_CONTROL_INTERFACE_H

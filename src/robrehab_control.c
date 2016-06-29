@@ -22,6 +22,7 @@
 #include <math.h>
 
 #include "shm_control.h"
+#include "shm_robot_control.h"
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
 #include "control_definitions.h"
@@ -33,6 +34,7 @@
 #include "config_parser.h"
 
 #include "debug/async_debug.h"
+#include "debug/data_logging.h"
 
 #include "robrehab_subsystem.h"
 
@@ -59,7 +61,7 @@ DEFINE_NAMESPACE_INTERFACE( SubSystem, ROBREHAB_SUBSYSTEM_INTERFACE )
 void LoadSharedRobotsInfo( void );
 
 
-int SubSystem_Init( const char* configType )
+int SubSystem_Init( const char* configType, const char* configDirectory,  const char* logDirectory )
 {
   kv_init( robotIDsList );
   
@@ -77,6 +79,9 @@ int SubSystem_Init( const char* configType )
     DEBUG_PRINT( "couldn't load %s configuration loading plugin", configType );
     return -1;
   }
+  
+  ConfigParsing.SetBaseDirectory( configDirectory );
+  DataLogging.SetBaseDirectory( logDirectory );
   
   LoadSharedRobotsInfo();
 
@@ -115,43 +120,16 @@ void UpdateEvents()
       DEBUG_PRINT( "Robot %lu received command %u", robotIndex, robotCommand );
       int robotID = kv_A( robotIDsList, robotIndex );
 
-      if( robotCommand == SHM_ROBOT_DISABLE ) Robots.Disable( robotID );
-      else if( robotCommand == SHM_ROBOT_ENABLE ) Robots.Enable( robotID );
-
-      SHMControl.SetControlByte( sharedRobotJointsInfo, robotIndex, robotCommand/*Robots.IsEnabled( robotID ) ? SHM_ROBOT_ENABLED : SHM_ROBOT_DISABLED*/ );
-    }
-  }
-
-  for( size_t jointIndex = 0; jointIndex < kv_size( jointsList ); jointIndex++ )
-  {
-    size_t eventIndex = kv_max( robotIDsList ) + jointIndex;
-    uint8_t jointByte = SHMControl.GetControlByte( sharedRobotJointsInfo, eventIndex, SHM_CONTROL_REMOVE );
-    if( jointByte != 0x00 )
-    {
-      DEBUG_PRINT( "Joint %lu received command %u", eventIndex, jointByte );
-      Actuator jointActuator = Robots.GetJointActuator( kv_A( jointsList, jointIndex ) );
-
-      if( jointByte == SHM_JOINT_RESET ) Actuators.Reset( jointActuator );
-      else if( jointByte == SHM_JOINT_OFFSET ) 
-      {
-        Actuators.SetOffset( jointActuator, true );
-        jointByte = SHM_JOINT_OFFSET;
-      }
-      else if( jointByte == SHM_JOINT_CALIBRATE ) 
-      {
-        Actuators.SetCalibration( jointActuator, true );
-        jointByte = SHM_JOINT_CALIBRATION;
-      }
-      else if( jointByte == SHM_JOINT_MEASURE ) 
-      {
-        Actuators.SetOffset( jointActuator, false );
-        Actuators.SetCalibration( jointActuator, false );
-        jointByte = SHM_JOINT_MEASUREMENT;
-      }
+      uint8_t robotState = 0x00;
       
-      if( Actuators.HasError( jointActuator ) ) jointByte = SHM_JOINT_ERROR;
+      if( robotCommand == SHM_ROBOT_DISABLE ) robotState = Robots.Disable( robotID ) ? SHM_ROBOT_DISABLED : 0x00;
+      else if( robotCommand == SHM_ROBOT_ENABLE ) robotState = Robots.Enable( robotID ) ? SHM_ROBOT_ENABLED : 0x00;
+      else if( robotCommand == SHM_ROBOT_OFFSET ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_OFFSET ) ? SHM_ROBOT_OFFSETTING : 0x00;
+      else if( robotCommand == SHM_ROBOT_CALIBRATE ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_CALIBRATE ) ? SHM_ROBOT_CALIBRATING : 0x00;
+      else if( robotCommand == SHM_ROBOT_OPTIMIZE ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_OPTIMIZE ) ? SHM_ROBOT_OPTIMIZING : 0x00;
+      else if( robotCommand == SHM_ROBOT_OPERATE ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_OPERATE ) ? SHM_ROBOT_OPERATING : 0x00;
 
-      SHMControl.SetControlByte( sharedRobotJointsInfo, eventIndex, jointByte );
+      SHMControl.SetControlByte( sharedRobotJointsInfo, robotIndex, robotState );
     }
   }
 }
@@ -166,12 +144,15 @@ void UpdateAxes()
   {
     Axis axis = kv_A( axesList, axisIndex );
     
-    uint8_t axisMask = SHMControl.GetControlByte( sharedRobotAxesData, axisIndex, SHM_CONTROL_REMOVE ); 
+    uint8_t axisMask = SHMControl.GetControlByte( sharedRobotAxesData, axisIndex, SHM_CONTROL_REMOVE );
+    //DEBUG_PRINT( "axis %lu setpoint mask: %u%u%u%u%u%u", axisIndex, SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_POSITION ), SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_VELOCITY ),
+    //                                                                SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_ACCELERATION ), SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_FORCE ),
+    //                                                                SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_STIFFNESS ), SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_DAMPING ) );
     
     DEBUG_UPDATE( "updating axis controller %lu", axisIndex );
 
     float* controlSetpointsList = (float*) (setpointData + axisIndex * AXIS_DATA_BLOCK_SIZE);
-    //DEBUG_PRINT( "stiffness: %g - setpoint: %g", controlValuesList[ SHM_AXIS_STIFFNESS ], controlValuesList[ SHM_AXIS_POSITION ] );
+    //DEBUG_PRINT( "stiffness: %g - setpoint: %g", controlSetpointsList[ SHM_AXIS_STIFFNESS ], controlSetpointsList[ SHM_AXIS_POSITION ] );
 
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_POSITION ) ) Robots.SetAxisSetpoint( axis, CONTROL_POSITION, controlSetpointsList[ SHM_AXIS_POSITION ] );
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_VELOCITY ) ) Robots.SetAxisSetpoint( axis, CONTROL_VELOCITY, controlSetpointsList[ SHM_AXIS_VELOCITY ] );
@@ -180,25 +161,21 @@ void UpdateAxes()
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_STIFFNESS ) ) Robots.SetAxisSetpoint( axis, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );
     if( SHM_CONTROL_IS_BIT_SET( axisMask, SHM_AXIS_DAMPING ) ) Robots.SetAxisSetpoint( axis, CONTROL_DAMPING, controlSetpointsList[ SHM_AXIS_DAMPING ] );
     
-    ControlVariables* axisMeasures = Robots.GetAxisMeasuresList( axis );
-    if( axisMeasures != NULL )
-    {
-      float* controlMeasuresList = (float*) (measureData + axisIndex * AXIS_DATA_BLOCK_SIZE);
+    float* controlMeasuresList = (float*) (measureData + axisIndex * AXIS_DATA_BLOCK_SIZE);
       
-      //if( fabs( controlMeasuresList[ SHM_AXIS_POSITION ] - (float) axisMeasures->position ) > 0.05 )
-      //{
-        controlMeasuresList[ SHM_AXIS_POSITION ] = (float) axisMeasures->position;
-        controlMeasuresList[ SHM_AXIS_VELOCITY ] = (float) axisMeasures->velocity;
-        controlMeasuresList[ SHM_AXIS_ACCELERATION ] = (float) axisMeasures->acceleration;
-        controlMeasuresList[ SHM_AXIS_FORCE ] = (float) axisMeasures->force;
-        controlMeasuresList[ SHM_AXIS_STIFFNESS ] = (float) axisMeasures->stiffness;
-        controlMeasuresList[ SHM_AXIS_DAMPING ] = (float) axisMeasures->damping;
+    //if( fabs( controlMeasuresList[ SHM_AXIS_POSITION ] - (float) axisMeasures->position ) > 0.05 )
+    //{
+      controlMeasuresList[ SHM_AXIS_POSITION ] = (float) Robots.GetAxisMeasure( axis, CONTROL_POSITION );
+      controlMeasuresList[ SHM_AXIS_VELOCITY ] = (float) Robots.GetAxisMeasure( axis, CONTROL_VELOCITY );
+      controlMeasuresList[ SHM_AXIS_ACCELERATION ] = (float) Robots.GetAxisMeasure( axis, CONTROL_ACCELERATION );
+      controlMeasuresList[ SHM_AXIS_FORCE ] = (float) Robots.GetAxisMeasure( axis, CONTROL_FORCE );
+      controlMeasuresList[ SHM_AXIS_STIFFNESS ] = (float) Robots.GetAxisMeasure( axis, CONTROL_STIFFNESS );
+      controlMeasuresList[ SHM_AXIS_DAMPING ] = (float) Robots.GetAxisMeasure( axis, CONTROL_DAMPING );
       
-        //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlMeasuresList[ SHM_AXIS_POSITION ], controlMeasuresList[ SHM_AXIS_VELOCITY ], controlMeasuresList[ SHM_AXIS_FORCE ] );
+      //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlMeasuresList[ SHM_AXIS_POSITION ], controlMeasuresList[ SHM_AXIS_VELOCITY ], controlMeasuresList[ SHM_AXIS_FORCE ] );
       
-        SHMControl.SetControlByte( sharedRobotAxesData, axisIndex, ++updateCount );
-      //}
-    }
+      SHMControl.SetControlByte( sharedRobotAxesData, axisIndex, ++updateCount );
+    //}
   }
   
   SHMControl.SetData( sharedRobotAxesData, (void*) measureData, 0, SHM_CONTROL_MAX_DATA_SIZE );
@@ -222,20 +199,16 @@ void UpdateJoints()
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_FORCE ) ) Robots.SetJointSetpoint( joint, CONTROL_FORCE, controlSetpointsList[ SHM_JOINT_FORCE ] );
     if( SHM_CONTROL_IS_BIT_SET( jointMask, SHM_JOINT_STIFFNESS ) ) Robots.SetJointSetpoint( joint, CONTROL_STIFFNESS, controlSetpointsList[ SHM_AXIS_STIFFNESS ] );
     
-    ControlVariables* jointMeasures = Robots.GetJointMeasuresList( joint );
-    if( jointMeasures != NULL )
-    {
-      float* controlMeasuresList = (float*) (measureData + jointIndex * JOINT_DATA_BLOCK_SIZE);
+    float* controlMeasuresList = (float*) (measureData + jointIndex * JOINT_DATA_BLOCK_SIZE);
       
-      //if( fabs( controlMeasuresList[ SHM_JOINT_POSITION ] - (float) jointMeasures->position ) > 0.05 )
-      //{
-        controlMeasuresList[ SHM_JOINT_POSITION ] = (float) jointMeasures->position;
-        controlMeasuresList[ SHM_JOINT_FORCE ] = (float) jointMeasures->force;
-        controlMeasuresList[ SHM_JOINT_STIFFNESS ] = (float) jointMeasures->stiffness;
-      
-        SHMControl.SetControlByte( sharedRobotJointsData, jointIndex, ++updateCount );
-      //}
-    }
+    //if( fabs( controlMeasuresList[ SHM_JOINT_POSITION ] - (float) jointMeasures->position ) > 0.05 )
+    //{
+      controlMeasuresList[ SHM_JOINT_POSITION ] = (float) Robots.GetJointMeasure( joint, CONTROL_POSITION );
+      controlMeasuresList[ SHM_JOINT_FORCE ] = (float) Robots.GetJointMeasure( joint, CONTROL_FORCE );
+      controlMeasuresList[ SHM_JOINT_STIFFNESS ] = (float) Robots.GetJointMeasure( joint, CONTROL_STIFFNESS );
+     
+      SHMControl.SetControlByte( sharedRobotJointsData, jointIndex, ++updateCount );
+    //}
   }
   
   SHMControl.SetData( sharedRobotJointsData, (void*) measureData, 0, SHM_CONTROL_MAX_DATA_SIZE );

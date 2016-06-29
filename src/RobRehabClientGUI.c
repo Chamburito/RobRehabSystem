@@ -59,7 +59,15 @@
 
 #include "RobRehabClientGUI.h"
 
-#define NUM_POINTS			20
+
+const double PI = 3.1416;
+
+const double SIGNAL_AMPLITUDE = 0.1;
+
+const double UPDATE_PERIOD = 8.0;
+const double UPDATE_FREQUENCY = 1 / UPDATE_PERIOD;
+
+const size_t DISPLAY_POINTS_NUMBER = (size_t) ( UPDATE_PERIOD / CONTROL_PASS_INTERVAL );
 
 /* Global variables */
 static int panel;
@@ -81,11 +89,6 @@ char robotJointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
 
 Thread dataConnectionThreadID = THREAD_INVALID_HANDLE;
 bool isDataUpdateRunning = false;
-
-const double CONTROL_SAMPLING_INTERVAL = 0.005;
-
-static double referenceValues[ NUM_POINTS ];
-size_t setpointIndex = 0;
 
 double maxStiffness;
 
@@ -126,12 +129,14 @@ int main( int argc, char *argv[] )
 static void* UpdateData( void* callbackData )
 {
   const size_t WAIT_SAMPLES = 2;
-  const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_SAMPLING_INTERVAL;
+  const double SETPOINT_UPDATE_INTERVAL = WAIT_SAMPLES * CONTROL_PASS_INTERVAL;
   
-  uint8_t controlData[ SHM_CONTROL_MAX_DATA_SIZE ];
+  uint8_t measureData[ SHM_CONTROL_MAX_DATA_SIZE ], setpointData[ SHM_CONTROL_MAX_DATA_SIZE ];
   
-  double positionValues[ NUM_POINTS ], velocityValues[ NUM_POINTS ], torqueValues[ NUM_POINTS ], angleValues[ NUM_POINTS ];
-  size_t axisMeasureIndex = 0, jointMeasureIndex = 0, setpointIndex = 0;
+  double positionValues[ DISPLAY_POINTS_NUMBER ], velocityValues[ DISPLAY_POINTS_NUMBER ];
+  double torqueValues[ DISPLAY_POINTS_NUMBER ], angleValues[ DISPLAY_POINTS_NUMBER ];
+  double referenceValues[ DISPLAY_POINTS_NUMBER ];
+  size_t displayPointIndex = 0;
   
   double initialTime = Timing.GetExecTimeSeconds();
   double elapsedTime = 0.0, deltaTime = 0.0, measureTime = 0.0, setpointTime = 0.0, absoluteTime = initialTime; 
@@ -146,65 +151,68 @@ static void* UpdateData( void* callbackData )
     absoluteTime = Timing.GetExecTimeSeconds();
     elapsedTime = absoluteTime - initialTime;
     
-    if( measureTime > CONTROL_SAMPLING_INTERVAL )
+    if( measureTime > CONTROL_PASS_INTERVAL )
     {
-      axisMeasureIndex++;
-      jointMeasureIndex++;
+      displayPointIndex++;
       
       //fprintf( stderr, "new axis/joint value indexes: %lu %lu", axisMeasureIndex, jointMeasureIndex );
       
       measureTime = 0.0;
     }
 
-    float* measuresList = (float*) controlData;
+    float* measuresList = (float*) measureData;
     
-    SHMControl.GetData( sharedRobotAxesData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
+    SHMControl.GetData( sharedRobotAxesData, (void*) measureData, 0, SHM_CONTROL_MAX_DATA_SIZE );
     
-    if( axisMeasureIndex >= NUM_POINTS )
+    if( displayPointIndex >= DISPLAY_POINTS_NUMBER )
     {
       DeleteGraphPlot( panel, PANEL_GRAPH_1, -1, VAL_DELAYED_DRAW );
-      PlotY( panel, PANEL_GRAPH_1, positionValues, NUM_POINTS, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
-      PlotY( panel, PANEL_GRAPH_1, velocityValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+      
+      PlotY( panel, PANEL_GRAPH_1, referenceValues, DISPLAY_POINTS_NUMBER, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+      
+      PlotY( panel, PANEL_GRAPH_1, positionValues, DISPLAY_POINTS_NUMBER, VAL_DOUBLE, VAL_FAT_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_YELLOW );
+      PlotY( panel, PANEL_GRAPH_1, velocityValues, DISPLAY_POINTS_NUMBER, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
 
-      axisMeasureIndex = 0;
-    }
-
-    positionValues[ axisMeasureIndex ] = measuresList[ SHM_AXIS_POSITION ] * 6.28;
-    velocityValues[ axisMeasureIndex ] = measuresList[ SHM_AXIS_VELOCITY ] * 6.28;
-
-    SetCtrlVal( panel, PANEL_MEASURE_SLIDER, positionValues[ axisMeasureIndex ] * 180.0 / 3.14 );
-    
-    SHMControl.GetData( sharedRobotJointsData, (void*) controlData, 0, SHM_CONTROL_MAX_DATA_SIZE );
-
-    if( jointMeasureIndex >= NUM_POINTS )
-    {
       DeleteGraphPlot( panel, PANEL_GRAPH_2, -1, VAL_DELAYED_DRAW );
-      PlotY( panel, PANEL_GRAPH_2, torqueValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
-      PlotY( panel, PANEL_GRAPH_2, angleValues, NUM_POINTS, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
-
-      jointMeasureIndex = 0;
+      PlotY( panel, PANEL_GRAPH_2, torqueValues, DISPLAY_POINTS_NUMBER, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_RED );
+      PlotY( panel, PANEL_GRAPH_2, angleValues, DISPLAY_POINTS_NUMBER, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
+      
+      displayPointIndex = 0;
     }
 
-    angleValues[ jointMeasureIndex ] = measuresList[ SHM_JOINT_POSITION ];
-    torqueValues[ jointMeasureIndex ] = measuresList[ SHM_JOINT_FORCE ];
+    positionValues[ displayPointIndex ] = measuresList[ SHM_AXIS_POSITION ] * 6.28;
+    velocityValues[ displayPointIndex ] = measuresList[ SHM_AXIS_VELOCITY ] * 6.28;
+
+    SetCtrlVal( panel, PANEL_MEASURE_SLIDER, measuresList[ SHM_AXIS_POSITION ] * 360.0 );
     
-    /*if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
+    SHMControl.GetData( sharedRobotJointsData, (void*) measureData, 0, SHM_CONTROL_MAX_DATA_SIZE );
+
+    angleValues[ displayPointIndex ] = measuresList[ SHM_JOINT_POSITION ];
+    torqueValues[ displayPointIndex ] = measuresList[ SHM_JOINT_FORCE ];
+    
+    float* setpointsList = (float*) setpointData;
+    
+    if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
     {
-      setpointsList[ SHM_AXIS_POSITION ] = sin( absoluteTime ) / 10.0 - 0.125;
-      setpointsList[ SHM_AXIS_VELOCITY ] = cos( absoluteTime ) / 10.0;
+      uint8_t setpointMask = 0;
+      
+      setpointsList[ SHM_AXIS_POSITION ] = sin( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE - 0.125;
+      SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_POSITION );
+      setpointsList[ SHM_AXIS_VELOCITY ] = cos( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE;
+      SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_VELOCITY );
       setpointsList[ SHM_AXIS_STIFFNESS ] = maxStiffness;
-      setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
+      SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_STIFFNESS );
+      //setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
       
       SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, setpointsList[ SHM_AXIS_POSITION ] * 360.0 );
-      
-      for( size_t i = 0; i < WAIT_SAMPLES; i++ )
-        referenceValues[ ( setpointIndex + i ) % NUM_POINTS ] = setpointsList[ SHM_AXIS_POSITION ];
-      setpointIndex += WAIT_SAMPLES;
     
       setpointTime = 0.0;
       
-      SHMControl.SetData( axisMotorController, setpointsList, 0xFF );
-    }*/
+      SHMControl.SetData( sharedRobotAxesData, (void*) setpointData, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      SHMControl.SetControlByte( sharedRobotAxesData, 0, setpointMask );
+    }
+    
+    referenceValues[ displayPointIndex ] = setpointsList[ SHM_AXIS_POSITION ] * 6.28;
   }
   
   return NULL;

@@ -41,12 +41,13 @@ struct _ActuatorData
   DECLARE_MODULE_INTERFACE_REF( ACTUATOR_CONTROL_INTERFACE );
   Controller controller;
   enum ControlVariable controlMode;
+  enum ControlState controlState;
   Motor motor;
   Sensor* sensorsList;
   size_t sensorsNumber;
   KalmanFilter sensorFilter;
-  ControlVariables measures;
-  ControlVariables setpoints;
+  ControlVariablesList measuresList;
+  ControlVariablesList setpointsList;
   double controlError;
   int logID;
 };
@@ -115,6 +116,8 @@ Actuator Actuators_Init( const char* configFileName )
     sprintf( filePath, "actuator_control/%s", ConfigParsing.GetParser()->GetStringValue( configFileID, "", "controller" ) );
     LOAD_MODULE_IMPLEMENTATION( ACTUATOR_CONTROL_INTERFACE, filePath, newActuator, &loadSuccess );
     if( loadSuccess ) newActuator->controller = newActuator->InitController();
+    
+    newActuator->controlState = CONTROL_OPERATION;
 
     ConfigParsing.GetParser()->UnloadData( configFileID );
 
@@ -175,24 +178,22 @@ void Actuators_Reset( Actuator actuator )
   Kalman.Reset( actuator->sensorFilter );
 }
 
-void Actuators_SetOffset( Actuator actuator, bool enabled )
+bool Actuators_SetControlState( Actuator actuator, enum ControlState controlState )
 {
-  if( actuator == NULL ) return;
+  if( actuator == NULL ) return false;
+  
+  if( controlState == actuator->controlState ) return false;
 
-  enum SignalProcessorState sensorsState = enabled ? SIGNAL_PROCESSING_PHASE_OFFSET : SIGNAL_PROCESSING_PHASE_MEASUREMENT; 
+  enum SignalProcessorState sensorsState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
+  if( controlState == CONTROL_OFFSET ) sensorsState = SIGNAL_PROCESSING_PHASE_OFFSET;
+  else if( controlState == CONTROL_CALIBRATION ) sensorsState = SIGNAL_PROCESSING_PHASE_CALIBRATION;
   
   for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
     Sensors.SetState( actuator->sensorsList[ sensorIndex ], sensorsState );
-}
-
-void Actuators_SetCalibration( Actuator actuator, bool enabled )
-{
-  if( actuator == NULL ) return;
-
-  enum SignalProcessorState sensorsState = enabled ? SIGNAL_PROCESSING_PHASE_CALIBRATION : SIGNAL_PROCESSING_PHASE_MEASUREMENT; 
- 
-  for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
-    Sensors.SetState( actuator->sensorsList[ sensorIndex ], sensorsState );
+  
+  actuator->controlState = controlState;
+  
+  return true;
 }
 
 bool Actuators_IsEnabled( Actuator actuator )
@@ -222,13 +223,12 @@ double Actuators_SetSetpoint( Actuator actuator, enum ControlVariable variable, 
   
   if( variable >= CONTROL_VARS_NUMBER ) return 0.0;
   
-  double* setpointsList = (double*) &(actuator->setpoints);
-  setpointsList[ variable ] = value;
+  actuator->setpointsList[ variable ] = value;
   
-  return setpointsList[ variable ];
+  return actuator->setpointsList[ variable ];
 }
 
-ControlVariables* Actuators_UpdateMeasures( Actuator actuator, ControlVariables* measuresBuffer )
+double* Actuators_UpdateMeasures( Actuator actuator, double* measuresBuffer )
 {
   if( actuator == NULL ) return NULL;
   
@@ -240,8 +240,8 @@ ControlVariables* Actuators_UpdateMeasures( Actuator actuator, ControlVariables*
     Kalman.SetInput( actuator->sensorFilter, sensorIndex, sensorMeasure );
   }
 
-  (void) Kalman.Predict( actuator->sensorFilter, (double*) &(actuator->measures) );
-  (void) Kalman.Update( actuator->sensorFilter, NULL, (double*) &(actuator->measures) );
+  (void) Kalman.Predict( actuator->sensorFilter, (double*) actuator->measuresList );
+  (void) Kalman.Update( actuator->sensorFilter, NULL, (double*) actuator->measuresList );
   
   //DEBUG_PRINT( "position: %g - velocity: %g - force: %g", actuator->measures.position, actuator->measures.velocity, actuator->measures.force );
   
@@ -249,35 +249,35 @@ ControlVariables* Actuators_UpdateMeasures( Actuator actuator, ControlVariables*
   //actuator->measures.velocity = Sensors.Update( actuator->sensorsList[ 1 ] );
   //actuator->measures.force = Sensors.Update( actuator->sensorsList[ 2 ] );
   
-  if( measuresBuffer == NULL ) return &(actuator->measures);
+  if( measuresBuffer == NULL ) return actuator->measuresList;
   
-  measuresBuffer->position = actuator->measures.position;
-  measuresBuffer->velocity = actuator->measures.velocity;
-  measuresBuffer->acceleration = actuator->measures.acceleration;
-  measuresBuffer->force = actuator->measures.force;
+  measuresBuffer[ CONTROL_POSITION ] = actuator->measuresList[ CONTROL_POSITION ];
+  measuresBuffer[ CONTROL_VELOCITY ] = actuator->measuresList[ CONTROL_VELOCITY ];
+  measuresBuffer[ CONTROL_ACCELERATION ] = actuator->measuresList[ CONTROL_ACCELERATION ];
+  measuresBuffer[ CONTROL_FORCE ] = actuator->measuresList[ CONTROL_FORCE ];
   
   return measuresBuffer;
 }
 
-double Actuators_RunControl( Actuator actuator, ControlVariables* measures, ControlVariables* setpoints )
+double Actuators_RunControl( Actuator actuator, double* measuresList, double* setpointsList )
 {
   if( actuator == NULL ) return 0.0;
   
-  if( measures == NULL ) measures = &(actuator->measures);
-  if( setpoints == NULL ) setpoints = &(actuator->setpoints);
+  if( measuresList == NULL ) measuresList = (double*) actuator->measuresList;
+  if( setpointsList == NULL ) setpointsList = (double*) actuator->setpointsList;
   
-  if( setpoints->stiffness < 0.0 ) setpoints->stiffness = 0.0;
-  if( setpoints->damping < 0.0 ) setpoints->damping = 0.0;
+  if( setpointsList[ CONTROL_STIFFNESS ] < 0.0 ) setpointsList[ CONTROL_STIFFNESS ] = 0.0;
+  if( setpointsList[ CONTROL_DAMPING ] < 0.0 ) setpointsList[ CONTROL_DAMPING ] = 0.0;
   
   //DEBUG_PRINT( "got parameters: %.5f %.5f", actuator->setpoints[ CONTROL_POSITION ], actuator->setpoints[ CONTROL_VELOCITY ] );
   
-  double* controlOutputsList = (double*) actuator->RunControlStep( actuator->controller, measures, setpoints, &(actuator->controlError) );
+  double* controlOutputsList = (double*) actuator->RunControlStep( actuator->controller, measuresList, setpointsList, &(actuator->controlError) );
   
   if( actuator->logID != DATA_LOG_INVALID_ID ) 
   {
     DataLogging.RegisterValues( actuator->logID, 9, Timing.GetExecTimeSeconds(), 
-                                                    measures->position, measures->velocity, measures->force,
-                                                    setpoints->position, setpoints->velocity, setpoints->force,
+                                                    measuresList[ CONTROL_POSITION ], measuresList[ CONTROL_VELOCITY ], measuresList[ CONTROL_FORCE ],
+                                                    setpointsList[ CONTROL_POSITION ], setpointsList[ CONTROL_VELOCITY ], setpointsList[ CONTROL_FORCE ],
                                                     actuator->controlError, controlOutputsList[ actuator->controlMode ] );
   }
   

@@ -11,7 +11,7 @@ const char* DOF_NAMES[ DOFS_NUMBER ] = { "angle" };
 
 typedef struct _ControlData
 {
-  ControlVariables measuresMaxList[ DOFS_NUMBER ];
+  double positionsMaxList[ DOFS_NUMBER ];
   Matrix statesProbability;
   Matrix Aux_rec, Aux;
   Matrix W, Z, V, U;
@@ -28,7 +28,7 @@ Controller InitController( const char* data )
 {
   ControlData* newController = (ControlData*) malloc( sizeof(ControlData) );
   
-  newController->measuresMaxList[ 0 ].position = 1.0;
+  newController->positionsMaxList[ 0 ] = 0.0;
   
   double stateProbabilityData[ 3 ][ 3 ] = { { 0.9317, 0.0595, 0.0088 }, { 0.0175, 0.9708, 0.0117 }, { 0.0088, 0.04, 0.9512 } };
   newController->statesProbability = Matrices.Create( (double*) stateProbabilityData, 3, 3 );
@@ -118,16 +118,23 @@ char** GetAxisNamesList( Controller ref_controller )
   return (char**) DOF_NAMES;
 }
 
-void RunControlStep( Controller ref_controller, ControlVariables** jointMeasuresList, ControlVariables** axisMeasuresList, ControlVariables** jointSetpointsList, ControlVariables** axisSetpointsList )
+void SetControlState( Controller ref_controller, enum ControlState controlState )
+{
+  fprintf( stderr, "Setting robot control state: %x\n", controlState );
+}
+
+void RunControlStep( Controller ref_controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
 {
   if( ref_controller == NULL ) return;
   
   ControlData* controller = (ControlData*) ref_controller;
   
-  if( fabs( jointMeasuresList[ 0 ]->position ) > controller->measuresMaxList[ 0 ].position ) controller->measuresMaxList[ 0 ].position = fabs( jointMeasuresList[ 0 ]->position );
-  if( fabs( controller->measuresMaxList[ 0 ].position ) < 0.0001 ) controller->measuresMaxList[ 0 ].position = 0.0001;
+  if( fabs( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] ) > controller->positionsMaxList[ 0 ] ) 
+    controller->positionsMaxList[ 0 ] = fabs( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] );
   
-  double jointPosition = jointMeasuresList[ 0 ]->position / controller->measuresMaxList[ 0 ].position;
+  if( fabs( controller->positionsMaxList[ 0 ] ) < 0.0001 ) controller->positionsMaxList[ 0 ] = 0.0001;
+  
+  double jointPosition = jointMeasuresTable[ 0 ][ CONTROL_POSITION ] / controller->positionsMaxList[ 0 ];
   size_t jointSector = 0;
   double jointSectorLength = 2.0 / 3;
   
@@ -135,10 +142,11 @@ void RunControlStep( Controller ref_controller, ControlVariables** jointMeasures
   else if( jointPosition > -1.0 + jointSectorLength && jointPosition < 1.0 - jointSectorLength ) jointSector = 1;
   else if( jointPosition >= 1.0 - jointSectorLength ) jointSector = 2;
   
-  DataLogging.RegisterValues( controller->logID, 1, jointSector );
+  fprintf( stderr, "pos: %.5f, max: %.5f, norm: %.5f, sector: %lu\r", jointMeasuresTable[ 0 ][ CONTROL_POSITION ], controller->positionsMaxList[ 0 ], jointPosition, jointSector );
+  //DataLogging.RegisterValues( controller->logID, 1, jointSector );
   
-  double positionError = jointSetpointsList[ 0 ]->position - jointMeasuresList[ 0 ]->position;
-  double velocityError = jointSetpointsList[ 0 ]->velocity - jointMeasuresList[ 0 ]->velocity;
+  double positionError = jointSetpointsTable[ 0 ][ CONTROL_POSITION ] - jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
+  double velocityError = jointSetpointsTable[ 0 ][ CONTROL_VELOCITY ] - jointMeasuresTable[ 0 ][ CONTROL_VELOCITY ];
   
   if( fabs( positionError ) < 0.01 ) positionError = 0.01; 
   
@@ -166,9 +174,9 @@ void RunControlStep( Controller ref_controller, ControlVariables** jointMeasures
   
   double proportionalGain = Matrices.GetElement( controller->K_rec, 1, 1 );
   
-  double result = 1.7863 * ( jointMeasuresList[ 0 ]->acceleration + proportionalGain * positionError ) + 0.1981 * jointMeasuresList[ 0 ]->velocity + 0.1111;
+  double result = 1.7863 * ( jointMeasuresTable[ 0 ][ CONTROL_ACCELERATION ] + proportionalGain * positionError ) + 0.1981 * jointMeasuresTable[ 0 ][ CONTROL_VELOCITY ] + 0.1111;
   
-  jointSetpointsList[ 0 ]->force = result;
+  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = result;
   
-  if( jointSetpointsList[ 0 ]->stiffness == 0.0 ) jointSetpointsList[ 0 ]->force = 0.0;
+  if( jointSetpointsTable[ 0 ][ CONTROL_STIFFNESS ] == 0.0 ) jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = 0.0;
 }

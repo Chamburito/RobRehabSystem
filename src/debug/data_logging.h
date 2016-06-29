@@ -1,8 +1,9 @@
 #ifndef DATA_LOGGING_H
 #define DATA_LOGGING_H
 
-#include "namespaces.h"
+#include <stdbool.h>
 
+#include "namespaces.h"
 
 #define LOG_FILE_PATH_MAX_LEN 256
 #define DATA_LOG_INVALID_ID -1
@@ -15,6 +16,7 @@ typedef LogData* Log;
 #define DATA_LOGGING_INTERFACE( Namespace, INIT_FUNCTION ) \
         INIT_FUNCTION( int, Namespace, InitLog, const char*, size_t, size_t ) \
         INIT_FUNCTION( void, Namespace, EndLog, int ) \
+        INIT_FUNCTION( void, Namespace, SetBaseDirectory, const char* ) \
         INIT_FUNCTION( void, Namespace, SaveData, int, double*, size_t ) \
         INIT_FUNCTION( void, Namespace, RegisterValues, int, size_t, ... ) \
         INIT_FUNCTION( void, Namespace, RegisterList, int, size_t, double* ) \

@@ -60,19 +60,28 @@ char** GetAxisNamesList( Controller controller )
   return (char**) DOF_NAMES;
 }
 
-void RunControlStep( Controller controller, ControlVariables** jointMeasuresList, ControlVariables** axisMeasuresList, ControlVariables** jointSetpointsList, ControlVariables** axisSetpointsList )
+void SetControlPhase( Controller ref_controller, enum ControlPhase controlPhase )
 {
-  axisMeasuresList[ 0 ]->position = jointMeasuresList[ 0 ]->position;
-  axisMeasuresList[ 0 ]->velocity = jointMeasuresList[ 0 ]->velocity;
-  axisMeasuresList[ 0 ]->acceleration = jointMeasuresList[ 0 ]->acceleration;
-  axisMeasuresList[ 0 ]->force = jointMeasuresList[ 0 ]->force;
-  axisMeasuresList[ 0 ]->stiffness = jointMeasuresList[ 0 ]->stiffness;
-  axisMeasuresList[ 0 ]->damping = jointMeasuresList[ 0 ]->damping;
+  fprintf( stderr, "Setting robot control phase: %x\n", controlPhase );
+}
+
+void RunControlStep( Controller controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
+{
+  axisMeasuresTable[ 0 ][ CONTROL_POSITION ] = jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
+  axisMeasuresTable[ 0 ][ CONTROL_VELOCITY ] = jointMeasuresTable[ 0 ][ CONTROL_VELOCITY ];
+  axisMeasuresTable[ 0 ][ CONTROL_ACCELERATION ] = jointMeasuresTable[ 0 ][ CONTROL_ACCELERATION ];
+  axisMeasuresTable[ 0 ][ CONTROL_FORCE ] = jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
+  axisMeasuresTable[ 0 ][ CONTROL_STIFFNESS ] = jointMeasuresTable[ 0 ][ CONTROL_STIFFNESS ];
+  axisMeasuresTable[ 0 ][ CONTROL_DAMPING ] = jointMeasuresTable[ 0 ][ CONTROL_DAMPING ];
   
-  jointSetpointsList[ 0 ]->position = axisSetpointsList[ 0 ]->position;
-  jointSetpointsList[ 0 ]->velocity = axisSetpointsList[ 0 ]->velocity;
-  jointSetpointsList[ 0 ]->acceleration = axisSetpointsList[ 0 ]->acceleration;
-  jointSetpointsList[ 0 ]->force = axisSetpointsList[ 0 ]->force;
-  jointSetpointsList[ 0 ]->stiffness = axisSetpointsList[ 0 ]->stiffness;
-  jointSetpointsList[ 0 ]->damping = axisSetpointsList[ 0 ]->damping;
+  jointSetpointsTable[ 0 ][ CONTROL_POSITION ] = axisSetpointsTable[ 0 ][ CONTROL_POSITION ];
+  jointSetpointsTable[ 0 ][ CONTROL_VELOCITY ] = axisSetpointsTable[ 0 ][ CONTROL_VELOCITY ];
+  jointSetpointsTable[ 0 ][ CONTROL_ACCELERATION ] = axisSetpointsTable[ 0 ][ CONTROL_ACCELERATION ];
+  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = axisSetpointsTable[ 0 ][ CONTROL_FORCE ];
+  jointSetpointsTable[ 0 ][ CONTROL_STIFFNESS ] = axisSetpointsTable[ 0 ][ CONTROL_STIFFNESS ];
+  jointSetpointsTable[ 0 ][ CONTROL_DAMPING ] = axisSetpointsTable[ 0 ][ CONTROL_DAMPING ];
+  
+  double stiffness = jointSetpointsTable[ 0 ][ CONTROL_STIFFNESS ]; 
+  double positionError = jointSetpointsTable[ 0 ][ CONTROL_POSITION ] - jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
+  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = -stiffness * positionError;
 }

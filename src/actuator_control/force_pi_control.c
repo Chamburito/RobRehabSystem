@@ -8,7 +8,7 @@ typedef struct _ControlData
   double velocitySetpoint;
   double forceError[ 2 ];
   double controlError;
-  ControlVariables outputs;
+  ControlVariablesList outputsList;
 }
 ControlData;
 
@@ -22,18 +22,18 @@ Controller InitController( void )
   return (Controller) newController;
 }
 
-ControlVariables* RunControlStep( Controller controller, ControlVariables* measures, ControlVariables* setpoints, double* ref_error )
+double* RunControlStep( Controller controller, double* measuresList, double* setpointsList, double* ref_error )
 {
   const double K_P = 1.6527; // 370 * ( F_in_max / V_out_max )
   const double K_I = 0.0156; // 3.5 * ( F_in_max / V_out_max )
   
   ControlData* controlData = (ControlData*) controller;
   
-  controlData->outputs.position = setpoints->position;
+  controlData->outputsList[ CONTROL_POSITION ] = setpointsList[ CONTROL_POSITION ];
   
-  double positionError = measures->position - setpoints->position;
+  double positionError = measuresList[ CONTROL_POSITION ] - setpointsList[ CONTROL_POSITION ];
   controlData->positionErrorSum += CONTROL_PASS_INTERVAL * positionError * positionError;
-  controlData->positionSetpointSum += CONTROL_PASS_INTERVAL * setpoints->position * setpoints->position;
+  controlData->positionSetpointSum += CONTROL_PASS_INTERVAL * setpointsList[ CONTROL_POSITION ] * setpointsList[ CONTROL_POSITION ];
   
   if( ref_error != NULL )
   {
@@ -46,22 +46,22 @@ ControlVariables* RunControlStep( Controller controller, ControlVariables* measu
       controlData->positionSetpointSum = 0.0;
     }
     
-    *ref_error = positionError / setpoints->position;
+    *ref_error = positionError / setpointsList[ CONTROL_POSITION ];
   }
   
-  double forceSetpoint = controlData->controlError * setpoints->force;
-  controlData->outputs.force = forceSetpoint;
+  double forceSetpoint = controlData->controlError * setpointsList[ CONTROL_FORCE ];
+  controlData->outputsList[ CONTROL_FORCE ] = forceSetpoint;
 
-  controlData->forceError[ 0 ] = forceSetpoint - measures->force;
+  controlData->forceError[ 0 ] = forceSetpoint - measuresList[ CONTROL_FORCE ];
   
   controlData->velocitySetpoint += K_P * ( controlData->forceError[ 0 ] - controlData->forceError[ 1 ] ) + K_I * CONTROL_PASS_INTERVAL * controlData->forceError[ 0 ];
-  controlData->outputs.velocity = controlData->velocitySetpoint;
+  controlData->outputsList[ CONTROL_VELOCITY ] = controlData->velocitySetpoint;
   
   //velocitySetpoint[0] = 0.9822 * velocitySetpoint[1] + 0.01407 * velocitySetpoint[2] + 338.6 * forceError[1] - 337.4 * forceError[2]; //5ms
   
   controlData->forceError[ 1 ] = controlData->forceError[ 0 ];
 
-  return  &(controlData->outputs);
+  return (double*) controlData->outputsList;
 }
 
 void EndController( Controller controller )

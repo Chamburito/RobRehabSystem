@@ -25,16 +25,16 @@ typedef RobotData* Robot;
         INIT_FUNCTION( int, namespace, Init, const char* ) \
         INIT_FUNCTION( void, namespace, End, int ) \
         INIT_FUNCTION( bool, namespace, Enable, int ) \
-        INIT_FUNCTION( void, namespace, Disable, int ) \
+        INIT_FUNCTION( bool, namespace, Disable, int ) \
+        INIT_FUNCTION( bool, namespace, SetControlState, int, enum ControlState ) \
         INIT_FUNCTION( Joint, namespace, GetJoint, int, size_t ) \
         INIT_FUNCTION( Axis, namespace, GetAxis, int, size_t ) \
         INIT_FUNCTION( char*, namespace, GetJointName, int, size_t ) \
         INIT_FUNCTION( char*, namespace, GetAxisName, int, size_t ) \
-        INIT_FUNCTION( ControlVariables*, namespace, GetAxisMeasuresList, Axis ) \
-        INIT_FUNCTION( ControlVariables*, namespace, GetJointMeasuresList, Joint ) \
+        INIT_FUNCTION( double, namespace, GetJointMeasure, Joint, enum ControlVariable ) \
+        INIT_FUNCTION( double, namespace, GetAxisMeasure, Axis, enum ControlVariable ) \
         INIT_FUNCTION( double, namespace, SetJointSetpoint, Joint, enum ControlVariable, double ) \
         INIT_FUNCTION( double, namespace, SetAxisSetpoint, Axis, enum ControlVariable, double ) \
-        INIT_FUNCTION( Actuator, namespace, GetJointActuator, Joint ) \
         INIT_FUNCTION( size_t, namespace, GetJointsNumber, int ) \
         INIT_FUNCTION( size_t, namespace, GetAxesNumber, int )
 

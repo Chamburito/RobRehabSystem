@@ -17,6 +17,7 @@ typedef ConfigParserImplementation* ConfigParser;
 
 #define CONFIG_PARSING_INTERFACE( Namespace, INIT_FUNCTION ) \
         INIT_FUNCTION( bool, Namespace, Init, const char* ) \
+        INIT_FUNCTION( void, Namespace, SetBaseDirectory, const char* ) \
         INIT_FUNCTION( int, Namespace, LoadConfigFile, const char* ) \
         INIT_FUNCTION( int, Namespace, LoadConfigString, const char* ) \
         INIT_FUNCTION( ConfigParser, Namespace, GetParser, void )

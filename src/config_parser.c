@@ -27,6 +27,8 @@
 #include "config_parser.h"
 
 
+static char baseDirectoryPath[ DATA_IO_MAX_FILE_PATH_LENGTH ] = "config";
+
 DECLARE_MODULE_INTERFACE( DATA_IO_INTERFACE )
 static ConfigParserImplementation parser = { DEFINE_MODULE_INTERFACE_REF( DATA_IO_INTERFACE ) };
 
@@ -44,10 +46,15 @@ bool ConfigParsing_Init( const char* pluginName )
   return pluginLoaded;
 }
 
+void ConfigParsing_SetBaseDirectory( const char* directoryPath )
+{
+  sprintf( baseDirectoryPath, "config/%s", ( directoryPath != NULL ) ? directoryPath : "" );
+}
+
 int ConfigParsing_LoadConfigFile( const char* configFilePath )
 {  
   char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
-  snprintf( filePath, DATA_IO_MAX_FILE_PATH_LENGTH, "config/%s", configFilePath );
+  snprintf( filePath, DATA_IO_MAX_FILE_PATH_LENGTH, "%s/%s", baseDirectoryPath, configFilePath );
   
   DEBUG_PRINT( "looking for config file %s", configFilePath );
   
