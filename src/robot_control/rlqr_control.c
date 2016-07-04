@@ -75,11 +75,11 @@ Controller InitController( const char* data )
   return (Controller) newController;
 }
 
-void EndController( Controller ref_controller )
+void EndController( Controller genericController )
 {
-  if( ref_controller == NULL ) return;
+  if( genericController == NULL ) return;
   
-  ControlData* controller = (ControlData*) ref_controller;
+  ControlData* controller = (ControlData*) genericController;
   
   Matrices.Discard( controller->statesProbability );
   
@@ -98,36 +98,36 @@ void EndController( Controller ref_controller )
   free( controller );
 }
 
-size_t GetJointsNumber( Controller ref_controller )
+size_t GetJointsNumber( Controller genericController )
 {
   return DOFS_NUMBER;
 }
 
-char** GetJointNamesList( Controller ref_controller )
+char** GetJointNamesList( Controller genericController )
 {
   return (char**) DOF_NAMES;
 }
 
-size_t GetAxesNumber( Controller ref_controller )
+size_t GetAxesNumber( Controller genericController )
 {
   return DOFS_NUMBER;
 }
 
-char** GetAxisNamesList( Controller ref_controller )
+char** GetAxisNamesList( Controller genericController )
 {
   return (char**) DOF_NAMES;
 }
 
-void SetControlState( Controller ref_controller, enum ControlState controlState )
+void SetControlState( Controller genericController, enum ControlState controlState )
 {
   fprintf( stderr, "Setting robot control state: %x\n", controlState );
 }
 
-void RunControlStep( Controller ref_controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
+void RunControlStep( Controller genericController, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
 {
-  if( ref_controller == NULL ) return;
+  if( genericController == NULL ) return;
   
-  ControlData* controller = (ControlData*) ref_controller;
+  ControlData* controller = (ControlData*) genericController;
   
   if( fabs( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] ) > controller->positionsMaxList[ 0 ] ) 
     controller->positionsMaxList[ 0 ] = fabs( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] );

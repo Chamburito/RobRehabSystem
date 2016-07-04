@@ -6,13 +6,7 @@
 #include "signal_processing.h"
 
 //enum { MUSCLE_ACTIVE_FORCE, MUSCLE_PASSIVE_FORCE, MUSCLE_MOMENT_ARM, MUSCLE_NORM_LENGTH, MUSCLE_PENATION_ANGLE, MUSCLE_CURVES_NUMBER };
-enum EMGMuscleGains { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
-
-typedef struct _EMGMuscleData EMGMuscleData;
-typedef EMGMuscleData* EMGMuscle;
-
-typedef struct _EMGJointData EMGJointData;
-typedef EMGJointData* EMGJoint;
+enum EMGMuscleGain { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
 
 #define EMG_JOINT_INVALID_ID 0
 
@@ -26,7 +20,7 @@ typedef EMGJointData* EMGJoint;
         INIT_FUNCTION( double, Namespace, SetJointGain, int, double ) \
         INIT_FUNCTION( void, Namespace, SetProcessingPhase, int, enum SignalProcessingPhase ) \
         INIT_FUNCTION( size_t, Namespace, GetJointMusclesCount, int ) \
-        INIT_FUNCTION( double, Namespace, SetJointMuscleGain, int, size_t, enum EMGMuscleGains, double ) \
+        INIT_FUNCTION( double, Namespace, SetJointMuscleGain, int, size_t, enum EMGMuscleGain, double ) \
         INIT_FUNCTION( double, Namespace, GetJointMuscleTorque, int, size_t, double, double )
 
 DECLARE_NAMESPACE_INTERFACE( EMGProcessing, EMG_PROCESSING_FUNCTIONS )

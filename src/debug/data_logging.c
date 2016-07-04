@@ -9,6 +9,8 @@
 
 #include "debug/data_logging.h"
 
+#define TIME_STAMP_STRING_LENGTH 32
+
 
 struct _LogData
 {
@@ -21,6 +23,7 @@ struct _LogData
 };
 
 static char baseDirectoryPath[ LOG_FILE_PATH_MAX_LEN ] = "logs";
+static char timeStampString[ TIME_STAMP_STRING_LENGTH ] = "";
 
 KHASH_MAP_INIT_INT( LogInt, Log );
 static khash_t( LogInt )* logsList = NULL;
@@ -35,16 +38,6 @@ int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t
   if( logsList == NULL ) logsList = kh_init( LogInt );
   
   int logKey = (int) kh_str_hash_func( logFilePath );
-  
-  time_t timeStamp = time( NULL );
-  char timeStampString[ 32 ];
-  strncpy( timeStampString, asctime( localtime( &timeStamp ) ), 32 );
-  for( size_t charIndex = 0; charIndex < 32; charIndex++ )
-  {
-    char c = timeStampString[ charIndex ];
-    if( c == ' ' || c == ':' ) timeStampString[ charIndex ] = '_';
-    else if( c == '\n' || c == '\r' ) timeStampString[ charIndex ] = '\0';
-  }
   
   sprintf( logFilePathExt, "%s/%s-%s.log", baseDirectoryPath, logFilePath, timeStampString );
   
@@ -100,6 +93,15 @@ void DataLogging_EndLog( int logID )
 
 void DataLogging_SetBaseDirectory( const char* directoryPath )
 {
+  time_t timeStamp = time( NULL );
+  strncpy( timeStampString, asctime( localtime( &timeStamp ) ), TIME_STAMP_STRING_LENGTH );
+  for( size_t charIndex = 0; charIndex < TIME_STAMP_STRING_LENGTH; charIndex++ )
+  {
+    char c = timeStampString[ charIndex ];
+    if( c == ' ' || c == ':' ) timeStampString[ charIndex ] = '_';
+    else if( c == '\n' || c == '\r' ) timeStampString[ charIndex ] = '\0';
+  }
+  
   sprintf( baseDirectoryPath, "logs/%s", ( directoryPath != NULL ) ? directoryPath : "" );
 }
 

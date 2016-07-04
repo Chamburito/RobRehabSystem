@@ -124,10 +124,10 @@ void UpdateEvents()
       
       if( robotCommand == SHM_ROBOT_DISABLE ) robotState = Robots.Disable( robotID ) ? SHM_ROBOT_DISABLED : 0x00;
       else if( robotCommand == SHM_ROBOT_ENABLE ) robotState = Robots.Enable( robotID ) ? SHM_ROBOT_ENABLED : 0x00;
-      else if( robotCommand == SHM_ROBOT_OFFSET ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_OFFSET ) ? SHM_ROBOT_OFFSETTING : 0x00;
-      else if( robotCommand == SHM_ROBOT_CALIBRATE ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_CALIBRATE ) ? SHM_ROBOT_CALIBRATING : 0x00;
-      else if( robotCommand == SHM_ROBOT_OPTIMIZE ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_OPTIMIZE ) ? SHM_ROBOT_OPTIMIZING : 0x00;
-      else if( robotCommand == SHM_ROBOT_OPERATE ) robotState = Robots.SetControlState( robotID, SHM_ROBOT_OPERATE ) ? SHM_ROBOT_OPERATING : 0x00;
+      else if( robotCommand == SHM_ROBOT_OFFSET ) robotState = Robots.SetControlState( robotID, CONTROL_OFFSET ) ? SHM_ROBOT_OFFSETTING : 0x00;
+      else if( robotCommand == SHM_ROBOT_CALIBRATE ) robotState = Robots.SetControlState( robotID, CONTROL_CALIBRATION ) ? SHM_ROBOT_CALIBRATING : 0x00;
+      else if( robotCommand == SHM_ROBOT_OPTIMIZE ) robotState = Robots.SetControlState( robotID, CONTROL_OPTIMIZATION ) ? SHM_ROBOT_OPTIMIZING : 0x00;
+      else if( robotCommand == SHM_ROBOT_OPERATE ) robotState = Robots.SetControlState( robotID, CONTROL_OPERATION ) ? SHM_ROBOT_OPERATING : 0x00;
 
       SHMControl.SetControlByte( sharedRobotJointsInfo, robotIndex, robotState );
     }

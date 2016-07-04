@@ -1,6 +1,0 @@
-{
-  "mechanics": "robots/exokanguera",
-  "joints": [
-    "emg_joints/knee"
-  ]
-}

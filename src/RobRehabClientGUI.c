@@ -52,6 +52,7 @@
 //#include "ip_network/async_ip_network.h"
 
 #include "shm_control.h"
+#include "shm_robot_control.h"
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
 
@@ -295,15 +296,15 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
     
     // Reset command values
     SHMControl.SetControlByte( sharedRobotJointsInfo, 0, 0x00 );
-    SHMControl.SetControlByte( sharedRobotJointsInfo, 1, 0x00 );
-    SHMControl.SetControlByte( sharedRobotJointsInfo, 1, 0x00 );
-    SHMControl.SetControlByte( sharedRobotJointsInfo, 1, 0x00 );
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 0, 0x00 );
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 0, 0x00 );
+    SHMControl.SetControlByte( sharedRobotJointsInfo, 0, 0x00 );
     
     // Write the new value to the appropriate network variable.
     if( control == PANEL_MOTOR_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_ENABLE : SHM_ROBOT_DISABLE );
-    else if( control == PANEL_OFFSET_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, ( enabled == 1 ) ? SHM_JOINT_OFFSET : SHM_JOINT_MEASURE );
-    else if( control == PANEL_CAL_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, ( enabled == 1 ) ? SHM_JOINT_CALIBRATE : SHM_JOINT_MEASURE );
-    else if( control == PANEL_SAMPLE_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 1, ( enabled == 1 ) ? SHM_JOINT_SAMPLE : SHM_JOINT_MEASURE );
+    else if( control == PANEL_OFFSET_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OFFSET : SHM_ROBOT_OPERATE );
+    else if( control == PANEL_CAL_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_CALIBRATE : SHM_ROBOT_OPERATE );
+    else if( control == PANEL_SAMPLE_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OPTIMIZE : SHM_ROBOT_OPERATE );
 	}
   
 	return 0;

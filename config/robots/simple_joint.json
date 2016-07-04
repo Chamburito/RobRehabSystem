@@ -1,7 +1,7 @@
 {
   "controller": {
-    "type": "SimpleJoint",
-    "id": "simple_joint"
+    "type": "EMGJointControl",
+    "config": "{ 'joints': [ 'knee' ] }"
   },
   "actuators": [ "simple_joint_actuator" ]
 }

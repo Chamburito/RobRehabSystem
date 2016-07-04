@@ -52,6 +52,8 @@ typedef struct _EMGMuscleData
 }
 EMGMuscleData;
 
+typedef EMGMuscleData* EMGMuscle;
+
 typedef struct _EMGJointData
 {
   EMGMuscle* musclesList;
@@ -59,6 +61,8 @@ typedef struct _EMGJointData
   double scaleFactor;
 }
 EMGJointData;
+
+typedef EMGJointData* EMGJoint;
 
 KHASH_MAP_INIT_INT( JointInt, EMGJoint )
 static khash_t( JointInt )* jointsList = NULL;
@@ -223,7 +227,7 @@ size_t EMGProcessing_GetJointMusclesCount( int jointID )
   return joint->musclesListLength;
 }
 
-double EMGProcessing_SetJointMuscleGain( int jointID, size_t muscleIndex, enum EMGMuscleGains gainIndex, double value )
+double EMGProcessing_SetJointMuscleGain( int jointID, size_t muscleIndex, enum EMGMuscleGain gainIndex, double value )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return 0.0;
