@@ -74,6 +74,9 @@ Controller InitController( const char* config )
 {
   DEBUG_PRINT( "Trying to load robot control config %s", config );
   
+  ConfigParsing.Init( "JSON" );
+  DataLogging.SetBaseDirectory( "teste" );
+  
   int configDataID = ConfigParsing.LoadConfigString( config );
   if( configDataID != DATA_INVALID_ID )
   {
@@ -82,7 +85,7 @@ Controller InitController( const char* config )
     
     newController->currentControlState = CONTROL_OPERATION;
   
-    newController->jointsNumber = ConfigParsing.GetParser()->GetListSize( configDataID, 0, "joints" );
+    newController->jointsNumber = ConfigParsing.GetParser()->GetListSize( configDataID, "joints" );
     newController->samplersList = (EMGJointSampler*) calloc( newController->jointsNumber, sizeof(EMGJointSampler) );
     newController->jointNamesList = (char**) calloc( newController->jointsNumber, sizeof(char*) );
     

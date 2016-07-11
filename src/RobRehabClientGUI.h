@@ -22,10 +22,10 @@
 #define  PANEL_MOTOR_TOGGLE               7       /* control type: textButton, callback function: ChangeStateCallback */
 #define  PANEL_STIFFNESS_SLIDER           8       /* control type: scale, callback function: ChangeValueCallback */
 #define  PANEL_CONNECT_BUTTON             9       /* control type: command, callback function: ConnectCallback */
-#define  PANEL_AXIS_STRING                10      /* control type: string, callback function: (none) */
-#define  PANEL_JOINT_STRING               11      /* control type: string, callback function: (none) */
-#define  PANEL_MEASURE_SLIDER             12      /* control type: scale, callback function: (none) */
-#define  PANEL_SETPOINT_SLIDER            13      /* control type: scale, callback function: (none) */
+#define  PANEL_MEASURE_SLIDER             10      /* control type: scale, callback function: (none) */
+#define  PANEL_SETPOINT_SLIDER            11      /* control type: scale, callback function: (none) */
+#define  PANEL_JOINT_SELECTOR_2           12      /* control type: ring, callback function: (none) */
+#define  PANEL_JOINT_SELECTOR             13      /* control type: ring, callback function: (none) */
 
 
      /* Control Arrays: */

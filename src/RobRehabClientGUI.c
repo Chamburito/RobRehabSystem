@@ -139,6 +139,9 @@ static void* UpdateData( void* callbackData )
   double referenceValues[ DISPLAY_POINTS_NUMBER ];
   size_t displayPointIndex = 0;
   
+  double targetStiffness = 0.0;
+  size_t stiffnessPhase = 0;
+  
   double initialTime = Timing.GetExecTimeSeconds();
   double elapsedTime = 0.0, deltaTime = 0.0, measureTime = 0.0, setpointTime = 0.0, absoluteTime = initialTime; 
   
@@ -155,9 +158,7 @@ static void* UpdateData( void* callbackData )
     if( measureTime > CONTROL_PASS_INTERVAL )
     {
       displayPointIndex++;
-      
       //fprintf( stderr, "new axis/joint value indexes: %lu %lu", axisMeasureIndex, jointMeasureIndex );
-      
       measureTime = 0.0;
     }
 
@@ -179,6 +180,10 @@ static void* UpdateData( void* callbackData )
       PlotY( panel, PANEL_GRAPH_2, angleValues, DISPLAY_POINTS_NUMBER, VAL_DOUBLE, VAL_THIN_LINE, VAL_NO_POINT, VAL_SOLID, 1, VAL_GREEN );
       
       displayPointIndex = 0;
+      
+      stiffnessPhase++;
+      targetStiffness = 30.0 * ( stiffnessPhase / 5 );
+      if( targetStiffness > 100.0 ) targetStiffness = 100.0;
     }
 
     positionValues[ displayPointIndex ] = measuresList[ SHM_AXIS_POSITION ] * 6.28;
@@ -196,6 +201,9 @@ static void* UpdateData( void* callbackData )
     if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
     {
       uint8_t setpointMask = 0;
+      
+      SetCtrlVal( panel, PANEL_STIFFNESS_SLIDER, maxStiffness * 0.99 + targetStiffness * 0.01 );
+      ChangeValueCallback( panel, PANEL_STIFFNESS_SLIDER, EVENT_COMMIT, NULL, 0, 0 );
       
       setpointsList[ SHM_AXIS_POSITION ] = sin( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE - 0.125;
       SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_POSITION );
@@ -318,6 +326,7 @@ int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* ca
     {
       // Get the new value.
       GetCtrlVal( panel, control, &maxStiffness );
+      fprintf( stderr, "set stiffness to %g\r", maxStiffness );
     }
 	}
 	return 0;

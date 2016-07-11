@@ -1,10 +1,10 @@
 [Project Header]
-Version = 1302
+Version = 1500
 Pathname = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/RobRehabServerRT.prj"
 Project Label = "RobRehabServerRT"
-CVI Dir = "/c/program files (x86)/national instruments/cvi2013"
+CVI Dir = "/c/program files (x86)/national instruments/cvi2015"
 CVI Shared Dir = "/C/Program Files (x86)/National Instruments/Shared/CVI"
-CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2013"
+CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2015"
 CVI Pub Global Dir = "/C/ProgramData/National Instruments/CVI"
 IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
@@ -291,9 +291,9 @@ Folder Id = 1
 File Type = "Library"
 Res Id = 21
 Path Is Rel = True
-Path Rel To = "CVI"
-Path Rel To Override = "CVI"
-Path Rel Path = "sdk/lib/msvc/WSock32_lvrt.Lib"
+Path Rel To = "Project"
+Path Rel Path Line0001 = "../../../../../program files (x86)/national instruments/cvi2013/sdk/lib/msvc/WSo"
+Path Rel Path Line0002 = "ck32_lvrt.Lib"
 Path Line0001 = "/c/program files (x86)/national instruments/cvi2013/sdk/lib/msvc/WSock32_lvrt.Li"
 Path Line0002 = "b"
 Exclude = False

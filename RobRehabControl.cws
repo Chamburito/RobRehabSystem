@@ -1,21 +1,22 @@
 [Workspace Header]
-Version = 1302
+Version = 1500
 Pathname = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/RobRehabControl.cws"
-CVI Dir = "/c/program files (x86)/national instruments/cvi2013"
+CVI Dir = "/c/program files (x86)/national instruments/cvi2015"
 CVI Shared Dir = "/C/Program Files (x86)/National Instruments/Shared/CVI"
-CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2013"
+CVI Pub Local Dir = "/C/ProgramData/National Instruments/CVI2015"
 CVI Pub Global Dir = "/C/ProgramData/National Instruments/CVI"
 IVI Standard Root Dir = "/C/Program Files (x86)/IVI Foundation/IVI"
 IVI Standard Root 64-bit Dir = "/C/Program Files/IVI Foundation/IVI"
 VXIplug&play Framework Dir = "/C/Program Files (x86)/IVI Foundation/VISA/winnt"
 VXIplug&play Framework 64-bit Dir = "/C/Program Files/IVI Foundation/VISA/win64"
 Number of Projects = 13
-Active Project = 13
+Active Project = 2
 Project 0001 = "RobRehabControlGui.prj"
 Project 0002 = "RobRehabControlRT.prj"
 Project 0002 Folder Include Files Collapsed = True
 Project 0002 FolderId 0 Collapsed = True
 Project 0003 = "RobRehabEMG.prj"
+Project 0003 Collapsed = True
 Project 0003 Folder Include Files Collapsed = True
 Project 0003 FolderId 0 Collapsed = True
 Project 0004 = "RobRehabServerRT.prj"
@@ -34,11 +35,11 @@ Project 0010 Collapsed = True
 Project 0011 = "MKVControlPlugin.prj"
 Project 0012 = "rLQRControlPlugin.prj"
 Project 0013 = "EMGJointControlPlugin.prj"
-Drag Bar Left = 273
+Drag Bar Left = 257
 Window Top = 80
-Window Left = 232
+Window Left = -16
 Window Bottom = 1081
-Window Right = 1176
+Window Right = 928
 Maximized = True
 Maximized Children = True
 Max32 Number Of Errors = 20
@@ -54,12 +55,12 @@ Break At First Statement = False
 Sort Type = "File Name"
 Number of Opened Files = 74
 Window Confinement Region Enabled = True
-MainColumnWidth = 256
+MainColumnWidth = 240
 FileDateColumnWidth = 70
 FileSizeColumnWidth = 70
 
 [Project Header 0001]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -68,7 +69,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0002]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Release"
@@ -77,7 +78,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0003]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -86,7 +87,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0004]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -95,7 +96,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0005]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Release"
@@ -104,7 +105,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0006]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -113,7 +114,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0007]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Release"
@@ -122,7 +123,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0008]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Release"
@@ -131,7 +132,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0009]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -140,7 +141,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0010]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -149,7 +150,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0011]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -158,7 +159,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0012]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -167,7 +168,7 @@ Batch Build Release = False
 Batch Build Debug = False
 
 [Project Header 0013]
-Version = 1302
+Version = 1500
 Don't Update DistKit = False
 Platform Code = 4
 Build Configuration = "Debug"
@@ -178,12 +179,12 @@ Batch Build Debug = False
 [File 0001]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/RobRehabClientGUI.c"
 File Type = "CSource"
-Disk Date = 3550219583
+Disk Date = 3551089918
 In Projects = "1,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 14
-Source Window State = "1,306,306,306,149,156,149,0,0,85,0,0,0,0,0,25,280,0,317,134,349,723,1,0,"
+Window Z-Order = 13
+Source Window State = "1,235,235,235,2,81,2,0,0,85,0,0,0,0,0,25,151,0,182,81,349,723,1,0,"
 
 [File 0002]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_control.h"
@@ -192,17 +193,17 @@ Disk Date = 3549277292
 In Projects = "1,2,3,4,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 34
+Window Z-Order = 37
 Source Window State = "1,22,22,22,8,43,8,0,0,85,0,0,0,0,0,25,0,0,21,46,349,723,1,0,"
 
 [File 0003]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_system_rt.c"
 File Type = "CSource"
-Disk Date = 3550053455
+Disk Date = 3551094529
 In Projects = "2,3,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 26
+Window Z-Order = 2
 Source Window State = "1,66,66,66,36,43,43,0,0,85,0,0,0,0,0,25,33,0,66,40,349,723,1,0,"
 
 [File 0004]
@@ -212,7 +213,7 @@ Disk Date = 3549373510
 In Projects = "1,2,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 39
+Window Z-Order = 41
 Source Window State = "1,6,6,6,0,11,11,0,0,85,0,0,0,0,0,25,0,0,6,67,349,723,1,0,"
 
 [File 0005]
@@ -223,7 +224,7 @@ Disk Date = 3545658434
 In Projects = ""
 Window Top = 64
 Window Left = 26
-Window Z-Order = 66
+Window Z-Order = 67
 Source Window State = "1,548,548,548,18,31,31,0,0,85,0,0,0,0,0,25,0,0,10,9,349,723,1,0,"
 
 [File 0006]
@@ -233,7 +234,7 @@ Disk Date = 3545658434
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 68
+Window Z-Order = 69
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,0,0,349,723,1,0,"
 
 [File 0007]
@@ -243,7 +244,7 @@ Disk Date = 3545658436
 In Projects = "2,3,13,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 51
+Window Z-Order = 12
 Source Window State = "1,3,3,3,0,23,23,0,0,85,0,0,0,0,0,25,0,0,20,0,349,723,1,0,"
 
 [File 0008]
@@ -253,7 +254,7 @@ Disk Date = 3550238817
 In Projects = "3,13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 7
+Window Z-Order = 19
 Source Window State = "1,10,14,14,0,31,31,0,0,85,0,0,0,0,0,25,0,0,22,93,349,723,1,0,"
 
 [File 0009]
@@ -264,7 +265,7 @@ Disk Date = 3545658436
 In Projects = "10,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 58
+Window Z-Order = 59
 Source Window State = "1,246,247,247,0,62,62,0,0,85,0,0,0,0,0,25,83,0,145,87,349,723,1,0,"
 
 [File 0010]
@@ -274,7 +275,7 @@ Disk Date = 3550051827
 In Projects = "2,3,12,13,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 3
+Window Z-Order = 17
 Source Window State = "1,8,8,8,8,27,8,0,0,85,0,0,0,0,0,25,0,0,8,34,349,723,1,0,"
 
 [File 0011]
@@ -285,7 +286,7 @@ Disk Date = 3545658436
 In Projects = "5,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 47
+Window Z-Order = 49
 Source Window State = "1,247,247,247,54,78,54,0,0,85,0,0,0,0,0,25,0,0,16,103,349,723,1,0,"
 
 [File 0012]
@@ -296,7 +297,7 @@ Disk Date = 3545658434
 In Projects = "2,3,13,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 64
+Window Z-Order = 65
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,0,0,349,723,1,0,"
 
 [File 0013]
@@ -306,7 +307,7 @@ Disk Date = 3549639044
 In Projects = "2,3,13,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 35
+Window Z-Order = 38
 Source Window State = "1,22,22,22,8,91,8,0,0,85,0,0,0,0,0,25,0,0,8,64,349,723,1,0,"
 
 [File 0014]
@@ -317,7 +318,7 @@ Disk Date = 3545658436
 In Projects = "5,10,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 48
+Window Z-Order = 50
 Source Window State = "1,23,24,24,0,40,40,0,0,85,0,0,0,0,0,25,0,0,22,82,349,723,1,0,"
 
 [File 0015]
@@ -327,7 +328,7 @@ Disk Date = 3545664911
 In Projects = "2,11,12,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 59
+Window Z-Order = 60
 Source Window State = "1,17,17,17,12,19,12,0,0,85,0,0,0,0,0,25,0,0,25,36,349,723,1,0,"
 
 [File 0016]
@@ -337,7 +338,7 @@ Disk Date = 3538983798
 In Projects = "2,3,6,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 50
+Window Z-Order = 52
 Source Window State = "1,120,120,120,8,18,18,0,0,85,0,0,0,0,0,25,43,0,61,41,349,723,1,0,"
 
 [File 0017]
@@ -368,7 +369,7 @@ Disk Date = 3549897696
 In Projects = "8,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 18
+Window Z-Order = 25
 Source Window State = "1,0,87,0,0,0,0,0,3,85,0,0,0,0,0,25,19,0,87,79,349,723,1,0,"
 
 [File 0020]
@@ -378,7 +379,7 @@ Disk Date = 3547566527
 In Projects = "2,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 57
+Window Z-Order = 58
 Source Window State = "1,15,15,15,8,72,72,0,0,85,0,0,0,0,0,25,0,0,16,68,349,723,1,0,"
 
 [File 0021]
@@ -388,7 +389,7 @@ Disk Date = 3550072684
 In Projects = "1,2,3,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 23
+Window Z-Order = 30
 Source Window State = "1,8,13,13,0,85,85,0,0,85,0,0,0,0,0,25,0,0,6,69,349,723,1,0,"
 
 [File 0022]
@@ -398,7 +399,7 @@ Disk Date = 3550049953
 In Projects = "2,3,13,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 17
+Window Z-Order = 24
 Source Window State = "1,18,18,18,8,61,8,0,0,85,0,0,0,0,0,25,0,0,19,71,349,723,1,0,"
 
 [File 0023]
@@ -408,7 +409,7 @@ Disk Date = 3550072620
 In Projects = "2,"
 Window Top = 250
 Window Left = 122
-Window Z-Order = 25
+Window Z-Order = 31
 Source Window State = "1,18,18,18,0,76,76,0,0,85,0,0,0,0,0,25,0,0,17,88,349,723,1,0,"
 
 [File 0024]
@@ -418,7 +419,7 @@ Disk Date = 3550072725
 In Projects = "2,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 22
+Window Z-Order = 29
 Source Window State = "1,37,37,37,0,72,72,0,0,85,0,0,0,0,0,25,0,0,27,27,349,723,1,0,"
 
 [File 0025]
@@ -429,7 +430,7 @@ Disk Date = 3549889260
 In Projects = "7,9,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 31
+Window Z-Order = 36
 Source Window State = "1,8,8,8,23,39,39,0,0,85,0,0,0,0,0,25,0,0,8,29,349,723,1,0,"
 
 [File 0026]
@@ -440,7 +441,7 @@ Disk Date = 3550072783
 In Projects = "8,11,12,13,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 21
+Window Z-Order = 28
 Source Window State = "1,14,14,14,68,84,68,0,0,85,0,0,0,0,0,25,0,0,13,86,349,723,1,0,"
 
 [File 0027]
@@ -451,8 +452,8 @@ Disk Date = 3546273218
 In Projects = "6,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 70
-Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,50,0,73,61,349,723,1,0,"
+Window Z-Order = 7
+Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,69,0,81,21,349,723,1,0,"
 
 [File 0028]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/actuator_control/fuz"
@@ -473,7 +474,7 @@ Disk Date = 3549889340
 In Projects = "7,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 9
+Window Z-Order = 21
 Source Window State = "1,59,59,59,27,135,27,0,0,85,0,0,0,0,0,25,21,0,52,55,349,723,1,0,"
 
 [File 0030]
@@ -484,7 +485,7 @@ Disk Date = 3550072620
 In Projects = "1,2,7,8,11,12,13,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 20
+Window Z-Order = 27
 Source Window State = "1,9,23,23,0,70,70,0,0,85,0,0,0,0,0,25,0,0,7,25,349,723,1,0,"
 
 [File 0031]
@@ -494,7 +495,7 @@ Disk Date = 3538983798
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 53
+Window Z-Order = 54
 Source Window State = "1,86,86,86,16,55,16,0,0,85,0,0,0,0,0,25,22,0,66,76,349,723,1,0,"
 
 [File 0032]
@@ -505,7 +506,7 @@ Disk Date = 3545661437
 In Projects = "1,4,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 67
+Window Z-Order = 68
 Source Window State = "1,245,245,245,4,16,16,0,0,85,0,0,0,0,0,25,0,0,4,17,349,723,1,0,"
 
 [File 0033]
@@ -526,7 +527,7 @@ Disk Date = 3545658434
 In Projects = "1,2,3,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 56
+Window Z-Order = 57
 Source Window State = "1,10,10,10,7,22,7,0,0,85,0,0,0,0,0,25,0,0,21,44,349,723,1,0,"
 
 [File 0035]
@@ -536,7 +537,7 @@ Disk Date = 3545658434
 In Projects = "6,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 52
+Window Z-Order = 53
 Source Window State = "1,20,20,20,8,35,35,0,3,86,0,0,0,0,0,25,0,0,20,8,349,731,1,0,"
 
 [File 0036]
@@ -546,7 +547,7 @@ Disk Date = 3545658434
 In Projects = ""
 Window Top = 33
 Window Left = 10
-Window Z-Order = 69
+Window Z-Order = 70
 Source Window State = "1,250,250,250,84,98,84,0,0,86,0,0,0,0,0,25,223,0,250,77,349,731,1,0,"
 
 [File 0037]
@@ -557,7 +558,7 @@ Disk Date = 3546273218
 In Projects = "1,2,4,5,"
 Window Top = 219
 Window Left = 106
-Window Z-Order = 63
+Window Z-Order = 64
 Source Window State = "1,44,44,44,25,46,25,0,3,85,0,0,0,0,0,25,24,0,44,46,349,723,1,0,"
 
 [File 0038]
@@ -568,7 +569,7 @@ Disk Date = 3549466540
 In Projects = "4,"
 Window Top = 126
 Window Left = 58
-Window Z-Order = 41
+Window Z-Order = 43
 Source Window State = "1,232,232,232,19,22,22,0,0,85,0,0,0,0,0,25,180,0,215,4,349,723,1,0,"
 
 [File 0039]
@@ -579,7 +580,7 @@ Disk Date = 3549461387
 In Projects = "4,"
 Window Top = 312
 Window Left = 154
-Window Z-Order = 42
+Window Z-Order = 44
 Source Window State = "1,506,506,506,6,47,6,0,0,85,0,0,0,0,0,25,696,0,499,60,349,723,1,0,"
 
 [File 0040]
@@ -590,7 +591,7 @@ Disk Date = 3546273218
 In Projects = "1,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 43
+Window Z-Order = 45
 Source Window State = "1,4,4,4,0,20,20,0,0,85,0,0,0,0,0,25,395,0,407,22,349,723,1,0,"
 
 [File 0041]
@@ -600,7 +601,7 @@ Disk Date = 3549467504
 In Projects = "4,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 40
+Window Z-Order = 42
 Source Window State = "1,83,83,83,30,59,30,0,0,85,0,0,0,0,0,25,76,0,88,52,349,723,1,0,"
 
 [File 0042]
@@ -610,7 +611,7 @@ Disk Date = 3546273218
 In Projects = ""
 Window Top = 281
 Window Left = 138
-Window Z-Order = 65
+Window Z-Order = 66
 Source Window State = "1,9,9,9,0,32,32,0,0,85,0,0,0,0,0,25,0,0,23,82,349,723,1,0,"
 
 [File 0043]
@@ -621,7 +622,7 @@ Disk Date = 3549377411
 In Projects = "2,3,13,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 46
+Window Z-Order = 48
 Source Window State = "1,183,183,183,0,7,7,0,0,85,0,0,0,0,0,25,186,0,212,86,349,723,1,0,"
 
 [File 0044]
@@ -629,10 +630,10 @@ Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_
 Path Line0002 = "network.h"
 File Type = "Include"
 Disk Date = 3545658434
-In Projects = "1,4,"
+In Projects = "4,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 45
+Window Z-Order = 47
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,25,58,349,723,1,0,"
 
 [File 0045]
@@ -640,10 +641,10 @@ Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/ip_
 Path Line0002 = "k.h"
 File Type = "Include"
 Disk Date = 3545658434
-In Projects = "1,4,"
+In Projects = "4,"
 Window Top = 188
 Window Left = 90
-Window Z-Order = 44
+Window Z-Order = 46
 Source Window State = "1,19,19,19,8,29,29,0,0,85,0,0,0,0,0,25,9,0,33,24,349,723,1,0,"
 
 [File 0046]
@@ -653,8 +654,8 @@ Disk Date = 3550072684
 In Projects = "2,"
 Window Top = 281
 Window Left = 138
-Window Z-Order = 24
-Source Window State = "1,189,189,189,0,98,98,0,0,85,0,0,0,0,0,25,165,0,188,100,349,723,1,0,"
+Window Z-Order = 8
+Source Window State = "1,189,189,189,0,98,98,0,0,85,0,0,0,0,0,25,51,0,188,100,349,723,1,0,"
 
 [File 0047]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/kalman_filters.c"
@@ -663,7 +664,7 @@ Disk Date = 3546273218
 In Projects = "2,"
 Window Top = 250
 Window Left = 122
-Window Z-Order = 62
+Window Z-Order = 63
 Source Window State = "1,2,5,5,0,11,11,0,0,85,0,0,0,0,0,25,0,0,30,103,349,723,1,0,"
 
 [File 0048]
@@ -674,8 +675,8 @@ Disk Date = 3548418778
 In Projects = "1,2,3,4,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 11
-Source Window State = "1,196,197,197,0,121,121,0,0,85,0,0,0,0,0,25,178,0,190,17,349,723,1,0,"
+Window Z-Order = 14
+Source Window State = "1,196,197,197,0,121,121,0,0,85,0,0,0,0,0,25,65,0,81,71,349,723,1,0,"
 
 [File 0049]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/time/timing_realtime"
@@ -685,7 +686,7 @@ Disk Date = 3545658436
 In Projects = "2,3,4,10,13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 61
+Window Z-Order = 62
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,21,57,349,723,1,0,"
 
 [File 0050]
@@ -695,7 +696,7 @@ Disk Date = 3547045002
 In Projects = "2,11,12,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 27
+Window Z-Order = 32
 Source Window State = "1,278,278,278,11,18,11,0,0,85,0,0,0,0,0,25,230,0,278,60,349,723,1,0,"
 
 [File 0051]
@@ -706,7 +707,7 @@ Disk Date = 3550241933
 In Projects = "11,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 8
+Window Z-Order = 20
 Source Window State = "1,87,87,87,4,41,4,0,0,85,0,0,0,0,0,25,69,0,87,59,349,723,1,0,"
 
 [File 0052]
@@ -717,7 +718,7 @@ Disk Date = 3546276364
 In Projects = "11,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 60
+Window Z-Order = 61
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,0,0,349,723,1,0,"
 
 [File 0053]
@@ -727,8 +728,8 @@ Disk Date = 3550489973
 In Projects = "2,3,11,12,13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 2
-Source Window State = "1,96,96,96,64,66,64,0,0,85,0,0,0,0,0,25,72,0,96,88,349,723,1,0,"
+Window Z-Order = 11
+Source Window State = "1,96,96,96,64,66,64,0,0,85,0,0,0,0,0,25,114,0,138,70,349,723,1,0,"
 
 [File 0054]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robot_control/rlqr_c"
@@ -738,7 +739,7 @@ Disk Date = 3550238818
 In Projects = "12,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 15
+Window Z-Order = 23
 Source Window State = "1,79,81,79,2,58,2,0,0,85,0,182,0,182,0,25,54,0,81,61,349,723,1,0,"
 
 [File 0055]
@@ -748,8 +749,8 @@ Disk Date = 3550235615
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 12
-Source Window State = "1,360,419,419,2,18,18,0,0,85,0,0,0,0,0,25,163,0,380,77,349,723,1,0,"
+Window Z-Order = 9
+Source Window State = "1,360,419,419,2,18,18,0,0,85,0,0,0,0,0,25,357,0,380,77,349,723,1,0,"
 
 [File 0056]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_processing.c"
@@ -758,7 +759,7 @@ Disk Date = 3549638853
 In Projects = "2,3,13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 36
+Window Z-Order = 39
 Source Window State = "1,201,201,201,6,24,24,0,0,85,0,0,0,0,0,25,166,0,188,86,349,723,1,0,"
 
 [File 0057]
@@ -768,7 +769,7 @@ Disk Date = 3549896929
 In Projects = "2,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 30
+Window Z-Order = 35
 Source Window State = "1,160,162,162,0,45,45,0,0,85,0,0,0,0,0,25,118,0,157,4,349,723,1,0,"
 
 [File 0058]
@@ -778,20 +779,20 @@ Disk Date = 3549632239
 In Projects = "2,3,13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 37
-Source Window State = "1,54,54,54,2,55,2,0,0,85,0,0,0,0,0,25,29,0,97,84,349,723,1,0,"
+Window Z-Order = 1
+Source Window State = "1,54,54,54,2,55,2,0,0,203,0,0,0,0,0,49,128,0,163,77,349,723,1,0,"
 
 [File 0059]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/RobRehabClientGUI.ui"
 Path Line0002 = "r"
 File Type = "User Interface Resource"
-Disk Date = 3549879158
+Disk Date = 3551088399
 In Projects = "1,"
 Window Top = 64
 Window Left = 26
 Window Height = 349
 Window Width = 723
-Window Z-Order = 32
+Window Z-Order = 15
 
 [File 0060]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_control.c"
@@ -800,8 +801,8 @@ Disk Date = 3550240357
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 5
-Source Window State = "1,129,129,129,97,114,97,0,0,85,0,0,0,0,0,25,215,0,121,63,349,723,1,0,"
+Window Z-Order = 4
+Source Window State = "1,83,83,83,2,47,47,0,3,85,0,0,0,0,0,25,50,0,83,2,349,723,1,0,"
 
 [File 0061]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_control.c"
@@ -810,7 +811,7 @@ Disk Date = 3549277293
 In Projects = "1,2,3,4,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 10
+Window Z-Order = 22
 Source Window State = "1,145,145,145,22,30,30,0,0,85,0,0,0,0,0,25,0,0,145,63,349,723,1,0,"
 
 [File 0062]
@@ -820,7 +821,7 @@ Disk Date = 3548323661
 In Projects = "1,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 55
+Window Z-Order = 56
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,24,35,349,723,1,0,"
 
 [File 0063]
@@ -830,7 +831,7 @@ Disk Date = 3538983798
 In Projects = "2,3,4,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 54
+Window Z-Order = 55
 Source Window State = "1,405,405,405,8,24,8,0,0,85,0,0,0,0,0,25,438,0,427,47,349,723,1,0,"
 
 [File 0064]
@@ -840,7 +841,7 @@ Disk Date = 3550049953
 In Projects = "2,3,4,"
 Window Top = 95
 Window Left = 42
-Window Z-Order = 28
+Window Z-Order = 33
 Source Window State = "1,13,13,13,40,68,40,0,0,85,0,0,0,0,0,25,0,0,9,82,349,723,1,0,"
 
 [File 0065]
@@ -850,8 +851,8 @@ Disk Date = 3550242535
 In Projects = "3,13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 6
-Source Window State = "1,54,54,54,0,44,44,0,0,85,0,20,0,20,0,25,250,0,252,130,349,723,1,0,"
+Window Z-Order = 5
+Source Window State = "1,54,54,54,0,44,44,0,0,85,0,20,0,20,0,25,296,0,324,89,349,723,1,0,"
 
 [File 0066]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab_emg.c"
@@ -860,17 +861,17 @@ Disk Date = 3549377978
 In Projects = "3,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 4
+Window Z-Order = 18
 Source Window State = "1,270,305,305,0,3,3,0,3,85,0,306,0,306,0,25,258,0,270,0,349,723,1,0,"
 
 [File 0067]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/RobRehabClientGUI.h"
 File Type = "Include"
-Disk Date = 3549879055
+Disk Date = 3551088400
 In Projects = "1,"
 Window Top = 157
 Window Left = 74
-Window Z-Order = 33
+Window Z-Order = 16
 Source Window State = "1,29,29,29,9,30,9,0,0,80,0,0,0,0,0,25,0,0,25,60,349,683,1,0,"
 
 [File 0068]
@@ -880,7 +881,7 @@ Disk Date = 3545658434
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 49
+Window Z-Order = 51
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,13,50,349,723,1,0,"
 
 [File 0069]
@@ -891,7 +892,7 @@ Disk Date = 3545658436
 In Projects = "1,2,4,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 38
+Window Z-Order = 40
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,16,53,349,723,1,0,"
 
 [File 0070]
@@ -901,7 +902,7 @@ File Type = "CSource"
 Disk Date = 3546273218
 In Projects = "1,"
 Window Top = 31
-Window Z-Order = 29
+Window Z-Order = 34
 Source Window State = "1,0,0,0,0,0,0,0,0,70,0,0,0,0,0,28,2,0,44,56,400,600,1,0,"
 
 [File 0071]
@@ -911,29 +912,29 @@ Disk Date = 3550049943
 In Projects = "2,3,13,"
 Window Top = 64
 Window Left = 26
-Window Z-Order = 16
-Source Window State = "1,56,56,56,53,59,59,0,0,85,0,0,0,0,0,25,15,0,36,165,349,723,1,0,"
+Window Z-Order = 6
+Source Window State = "1,56,56,56,53,59,59,0,0,85,0,0,0,0,0,25,48,0,60,9,349,723,1,0,"
 
 [File 0072]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_robot_control.h"
 File Type = "Include"
-Disk Date = 3550072859
+Disk Date = 3551094633
 In Projects = "2,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 13
-Source Window State = "1,7,7,7,7,23,7,0,0,85,0,13,0,13,0,25,0,0,8,22,349,723,1,0,"
+Window Z-Order = 10
+Source Window State = "1,7,7,7,7,23,7,0,0,85,0,14,0,14,0,25,0,0,9,50,349,723,1,0,"
 
 [File 0073]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robot_control/emg_co"
 Path Line0002 = "ntrol.c"
 File Type = "CSource"
-Disk Date = 3550491409
+Disk Date = 3551097259
 In Projects = "13,"
 Window Top = 33
 Window Left = 10
-Window Z-Order = 1
-Source Window State = "1,281,284,284,4,82,82,0,0,201,0,330,0,330,0,49,257,0,286,82,349,723,1,0,"
+Window Z-Order = 3
+Source Window State = "1,77,77,77,32,44,32,0,0,85,0,333,0,333,0,25,74,0,93,79,349,723,1,0,"
 
 [File 0074]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robot_control/emg_co"
@@ -943,7 +944,7 @@ Disk Date = 3550230690
 In Projects = ""
 Window Top = 64
 Window Left = 26
-Window Z-Order = 19
+Window Z-Order = 26
 Source Window State = "1,0,0,0,0,0,0,0,0,85,0,0,0,0,0,25,0,0,0,0,349,723,1,0,"
 
 [File 0075]
@@ -961,19 +962,13 @@ In Projects = "1,2,3,4,10,13,"
 Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
 
 [File 0077]
-Path = "/c/program files (x86)/national instruments/cvi2013/sdk/lib/msvc/WSock32.Lib"
-File Type = "Library"
-Disk Date = 3486510000
-In Projects = "1,"
-
-[File 0078]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/namespaces.h"
 File Type = "Include"
 Disk Date = 3545658434
 In Projects = "2,"
 Source Window State = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
 
-[File 0079]
+[File 0078]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/debug/debug.h"
 File Type = "Include"
 Disk Date = 0
@@ -982,7 +977,7 @@ Window Top = 64
 Window Left = 26
 Source Window State = "1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,28,82,349,723,1,0,"
 
-[File 0080]
+[File 0079]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/interfaces.h"
 File Type = "Include"
 Disk Date = 0
@@ -991,7 +986,7 @@ Window Top = 33
 Window Left = 10
 Source Window State = "1,13,13,13,65,91,65,0,0,0,0,0,0,0,0,0,0,0,13,124,349,723,1,0,"
 
-[File 0081]
+[File 0080]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/optimization.h"
 File Type = "Include"
 Disk Date = 3531225857
@@ -1000,7 +995,7 @@ Window Top = 33
 Window Left = 10
 Source Window State = "1,160,160,160,39,87,39,0,0,0,0,0,0,0,0,0,0,0,100,49,349,723,1,0,"
 
-[File 0082]
+[File 0081]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/plugin_loader.h"
 File Type = "Include"
 Disk Date = 0
@@ -1009,14 +1004,14 @@ Window Top = 64
 Window Left = 26
 Source Window State = "1,30,30,30,0,123,123,0,0,0,0,0,0,0,0,0,0,0,34,82,349,723,1,0,"
 
-[File 0083]
+[File 0082]
 Path Line0001 = "/c/program files (x86)/national instruments/cvi2013/sdk/lib/msvc/WSock32_lvrt.Li"
 Path Line0002 = "b"
 File Type = "Library"
 Disk Date = 3486510000
 In Projects = "4,"
 
-[File 0084]
+[File 0083]
 Path = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/klib/kson.h"
 File Type = "Include"
 Disk Date = 3538983798
@@ -1025,7 +1020,7 @@ Window Top = 64
 Window Left = 26
 Source Window State = "1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,0,49,63,349,723,1,0,"
 
-[File 0085]
+[File 0084]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_io/ni_can_epo"
 Path Line0002 = "s/can_network.h"
 File Type = "Include"
@@ -1035,7 +1030,7 @@ Window Top = 126
 Window Left = 58
 Source Window State = "1,103,104,104,0,138,138,0,0,0,0,0,0,0,0,0,0,0,168,4,349,723,1,0,"
 
-[File 0086]
+[File 0085]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_io/ni_can_epo"
 Path Line0002 = "s/nixnet.h"
 File Type = "Include"
@@ -1045,7 +1040,7 @@ Window Top = 219
 Window Left = 106
 Source Window State = "1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1482,0,1501,83,349,723,1,0,"
 
-[File 0087]
+[File 0086]
 Path Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/signal_io/ni_can_epo"
 Path Line0002 = "s/nixnet_stub.h"
 File Type = "Include"
@@ -1150,18 +1145,18 @@ Tab 0066 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robrehab
 Tab 0067 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/modules.h"
 Tab 0068 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shared_memory/shared"
 Tab 0068 Line0002 = "_memory.h"
-Tab 0069 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/RobRehabClientGUI.h"
-Tab 0070 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/time/timing_windows."
-Tab 0070 Line0002 = "c"
-Tab 0071 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_robot_control.h"
-Tab 0072 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/config_parser.c"
+Tab 0069 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/time/timing_windows."
+Tab 0069 Line0002 = "c"
+Tab 0070 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/shm_robot_control.h"
+Tab 0071 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/config_parser.c"
+Tab 0072 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robot_control/emg_co"
+Tab 0072 Line0002 = "ntrol.h"
 Tab 0073 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robot_control/emg_co"
-Tab 0073 Line0002 = "ntrol.h"
-Tab 0074 Line0001 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/robot_control/emg_co"
-Tab 0074 Line0002 = "ntrol.c"
+Tab 0073 Line0002 = "ntrol.c"
+Tab 0074 = "/c/Users/Adriano/Documents/Leonardo Jose/RobRehabSystem/src/RobRehabClientGUI.h"
 
 [Default Build Config 0001 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1173,7 +1168,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0001 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1185,7 +1180,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0001 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1197,7 +1192,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0001 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1212,7 +1207,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0001]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1249,7 +1244,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0002 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1261,7 +1256,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0002 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1273,7 +1268,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0002 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1285,7 +1280,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0002 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1300,7 +1295,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0002]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "User-defined functions only"
 Profile = "Disabled"
@@ -1337,7 +1332,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0003 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1349,7 +1344,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0003 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1361,7 +1356,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0003 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1373,7 +1368,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0003 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1388,7 +1383,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0003]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1425,7 +1420,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0004 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1437,7 +1432,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0004 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1449,7 +1444,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0004 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1461,7 +1456,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0004 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1476,7 +1471,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0004]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1513,7 +1508,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0005 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1525,7 +1520,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0005 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1537,7 +1532,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0005 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1549,7 +1544,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0005 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1564,7 +1559,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0005]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1601,7 +1596,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0006 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1613,7 +1608,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0006 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1625,7 +1620,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0006 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1637,7 +1632,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0006 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1652,7 +1647,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0006]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1689,7 +1684,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0007 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1701,7 +1696,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0007 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1713,7 +1708,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0007 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1725,7 +1720,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0007 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1740,7 +1735,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0007]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1777,7 +1772,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0008 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1789,7 +1784,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0008 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1801,7 +1796,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0008 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1813,7 +1808,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0008 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1828,7 +1823,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0008]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1865,7 +1860,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0009 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1877,7 +1872,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0009 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1889,7 +1884,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0009 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1901,7 +1896,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0009 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1916,7 +1911,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0009]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -1953,7 +1948,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0010 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1965,7 +1960,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0010 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1977,7 +1972,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0010 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -1989,7 +1984,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0010 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2004,7 +1999,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0010]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -2041,7 +2036,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0011 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2053,7 +2048,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0011 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2065,7 +2060,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0011 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2077,7 +2072,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0011 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2092,7 +2087,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0011]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -2129,7 +2124,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0012 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2141,7 +2136,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0012 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2153,7 +2148,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0012 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2165,7 +2160,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0012 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2180,7 +2175,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0012]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
@@ -2217,7 +2212,7 @@ Working Directory = ""
 Environment Options = ""
 
 [Default Build Config 0013 Debug]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2229,7 +2224,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0013 Release]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2241,7 +2236,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0013 Debug64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2253,7 +2248,7 @@ Environment Options = ""
 External Process Path = ""
 
 [Default Build Config 0013 Release64]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Batch Build = False
 Profile = "Disabled"
@@ -2268,7 +2263,7 @@ External Process Path = ""
 Number of Dependencies = 0
 
 [Build Options 0013]
-Generate Browse Info = False
+Generate Browse Info = True
 Enable Uninitialized Locals Runtime Warning = True
 Execution Trace = "Disabled"
 Profile = "Disabled"
