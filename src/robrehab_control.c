@@ -128,6 +128,13 @@ void UpdateEvents()
       else if( robotCommand == SHM_ROBOT_CALIBRATE ) robotState = Robots.SetControlState( robotID, CONTROL_CALIBRATION ) ? SHM_ROBOT_CALIBRATING : 0x00;
       else if( robotCommand == SHM_ROBOT_OPTIMIZE ) robotState = Robots.SetControlState( robotID, CONTROL_OPTIMIZATION ) ? SHM_ROBOT_OPTIMIZING : 0x00;
       else if( robotCommand == SHM_ROBOT_OPERATE ) robotState = Robots.SetControlState( robotID, CONTROL_OPERATION ) ? SHM_ROBOT_OPERATING : 0x00;
+      else if( robotCommand == SHM_ROBOT_SET_USER )
+      {
+        char userName[ SHM_CONTROL_MAX_DATA_SIZE ];
+        SHMControl.GetData( sharedRobotJointsInfo, (void*) userName, 0, SHM_CONTROL_MAX_DATA_SIZE );
+        DataLogging.SetBaseDirectory( userName );
+        DEBUG_PRINT( "New user name: %s", userName );
+      }
 
       SHMControl.SetControlByte( sharedRobotJointsInfo, robotIndex, robotState );
     }

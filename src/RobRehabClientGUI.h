@@ -26,6 +26,8 @@
 #define  PANEL_SETPOINT_SLIDER            11      /* control type: scale, callback function: (none) */
 #define  PANEL_JOINT_SELECTOR_2           12      /* control type: ring, callback function: (none) */
 #define  PANEL_JOINT_SELECTOR             13      /* control type: ring, callback function: (none) */
+#define  PANEL_USER_NAME_INPUT            14      /* control type: string, callback function: InsertUserNameCallback */
+#define  PANEL_CALIBRATION_LED            15      /* control type: LED, callback function: (none) */
 
 
      /* Control Arrays: */
@@ -43,6 +45,7 @@
 int  CVICALLBACK ChangeStateCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 int  CVICALLBACK ChangeValueCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 int  CVICALLBACK ConnectCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
+int  CVICALLBACK InsertUserNameCallback(int panel, int control, int event, void *callbackData, int eventData1, int eventData2);
 int  CVICALLBACK QuitCallback(int panel, int event, void *callbackData, int eventData1, int eventData2);
 
 

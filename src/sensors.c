@@ -50,7 +50,7 @@ struct _SensorData
 DEFINE_NAMESPACE_INTERFACE( Sensors, SENSOR_INTERFACE )
 
 
-Sensor Sensors_Init( const char* configFileName )
+Sensor Sensors_Init( const char* configFileName, uint8_t signalProcessingFlags )
 {
   static char filePath[ DATA_IO_MAX_FILE_PATH_LENGTH ];
 
@@ -79,10 +79,9 @@ Sensor Sensors_Init( const char* configFileName )
         newSensor->maxInputSamplesNumber = newSensor->GetMaxInputSamplesNumber( newSensor->taskID );
         newSensor->inputBuffer = (double*) calloc( newSensor->maxInputSamplesNumber, sizeof(double) );
         
-        uint8_t processingFlags = 0x00;
-        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) processingFlags |= SIGNAL_PROCESSING_RECTIFY;
-        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) processingFlags |= SIGNAL_PROCESSING_NORMALIZE;
-        newSensor->processor = SignalProcessing.CreateProcessor( processingFlags );
+        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "signal_processing.rectified" ) ) signalProcessingFlags |= SIGNAL_PROCESSING_RECTIFY;
+        if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "signal_processing.normalized" ) ) signalProcessingFlags |= SIGNAL_PROCESSING_NORMALIZE;
+        newSensor->processor = SignalProcessing.CreateProcessor( signalProcessingFlags );
 
         double inputGain = ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "input_gain.multiplier" );
         inputGain /= ConfigParsing.GetParser()->GetRealValue( configFileID, 1.0, "input_gain.divisor" );
@@ -102,7 +101,7 @@ Sensor Sensors_Init( const char* configFileName )
         }
         
         char* referenceName = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "relative_to" );
-        if( strcmp( referenceName, configFileName ) != 0 && strcmp( referenceName, "" ) != 0 ) newSensor->reference = Sensors_Init( referenceName );
+        if( strcmp( referenceName, configFileName ) != 0 && strcmp( referenceName, "" ) != 0 ) newSensor->reference = Sensors_Init( referenceName, signalProcessingFlags );
         
         newSensor->Reset( newSensor->taskID );
       }
@@ -142,17 +141,18 @@ void Sensors_End( Sensor sensor )
   free( sensor );
 }
 
-double Sensors_Update( Sensor sensor )
+double Sensors_Update( Sensor sensor, double* rawBuffer )
 {
   if( sensor == NULL ) return 0.0;
   
   size_t aquiredSamplesNumber = sensor->Read( sensor->taskID, sensor->channel, sensor->inputBuffer );
-  
+  if( rawBuffer != NULL ) memcpy( rawBuffer, sensor->inputBuffer, sensor->maxInputSamplesNumber );
+    
   double sensorOutput = SignalProcessing.UpdateSignal( sensor->processor, sensor->inputBuffer, aquiredSamplesNumber );
   
   //DEBUG_PRINT( "sample: %g - output: %g", sensor->inputBuffer[ 0 ], sensorOutput );
   
-  double referenceOutput = Sensors.Update( sensor->reference );
+  double referenceOutput = Sensors.Update( sensor->reference, NULL );
   sensorOutput -= referenceOutput;
 
   double sensorMeasure = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput, sensorOutput );
@@ -166,14 +166,21 @@ double Sensors_Update( Sensor sensor )
   return sensorMeasure;
 }
 
-inline bool Sensors_HasError( Sensor sensor )
+size_t Sensors_GetInputBufferLength( Sensor sensor )
+{
+  if( sensor == NULL ) return 0;
+  
+  return sensor->maxInputSamplesNumber;
+}
+  
+bool Sensors_HasError( Sensor sensor )
 {
   if( sensor == NULL ) return false;
   
   return sensor->HasError( sensor->taskID );
 }
 
-inline void Sensors_Reset( Sensor sensor )
+void Sensors_Reset( Sensor sensor )
 {
   if( sensor == NULL ) return;
   
@@ -181,17 +188,10 @@ inline void Sensors_Reset( Sensor sensor )
   sensor->Reset( sensor->taskID );
 }
 
-inline void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )
+void Sensors_SetState( Sensor sensor, enum SignalProcessingPhase newProcessingPhase )
 {
   if( sensor == NULL ) return;
   
   SignalProcessing.SetProcessorState( sensor->processor, newProcessingPhase );
   Sensors.SetState( sensor->reference, newProcessingPhase );
-}
-
-inline SignalProcessor Sensors_GetSignalProcessor( Sensor sensor )
-{
-  if( sensor == NULL ) return NULL;
-  
-  return sensor->processor;
 }

@@ -376,7 +376,9 @@ Robot LoadRobotData( const char* configFileName )
     LOAD_MODULE_IMPLEMENTATION( ROBOT_CONTROL_INTERFACE, filePath, newRobot, &loadSuccess );
     if( loadSuccess )
     {
-      newRobot->controller = newRobot->InitController( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "controller.config" ) );
+      char* controllerConfig = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "controller.config" );
+      char* controllerLogDirectory = DataLogging.GetBaseDirectory( NULL );
+      newRobot->controller = newRobot->InitController( controllerConfig, controllerLogDirectory );
       
       newRobot->jointsNumber = newRobot->GetJointsNumber( newRobot->controller );
       newRobot->jointsList = (Joint*) calloc( newRobot->jointsNumber, sizeof(Joint) );

@@ -83,7 +83,7 @@ Actuator Actuators_Init( const char* configFileName )
       newActuator->sensorsList = (Sensor*) calloc( newActuator->sensorsNumber, sizeof(Sensor) );
       for( size_t sensorIndex = 0; sensorIndex < newActuator->sensorsNumber; sensorIndex++ )
       {
-        newActuator->sensorsList[ sensorIndex ] = Sensors.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "sensors.%lu.id", sensorIndex ) ); 
+        newActuator->sensorsList[ sensorIndex ] = Sensors.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "sensors.%lu.id", sensorIndex ), 0x00 ); 
         char* sensorType = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "sensors.%lu.input_variable", sensorIndex );
         for( int controlModeIndex = 0; controlModeIndex < CONTROL_MODES_NUMBER; controlModeIndex++ )
         {
@@ -236,7 +236,7 @@ double* Actuators_UpdateMeasures( Actuator actuator, double* measuresBuffer )
   
   for( size_t sensorIndex = 0; sensorIndex < actuator->sensorsNumber; sensorIndex++ )
   {
-    double sensorMeasure = Sensors.Update( actuator->sensorsList[ sensorIndex ] );
+    double sensorMeasure = Sensors.Update( actuator->sensorsList[ sensorIndex ], NULL );
     Kalman.SetInput( actuator->sensorFilter, sensorIndex, sensorMeasure );
   }
 

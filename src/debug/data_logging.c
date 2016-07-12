@@ -22,7 +22,7 @@ struct _LogData
   int dataPrecision;
 };
 
-static char baseDirectoryPath[ LOG_FILE_PATH_MAX_LEN ] = "logs";
+static char baseDirectoryPath[ LOG_FILE_PATH_MAX_LEN ] = "";
 static char timeStampString[ TIME_STAMP_STRING_LENGTH ] = "";
 
 KHASH_MAP_INIT_INT( LogInt, Log );
@@ -39,7 +39,7 @@ int DataLogging_InitLog( const char* logFilePath, size_t logValuesNumber, size_t
   
   int logKey = (int) kh_str_hash_func( logFilePath );
   
-  sprintf( logFilePathExt, "%s/%s-%s.log", baseDirectoryPath, logFilePath, timeStampString );
+  sprintf( logFilePathExt, "logs/%s/%s-%s.log", baseDirectoryPath, logFilePath, timeStampString );
   
   int insertionStatus;
   khint_t newLogIndex = kh_put( LogInt, logsList, logKey, &insertionStatus );
@@ -91,6 +91,15 @@ void DataLogging_EndLog( int logID )
   }
 }
 
+char* DataLogging_GetBaseDirectory( char* directoryPath )
+{
+  if( directoryPath == NULL ) return (char*) baseDirectoryPath;
+  
+  strncpy( directoryPath, baseDirectoryPath, LOG_FILE_PATH_MAX_LEN );
+  
+  return directoryPath;
+}
+
 void DataLogging_SetBaseDirectory( const char* directoryPath )
 {
   time_t timeStamp = time( NULL );
@@ -102,7 +111,7 @@ void DataLogging_SetBaseDirectory( const char* directoryPath )
     else if( c == '\n' || c == '\r' ) timeStampString[ charIndex ] = '\0';
   }
   
-  sprintf( baseDirectoryPath, "logs/%s", ( directoryPath != NULL ) ? directoryPath : "" );
+  strncpy( baseDirectoryPath, ( directoryPath != NULL ) ? directoryPath : "", LOG_FILE_PATH_MAX_LEN );
 }
 
 void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )

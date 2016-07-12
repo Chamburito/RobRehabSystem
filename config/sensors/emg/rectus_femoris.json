@@ -12,5 +12,5 @@
     "normalized": true,
     "relative_cut_frequency": 0.001
   },
-  "log_data": true
+  "log_data": false
 }

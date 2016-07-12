@@ -91,7 +91,10 @@ char robotJointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
 Thread dataConnectionThreadID = THREAD_INVALID_HANDLE;
 bool isDataUpdateRunning = false;
 
-double maxStiffness;
+double maxStiffness = 0.0;
+double calibrationTimer = 0.0;
+
+enum ControlState currentControlState = CONTROL_OPERATION;
 
 void InitUserInterface( void );
 
@@ -222,6 +225,16 @@ static void* UpdateData( void* callbackData )
     }
     
     referenceValues[ displayPointIndex ] = setpointsList[ SHM_AXIS_POSITION ] * 6.28;
+    
+    if( currentControlState == CONTROL_CALIBRATION )
+    {
+      calibrationTimer += deltaTime;
+      
+      if( fmod( calibrationTimer, 7.0 ) > 3.0 ) SetCtrlVal( panel, PANEL_CALIBRATION_LED, 1 );
+      else SetCtrlVal( panel, PANEL_CALIBRATION_LED, 0 );
+    }
+    
+    //fprintf( stderr, "calibration timer: %g\r", calibrationTimer );
   }
   
   return NULL;
@@ -248,27 +261,6 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
     {
       // Connect to robot server
       
-      /*static WSADATA wsa;
-      if( wsa.wVersion == 0 )
-      {
-        if( WSAStartup( MAKEWORD( 2, 2 ), &wsa ) != 0 )
-          fprintf( stderr, "%s: error initialiasing windows sockets: code: %d\n", __func__, WSAGetLastError() );
-        else
-          fprintf( stderr, "%s: initialiasing windows sockets version: %d\n", __func__, wsa.wVersion );
-      }
-  
-      int socketFD = socket( AF_INET, SOCK_STREAM, 0 );
-      fprintf( stderr, "socket returns %d\n", socketFD );
-      struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons( 50000 ) };   // IPv4 address
-      address.sin_addr.s_addr = inet_addr( "192.168.0.181" );
-      int status = connect( socketFD, (struct sockaddr*) &address, sizeof(struct sockaddr_in) );
-      fprintf( stderr, "connect returns %d\n", status );
-      closesocket( socketFD );*/
-      
-      //eventServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_TCP, "192.168.0.181", 50000 );
-      //axisServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_UDP, "192.168.0.181", 50001 );
-      //jointServerConnectionID = AsyncIPNetwork.OpenConnection( IP_CLIENT | IP_UDP, "192.168.0.181", 50002 );
-      
       SetCtrlVal( panel, PANEL_MOTOR_TOGGLE, 1 );
       
       sharedRobotAxesInfo = SHMControl.InitData( "192.168.0.181:robot_axes_info", SHM_CONTROL_OUT );
@@ -276,9 +268,6 @@ int CVICALLBACK ConnectCallback( int panel, int control, int event, void* callba
       sharedRobotAxesData = SHMControl.InitData( "192.168.0.181:robot_axes_data", SHM_CONTROL_OUT );
       sharedRobotJointsData = SHMControl.InitData( "192.168.0.181:robot_joints_data", SHM_CONTROL_OUT );
       
-      //AsyncIPNetwork.WriteMessage( eventServerConnectionID, listRequest );
-      //AsyncIPNetwork.WriteMessage( axisServerConnectionID, listRequest );
-      //AsyncIPNetwork.WriteMessage( jointServerConnectionID, listRequest );
       SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++listRequestsCount );
       
       SHMControl.GetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
@@ -310,11 +299,41 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
     
     // Write the new value to the appropriate network variable.
     if( control == PANEL_MOTOR_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_ENABLE : SHM_ROBOT_DISABLE );
-    else if( control == PANEL_OFFSET_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OFFSET : SHM_ROBOT_OPERATE );
-    else if( control == PANEL_CAL_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_CALIBRATE : SHM_ROBOT_OPERATE );
-    else if( control == PANEL_SAMPLE_TOGGLE ) SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OPTIMIZE : SHM_ROBOT_OPERATE );
+    else if( control == PANEL_OFFSET_TOGGLE ) 
+    {
+      currentControlState = ( enabled == 1 ) ? CONTROL_OFFSET : CONTROL_OPERATION;
+      SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OFFSET : SHM_ROBOT_OPERATE );
+    }
+    else if( control == PANEL_CAL_TOGGLE ) 
+    {
+      currentControlState = ( enabled == 1 ) ? CONTROL_CALIBRATION : CONTROL_OPERATION;
+      SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_CALIBRATE : SHM_ROBOT_OPERATE );
+    }
+    else if( control == PANEL_SAMPLE_TOGGLE ) 
+    {
+      currentControlState = ( enabled == 1 ) ? CONTROL_OPTIMIZATION : CONTROL_OPERATION;
+      SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OPTIMIZE : SHM_ROBOT_OPERATE );
+    }
+    
+    calibrationTimer = 0.0;
 	}
   
+	return 0;
+}
+
+int CVICALLBACK InsertUserNameCallback( int panel, int control, int event, void *callbackData, int eventData1, int eventData2 )
+{
+  if( event == EVENT_COMMIT )
+	{
+    if( control == PANEL_USER_NAME_INPUT )
+    {
+      // Get the new value
+      char userName[ SHM_CONTROL_MAX_DATA_SIZE ];
+      GetCtrlVal( panel, control, userName );
+      SHMControl.SetControlByte( sharedRobotJointsInfo, 0, SHM_ROBOT_SET_USER );
+      SHMControl.SetData( sharedRobotJointsInfo, (void*) userName, 0, SHM_CONTROL_MAX_DATA_SIZE );
+    }
+	}
 	return 0;
 }
 

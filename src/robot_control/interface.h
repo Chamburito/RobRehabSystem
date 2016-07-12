@@ -5,7 +5,7 @@
 #include "control_definitions.h"
 
 #define ROBOT_CONTROL_INTERFACE( Interface, INIT_FUNCTION ) \
-        INIT_FUNCTION( Controller, Interface, InitController, const char* ) \
+        INIT_FUNCTION( Controller, Interface, InitController, const char*, const char* ) \
         INIT_FUNCTION( void, Interface, EndController, Controller ) \
         INIT_FUNCTION( size_t, Interface, GetJointsNumber, Controller ) \
         INIT_FUNCTION( char**, Interface, GetJointNamesList, Controller ) \
