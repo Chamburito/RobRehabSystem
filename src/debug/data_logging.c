@@ -121,6 +121,12 @@ void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )
   
   Log log = kh_value( logsList, logIndex );
   
+  if( dataList == NULL ) 
+  {
+    dataList = log->memoryBuffer;
+    dataListSize = log->memoryValuesCount;
+  }
+  
   size_t linesNumber = dataListSize / log->valuesNumber;
   for( size_t lineIndex = 0; lineIndex < linesNumber; lineIndex++ )
   {
@@ -128,6 +134,8 @@ void DataLogging_SaveData( int logID, double* dataList, size_t dataListSize )
       fprintf( log->file, "%.*lf\t", log->dataPrecision, dataList[ lineIndex * log->valuesNumber + lineValueIndex ] );
     fprintf( log->file, "\n" );
   }
+  
+  if( dataList == log->memoryBuffer ) log->memoryValuesCount = 0;
 }
 
 void DataLogging_RegisterValues( int logID, size_t valuesNumber, ... )

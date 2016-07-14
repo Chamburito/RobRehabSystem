@@ -15,7 +15,7 @@ enum EMGMuscleGain { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM
         INIT_FUNCTION( int, Namespace, InitJoint, const char* ) \
         INIT_FUNCTION( void, Namespace, EndJoint, int ) \
         INIT_FUNCTION( double, Namespace, GetJointMuscleSignal, int, size_t ) \
-        INIT_FUNCTION( double, Namespace, GetJointTorque, int, double ) \
+        INIT_FUNCTION( double, Namespace, GetJointTorque, int, double, double ) \
         INIT_FUNCTION( double, Namespace, GetJointStiffness, int, double ) \
         INIT_FUNCTION( double, Namespace, SetJointGain, int, double ) \
         INIT_FUNCTION( void, Namespace, SetProcessingPhase, int, enum SignalProcessingPhase ) \

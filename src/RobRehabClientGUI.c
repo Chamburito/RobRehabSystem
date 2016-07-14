@@ -70,15 +70,13 @@ const double UPDATE_FREQUENCY = 1 / UPDATE_PERIOD;
 
 const size_t DISPLAY_POINTS_NUMBER = (size_t) ( UPDATE_PERIOD / CONTROL_PASS_INTERVAL );
 
+const int PHASE_CYCLES_NUMBER = 5;
+
 /* Global variables */
 static int panel;
 
 /* Function prototypes */
 static void* UpdateData( void* );
-
-//static int eventServerConnectionID = IP_CONNECTION_INVALID_ID;
-//static int axisServerConnectionID = IP_CONNECTION_INVALID_ID;
-//static int jointServerConnectionID = IP_CONNECTION_INVALID_ID;
 
 SHMController sharedRobotAxesInfo;
 SHMController sharedRobotJointsInfo;
@@ -92,7 +90,11 @@ Thread dataConnectionThreadID = THREAD_INVALID_HANDLE;
 bool isDataUpdateRunning = false;
 
 double maxStiffness = 0.0;
-double calibrationTimer = 0.0;
+double calibrationTime = 0.0;
+double setpointTime = 0.0;
+double targetStiffness = 0.0;
+int stiffnessPhase = 0, stiffnessPhaseIncrement = 1;
+int setpointPhase = 0, setpointDirection = 1;
 
 enum ControlState currentControlState = CONTROL_OPERATION;
 
@@ -107,16 +109,15 @@ int main( int argc, char *argv[] )
 	if( (panel = LoadPanel( 0, "RobRehabClientGUI.uir", PANEL )) < 0 )
 		return -1;
 
+  SetCtrlVal( panel, PANEL_SAMPLE_TOGGLE, 0 );
+  ChangeValueCallback( panel, PANEL_SAMPLE_TOGGLE, EVENT_COMMIT, NULL, 0, 0 );
+  
 	InitUserInterface();
 	DisplayPanel( panel );
 	RunUserInterface();
 	
   isDataUpdateRunning = false;
   Threading.WaitExit( dataConnectionThreadID, 5000 );
-  
-  //AsyncIPNetwork.CloseConnection( eventServerConnectionID );
-  //AsyncIPNetwork.CloseConnection( axisServerConnectionID );
-  //AsyncIPNetwork.CloseConnection( jointServerConnectionID );
   
   SHMControl.EndData( sharedRobotAxesInfo );
   SHMControl.EndData( sharedRobotJointsInfo );
@@ -142,22 +143,18 @@ static void* UpdateData( void* callbackData )
   double referenceValues[ DISPLAY_POINTS_NUMBER ];
   size_t displayPointIndex = 0;
   
-  double targetStiffness = 0.0;
-  size_t stiffnessPhase = 0;
-  
   double initialTime = Timing.GetExecTimeSeconds();
-  double elapsedTime = 0.0, deltaTime = 0.0, measureTime = 0.0, setpointTime = 0.0, absoluteTime = initialTime; 
+  double elapsedTime = 0.0, deltaTime = 0.0, measureTime = 0.0, absoluteTime = initialTime; 
   
   isDataUpdateRunning = true;
   
   while( isDataUpdateRunning )
   {
     deltaTime = ( Timing.GetExecTimeSeconds() - absoluteTime );
-    measureTime += deltaTime;
-    setpointTime += deltaTime;
     absoluteTime = Timing.GetExecTimeSeconds();
     elapsedTime = absoluteTime - initialTime;
     
+    measureTime += deltaTime;
     if( measureTime > CONTROL_PASS_INTERVAL )
     {
       displayPointIndex++;
@@ -184,9 +181,34 @@ static void* UpdateData( void* callbackData )
       
       displayPointIndex = 0;
       
-      stiffnessPhase++;
-      targetStiffness = 30.0 * ( stiffnessPhase / 5 );
-      if( targetStiffness > 100.0 ) targetStiffness = 100.0;
+      if( currentControlState == CONTROL_OPTIMIZATION )
+      {
+        stiffnessPhase += stiffnessPhaseIncrement;
+        if( stiffnessPhase == 3 * PHASE_CYCLES_NUMBER ) 
+        {
+          stiffnessPhaseIncrement = -1;
+          stiffnessPhase = 3 * PHASE_CYCLES_NUMBER - 1;
+        }
+        else if( stiffnessPhase == -1 ) 
+        {
+          stiffnessPhaseIncrement = 1;
+          stiffnessPhase = 0;
+        }
+      
+        setpointPhase++;
+        if( setpointPhase == 3 * PHASE_CYCLES_NUMBER ) SetCtrlVal( panel, PANEL_CALIBRATION_LED, 1 );
+        else if( setpointPhase == 6 * PHASE_CYCLES_NUMBER ) setpointDirection = -1;
+        else if( setpointPhase == 9 * PHASE_CYCLES_NUMBER )
+        {
+          SetCtrlVal( panel, PANEL_SAMPLE_TOGGLE, 0 );
+          SetCtrlVal( panel, PANEL_STIFFNESS_SLIDER, 0.0 );
+          SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, 0.0 );
+          ChangeStateCallback( panel, PANEL_SAMPLE_TOGGLE, EVENT_COMMIT, NULL, 0, 0 );
+        }
+      
+        targetStiffness = 30.0 * ( stiffnessPhase / PHASE_CYCLES_NUMBER );
+        if( targetStiffness > 100.0 ) targetStiffness = 100.0;
+      }
     }
 
     positionValues[ displayPointIndex ] = measuresList[ SHM_AXIS_POSITION ] * 6.28;
@@ -198,43 +220,51 @@ static void* UpdateData( void* callbackData )
 
     angleValues[ displayPointIndex ] = measuresList[ SHM_JOINT_POSITION ];
     torqueValues[ displayPointIndex ] = measuresList[ SHM_JOINT_FORCE ];
-    
+
     float* setpointsList = (float*) setpointData;
-    
+
+    double referencePosition = sin( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE;
+    double referenceVelocity = cos( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE;
+
+    setpointTime += deltaTime;
     if( setpointTime >= SETPOINT_UPDATE_INTERVAL )
     {
       uint8_t setpointMask = 0;
-      
-      SetCtrlVal( panel, PANEL_STIFFNESS_SLIDER, maxStiffness * 0.99 + targetStiffness * 0.01 );
-      ChangeValueCallback( panel, PANEL_STIFFNESS_SLIDER, EVENT_COMMIT, NULL, 0, 0 );
-      
-      setpointsList[ SHM_AXIS_POSITION ] = sin( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE - 0.125;
-      SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_POSITION );
-      setpointsList[ SHM_AXIS_VELOCITY ] = cos( 2 * PI * UPDATE_FREQUENCY * absoluteTime ) * SIGNAL_AMPLITUDE;
-      SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_VELOCITY );
+
+      if( currentControlState == CONTROL_OPTIMIZATION )
+      {
+        SetCtrlVal( panel, PANEL_STIFFNESS_SLIDER, maxStiffness * 0.99 + targetStiffness * 0.01 );
+        ChangeValueCallback( panel, PANEL_STIFFNESS_SLIDER, EVENT_COMMIT, NULL, 0, 0 );
+
+        setpointsList[ SHM_AXIS_POSITION ] = setpointDirection * (float) referencePosition - 0.125;
+        SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_POSITION );
+        setpointsList[ SHM_AXIS_VELOCITY ] = setpointDirection * (float) referenceVelocity;
+        SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_VELOCITY );
+      }
+
       setpointsList[ SHM_AXIS_STIFFNESS ] = maxStiffness;
       SHM_CONTROL_SET_BIT( setpointMask, SHM_AXIS_STIFFNESS );
       //setpointsList[ SHM_AXIS_TIME ] = SETPOINT_UPDATE_INTERVAL;
-      
-      SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, setpointsList[ SHM_AXIS_POSITION ] * 360.0 );
-    
+
+      SetCtrlVal( panel, PANEL_SETPOINT_SLIDER, ( referencePosition - 0.125 ) * 360.0 );
+
       setpointTime = 0.0;
-      
+
       SHMControl.SetData( sharedRobotAxesData, (void*) setpointData, 0, SHM_CONTROL_MAX_DATA_SIZE );
       SHMControl.SetControlByte( sharedRobotAxesData, 0, setpointMask );
     }
-    
-    referenceValues[ displayPointIndex ] = setpointsList[ SHM_AXIS_POSITION ] * 6.28;
+
+    referenceValues[ displayPointIndex ] = ( referencePosition - 0.125 ) * 6.28;
     
     if( currentControlState == CONTROL_CALIBRATION )
     {
-      calibrationTimer += deltaTime;
+      calibrationTime += deltaTime;
       
-      if( fmod( calibrationTimer, 7.0 ) > 3.0 ) SetCtrlVal( panel, PANEL_CALIBRATION_LED, 1 );
+      if( fmod( calibrationTime, 15.0 ) > 10.0 ) SetCtrlVal( panel, PANEL_CALIBRATION_LED, 1 );
       else SetCtrlVal( panel, PANEL_CALIBRATION_LED, 0 );
     }
     
-    //fprintf( stderr, "calibration timer: %g\r", calibrationTimer );
+    //fprintf( stderr, "calibration timer: %g\r", calibrationTime );
   }
   
   return NULL;
@@ -287,6 +317,16 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
 {
 	if( event == EVENT_COMMIT )
 	{
+    maxStiffness = 0.0;
+    targetStiffness = 0.0;
+    stiffnessPhase = 0;
+    stiffnessPhaseIncrement = 1;
+    setpointTime = 0.0;
+    setpointPhase = 0;
+    setpointDirection = 1;
+    calibrationTime = 0.0;
+    SetCtrlVal( panel, PANEL_CALIBRATION_LED, 0 );
+    
     // Get the new value.
     int enabled;
     GetCtrlVal( panel, control, &enabled );
@@ -314,8 +354,6 @@ int CVICALLBACK ChangeStateCallback( int panel, int control, int event, void* ca
       currentControlState = ( enabled == 1 ) ? CONTROL_OPTIMIZATION : CONTROL_OPERATION;
       SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ( enabled == 1 ) ? SHM_ROBOT_OPTIMIZE : SHM_ROBOT_OPERATE );
     }
-    
-    calibrationTimer = 0.0;
 	}
   
 	return 0;
@@ -345,7 +383,7 @@ int CVICALLBACK ChangeValueCallback( int panel, int control, int event, void* ca
     {
       // Get the new value.
       GetCtrlVal( panel, control, &maxStiffness );
-      fprintf( stderr, "set stiffness to %g\r", maxStiffness );
+      //fprintf( stderr, "set stiffness to %g\r", maxStiffness );
     }
 	}
 	return 0;

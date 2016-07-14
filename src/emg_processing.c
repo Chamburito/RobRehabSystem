@@ -158,7 +158,7 @@ double GetMuscleTorque( EMGMuscle muscle, double normalizedSignal, double jointA
   return resultingForce * momentArm;
 }
 
-double EMGProcessing_GetJointTorque( int jointID, double jointAngle )
+double EMGProcessing_GetJointTorque( int jointID, double jointAngle, double jointExternalTorque )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return 0.0;
@@ -175,16 +175,16 @@ double EMGProcessing_GetJointTorque( int jointID, double jointAngle )
   
   double samplingTime = Timing.GetExecTimeSeconds();
   
-  if( joint->emgRawLogID != DATA_LOG_INVALID_ID )
-  {
-    DataLogging.RegisterValues( joint->emgRawLogID, 1, samplingTime );
-    for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
-      DataLogging.RegisterList( joint->emgRawLogID, joint->musclesList[ muscleIndex ]->emgRawBufferLength, joint->musclesList[ muscleIndex ]->emgRawBuffer );
-  }
-  
   if( joint->currentLogID != DATA_LOG_INVALID_ID )
   {
-    DataLogging.RegisterValues( joint->currentLogID, 3, samplingTime, jointAngle, jointTorque );
+    if( joint->emgRawLogID != DATA_LOG_INVALID_ID )
+    {
+      DataLogging.RegisterValues( joint->emgRawLogID, 1, samplingTime );
+      for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
+        DataLogging.RegisterList( joint->emgRawLogID, joint->musclesList[ muscleIndex ]->emgRawBufferLength, joint->musclesList[ muscleIndex ]->emgRawBuffer );
+    }
+    
+    DataLogging.RegisterValues( joint->currentLogID, 3, samplingTime, jointAngle, jointExternalTorque );
     DataLogging.RegisterList( joint->currentLogID, joint->musclesListLength, normalizedSignalsList );
   }
   
@@ -232,6 +232,8 @@ void EMGProcessing_SetProcessingPhase( int jointID, enum SignalProcessingPhase p
   if( jointIndex == kh_end( jointsList ) ) return;
   
   EMGJoint joint = kh_value( jointsList, jointIndex );
+  
+  DataLogging.SaveData( joint->currentLogID, NULL, 0 );
   
   if( processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
     joint->currentLogID = joint->offsetLogID;
@@ -372,7 +374,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
       {
         size_t jointSampleValuesNumber = newJoint->musclesListLength + 3;
         
-        snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_offset", configFileName );
+        snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_offset", configFileName );                                    
         newJoint->offsetLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 1000 );
         DataLogging.SetDataPrecision( newJoint->offsetLogID, DATA_LOG_MAX_PRECISION );
         snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_calibration", configFileName );
@@ -382,8 +384,8 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
         newJoint->measurementLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 1000 );
         DataLogging.SetDataPrecision( newJoint->measurementLogID, DATA_LOG_MAX_PRECISION );
         snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_raw", configFileName );
-        newJoint->emgRawLogID = DataLogging.InitLog( filePath, emgRawSamplesNumber + 1, emgRawSamplesNumber * 1000 );
-        DataLogging.SetDataPrecision( newJoint->emgRawLogID, DATA_LOG_MAX_PRECISION );
+        newJoint->emgRawLogID = DataLogging.InitLog( filePath, emgRawSamplesNumber + 1, jointSampleValuesNumber * 1000 );
+        DataLogging.SetDataPrecision( newJoint->emgRawLogID, 6 );
       }
     }
     else loadError = true;

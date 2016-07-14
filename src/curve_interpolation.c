@@ -219,11 +219,11 @@ double CurveInterpolation_GetValue( Curve curve, double valuePosition, double de
     }
     
     curveValue = curve->scaleFactor * curveValue + curve->offset;
-    if( curve->maxAbsoluteValue > 0.0 )
-    {
-      if( curveValue > curve->maxAbsoluteValue ) curveValue = curve->maxAbsoluteValue;
-      else if( curveValue < -curve->maxAbsoluteValue ) curveValue = -curve->maxAbsoluteValue;
-    }
+    //if( curve->maxAbsoluteValue > 0.0 )
+    //{
+    //  if( curveValue > curve->maxAbsoluteValue ) curveValue = curve->maxAbsoluteValue;
+    //  else if( curveValue < -curve->maxAbsoluteValue ) curveValue = -curve->maxAbsoluteValue;
+    //}
   }
   
   return curveValue;

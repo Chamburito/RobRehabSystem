@@ -30,7 +30,7 @@ const char* DOF_NAMES[ DOFS_NUMBER ] = { "angle" };
 
 DECLARE_MODULE_INTERFACE( ROBOT_CONTROL_INTERFACE ) 
 
-Controller InitController( const char* data )
+Controller InitController( const char* data, const char* logDirectory )
 {
   return NULL;
 }
@@ -60,9 +60,9 @@ char** GetAxisNamesList( Controller controller )
   return (char**) DOF_NAMES;
 }
 
-void SetControlPhase( Controller ref_controller, enum ControlPhase controlPhase )
+void SetControlState( Controller ref_controller, enum ControlState controlState )
 {
-  fprintf( stderr, "Setting robot control phase: %x\n", controlPhase );
+  fprintf( stderr, "Setting robot control phase: %x\n", controlState );
 }
 
 void RunControlStep( Controller controller, double** jointMeasuresTable, double** axisMeasuresTable, double** jointSetpointsTable, double** axisSetpointsTable )
@@ -83,5 +83,5 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   
   double stiffness = jointSetpointsTable[ 0 ][ CONTROL_STIFFNESS ]; 
   double positionError = jointSetpointsTable[ 0 ][ CONTROL_POSITION ] - jointMeasuresTable[ 0 ][ CONTROL_POSITION ];
-  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = -stiffness * positionError;
+  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = stiffness * positionError;
 }

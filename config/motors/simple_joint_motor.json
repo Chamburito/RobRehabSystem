@@ -5,7 +5,7 @@
     "channel": 1
   },
   "output_gain": {
-    "multiplier": 150000,
+    "multiplier": 1,
     "divisor": 1
   }
 }

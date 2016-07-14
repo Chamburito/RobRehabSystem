@@ -24,8 +24,8 @@ Controller InitController( void )
 
 double* RunControlStep( Controller controller, double* measuresList, double* setpointsList, double* ref_error )
 {
-  const double K_P = 1.6527; // 370 * ( F_in_max / V_out_max )
-  const double K_I = 0.0156; // 3.5 * ( F_in_max / V_out_max )
+  const double K_P = 370;//1.6527; // 370 * ( F_in_max / V_out_max )
+  const double K_I = 3.5;//0.0156; // 3.5 * ( F_in_max / V_out_max )
   
   ControlData* controlData = (ControlData*) controller;
   

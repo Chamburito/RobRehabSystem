@@ -257,8 +257,8 @@ void RunControlStep( Controller genericController, double** jointMeasuresTable, 
     
     EMGJointSampler sampler = controller->samplersList[ jointIndex ];
     
-    for( size_t muscleIndex = 0; muscleIndex < sampler->musclesCount; muscleIndex++ )
-      jointMeasuresTable[ jointIndex ][ muscleIndex ] = EMGProcessing.GetJointMuscleSignal( sampler->jointID, muscleIndex );
+    //for( size_t muscleIndex = 0; muscleIndex < sampler->musclesCount; muscleIndex++ )
+    //  jointMeasuresTable[ jointIndex ][ muscleIndex ] = EMGProcessing.GetJointMuscleSignal( sampler->jointID, muscleIndex );
     
     if( controller->currentControlState == CONTROL_OPTIMIZATION )
     {
@@ -274,14 +274,14 @@ void RunControlStep( Controller genericController, double** jointMeasuresTable, 
         sampler->jointAnglesList[ sampler->samplesCount ] = jointAngle;
         sampler->jointIDTorquesList[ sampler->samplesCount ] = jointIDTorque;
 
-        DEBUG_PRINT( "Saving sample %u: %.3f, %.3f", sampler->samplesCount, jointAngle, jointIDTorque );
+        //DEBUG_PRINT( "Saving sample %u: %.3f, %.3f", sampler->samplesCount, jointAngle, jointIDTorque );
 
         sampler->samplesCount++;
       }
     }
     //else
     //{
-      jointMeasuresTable[ jointIndex ][ CONTROL_FORCE ] = EMGProcessing.GetJointTorque( sampler->jointID, jointAngle );
+      /*jointMeasuresTable[ jointIndex ][ CONTROL_FORCE ] =*/ EMGProcessing.GetJointTorque( sampler->jointID, jointAngle, jointIDTorque );
       //jointMeasuresTable[ jointIndex ][ CONTROL_STIFFNESS ] = EMGProcessing.GetJointStiffness( sampler->jointID, jointAngle );
 
       //DEBUG_PRINT( "Joint pos: %.3f - force: %.3f - stiff: %.3f", jointAngle, jointMeasuresTable[ jointIndex ][ CONTROL_FORCE ], jointMeasuresTable[ jointIndex ][ CONTROL_STIFFNESS ] );
