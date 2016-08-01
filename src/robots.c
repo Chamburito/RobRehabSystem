@@ -174,23 +174,25 @@ bool Robots_Disable( int robotID )
   return true;
 }
 
-bool Robots_SetControlState( int robotID, enum ControlState controlState )
+bool Robots_SetControlState( int robotID, enum ControlState newControlState )
 {
   khint_t robotIndex = kh_get( RobotInt, robotsList, (khint_t) robotID );
   if( robotIndex == kh_end( robotsList ) ) return false;
   
   Robot robot = kh_value( robotsList, robotIndex );
   
-  if( controlState == robot->controlState ) return false;
+  DEBUG_PRINT( "setting new control state: %d (old: %d)", newControlState, robot->controlState );
   
-  if( controlState >= CONTROL_PHASES_NUMBER ) return false;
+  if( newControlState == robot->controlState ) return false;
   
-  robot->SetControlState( robot->controller, controlState );
+  if( newControlState >= CONTROL_PHASES_NUMBER ) return false;
+  
+  robot->SetControlState( robot->controller, newControlState );
   
   for( size_t jointIndex = 0; jointIndex < robot->jointsNumber; jointIndex++ )
-    Actuators.SetControlState( robot->jointsList[ jointIndex ]->actuator, controlState );
+    Actuators.SetControlState( robot->jointsList[ jointIndex ]->actuator, newControlState );
   
-  robot->controlState = controlState;
+  robot->controlState = newControlState;
   
   return true;
 }
@@ -344,9 +346,9 @@ static void* AsyncControl( void* ref_robot )
     }
     
     elapsedTime = Timing.GetExecTimeMilliseconds() - execTime;
-    ///*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (before delay): %lu ms", robot, elapsedTime );
+    //DEBUG_PRINT( "step time for robot %p (before delay): %lu ms", robot, elapsedTime );
     if( elapsedTime < CONTROL_PASS_INTERVAL_MS ) Timing.Delay( CONTROL_PASS_INTERVAL_MS - elapsedTime );
-    ///*DEBUG_UPDATE*/DEBUG_PRINT( "step time for robot %p (after delay): %lu ms", robot, Timing.GetExecTimeMilliseconds() - execTime );
+    //DEBUG_PRINT( "step time for robot %p (after delay): %lu ms", robot, Timing.GetExecTimeMilliseconds() - execTime );
   }
   
   return NULL;
@@ -405,6 +407,8 @@ Robot LoadRobotData( const char* configFileName )
         newRobot->axisSetpointsTable[ axisIndex ] = (double*) newRobot->axesList[ axisIndex ]->setpointsList;
       }
     }
+    
+    newRobot->controlState = CONTROL_OPERATION;
     
     ConfigParsing.GetParser()->UnloadData( configFileID );
 

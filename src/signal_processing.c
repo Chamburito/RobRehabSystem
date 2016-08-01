@@ -34,7 +34,7 @@ struct _SignalProcessorData
 {
   double inputGain;
   double signalLimitsList[ 2 ];
-  double signalMean, signalOffset;
+  double signalOffset;
   size_t recordedSamplesCount;
   enum SignalProcessingPhase processingPhase;
   bool rectify, normalize;
@@ -113,11 +113,17 @@ double SignalProcessing_UpdateSignal( SignalProcessor processor, double* newInpu
   
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    for( size_t valueIndex = 0; valueIndex < newValuesNumber; valueIndex++ )
+    if( newValuesNumber > 0 )
     {
-      processor->signalMean += newInputValuesList[ valueIndex ];
-      processor->recordedSamplesCount++;
+      processor->signalOffset *= processor->recordedSamplesCount;
+      for( size_t valueIndex = 0; valueIndex < newValuesNumber; valueIndex++ )
+      {
+        processor->signalOffset += newInputValuesList[ valueIndex ] * processor->inputGain;
+        processor->recordedSamplesCount++;
+      }
+      processor->signalOffset /= processor->recordedSamplesCount;
     }
+    newInputValue = processor->signalOffset;
   }
   else
   {
@@ -189,12 +195,7 @@ void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalP
   DEBUG_PRINT( "current: %x - new: %x", processor->processingPhase, newProcessingPhase );
   
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
-  {
-    if( processor->recordedSamplesCount > 0 ) 
-      processor->signalOffset = processor->signalMean / processor->recordedSamplesCount;
-    
     DEBUG_PRINT( "new signal offset: %g", processor->signalOffset );
-  }
   
   if( processor->processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
     DEBUG_PRINT( "new signal limits: %g %g", processor->signalLimitsList[ 0 ], processor->signalLimitsList[ 1 ] );
@@ -206,7 +207,7 @@ void SignalProcessing_SetProcessorState( SignalProcessor processor, enum SignalP
   }
   else if( newProcessingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
   {
-    processor->signalMean = 0.0;
+    processor->signalOffset = 0.0;
     processor->recordedSamplesCount = 0;
   }
   

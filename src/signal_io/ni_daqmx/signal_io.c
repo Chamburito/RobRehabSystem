@@ -122,7 +122,7 @@ size_t Read( int taskID, unsigned int channel, double* channelSamplesList )
   Semaphores.Decrement( task->channelLocksList[ channel ] );
   
   size_t channelAquiredSamplesCount = (size_t) task->channelValuesList[ channel ];
-  memcpy( channelSamplesList, task->samplesList + channel * channelAquiredSamplesCount, channelAquiredSamplesCount );
+  memcpy( channelSamplesList, task->samplesList + channel * channelAquiredSamplesCount, channelAquiredSamplesCount * sizeof(double) );
   
   return channelAquiredSamplesCount;
 }

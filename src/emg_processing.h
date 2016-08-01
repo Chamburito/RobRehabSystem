@@ -3,9 +3,8 @@
 
 #include "namespaces.h"
 
-#include "signal_processing.h"
+enum EMGProcessingPhase { EMG_PROCESSING_MEASUREMENT, EMG_PROCESSING_CALIBRATION, EMG_PROCESSING_OFFSET, EMG_PROCESSING_SAMPLING, EMG_PROCESSING_PHASES_NUMBER };
 
-//enum { MUSCLE_ACTIVE_FORCE, MUSCLE_PASSIVE_FORCE, MUSCLE_MOMENT_ARM, MUSCLE_NORM_LENGTH, MUSCLE_PENATION_ANGLE, MUSCLE_CURVES_NUMBER };
 enum EMGMuscleGain { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
 
 #define EMG_JOINT_INVALID_ID 0
@@ -18,7 +17,7 @@ enum EMGMuscleGain { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM
         INIT_FUNCTION( double, Namespace, GetJointTorque, int, double, double ) \
         INIT_FUNCTION( double, Namespace, GetJointStiffness, int, double ) \
         INIT_FUNCTION( double, Namespace, SetJointGain, int, double ) \
-        INIT_FUNCTION( void, Namespace, SetProcessingPhase, int, enum SignalProcessingPhase ) \
+        INIT_FUNCTION( void, Namespace, SetProcessingPhase, int, enum EMGProcessingPhase ) \
         INIT_FUNCTION( size_t, Namespace, GetJointMusclesCount, int ) \
         INIT_FUNCTION( double, Namespace, SetJointMuscleGain, int, size_t, enum EMGMuscleGain, double ) \
         INIT_FUNCTION( double, Namespace, GetJointMuscleTorque, int, size_t, double, double )

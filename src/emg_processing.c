@@ -24,6 +24,7 @@
 #include <stdbool.h>
 
 #include "sensors.h"
+#include "signal_processing.h"
 #include "curve_interpolation.h"
 
 #include "config_parser.h"
@@ -36,7 +37,6 @@
 #include "emg_processing.h"
 
 enum { MUSCLE_ACTIVE_FORCE, MUSCLE_PASSIVE_FORCE, MUSCLE_MOMENT_ARM, MUSCLE_NORM_LENGTH, MUSCLE_PENATION_ANGLE, MUSCLE_CURVES_NUMBER };
-//enum EMGMuscleGains { MUSCLE_GAIN_ACTIVATION, MUSCLE_GAIN_LENGTH, MUSCLE_GAIN_ARM, MUSCLE_GAIN_PENATION, MUSCLE_GAIN_FORCE, MUSCLE_GAINS_NUMBER };
 
 const double JOINT_MIN_GAIN = 0.1;
 const double JOINT_MAX_GAIN = 2.0;
@@ -61,7 +61,7 @@ typedef struct _EMGJointData
   EMGMuscle* musclesList;
   size_t musclesListLength;
   double scaleFactor;
-  int offsetLogID, calibrationLogID, measurementLogID;
+  int offsetLogID, calibrationLogID, samplingLogID;
   int currentLogID;
   int emgRawLogID;
 }
@@ -226,7 +226,7 @@ double EMGProcessing_SetJointGain( int jointID, double value )
   return joint->scaleFactor;
 }
 
-void EMGProcessing_SetProcessingPhase( int jointID, enum SignalProcessingPhase processingPhase )
+void EMGProcessing_SetProcessingPhase( int jointID, enum EMGProcessingPhase processingPhase )
 {
   khint_t jointIndex = kh_get( JointInt, jointsList, (khint_t) jointID );
   if( jointIndex == kh_end( jointsList ) ) return;
@@ -235,12 +235,24 @@ void EMGProcessing_SetProcessingPhase( int jointID, enum SignalProcessingPhase p
   
   DataLogging.SaveData( joint->currentLogID, NULL, 0 );
   
-  if( processingPhase == SIGNAL_PROCESSING_PHASE_OFFSET )
+  enum SignalProcessingPhase signalProcessingPhase = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
+  
+  if( processingPhase == EMG_PROCESSING_OFFSET )
+  {
+    signalProcessingPhase = SIGNAL_PROCESSING_PHASE_OFFSET;
     joint->currentLogID = joint->offsetLogID;
-  else if( processingPhase == SIGNAL_PROCESSING_PHASE_CALIBRATION )
+  }
+  else if( processingPhase == EMG_PROCESSING_CALIBRATION )
+  {
+    signalProcessingPhase = SIGNAL_PROCESSING_PHASE_CALIBRATION;
     joint->currentLogID = joint->calibrationLogID;
-  else if( processingPhase == SIGNAL_PROCESSING_PHASE_MEASUREMENT )
-    joint->currentLogID = joint->measurementLogID;
+  }
+  else if( processingPhase == EMG_PROCESSING_SAMPLING )
+    joint->currentLogID = joint->samplingLogID;
+  else // if( processingPhase == EMG_PROCESSING_MEASUREMENT )
+    joint->currentLogID = DATA_LOG_INVALID_ID;
+  
+  DEBUG_PRINT( "new EMG processing phase: %d (log ID: %d)", processingPhase, joint->currentLogID );
   
   for( size_t muscleIndex = 0; muscleIndex < joint->musclesListLength; muscleIndex++ )
     Sensors.SetState( joint->musclesList[ muscleIndex ]->emgSensor, processingPhase );
@@ -369,20 +381,20 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
         else loadError = true;
       }
       
-      newJoint->currentLogID = newJoint->offsetLogID = newJoint->calibrationLogID = newJoint->measurementLogID = newJoint->emgRawLogID = DATA_LOG_INVALID_ID;
+      newJoint->currentLogID = newJoint->offsetLogID = newJoint->calibrationLogID = newJoint->samplingLogID = newJoint->emgRawLogID = DATA_LOG_INVALID_ID;
       if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "log_data" ) )
       {
         size_t jointSampleValuesNumber = newJoint->musclesListLength + 3;
         
         snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_offset", configFileName );                                    
-        newJoint->offsetLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 1000 );
+        newJoint->offsetLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 100 );
         DataLogging.SetDataPrecision( newJoint->offsetLogID, DATA_LOG_MAX_PRECISION );
         snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_calibration", configFileName );
         newJoint->calibrationLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 1000 );
         DataLogging.SetDataPrecision( newJoint->calibrationLogID, DATA_LOG_MAX_PRECISION );
         snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_sampling", configFileName );
-        newJoint->measurementLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 1000 );
-        DataLogging.SetDataPrecision( newJoint->measurementLogID, DATA_LOG_MAX_PRECISION );
+        newJoint->samplingLogID = DataLogging.InitLog( filePath, jointSampleValuesNumber, jointSampleValuesNumber * 1000 );
+        DataLogging.SetDataPrecision( newJoint->samplingLogID, DATA_LOG_MAX_PRECISION );
         snprintf( filePath, LOG_FILE_PATH_MAX_LEN, "joints/%s_raw", configFileName );
         newJoint->emgRawLogID = DataLogging.InitLog( filePath, emgRawSamplesNumber + 1, jointSampleValuesNumber * 1000 );
         DataLogging.SetDataPrecision( newJoint->emgRawLogID, 6 );
@@ -418,7 +430,7 @@ static void UnloadEMGJointData( EMGJoint joint )
   
   DataLogging.EndLog( joint->offsetLogID );
   DataLogging.EndLog( joint->calibrationLogID );
-  DataLogging.EndLog( joint->measurementLogID );
+  DataLogging.EndLog( joint->samplingLogID );
   DataLogging.EndLog( joint->emgRawLogID );
   
   free( joint->musclesList );

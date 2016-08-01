@@ -188,7 +188,7 @@ int CVICALLBACK UpdateDataOut( int reserved, int timerId, int event, void* callb
           DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );
           return 0;
         }
-        status = CNVWrite( sharedObject->writer, sharedObject->networkData, 500 );
+        status = CNVWrite( sharedObject->writer, sharedObject->networkData, 5 00 );
         if( status != 0 )
         {
           DEBUG_PRINT( "%s", CNVGetErrorDescription( status ) );

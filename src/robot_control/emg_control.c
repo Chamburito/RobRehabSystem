@@ -188,6 +188,8 @@ void SetControlState( Controller genericController, enum ControlState newControl
   
   ControlData* controller = (ControlData*) genericController;
   
+  DEBUG_PRINT( "setting new control state: %d", newControlState );
+  
   for( size_t jointIndex = 0; jointIndex < controller->jointsNumber; jointIndex++ )
   {
     EMGJointSampler sampler = controller->samplersList[ jointIndex ];
@@ -195,17 +197,17 @@ void SetControlState( Controller genericController, enum ControlState newControl
     if( newControlState == CONTROL_OFFSET )
     {
       DEBUG_PRINT( "starting offset phase for joint %d", sampler->jointID );
-      EMGProcessing.SetProcessingPhase( sampler->jointID, SIGNAL_PROCESSING_PHASE_OFFSET );
+      EMGProcessing.SetProcessingPhase( sampler->jointID, EMG_PROCESSING_OFFSET );
     }
     else if( newControlState == CONTROL_CALIBRATION )
     {
       DEBUG_PRINT( "starting calibration for joint %d", sampler->jointID );
-      EMGProcessing.SetProcessingPhase( sampler->jointID, SIGNAL_PROCESSING_PHASE_CALIBRATION );
+      EMGProcessing.SetProcessingPhase( sampler->jointID, EMG_PROCESSING_CALIBRATION );
     }
     else if( newControlState == CONTROL_OPTIMIZATION )
     {
       DEBUG_PRINT( "reseting sampling count for joint %d", sampler->jointID );
-      EMGProcessing.SetProcessingPhase( sampler->jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+      EMGProcessing.SetProcessingPhase( sampler->jointID, EMG_PROCESSING_SAMPLING );
       sampler->samplesCount = 0;
     }
     else if( newControlState == CONTROL_OPERATION )
@@ -230,7 +232,7 @@ void SetControlState( Controller genericController, enum ControlState newControl
         free( parametersList );
       }
       
-      EMGProcessing.SetProcessingPhase( sampler->jointID, SIGNAL_PROCESSING_PHASE_MEASUREMENT );
+      EMGProcessing.SetProcessingPhase( sampler->jointID, EMG_PROCESSING_MEASUREMENT );
     }
   }
   
@@ -295,6 +297,7 @@ void RunControlStep( Controller genericController, double** jointMeasuresTable, 
     jointSetpointsTable[ jointIndex ][ CONTROL_DAMPING ] = axisSetpointsTable[ jointIndex ][ CONTROL_DAMPING ];
 
     double stiffness = jointSetpointsTable[ jointIndex ][ CONTROL_STIFFNESS ];
+    if( controller->currentControlState == CONTROL_OFFSET || controller->currentControlState == CONTROL_CALIBRATION ) stiffness = 0.0;
     double positionError = jointSetpointsTable[ jointIndex ][ CONTROL_POSITION ] - jointMeasuresTable[ jointIndex ][ CONTROL_POSITION ];
     jointSetpointsTable[ jointIndex ][ CONTROL_FORCE ] = stiffness * positionError;
   }

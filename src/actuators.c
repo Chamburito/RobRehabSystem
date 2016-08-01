@@ -282,7 +282,8 @@ double Actuators_RunControl( Actuator actuator, double* measuresList, double* se
   }
   
   // If the motor is being actually controlled, write its control output
-  if( Motors.IsEnabled( actuator->motor ) ) Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
+  if( Motors.IsEnabled( actuator->motor ) && actuator->controlState != CONTROL_OFFSET ) 
+    Motors.WriteControl( actuator->motor, controlOutputsList[ actuator->controlMode ] );
   
   return controlOutputsList[ actuator->controlMode ];
 }
