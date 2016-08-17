@@ -19,8 +19,9 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-
-#define _XOPEN_SOURCE 700
+#ifdef __unix__
+  #define _XOPEN_SOURCE 700
+#endif
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -53,7 +54,7 @@ int main( int argc, char* argv[] )
   
   if( argc > 1 )
   {
-    if( SubSystem.Init( argv[ 1 ] ) != -1 )
+    if( SubSystem.Init( argv[ 1 ], NULL, NULL ) != -1 )
     {
       while( isRunning ) // Check for program termination conditions
       {

@@ -364,7 +364,7 @@ unsigned long ThreadSafeMaps_SetItem( ThreadSafeMap map, const void* key, void* 
   
   DEBUG_PRINT( "new item hash: %lx", hash );
   
-  ThreadLocks.Aquire( map->accessLock );
+  //ThreadLocks.Aquire( map->accessLock );
   
   DEBUG_PRINT( "access lock %p aquired", map->accessLock );
   
@@ -380,7 +380,7 @@ unsigned long ThreadSafeMaps_SetItem( ThreadSafeMap map, const void* key, void* 
   if( insertionStatus == -1 ) hash = 0;
   else hash = (unsigned long) kh_key( map->hashTable, index );
   
-  ThreadLocks.Release( map->accessLock );
+  //ThreadLocks.Release( map->accessLock );
   
   DEBUG_PRINT( "access lock %p released", map->accessLock );
   

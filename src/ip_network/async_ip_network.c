@@ -182,7 +182,7 @@ static void ReadToQueue( void* ref_connection )
         char* addressString = IPNetwork.GetAddress( newClient );
         if( addressString != NULL )
         {
-          DEBUG_PRINT( "client accepted: connection: %p - address: %s", newClient, addressString );
+          DEBUG_PRINT( "client accepted: server: %p - client: %p - address: %s", connection, newClient, addressString );
           ThreadSafeQueues.Enqueue( connection->readQueue, newClient, TSQUEUE_WAIT );
           AddAsyncConnection( newClient );
         }

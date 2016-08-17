@@ -119,7 +119,10 @@ DEFINE_NAMESPACE_INTERFACE( IPNetwork, IP_NETWORK_INTERFACE )
 /////                                        GLOBAL VARIABLES                                         /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static SocketPollerSet polledSocketsSet = { 0 };
+static SocketPollerSet polledSocketsSet;
+#ifdef IP_NETWORK_LEGACY
+static SocketPollerSet activeSocketsSet;
+#endif
 static size_t polledSocketsNumber = 0;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -344,7 +347,9 @@ IPAddress LoadAddressInfo( const char* host, const char* port, uint8_t networkRo
   if( hostInfo == NULL ) return NULL;
   #else
   addressData.sin_family = AF_INET;   // IPv4 address
-  addressData.sin_port = htons( (short) port );
+  uint16_t portNumber = (uint16_t) strtoul( port, NULL, 0 );
+  addressData.sin_port = htons( portNumber );
+  DEBUG_PRINT( "port: string = %s, number = %u, final = %u", port, portNumber, addressData.sin_port );
   if( host == NULL ) addressData.sin_addr.s_addr = INADDR_ANY;
   else if( strcmp( host, "255.255.255.255" ) == 0 ) addressData.sin_addr.s_addr = INADDR_BROADCAST; 
   else if ( (addressData.sin_addr.s_addr = inet_addr( host )) == INADDR_NONE ) return NULL;
@@ -579,7 +584,7 @@ IPConnection IPNetwork_OpenConnection( uint8_t connectionType, const char* host,
                                                            ( host == NULL ) ? "(ANY)" : host, port, ( (connectionType & TRANSPORT_MASK) == IP_TCP ) ? "TCP" : "UDP" );
   
   // Assure that the port number is in the Dynamic/Private range (49152-65535)
-  if( port < 49152 || port > 65535 )
+  if( port < 49152 /*|| port > 65535*/ )
   {
     ERROR_PRINT( "invalid port number value: %u", port );
     return NULL;
@@ -625,14 +630,14 @@ size_t IPNetwork_SetMessageLength( IPConnection connection, size_t messageLength
 /////                             GENERIC COMMUNICATION                             /////
 /////////////////////////////////////////////////////////////////////////////////////////
 
-inline char* IPNetwork_ReceiveMessage( IPConnection connection ) 
+char* IPNetwork_ReceiveMessage( IPConnection connection ) 
 { 
   memset( connection->buffer, 0, IP_MAX_MESSAGE_LENGTH );
   
   return connection->ref_ReceiveMessage( connection ); 
 }
 
-inline int IPNetwork_SendMessage( IPConnection connection, const char* message ) 
+int IPNetwork_SendMessage( IPConnection connection, const char* message ) 
 { 
   if( strlen( message ) + 1 > connection->messageLength )
   {
@@ -645,7 +650,7 @@ inline int IPNetwork_SendMessage( IPConnection connection, const char* message )
   return connection->ref_SendMessage( connection, message ); 
 }
 
-inline IPConnection IPNetwork_AcceptClient( IPConnection connection ) { return connection->ref_AcceptClient( connection ); }
+IPConnection IPNetwork_AcceptClient( IPConnection connection ) { return connection->ref_AcceptClient( connection ); }
 
 // Verify available incoming messages for the given connection, preventing unnecessary blocking calls (for syncronous networking)
 int IPNetwork_WaitEvent( unsigned int milliseconds )
@@ -654,8 +659,9 @@ int IPNetwork_WaitEvent( unsigned int milliseconds )
   int eventsNumber = poll( polledSocketsSet, polledSocketsNumber, milliseconds );
   #else
   struct timeval waitTime = { .tv_sec = milliseconds / 1000, .tv_usec = ( milliseconds % 1000 ) * 1000 };
-  fd_set readFDSet = (fd_set) polledSocketsSet;
-  int eventsNumber = select( polledSocketsNumber, &readFDSet, NULL, NULL, &waitTime );
+  activeSocketsSet = polledSocketsSet;
+  int eventsNumber = select( polledSocketsNumber, &activeSocketsSet, NULL, NULL, &waitTime );
+  //DEBUG_PRINT( "%d events detected", eventsNumber );
   #endif
   if( eventsNumber == SOCKET_ERROR ) ERROR_PRINT( "select: error waiting for events on %lu FDs", polledSocketsNumber );
   
@@ -670,15 +676,7 @@ bool IPNetwork_IsDataAvailable( IPConnection connection )
   if( connection->socket->revents & POLLRDNORM ) return true;
   else if( connection->socket->revents & POLLRDBAND ) return true;
   #else
-  fd_set readFDSet;
-  FD_ZERO( &readFDSet );
-  FD_SET( connection->socket->fd, &readFDSet );
-  struct timeval waitTime = { .tv_sec = 20 };
-  int eventsNumber = select( connection->socket->fd + 1, &readFDSet, NULL, NULL, &waitTime );
-  if( eventsNumber == SOCKET_ERROR ) ERROR_PRINT( "select: error waiting for events on FD %d", connection->socket->fd );
-  DEBUG_PRINT( "%d events detected", eventsNumber );
-  if( FD_ISSET( connection->socket->fd, &readFDSet ) ) return true;
-  //if( FD_ISSET( connection->socket->fd, &polledSocketsSet ) ) return true;
+  if( FD_ISSET( connection->socket->fd, &activeSocketsSet ) ) return true;
   #endif
   
   return false;
@@ -693,17 +691,21 @@ static char* ReceiveTCPMessage( IPConnection connection )
 {
   int bytesReceived;
   
+  if( connection->socket->fd == INVALID_SOCKET ) return NULL;
+
   // Blocks until there is something to be read in the socket
   bytesReceived = recv( connection->socket->fd, connection->buffer, connection->messageLength, 0 );
 
   if( bytesReceived == SOCKET_ERROR )
   {
     ERROR_PRINT( "recv: error reading from socket %d", connection->socket->fd );
+    connection->socket->fd = INVALID_SOCKET;
     return NULL;
   }
   else if( bytesReceived == 0 )
   {
     ERROR_PRINT( "recv: remote connection with socket %d closed", connection->socket->fd );
+    connection->socket->fd = INVALID_SOCKET;
     return NULL;
   }
   
@@ -730,14 +732,14 @@ static char* ReceiveUDPMessage( IPConnection connection )
   IPAddressData address = { 0 };
   socklen_t addressLength;
   static char* emptyMessage = "";//{ '\0' };
-
+  
   // Blocks until there is something to be read in the socket
   if( recvfrom( connection->socket->fd, connection->buffer, connection->messageLength, MSG_PEEK, (IPAddress) &address, &addressLength ) == SOCKET_ERROR )
   {
     ERROR_PRINT( "recvfrom: error reading from socket %d", connection->socket->fd );
     return NULL;
   }
-
+  DEBUG_PRINT( "socket %d received message: %s", connection->socket->fd, connection->buffer );
   // Verify if incoming message is destined to this connection (and returns the message if it is)
   if( memcmp( (void*) &(connection->addressData), (void*) &address, addressLength ) == 0 )
   {
@@ -826,7 +828,8 @@ static IPConnection AcceptUDPClient( IPConnection server )
   {
     //DEBUG_PRINT( "comparing ports: %u - %u", server->clientsList[ clientIndex ]->address->sin6_port, ((struct sockaddr_in6*) &clientAddress)->sin6_port );
     if( memcmp( (void*) &(server->clientsList[ clientIndex ]->addressData), (void*) &clientAddress, addressLength ) == 0 )
-      return &dummyConnection;
+      //return &dummyConnection;
+      return NULL;
   }
   
   DEBUG_PRINT( "client accepted (clients count before: %lu)", *(server->ref_clientsCount) );
