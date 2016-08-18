@@ -253,11 +253,11 @@ static void UpdateClientAxis( unsigned long clientID )
     }
   }
   
-  //if( messageOut[ 0 ] > 0 ) 
-  //{
+  if( messageOut[ 0 ] > 0 ) 
+  {
     DEBUG_UPDATE( "sending message %s to client %d (%u axes)", messageOut, clientID, messageOut[ 0 ] );
     AsyncIPNetwork.WriteMessage( clientID, messageOut );
-  //}
+  }
 }
 
 
