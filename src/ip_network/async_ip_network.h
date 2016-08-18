@@ -26,15 +26,15 @@ typedef AsyncIPConnectionData* AsyncIPConnection;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define ASYNC_IP_NETWORK_INTERFACE( Namespace, INIT_FUNCTION ) \
-        INIT_FUNCTION( char*, Namespace, GetAddress, int ) \
+        INIT_FUNCTION( char*, Namespace, GetAddress, unsigned long ) \
         INIT_FUNCTION( size_t, Namespace, GetActivesNumber, void ) \
-        INIT_FUNCTION( size_t, Namespace, GetClientsNumber, int ) \
-        INIT_FUNCTION( size_t, Namespace, SetMessageLength, int, size_t ) \
-        INIT_FUNCTION( int, Namespace, OpenConnection, uint8_t, const char*, uint16_t ) \
-        INIT_FUNCTION( void, Namespace, CloseConnection, int ) \
-        INIT_FUNCTION( char*, Namespace, ReadMessage, int ) \
-        INIT_FUNCTION( int, Namespace, WriteMessage, int, const char* ) \
-        INIT_FUNCTION( int, Namespace, GetClient, int )
+        INIT_FUNCTION( size_t, Namespace, GetClientsNumber, unsigned long ) \
+        INIT_FUNCTION( size_t, Namespace, SetMessageLength, unsigned long, size_t ) \
+        INIT_FUNCTION( unsigned long, Namespace, OpenConnection, uint8_t, const char*, uint16_t ) \
+        INIT_FUNCTION( void, Namespace, CloseConnection, unsigned long ) \
+        INIT_FUNCTION( char*, Namespace, ReadMessage, unsigned long ) \
+        INIT_FUNCTION( bool, Namespace, WriteMessage, unsigned long, const char* ) \
+        INIT_FUNCTION( unsigned long, Namespace, GetClient, unsigned long )
 
 DECLARE_NAMESPACE_INTERFACE( AsyncIPNetwork, ASYNC_IP_NETWORK_INTERFACE )
 

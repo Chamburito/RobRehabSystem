@@ -41,23 +41,23 @@
 const unsigned long UPDATE_INTERVAL_MS = 5;
 
 
-static int eventServerConnectionID = IP_CONNECTION_INVALID_ID;
-static int axisServerConnectionID = IP_CONNECTION_INVALID_ID;
-static int jointServerConnectionID = IP_CONNECTION_INVALID_ID;
+static unsigned long eventServerConnectionID = IP_CONNECTION_INVALID_ID;
+static unsigned long axisServerConnectionID = IP_CONNECTION_INVALID_ID;
+static unsigned long jointServerConnectionID = IP_CONNECTION_INVALID_ID;
 
-static kvec_t( int ) eventClientsList;
+static kvec_t( unsigned long ) eventClientsList;
 const size_t INFO_BLOCK_SIZE = 2;
 
-static kvec_t( int ) axisClientsList;
-static kvec_t( int ) jointClientsList;
+static kvec_t( unsigned long ) axisClientsList;
+static kvec_t( unsigned long ) jointClientsList;
 
 SHMController sharedRobotAxesInfo;
 SHMController sharedRobotJointsInfo;
 SHMController sharedRobotAxesData;
 SHMController sharedRobotJointsData;
 
-static kvec_t( int ) axisNetworkControllersList;
-static kvec_t( int ) jointNetworkControllersList;
+static kvec_t( unsigned long ) axisNetworkControllersList;
+static kvec_t( unsigned long ) jointNetworkControllersList;
 
 DEFINE_NAMESPACE_INTERFACE( SubSystem, ROBREHAB_SUBSYSTEM_INTERFACE )
 
@@ -100,17 +100,17 @@ void SubSystem_End()
   for( size_t eventClientIndex = 0; eventClientIndex < kv_size( eventClientsList ); eventClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( eventClientsList, eventClientIndex ) );
   AsyncIPNetwork.CloseConnection( eventServerConnectionID );
-  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "info server %d closed", eventServerConnectionID );
+  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "info server %lu closed", eventServerConnectionID );
   
   for( size_t axisClientIndex = 0; axisClientIndex < kv_size( axisClientsList ); axisClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( axisClientsList, axisClientIndex ) );
   AsyncIPNetwork.CloseConnection( axisServerConnectionID );
-  /*DEBUG_EVENT( 2,*/DEBUG_PRINT( "data server %d closed", axisServerConnectionID );
+  /*DEBUG_EVENT( 2,*/DEBUG_PRINT( "data server %lu closed", axisServerConnectionID );
   
   for( size_t emgClientIndex = 0; emgClientIndex < kv_size( jointClientsList ); emgClientIndex++ )
     AsyncIPNetwork.CloseConnection( kv_A( jointClientsList, emgClientIndex ) );
   AsyncIPNetwork.CloseConnection( jointServerConnectionID );
-  /*DEBUG_EVENT( 3,*/DEBUG_PRINT( "joint server %d closed", jointServerConnectionID );
+  /*DEBUG_EVENT( 3,*/DEBUG_PRINT( "joint server %lu closed", jointServerConnectionID );
   
   SHMControl.EndData( sharedRobotAxesInfo );
   SHMControl.EndData( sharedRobotJointsInfo );
@@ -130,33 +130,33 @@ void SubSystem_End()
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network ended on thread %lx", THREAD_ID );
 }
 
-static void UpdateClientEvent( int );
-static void UpdateClientAxis( int );
-static void UpdateClientJoint( int );
+static void UpdateClientEvent( unsigned long );
+static void UpdateClientAxis( unsigned long );
+static void UpdateClientJoint( unsigned long );
 
 void SubSystem_Update()
 {
   DEBUG_UPDATE( "updating connections on thread %lx", THREAD_ID );
   
-  int newEventClientID = AsyncIPNetwork.GetClient( eventServerConnectionID );
+  unsigned long newEventClientID = AsyncIPNetwork.GetClient( eventServerConnectionID );
   if( newEventClientID != IP_CONNECTION_INVALID_ID )
   {
-    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new info client found: %d", newEventClientID );
-    kv_push( int, eventClientsList, newEventClientID );
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "new info client found: %lu", newEventClientID );
+    kv_push( unsigned long, eventClientsList, newEventClientID );
   }
   
-  int newAxisClientID = AsyncIPNetwork.GetClient( axisServerConnectionID );
+  unsigned long newAxisClientID = AsyncIPNetwork.GetClient( axisServerConnectionID );
   if( newAxisClientID != IP_CONNECTION_INVALID_ID )
   {
-    /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "new data client found: %d", newAxisClientID );
-    kv_push( int, axisClientsList, newAxisClientID );
+    /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "new data client found: %lu", newAxisClientID );
+    kv_push( unsigned long, axisClientsList, newAxisClientID );
   }
   
-  int newjointClientID = AsyncIPNetwork.GetClient( jointServerConnectionID );
+  unsigned long newjointClientID = AsyncIPNetwork.GetClient( jointServerConnectionID );
   if( newjointClientID != IP_CONNECTION_INVALID_ID )
   {
-    /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "new joint client found: %d", newjointClientID );
-    kv_push( int, jointClientsList, newjointClientID );
+    /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "new joint client found: %lu", newjointClientID );
+    kv_push( unsigned long, jointClientsList, newjointClientID );
   }
   
   for( size_t clientIndex = 0; clientIndex < kv_size( eventClientsList ); clientIndex++ )
@@ -169,7 +169,7 @@ void SubSystem_Update()
     UpdateClientJoint( kv_A( jointClientsList, clientIndex ) );
 }
 
-static void UpdateClientEvent( int clientID )
+static void UpdateClientEvent( unsigned long clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   static uint8_t eventsCount;
@@ -206,14 +206,15 @@ static void UpdateClientEvent( int clientID )
   }
 }
 
-static void UpdateClientAxis( int clientID )
+static void UpdateClientAxis( unsigned long clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   
+  //DEBUG_UPDATE( "looking for messages for client %lu", clientID );
   char* messageIn = AsyncIPNetwork.ReadMessage( clientID );
   if( messageIn != NULL ) 
   {
-    DEBUG_UPDATE( "received input message: %s", messageIn );
+    /*DEBUG_UPDATE*/DEBUG_PRINT( "received input message: %s", messageIn );
     
     uint8_t setpointBlocksNumber = (uint8_t) *(messageIn++);
     for( uint8_t setpointBlockIndex = 0; setpointBlockIndex < setpointBlocksNumber; setpointBlockIndex++ )
@@ -221,9 +222,9 @@ static void UpdateClientAxis( int clientID )
       uint8_t axisIndex = (uint8_t) *(messageIn++);
       uint8_t axisMask = (uint8_t) *(messageIn++);
       
-      if( kv_a( int, axisNetworkControllersList, axisIndex ) == IP_CONNECTION_INVALID_ID )
+      if( kv_a( unsigned long, axisNetworkControllersList, axisIndex ) == IP_CONNECTION_INVALID_ID )
       {
-        DEBUG_PRINT( "new client for axis %u: %d", axisIndex, clientID );
+        DEBUG_PRINT( "new client for axis %u: %lu", axisIndex, clientID );
         kv_A( axisNetworkControllersList, axisIndex ) = clientID;
       }
       else if( kv_A( axisNetworkControllersList, axisIndex ) != clientID ) continue;
@@ -252,15 +253,15 @@ static void UpdateClientAxis( int clientID )
     }
   }
   
-  if( messageOut[ 0 ] > 0 ) 
-  {
+  //if( messageOut[ 0 ] > 0 ) 
+  //{
     DEBUG_UPDATE( "sending message %s to client %d (%u axes)", messageOut, clientID, messageOut[ 0 ] );
     AsyncIPNetwork.WriteMessage( clientID, messageOut );
-  }
+  //}
 }
 
 
-static void UpdateClientJoint( int clientID )
+static void UpdateClientJoint( unsigned long clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
   

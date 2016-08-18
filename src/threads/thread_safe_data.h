@@ -63,9 +63,9 @@ typedef ThreadSafeMapData* ThreadSafeMap;
         INIT_FUNCTION( unsigned long, Namespace, SetItem, ThreadSafeMap, const void*, void* ) \
         INIT_FUNCTION( bool, Namespace, RemoveItem, ThreadSafeMap, unsigned long ) \
         INIT_FUNCTION( void*, Namespace, AquireItem, ThreadSafeMap, unsigned long ) \
-        INIT_FUNCTION( void, Namespace, ReleaseItem, ThreadSafeMap ) \
+        INIT_FUNCTION( void, Namespace, ReleaseItem, ThreadSafeMap, unsigned long ) \
         INIT_FUNCTION( bool, Namespace, GetItem, ThreadSafeMap, unsigned long, void* ) \
-        INIT_FUNCTION( void, Namespace, RunForAll, ThreadSafeMap, void (*)( void* ) )
+        INIT_FUNCTION( void, Namespace, RunForAllKeys, ThreadSafeMap, void (*)( unsigned long ) )
         
 DECLARE_NAMESPACE_INTERFACE( ThreadSafeMaps, THREAD_SAFE_MAP_INTERFACE )
 

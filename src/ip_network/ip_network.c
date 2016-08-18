@@ -739,12 +739,12 @@ static char* ReceiveUDPMessage( IPConnection connection )
     ERROR_PRINT( "recvfrom: error reading from socket %d", connection->socket->fd );
     return NULL;
   }
-  DEBUG_PRINT( "socket %d received message: %s", connection->socket->fd, connection->buffer );
+
   // Verify if incoming message is destined to this connection (and returns the message if it is)
   if( memcmp( (void*) &(connection->addressData), (void*) &address, addressLength ) == 0 )
   {
     recv( connection->socket->fd, NULL, 0, 0 );
-    DEBUG_PRINT( "socket %d received right message: %s", connection->socket->fd, connection->buffer );
+    //DEBUG_PRINT( "socket %d received right message: %s", connection->socket->fd, connection->buffer );
     return connection->buffer;
   }
   

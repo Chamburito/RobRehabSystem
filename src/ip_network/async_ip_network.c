@@ -74,25 +74,25 @@ size_t AsyncIPNetwork_GetActivesNumber()
 }
 
 // Returns number of clients for the server connection of given index
-size_t AsyncIPNetwork_GetClientsNumber( int serverIndex )
+size_t AsyncIPNetwork_GetClientsNumber( unsigned long serverID )
 {
-  AsyncIPConnection connection = (AsyncIPConnection) ThreadSafeMaps.AquireItem( globalConnectionsList, serverIndex );
+  AsyncIPConnection connection = (AsyncIPConnection) ThreadSafeMaps.AquireItem( globalConnectionsList, serverID );
   if( connection == NULL ) return 0;
   
   size_t clientsNumber = IPNetwork.GetClientsNumber( connection->baseConnection );
   
-  ThreadSafeMaps.ReleaseItem( globalConnectionsList );
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, serverID );
 
   return clientsNumber;
 }
 
 // Returns address string (host and port) for the connection of given index
-char* AsyncIPNetwork_GetAddress( int connectionIndex )
+char* AsyncIPNetwork_GetAddress( unsigned long connectionID )
 {
-  AsyncIPConnection connection = (AsyncIPConnection) ThreadSafeMaps.AquireItem( globalConnectionsList, connectionIndex );
+  AsyncIPConnection connection = (AsyncIPConnection) ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
   if( connection == NULL ) return 0;
   
-  ThreadSafeMaps.ReleaseItem( globalConnectionsList );
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
   
   return IPNetwork.GetAddress( connection->baseConnection );
 }
@@ -107,7 +107,7 @@ static void* AsyncReadQueues( void* );
 static void* AsyncWriteQueues( void* );
 
 // Create new AsyncIPConnection structure (from a given IPConnection structure) and add it to the internal list
-static int AddAsyncConnection( IPConnection baseConnection )
+static unsigned long AddAsyncConnection( IPConnection baseConnection )
 {
   if( globalConnectionsList == NULL ) 
   {
@@ -120,39 +120,39 @@ static int AddAsyncConnection( IPConnection baseConnection )
   
   AsyncIPConnectionData connectionData = { .baseConnection = baseConnection };
   
-  size_t readQueueItemSize = ( !IPNetwork.IsServer( baseConnection ) ) ? IP_MAX_MESSAGE_LENGTH : sizeof(int);
+  size_t readQueueItemSize = ( !IPNetwork.IsServer( baseConnection ) ) ? IP_MAX_MESSAGE_LENGTH : sizeof(unsigned long);
   connectionData.readQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, readQueueItemSize );  
   connectionData.writeQueue = ThreadSafeQueues.Create( QUEUE_MAX_ITEMS, IP_MAX_MESSAGE_LENGTH );
   
-  int connectionID = (int) ThreadSafeMaps.SetItem( globalConnectionsList, baseConnection, &connectionData );  
+  unsigned long connectionID = ThreadSafeMaps.SetItem( globalConnectionsList, baseConnection, &connectionData );  
   
-  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "last connection index: %lu - connection: %p", ThreadSafeMaps.GetItemsCount( globalConnectionsList ), baseConnection );
+  /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "last connection: %p (ID %lu)", baseConnection, connectionID );
   
   return connectionID;
 }
 
 // Creates a new IPConnection structure (from the defined properties) and add it to the asyncronous connection list
-int AsyncIPNetwork_OpenConnection( uint8_t connectionType, const char* host, uint16_t port )
+unsigned long AsyncIPNetwork_OpenConnection( uint8_t connectionType, const char* host, uint16_t port )
 {
   DEBUG_PRINT( "Trying to create connection type %x on host %s and port %u", connectionType, ( host == NULL ) ? "(ANY)" : host, port );
   IPConnection baseConnection = IPNetwork.OpenConnection( connectionType, host, port );
   if( baseConnection == NULL )
   {
     /*ERROR_EVENT*/ERROR_PRINT( "failed to create connection type %x on host %s and port %u", connectionType, ( host == NULL ) ? "(ANY)" : host, port );
-    return -1;
+    return (unsigned long) IP_CONNECTION_INVALID_ID;
   } 
   
   return AddAsyncConnection( baseConnection );
 }
 
-size_t AsyncIPNetwork_SetMessageLength( int connectionID, size_t messageLength )
+size_t AsyncIPNetwork_SetMessageLength( unsigned long connectionID, size_t messageLength )
 {
   AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
   if( connection == NULL ) return 0;
   
   messageLength = IPNetwork.SetMessageLength( connection->baseConnection, messageLength );
   
-  ThreadSafeMaps.ReleaseItem( globalConnectionsList );
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
   
   return messageLength;
 }
@@ -161,14 +161,15 @@ size_t AsyncIPNetwork_SetMessageLength( int connectionID, size_t messageLength )
 /////                                     ASYNCRONOUS UPDATE                                          /////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void ReadToQueue( void* ref_connection )
+static void ReadToQueue( unsigned long connectionID )
 {
-  AsyncIPConnection connection = (AsyncIPConnection) ref_connection;
+  AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
+  if( connection == NULL ) return;
   
   // Do not proceed if queue is full
-  if( ThreadSafeQueues.GetItemsCount( connection->readQueue ) >= QUEUE_MAX_ITEMS )
+  if( ThreadSafeQueues.GetItemsCount( connection->readQueue ) >= QUEUE_MAX_ITEMS ) 
   {
-    //DEBUG_UPDATE( "connection socket %d read cache full\n", server->baseConnection->socket->fd );
+    ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
     return;
   }
   
@@ -182,9 +183,11 @@ static void ReadToQueue( void* ref_connection )
         char* addressString = IPNetwork.GetAddress( newClient );
         if( addressString != NULL )
         {
-          DEBUG_PRINT( "client accepted: server: %p - client: %p - address: %s", connection, newClient, addressString );
-          ThreadSafeQueues.Enqueue( connection->readQueue, newClient, TSQUEUE_WAIT );
-          AddAsyncConnection( newClient );
+          /*DEBUG_UPDATE*/DEBUG_PRINT( "client accepted: server: %p - client: %p - address: %s", connection, newClient, addressString );
+          ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
+          unsigned long newClientID = AddAsyncConnection( newClient );
+          ThreadSafeQueues.Enqueue( connection->readQueue, &newClientID, TSQUEUE_WAIT );
+          return;
         }
       }
     }
@@ -195,12 +198,14 @@ static void ReadToQueue( void* ref_connection )
       {
         if( lastMessage[ 0 ] != '\0' )
         {
-          //DEBUG_UPDATE( "connection socket %d received message: %s", reader->socket->fd, reader->buffer );
+          DEBUG_UPDATE( "message received: client %p received message: %s", connection, lastMessage );
           ThreadSafeQueues.Enqueue( connection->readQueue, (void*) lastMessage, TSQUEUE_WAIT );
         }
       }
     }
   }
+  
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
 }
 
 // Loop of message reading (storing in queue) to be called asyncronously for client/server connections
@@ -214,15 +219,16 @@ static void* AsyncReadQueues( void* args )
   {    
     // Blocking call
     if( IPNetwork.WaitEvent( 5000 ) > 0 ) 
-      ThreadSafeMaps.RunForAll( globalConnectionsList, ReadToQueue );
+      ThreadSafeMaps.RunForAllKeys( globalConnectionsList, ReadToQueue );
   }
   
   return NULL;
 }
 
-static void WriteFromQueue( void* ref_connection )
+static void WriteFromQueue( unsigned long connectionID )
 {
-  AsyncIPConnection connection = (AsyncIPConnection) ref_connection;
+  AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
+  if( connection == NULL ) return;
   
   char firstMessage[ IP_MAX_MESSAGE_LENGTH ];
   
@@ -230,6 +236,7 @@ static void WriteFromQueue( void* ref_connection )
   if( ThreadSafeQueues.GetItemsCount( connection->writeQueue ) == 0 )
   {
     //DEBUG_UPDATE( "connection socket %d write cache empty", writer->baseConnection->socket->fd );
+    ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
     return;
   }
   
@@ -238,7 +245,13 @@ static void WriteFromQueue( void* ref_connection )
   //DEBUG_UPDATE( "connection socket %d sending message: %s", writer->baseConnection->socket->fd, firstMessage );
   
   if( IPNetwork.SendMessage( connection->baseConnection, firstMessage ) == -1 )
+  {
+    ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
+    ThreadSafeMaps.RemoveItem( globalConnectionsList, connectionID );
     return;
+  }
+  
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
 }
 
 // Loop of message writing (removing in order from queue) to be called asyncronously for client connections
@@ -250,7 +263,7 @@ static void* AsyncWriteQueues( void* args )
   
   while( isNetworkRunning )
   {
-    ThreadSafeMaps.RunForAll( globalConnectionsList, WriteFromQueue );
+    ThreadSafeMaps.RunForAllKeys( globalConnectionsList, WriteFromQueue );
     
     Timing.Delay( 1 );
   }
@@ -265,58 +278,51 @@ static void* AsyncWriteQueues( void* args )
 
 // Get (and remove) message from the beginning (oldest) of the given index corresponding read queue
 // Method to be called from the main thread
-char* AsyncIPNetwork_ReadMessage( int clientID )
+char* AsyncIPNetwork_ReadMessage( unsigned long clientID )
 {
-  static char firstMessage[ IP_MAX_MESSAGE_LENGTH ];
-
+  static char messageData[ IP_MAX_MESSAGE_LENGTH ];
+  char* firstMessage = NULL;
+  
   AsyncIPConnection client = ThreadSafeMaps.AquireItem( globalConnectionsList, clientID );
   if( client != NULL )
   {
+    //DEBUG_PRINT( "is connection %p index %lu a client: %s", client, clientID, IPNetwork.IsServer( client->baseConnection ) ? "no" : "yes" );
     if( !IPNetwork.IsServer( client->baseConnection ) )
     {
+      //DEBUG_PRINT( "messages available for connection %p index %lu: %lu", client, clientID, ThreadSafeQueues.GetItemsCount( client->readQueue ) );
       if( ThreadSafeQueues.GetItemsCount( client->readQueue ) > 0 )
       {
-        //DEBUG_UPDATE( "message from connection index %d: %s", clientID, firstMessage );
+        ///*DEBUG_UPDATE*/DEBUG_PRINT( "message from connection index %lu: %s", clientID, firstMessage );
+        firstMessage = (char*) &messageData;
         ThreadSafeQueues.Dequeue( client->readQueue, firstMessage, TSQUEUE_WAIT );
-      }
-      else
-      {
-        //DEBUG_UPDATE( "no messages available for connection index %d", clientID );
-        return NULL;
       }
     }
     else
-    {
-      /*ERROR_EVENT*/ERROR_PRINT( "connection index %d is not of a client connection", clientID );
-      return NULL;
-    }
-
-    ThreadSafeMaps.ReleaseItem( globalConnectionsList );  
+      ERROR_PRINT( "connection index %lu is not of a client connection", clientID );
   }
-  else
-    return NULL;
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, clientID );
   
   return firstMessage;
 }
 
-int AsyncIPNetwork_WriteMessage( int connectionID, const char* message )
+bool AsyncIPNetwork_WriteMessage( unsigned long connectionID, const char* message )
 {
   AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
-  if( connection == NULL ) return -1;
+  if( connection == NULL ) return false;
   
   if( ThreadSafeQueues.GetItemsCount( connection->writeQueue ) >= QUEUE_MAX_ITEMS )
-    /*DEBUG_UPDATE*/DEBUG_PRINT( "connection index %d write queue is full", connectionID );
+    /*DEBUG_UPDATE*/DEBUG_PRINT( "connection index %lu write queue is full", connectionID );
   
   ThreadSafeQueues.Enqueue( connection->writeQueue, (void*) message, TSQUEUE_NOWAIT );
   
-  ThreadSafeMaps.ReleaseItem( globalConnectionsList );
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
   
-  return 0;
+  return true;
 }
 
-int AsyncIPNetwork_GetClient( int serverID )
+unsigned long AsyncIPNetwork_GetClient( unsigned long serverID )
 {
-  int firstClient = IP_CONNECTION_INVALID_ID;
+  unsigned long firstClient = (unsigned long) IP_CONNECTION_INVALID_ID;
 
   AsyncIPConnection server = ThreadSafeMaps.AquireItem( globalConnectionsList, serverID );
   if( server != NULL )
@@ -327,13 +333,13 @@ int AsyncIPNetwork_GetClient( int serverID )
       {
         ThreadSafeQueues.Dequeue( server->readQueue, &firstClient, TSQUEUE_WAIT );
     
-        /*DEBUG_UPDATE*/DEBUG_PRINT( "new client index from connection index %d: %d", serverID, firstClient ); 
+        /*DEBUG_UPDATE*/DEBUG_PRINT( "new client index from connection index %lu: %lu", serverID, firstClient ); 
       }
     }
-    //else
-    //  /*ERROR_EVENT*/ERROR_PRINT( "connection index %d is not a server index", serverID );
+    else
+      /*ERROR_EVENT*/ERROR_PRINT( "connection index %d is not a server index", serverID );
     
-    ThreadSafeMaps.ReleaseItem( globalConnectionsList );
+    ThreadSafeMaps.ReleaseItem( globalConnectionsList, serverID );
   }
   
   return firstClient; 
@@ -345,7 +351,7 @@ int AsyncIPNetwork_GetClient( int serverID )
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Handle socket closing and structures destruction for the given index corresponding connection
-void AsyncIPNetwork_CloseConnection( int connectionID )
+void AsyncIPNetwork_CloseConnection( unsigned long connectionID )
 {
   AsyncIPConnection connection = ThreadSafeMaps.AquireItem( globalConnectionsList, connectionID );
   if( connection == NULL ) return;
@@ -356,7 +362,7 @@ void AsyncIPNetwork_CloseConnection( int connectionID )
   ThreadSafeQueues.Discard( connection->readQueue );
   ThreadSafeQueues.Discard( connection->writeQueue );
   
-  ThreadSafeMaps.ReleaseItem( globalConnectionsList );
+  ThreadSafeMaps.ReleaseItem( globalConnectionsList, connectionID );
   
   ThreadSafeMaps.RemoveItem( globalConnectionsList, connectionID );
   
@@ -365,9 +371,9 @@ void AsyncIPNetwork_CloseConnection( int connectionID )
     isNetworkRunning = false;
     /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "waiting update threads %p and %p for exit", globalReadThread, globalWriteThread );
     (void) Threading.WaitExit( globalReadThread, 5000 );
-    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "read thread for connection id %u returned", connectionID );     
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "read thread for connection id %lu returned", connectionID );     
     (void) Threading.WaitExit( globalWriteThread, 5000 );
-    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "write thread for connection id %u returned", connectionID ); 
+    /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "write thread for connection id %lu returned", connectionID ); 
     
     ThreadSafeMaps.Discard( globalConnectionsList );
     globalConnectionsList = NULL;
