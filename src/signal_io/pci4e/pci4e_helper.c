@@ -5,8 +5,7 @@
 
 #include "pci4e_helper.h"
 
-#include <stdio.h>
-#include <sys/ioctl.h>
+#include "pci4e_device.h"
 
 /******** Global Variables **********************/
 DEVICE_DATA m_PCI4EDevice[MAX_DEVICES];

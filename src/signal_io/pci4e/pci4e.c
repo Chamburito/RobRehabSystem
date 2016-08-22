@@ -30,7 +30,6 @@
 
 #define ENCODERS_NUMBER 4
 
-static const size_t AQUISITION_BUFFER_LENGTH = 1;
 static const long ENCODER_MAX = ( 1 << 24 ) / 2;
 
 typedef struct _IOBoardData
@@ -198,7 +197,7 @@ void ReleaseOutputChannel( int boardID, unsigned int channel )
 bool IsTaskStillUsed( IOBoard board )
 {
   bool isStillUsed = false;
-  if( board->inputChannelUsesList != NULL )
+  if( board != NULL )
   {
     for( size_t channel = 0; channel < ENCODERS_NUMBER; channel++ )
     {
@@ -209,8 +208,6 @@ bool IsTaskStillUsed( IOBoard board )
       }
     }
   }
-  
-  if( board->isOutputChannelUsed ) isStillUsed = true;
   
   return isStillUsed;
 }
