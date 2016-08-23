@@ -239,7 +239,7 @@ bool IsOutputEnabled( int adapterIndex )
 
 bool Write( int adapterIndex, unsigned int channel, double value )
 {
-  const double TENSION_2_TORQUE_RATIO = 0.027;
+  const double TENSION_2_FORCE_RATIO = 0.027;
   
   if( (size_t) adapterIndex >= adaptersNumber ) return false;
   
@@ -249,7 +249,7 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   
   if( !adapter->isWriting ) return false;
   
-  value /= TENSION_2_TORQUE_RATIO;
+  value /= TENSION_2_FORCE_RATIO;
   if( value < (double) -IO_RANGE ) value = -IO_RANGE;
   else if( value < (double) IO_RANGE ) value = IO_RANGE;
   
@@ -279,7 +279,8 @@ void ReleaseOutputChannel( int adapterIndex, unsigned int channel )
 static void* AsyncReadBuffer( void* callbackData )
 {
   const double TENSION_TRANSFORM_RATIO = 2.35;
-  const double CURRENT_2_TORQUE_RATIO = 0.068;
+  const double TENSION_TRANSFORM_OFFSET = 0.1;
+  const double CURRENT_2_FORCE_RATIO = 0.068;
   
   const size_t RAW_INPUT_CHANNELS_NUMBER = 2 * INPUT_CHANNELS_NUMBER;
   uint16_t rawInputSamplesList[ RAW_INPUT_CHANNELS_NUMBER ];
@@ -309,6 +310,7 @@ static void* AsyncReadBuffer( void* callbackData )
           uint16_t rawValue = rawInputSamplesList[ rawChannel + sampleIndex ];
           tensionPair[ sampleIndex ] = rawValue * IO_RANGE / 0x8000;
           if( rawValue > 0x8000 ) tensionPair[ sampleIndex ] -= ( 2.0 * IO_RANGE );
+          //tensionPair[ sampleIndex ] -= TENSION_TRANSFORM_OFFSET;
           tensionPair[ sampleIndex ] /= TENSION_TRANSFORM_RATIO;
         }
         
@@ -316,7 +318,7 @@ static void* AsyncReadBuffer( void* callbackData )
         double current = ( fabs( cos( alpha ) ) < 0.1 ) ? tensionPair[ 1 ] / ( cos( alpha + ( 4.0 / 3.0 * M_PI ) ) ) : tensionPair[ 0 ] / cos( alpha );
         
         size_t channel = rawChannel / 2;        
-        adapter->inputSamplesList[ channel ] = -current * CURRENT_2_TORQUE_RATIO;
+        adapter->inputSamplesList[ channel ] = -current * CURRENT_2_FORCE_RATIO;
         adapter->aquiredSamplesCountList[ channel ] = ( channel < aquiredSamplesCount / 2 ) ? 1 : 0;
         Semaphores.SetCount( adapter->inputChannelLocksList[ channel ], adapter->inputChannelUsesList[ channel ] );
       }

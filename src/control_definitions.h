@@ -1,6 +1,11 @@
 #ifndef CONTROL_DEFINITIONS_H
 #define CONTROL_DEFINITIONS_H
 
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159
+#endif
+
 #define CONTROLLER_INVALID_HANDLE NULL
 
 #define CONTROL_PASS_INTERVAL 0.005
