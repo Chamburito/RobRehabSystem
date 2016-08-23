@@ -1,6 +1,11 @@
 #ifndef SIGNAL_IO_INTERFACE_H
 #define SIGNAL_IO_INTERFACE_H
 
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159
+#endif
+
 #include "modules.h"
 
 #define SIGNAL_INPUT_CHANNEL_MAX_USES 5

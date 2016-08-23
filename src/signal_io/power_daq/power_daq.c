@@ -33,7 +33,7 @@
 
 #include "debug/async_debug.h"
 
-#define INPUT_CHANNELS_NUMBER 16
+#define INPUT_CHANNELS_NUMBER 8
 #define OUTPUT_CHANNELS_NUMBER 2
 
 static const int DAQ_ACQUIRE = 1;
@@ -46,7 +46,7 @@ static const int IO_RANGE = 10;
 typedef struct _IOAdapterData
 {
   int inputHandle, outputHandle;
-  uint16_t inputSamplesList[ INPUT_CHANNELS_NUMBER ];
+  double inputSamplesList[ INPUT_CHANNELS_NUMBER ];
   uint32_t aquiredSamplesCountList[ INPUT_CHANNELS_NUMBER ];
   int inputChannelUsesList[ INPUT_CHANNELS_NUMBER ];
   Semaphore inputChannelLocksList[ INPUT_CHANNELS_NUMBER ];
@@ -77,6 +77,7 @@ int InitTask( const char* adapterConfig )
   
   Adapter_Info adapterInfo;
   _PdGetAdapterInfo( adapterIndex, &adapterInfo );
+  DEBUG_PRINT( "PD2-MF(s) board ?: %s", ( adapterInfo.atType & atMF ) ? "true" : "false" );
   if( !( adapterInfo.atType & atMF ) ) return SIGNAL_IO_TASK_INVALID_ID;
   
   if( adaptersNumber == 0 )
@@ -160,12 +161,7 @@ size_t Read( int adapterIndex, unsigned int channel, double* ref_value )
   Semaphores.Decrement( adapter->inputChannelLocksList[ channel ] );
   
   size_t aquiredSamplesCount = adapter->aquiredSamplesCountList[ channel ];
-  if( aquiredSamplesCount > 0 && ref_value != NULL )
-  {
-    uint16_t rawValue = adapter->inputSamplesList[ channel ];
-    *ref_value = rawValue * IO_RANGE / 0x8000;
-    if( rawValue > 0x8000 ) *ref_value -= ( 2.0 * IO_RANGE );
-  }
+  if( aquiredSamplesCount > 0 && ref_value != NULL ) *ref_value = adapter->inputSamplesList[ channel ];
   
   return aquiredSamplesCount;
 }
@@ -243,6 +239,8 @@ bool IsOutputEnabled( int adapterIndex )
 
 bool Write( int adapterIndex, unsigned int channel, double value )
 {
+  const double TENSION_2_TORQUE_RATIO = 0.027;
+  
   if( (size_t) adapterIndex >= adaptersNumber ) return false;
   
   if( channel >= OUTPUT_CHANNELS_NUMBER ) return false;
@@ -251,6 +249,7 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   
   if( !adapter->isWriting ) return false;
   
+  value /= TENSION_2_TORQUE_RATIO;
   if( value < (double) -IO_RANGE ) value = -IO_RANGE;
   else if( value < (double) IO_RANGE ) value = IO_RANGE;
   
@@ -265,6 +264,8 @@ bool AquireOutputChannel( int adapterIndex, unsigned int channel )
 {  
   if( (size_t) adapterIndex >= adaptersNumber ) return false;
   
+  if( channel >= OUTPUT_CHANNELS_NUMBER ) return false;
+  
   return true;
 }
 
@@ -277,6 +278,11 @@ void ReleaseOutputChannel( int adapterIndex, unsigned int channel )
 
 static void* AsyncReadBuffer( void* callbackData )
 {
+  const double TENSION_TRANSFORM_RATIO = 2.35;
+  const double CURRENT_2_TORQUE_RATIO = 0.068;
+  
+  const size_t RAW_INPUT_CHANNELS_NUMBER = 2 * INPUT_CHANNELS_NUMBER;
+  uint16_t rawInputSamplesList[ RAW_INPUT_CHANNELS_NUMBER ];
   uint32_t aquiredSamplesCount;
   
   isUpdating = true;
@@ -288,21 +294,37 @@ static void* AsyncReadBuffer( void* callbackData )
       
       if( !adapter->isReading ) continue;
       
-      int readStatus = _PdAInGetSamples( adapter->inputHandle, INPUT_CHANNELS_NUMBER, adapter->inputSamplesList, &aquiredSamplesCount );
+      int readStatus = _PdAInGetSamples( adapter->inputHandle, RAW_INPUT_CHANNELS_NUMBER, rawInputSamplesList, &aquiredSamplesCount );
       if( readStatus < 0 )
       {
         /*ERROR_EVENT*/DEBUG_PRINT( "error reading from input handle %d: error code %d", adapter->inputHandle, readStatus );
         aquiredSamplesCount = 0;
       }
       
-      for( size_t channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
+      for( size_t rawChannel = 0; rawChannel < RAW_INPUT_CHANNELS_NUMBER; rawChannel += 2 )
       {
-        adapter->aquiredSamplesCountList[ channel ] = ( channel < aquiredSamplesCount ) ? 1 : 0;
+        double tensionPair[ 2 ];
+        for( size_t sampleIndex = 0; sampleIndex < 2; sampleIndex++ )
+        {
+          uint16_t rawValue = rawInputSamplesList[ rawChannel + sampleIndex ];
+          tensionPair[ sampleIndex ] = rawValue * IO_RANGE / 0x8000;
+          if( rawValue > 0x8000 ) tensionPair[ sampleIndex ] -= ( 2.0 * IO_RANGE );
+          tensionPair[ sampleIndex ] /= TENSION_TRANSFORM_RATIO;
+        }
+        
+        double alpha = atan2( tensionPair[ 0 ] * cos( 4.0 / 3.0 * M_PI ) - tensionPair[ 1 ], tensionPair[ 0 ] * sin( 4.0 / 3.0 * M_PI ) );
+        double current = ( fabs( cos( alpha ) ) < 0.1 ) ? tensionPair[ 1 ] / ( cos( alpha + ( 4.0 / 3.0 * M_PI ) ) ) : tensionPair[ 0 ] / cos( alpha );
+        
+        size_t channel = rawChannel / 2;        
+        adapter->inputSamplesList[ channel ] = -current * CURRENT_2_TORQUE_RATIO;
+        adapter->aquiredSamplesCountList[ channel ] = ( channel < aquiredSamplesCount / 2 ) ? 1 : 0;
         Semaphores.SetCount( adapter->inputChannelLocksList[ channel ], adapter->inputChannelUsesList[ channel ] );
       }
       
       _PdAInSwClStart( adapter->inputHandle );
     }
+    
+    Timing.Delay( 1 );
   }
   
   return NULL;
