@@ -71,6 +71,11 @@ set_target_properties( ForcePIControl PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAK
 set_target_properties( ForcePIControl PROPERTIES PREFIX "" )
 target_include_directories( ForcePIControl PUBLIC ${CMAKE_SOURCE_DIR}/src/actuator_control/ )
 
+add_library( SimpleControl MODULE src/actuator_control/simple_control.c )
+set_target_properties( SimpleControl PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/actuator_control/ )
+set_target_properties( SimpleControl PROPERTIES PREFIX "" )
+target_include_directories( SimpleControl PUBLIC ${CMAKE_SOURCE_DIR}/src/actuator_control/ )
+
 add_library( SimpleJoint MODULE src/robot_control/simple_joint.c )
 set_target_properties( SimpleJoint PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/robot_control/ )
 set_target_properties( SimpleJoint PROPERTIES PREFIX "" )
