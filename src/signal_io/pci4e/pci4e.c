@@ -44,11 +44,9 @@ typedef IOBoardData* IOBoard;
 
 IOBoard boardsList = NULL;
 short boardsNumber = 0;
-int boardUsesCount = 0;
 
 DECLARE_MODULE_INTERFACE( SIGNAL_IO_INTERFACE ) 
 
-static inline bool IsTaskStillUsed( IOBoard );
 
 int InitTask( const char* boardName )
 {
@@ -61,19 +59,22 @@ int InitTask( const char* boardName )
   
   unsigned long boardID = strtoul( boardName, NULL, 0 );
   
-  if( boardID >= (unsigned long) boardsNumber )
+  if( boardID >= boardsNumber )
     return SIGNAL_IO_TASK_INVALID_ID;
   
-  for( size_t encoderIndex = 0; encoderIndex < ENCODERS_NUMBER; encoderIndex++ )
+  if( !boardsList[ boardID ].isReading )
   {
-    PCI4E_SetCount( boardID, encoderIndex, 0 );
-    if( PCI4E_WriteRegister( boardID, REG4E( encoderIndex, CONTROL_REGISTER ), 0x7C000 ) < 0 )
-      return SIGNAL_IO_TASK_INVALID_ID;
-    if( PCI4E_WriteRegister( boardID, REG4E( encoderIndex, PRESET_REGISTER ), 2 * ENCODER_MAX - 1 ) < 0 )
-      return SIGNAL_IO_TASK_INVALID_ID;
+    for( size_t encoderIndex = 0; encoderIndex < ENCODERS_NUMBER; encoderIndex++ )
+    {
+      PCI4E_SetCount( boardID, encoderIndex, 0 );
+      if( PCI4E_WriteRegister( boardID, REG4E( encoderIndex, CONTROL_REGISTER ), 0x7C000 ) < 0 )
+        return SIGNAL_IO_TASK_INVALID_ID;
+      if( PCI4E_WriteRegister( boardID, REG4E( encoderIndex, PRESET_REGISTER ), 2 * ENCODER_MAX - 1 ) < 0 )
+        return SIGNAL_IO_TASK_INVALID_ID;
+    }
+    
+    boardsList[ boardID ].isReading = true;
   }
-  
-  boardUsesCount++;
   
   DEBUG_PRINT( "board ID %lu (%d) available", boardID, (int) boardID );
   
@@ -84,18 +85,16 @@ void EndTask( int boardID )
 {
   if( boardID >= boardsNumber ) return;
   
-  IOBoard board = (IOBoard) &(boardsList[ boardID ]);
+  boardsList[ boardID ].isReading = false;
   
-  board->isReading = false;
-  
-  if( IsTaskStillUsed( board ) ) return;
-  
-  if( --boardUsesCount <= 0 )
+  for( short boardIndex = 0; boardIndex < boardsNumber; boardIndex++ )
   {
-    free( boardsList );
-    boardsList = NULL;
-    boardsNumber = 0;
+    if( boardsList[ boardIndex ].isReading ) return;
   }
+  
+  free( boardsList );
+  boardsList = NULL;
+  boardsNumber = 0;
 }
 
 size_t GetMaxInputSamplesNumber( int boardID )
@@ -110,6 +109,8 @@ size_t Read( int boardID, unsigned int channel, double* ref_value )
   if( boardID >= boardsNumber ) return 0;
   
   if( channel >= ENCODERS_NUMBER ) return 0;
+  
+  if( !boardsList[ boardID ].isReading ) return 0;
   
   long encoderCount;
   if( PCI4E_GetCount( boardID, channel, &encoderCount ) < 0 ) return 0;
@@ -165,8 +166,6 @@ void ReleaseInputChannel( int boardID, unsigned int channel )
   IOBoard board = (IOBoard) &(boardsList[ boardID ]);
   
   if( board->inputChannelUsesList[ channel ] > 0 ) board->inputChannelUsesList[ channel ]--;
-  
-  if( !IsTaskStillUsed( board ) && !board->isReading ) EndTask( boardID );
 }
 
 void EnableOutput( int boardID, bool enable )
@@ -192,23 +191,5 @@ bool AquireOutputChannel( int boardID, unsigned int channel )
 void ReleaseOutputChannel( int boardID, unsigned int channel )
 {
   return;
-}
-
-bool IsTaskStillUsed( IOBoard board )
-{
-  bool isStillUsed = false;
-  if( board != NULL )
-  {
-    for( size_t channel = 0; channel < ENCODERS_NUMBER; channel++ )
-    {
-      if( board->inputChannelUsesList[ channel ] > 0 )
-      {
-        isStillUsed = true;
-        break;
-      }
-    }
-  }
-  
-  return isStillUsed;
 }
  

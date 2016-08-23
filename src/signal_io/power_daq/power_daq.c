@@ -1,3 +1,28 @@
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  Copyright (c) 2016 Leonardo José Consoni                                  //
+//                                                                            //
+//  This file is part of RobRehabSystem.                                      //
+//                                                                            //
+//  RobRehabSystem is free software: you can redistribute it and/or modify    //
+//  it under the terms of the GNU Lesser General Public License as published  //
+//  by the Free Software Foundation, either version 3 of the License, or      //
+//  (at your option) any later version.                                       //
+//                                                                            //
+//  RobRehabSystem is distributed in the hope that it will be useful,         //
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of            //
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the              //
+//  GNU Lesser General Public License for more details.                       //
+//                                                                            //
+//  You should have received a copy of the GNU Lesser General Public License  //
+//  along with RobRehabSystem. If not, see <http://www.gnu.org/licenses/>.    //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+
+#include <signal.h>
+#include <stdint.h>
+
 #include "signal_io/power_daq/win_sdk_types.h"
 #include "signal_io/power_daq/powerdaq.h"
 #include "signal_io/power_daq/powerdaq32.h"
@@ -18,7 +43,7 @@ static const int PDAQ_DISABLE = 0;
 
 static const int IO_RANGE = 10;
 
-typedef struct _SignalIOTaskData
+typedef struct _IOAdapterData
 {
   int inputHandle, outputHandle;
   uint16_t inputSamplesList[ INPUT_CHANNELS_NUMBER ];
@@ -28,14 +53,15 @@ typedef struct _SignalIOTaskData
   uint32_t outputsList[ OUTPUT_CHANNELS_NUMBER ];
   bool isReading, isWriting;
 }
-SignalIOTaskData;
+IOAdapterData;
 
-typedef SignalIOTaskData* SignalIOTask;
+typedef IOAdapterData* IOAdapter;
 
-static SignalIOTask adaptersList = NULL;
+static IOAdapter adaptersList = NULL;
 static size_t adaptersNumber = 0;
 
-static Thread updateThreadID;
+static Thread updateThreadID = NULL;
+static volatile bool isUpdating = false;
 
 DECLARE_MODULE_INTERFACE( SIGNAL_IO_INTERFACE ) 
 
@@ -56,13 +82,13 @@ int InitTask( const char* adapterConfig )
   if( adaptersNumber == 0 )
   {
     adaptersNumber = (size_t) PdGetNumberAdapters();
-    adaptersList = (SignalIOTask) calloc( adaptersNumber, sizeof(SignalIOTaskData) );
-    memset( adaptersList, 0, adaptersNumber * sizeof(SignalIOTaskData) );
+    adaptersList = (IOAdapter) calloc( adaptersNumber, sizeof(IOAdapterData) );
+    memset( adaptersList, 0, adaptersNumber * sizeof(IOAdapterData) );
     
     updateThreadID = Threading.StartThread( AsyncReadBuffer, NULL, THREAD_JOINABLE );
   }
   
-  SignalIOTask newAdapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter newAdapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   if( !newAdapter->isReading )
   {
     newAdapter->inputHandle = PdAcquireSubsystem( adapterIndex, AnalogIn, DAQ_ACQUIRE );
@@ -83,7 +109,7 @@ void EndTask( int adapterIndex )
 {
   if( (size_t) adapterIndex >= adaptersNumber ) return;
   
-  SignalIOTask adapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   
   for( size_t channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
   {
@@ -105,6 +131,10 @@ void EndTask( int adapterIndex )
     if( adaptersList[ adapterIndex ].isReading ) return;
   }
   
+  isUpdating = false;
+  Threading.WaitExit( updateThreadID, 5000 );
+  updateThreadID = NULL;
+  
   free( adaptersList );
   adaptersList = NULL;
   adaptersNumber = 0;
@@ -121,7 +151,7 @@ size_t Read( int adapterIndex, unsigned int channel, double* ref_value )
 {
   if( (size_t) adapterIndex >= adaptersNumber ) return 0;
   
-  SignalIOTask adapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   
   if( channel >= INPUT_CHANNELS_NUMBER ) return 0;
   
@@ -153,14 +183,14 @@ void Reset( int adapterIndex )
 {
   if( (size_t) adapterIndex >= adaptersNumber ) return;
   
-  SignalIOTask adapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   
   _PdAInReset( adapter->inputHandle );
   DWORD analogInputConfig = (AIN_BIPOLAR | AIN_CL_CLOCK_SW | AIN_CV_CLOCK_CONTINUOUS | AIN_SINGLE_ENDED | AIN_RANGE_10V);
   _PdAInSetCfg( adapter->inputHandle, analogInputConfig, 0, 0 );
   DWORD channelsList[ INPUT_CHANNELS_NUMBER ];
   for( size_t channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
-    channelsList[ channel ] = CHLIST_ENT( channel % 16, 1, 1 );//( channel % 16 ) | SLOW;
+    channelsList[ channel ] = CHLIST_ENT( channel % INPUT_CHANNELS_NUMBER, 1, 1 );//( channel % 16 ) | SLOW;
   _PdAInSetChList( adapter->inputHandle, INPUT_CHANNELS_NUMBER, channelsList );
   _PdAInEnableConv( adapter->inputHandle, PDAQ_ENABLE );
   _PdAInSwStartTrig( adapter->inputHandle );
@@ -173,7 +203,7 @@ bool AquireInputChannel( int adapterIndex, unsigned int channel )
 {
   if( (size_t) adapterIndex >= adaptersNumber ) return false;
   
-  SignalIOTask adapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   
   if( channel >= INPUT_CHANNELS_NUMBER ) return false;
   
@@ -188,13 +218,13 @@ void ReleaseInputChannel( int adapterIndex, unsigned int channel )
 {
   if( (size_t) adapterIndex >= adaptersNumber ) return;
   
-  SignalIOTask adapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   
   if( channel >= INPUT_CHANNELS_NUMBER ) return;
   
   if( adapter->inputChannelUsesList[ channel ] > 0 ) adapter->inputChannelUsesList[ channel ]--;
   
-  //if( !IsTaskStillUsed( board ) && !board->isReading ) EndTask( boardID );
+  //EndTask( boardID );
 }
 
 void EnableOutput( int adapterIndex, bool enable )
@@ -217,10 +247,12 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   
   if( channel >= OUTPUT_CHANNELS_NUMBER ) return false;
   
-  SignalIOTask adapter = (SignalIOTask) &(adaptersList[ adapterIndex ]);
+  IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   
-  if( value < -IO_RANGE ) value = -IO_RANGE;
-  else if( value < IO_RANGE ) value = IO_RANGE;
+  if( !adapter->isWriting ) return false;
+  
+  if( value < (double) -IO_RANGE ) value = -IO_RANGE;
+  else if( value < (double) IO_RANGE ) value = IO_RANGE;
   
   adapter->outputsList[ channel ] = (uint32_t) ( ( value + IO_RANGE ) / ( 2 * IO_RANGE ) ) * 0xFFF;
   
@@ -241,39 +273,36 @@ void ReleaseOutputChannel( int adapterIndex, unsigned int channel )
   return;
 }
 
-size_t GetChannelsNumber( int adapterIndex )
-{
-  if( (size_t) adapterIndex >= adaptersNumber ) return 0;
-  
-  return INPUT_CHANNELS_NUMBER;
-}
 
 
 static void* AsyncReadBuffer( void* callbackData )
 {
-  SignalIOTask adapter = (SignalIOTask) callbackData;
-  
   uint32_t aquiredSamplesCount;
   
-  while( adapter->isReading )
+  isUpdating = true;
+  while( isUpdating )
   {
-    int readStatus = _PdAInGetSamples( adapter->inputHandle, INPUT_CHANNELS_NUMBER, adapter->inputSamplesList, &aquiredSamplesCount );
-  
-    if( readStatus <= 0 )
+    for( size_t adapterIndex = 0; adapterIndex < adaptersNumber; adapterIndex++ )
     {
-      /*ERROR_EVENT*/DEBUG_PRINT( "error reading from board %d analog input %d: error code %d", 0, task->handle, readStatus );
-      break;
+      IOAdapter adapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
+      
+      if( !adapter->isReading ) continue;
+      
+      int readStatus = _PdAInGetSamples( adapter->inputHandle, INPUT_CHANNELS_NUMBER, adapter->inputSamplesList, &aquiredSamplesCount );
+      if( readStatus < 0 )
+      {
+        /*ERROR_EVENT*/DEBUG_PRINT( "error reading from input handle %d: error code %d", adapter->inputHandle, readStatus );
+        aquiredSamplesCount = 0;
+      }
+      
+      for( size_t channel = 0; channel < INPUT_CHANNELS_NUMBER; channel++ )
+      {
+        adapter->aquiredSamplesCountList[ channel ] = ( channel < aquiredSamplesCount ) ? 1 : 0;
+        Semaphores.SetCount( adapter->inputChannelLocksList[ channel ], adapter->inputChannelUsesList[ channel ] );
+      }
+      
+      _PdAInSwClStart( adapter->inputHandle );
     }
-    
-    ThreadLocks.Aquire( task->threadLock );
-    
-    for( size_t channel = 0; channel < task->inputChannelsNumber; channel++ )
-    {
-      for( size_t sampleIndex = 0; sampleIndex < aquiredSamplesCount; sampleIndex++ )
-        task->inputSamplesTable[ channel ][ sampleIndex ] = task->inputSamplesList[ channel * aquiredSamplesCount + sampleIndex ];
-    }
-    
-    ThreadLocks.Release( task->threadLock );
   }
   
   return NULL;

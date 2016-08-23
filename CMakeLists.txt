@@ -21,7 +21,7 @@ elseif( WIN32 )
 endif()
 
 include_directories( ${CMAKE_SOURCE_DIR}/src )
-#link_directories( ${CMAKE_SOURCE_DIR}/libs )
+link_directories( ${CMAKE_SOURCE_DIR}/libs )
 
 
 # (REAL-TIME) CONTROL APPLICATION
@@ -59,6 +59,12 @@ add_library( PCI4E MODULE src/signal_io/pci4e/pci4e_helper.c src/signal_io/pci4e
 set_target_properties( PCI4E PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
 set_target_properties( PCI4E PROPERTIES PREFIX "" )
 target_include_directories( PCI4E PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
+
+add_library( PowerDAQ MODULE src/signal_io/power_daq/power_daq.c )
+set_target_properties( PowerDAQ PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
+set_target_properties( PowerDAQ PROPERTIES PREFIX "" )
+target_include_directories( PowerDAQ PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
+target_link_libraries( PowerDAQ libpowerdaq32.so.1.0 )
 
 add_library( ForcePIControl MODULE src/actuator_control/force_pi_control.c )
 set_target_properties( ForcePIControl PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/actuator_control/ )

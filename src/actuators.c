@@ -184,7 +184,7 @@ bool Actuators_SetControlState( Actuator actuator, enum ControlState controlStat
   
   if( controlState == actuator->controlState ) return false;
 
-  enum SignalProcessorState sensorsState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
+  enum SignalProcessingPhase sensorsState = SIGNAL_PROCESSING_PHASE_MEASUREMENT;
   if( controlState == CONTROL_OFFSET ) sensorsState = SIGNAL_PROCESSING_PHASE_OFFSET;
   else if( controlState == CONTROL_CALIBRATION ) sensorsState = SIGNAL_PROCESSING_PHASE_CALIBRATION;
   
