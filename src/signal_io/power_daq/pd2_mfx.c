@@ -77,7 +77,7 @@ int InitTask( const char* adapterConfig )
   
   Adapter_Info adapterInfo;
   _PdGetAdapterInfo( adapterIndex, &adapterInfo );
-  DEBUG_PRINT( "PD2-MF(s) board ?: %s", ( adapterInfo.atType & atMF ) ? "true" : "false" );
+  DEBUG_PRINT( "PD2-MFx board ?: %s", ( adapterInfo.atType & atMF ) ? "true" : "false" );
   if( !( adapterInfo.atType & atMF ) ) return SIGNAL_IO_TASK_INVALID_ID;
   
   if( adaptersNumber == 0 )
@@ -255,9 +255,10 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   
   adapter->outputsList[ channel ] = (uint32_t) ( ( value + IO_RANGE ) / ( 2 * IO_RANGE ) ) * 0xFFF;
   
-  _PdAOutPutValue( adapter->outputHandle, adapter->outputsList[ 0 ] << 12 | adapter->outputsList[ 1 ] );
+  if( _PdAOutPutValue( adapter->outputHandle, adapter->outputsList[ 0 ] << 12 | adapter->outputsList[ 1 ] ) < 0 )
+    return false;
   
-  return false;
+  return true;
 }
 
 bool AquireOutputChannel( int adapterIndex, unsigned int channel )
@@ -279,7 +280,7 @@ void ReleaseOutputChannel( int adapterIndex, unsigned int channel )
 static void* AsyncReadBuffer( void* callbackData )
 {
   const double TENSION_TRANSFORM_RATIO = 2.35;
-  const double TENSION_TRANSFORM_OFFSET = 0.1;
+  //const double TENSION_TRANSFORM_OFFSET = 0.1;
   const double CURRENT_2_FORCE_RATIO = 0.068;
   
   const size_t RAW_INPUT_CHANNELS_NUMBER = 2 * INPUT_CHANNELS_NUMBER;
