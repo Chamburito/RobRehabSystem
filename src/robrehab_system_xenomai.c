@@ -34,6 +34,10 @@
 
 #include "robrehab_subsystem.h"
 
+const int STACK_SIZE 8192;
+const int PRIORITY 1;
+
+static RT_TASK updateTask;
 
 static volatile bool isRunning = true;
 
@@ -43,10 +47,20 @@ void HandleExit( int dummyData )
   isRunning = false;
 }
 
-int main( int argc, char* argv[] )
+void RunUpdateLoop( void* args )
 {
-  const struct timespec UPDATE_TIMESPEC = { .tv_nsec = 1000000 * UPDATE_INTERVAL_MS };
+  rt_task_set_periodic( NULL. TM_NOW, 1000000 * UPDATE_INTERVAL_MS );
   
+  while( isRunning ) // Check for program termination conditions
+  {
+    SubSystem.Update();
+      
+    rt_task_wait_period(); // Sleep to give the desired loop rate.
+  }
+}
+
+int main( int argc, char* argv[] )
+{ 
   time_t rawTime;
   time( &rawTime );
   DEBUG_PRINT( "starting control program at time: %s", ctime( &rawTime ) );
@@ -57,12 +71,9 @@ int main( int argc, char* argv[] )
   {
     if( SubSystem.Init( argv[ 1 ], NULL, NULL ) != -1 )
     {
-      while( isRunning ) // Check for program termination conditions
-      {
-        SubSystem.Update();
+      rt_task_spawn( &updateTask, "RobRehabControlUpdate", STACK_SIZE, PRIORITY, 0, &RunUpdateLoop, NULL );
       
-        nanosleep( &UPDATE_TIMESPEC, NULL ); // Sleep to give the desired loop rate.
-      }
+      rt_task_join( &updateTask );
     }
   }
   
