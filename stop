@@ -1,0 +1,120 @@
+#! /bin/sh
+
+# set -x
+
+# stop - stop linux kernel modules at exit
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+PATH=/usr/local/bin:/bin:/usr/bin:/usr/X11R6/bin:/sbin:/usr/sbin
+
+# this can be handy: export CROB_HOME=`pwd`
+CROB=$CROB_HOME
+cd $CROB
+
+# are there user mode procs to kill?
+# these should be killed by the progs that create them
+# but if they are not, kill them here.
+# note: if these procs are stopped in the background (like with ^Z)
+# you may need to fg them or they'll be zombies - should be benign.
+
+# list all procs that have mbuff and rtf open
+# TODO: what is correct substitution here? lsof  /dev/mbuff /dev/rtf*
+
+# kill the usual suspects if they're there.
+pkill -0 -x shm && pkill -x shm
+pkill -0 -x iofifo && pkill -x iofifo
+
+# TODO: delete pgrep -x robot && pkill -x robot
+
+# set quit in the control loop, so it can clean itself up properly.
+
+# if plc is running, then set-drive-dis
+# if not, then run rest of stop code anyway.
+
+$CROB/tools/plc check-plc
+ret=$?
+if [ $ret -eq 0 ]; then
+	$CROB/tools/plc set-drive-dis
+fi
+
+
+echo -e "ok\nset quit 1" | ./shm
+
+# wait for 2 seconds for control loop to clean up and exit
+
+I=0
+while pkill -0 -x robot; do
+      sleep 0.1
+      if [ $I -gt 20 ]; then
+	  break
+      fi
+      I=`expr $I + 1`
+done
+
+# if setting quit didn't work, try pkill.
+# pkill (with the default SIGTERM) should work as well as sending quit above.
+
+if pkill -0 -x robot; then
+      pkill -x robot
+      echo "stop: sent pkill to robot process."
+      sleep 2
+fi
+
+# last resort, try SIGKILL.
+
+if pkill -0 -x robot; then
+      pkill -9 -x robot
+      echo "stop: sent pkill 9 to robot process."
+      sleep 2
+fi
+
+if pkill -0 -x robot; then
+      echo "stop: could not kill robot process."
+      exit 1
+fi
+
+# TODO: remove sleeps and lock it the right way, whatever that is
+# sleep 1
+
+# are there modules to unload?
+
+lsmod | grep -E -q 'xeno_|pwrdaq|pci4e' || {
+	echo "stop: no robot modules to unload."
+	# lsmod
+	exit 0
+}
+
+# echo stopping modules...
+# TODO: delete rmmod robot
+# TODO: delete rmmod pwrdaq
+# TODO: delete (cd /usr/src/linux/rtlinux; scripts/rmrtl)
+# TODO: delete rmmod mbuff
+./unloadmodules.sh
+
+I=0
+while true ; do 
+    lsmod | grep -E -q 'xeno_|pwrdaq|pci4e'
+    if [ $? ] ; then 
+	break
+    fi
+    if [ $I -gt 20 ]; then
+	echo "stop: could not unload kernel modules."
+	exit 1
+    fi
+    I=`expr $I + 1`
+    sleep 0.1
+done
+
+# make sure our shmids are cleaned up.
+for i in 1 2 3 4 5
+do
+	ipcrm -M 0x494D543$i > /dev/null 2>&1
+done
+
+exit 0

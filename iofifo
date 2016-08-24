@@ -1,0 +1,21 @@
+#! /bin/sh
+# talk to rtl command fifos
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# use "trap 0" to kill the background one on exit.
+
+# get output from rtlinux, in background
+# TODO: delete cat < /dev/rtf2 &
+cat < /proc/xenomai/registry/pipes/crob_error &
+pid_rtf2=$!
+trap "kill $pid_rtf2" 0
+
+# send input to rtlinux
+# TODO: delete cat > /dev/rtf3
+cat > /proc/xenomai/registry/pipes/crob_cmd_in
