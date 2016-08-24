@@ -29,7 +29,7 @@
 
 typedef struct _JSONData
 {
-  kson_t* nodeTree;
+  kson_node_t* rootNode;
   kson_node_t* currentNode;
   char searchPath[ DATA_IO_MAX_KEY_PATH_LENGTH ];
 }
@@ -54,15 +54,15 @@ int LoadStringData( const char* configString )
   if( insertionStatus > 0 )
   {
     //DEBUG_PRINT( "data content: %s", configString );                                           
-    kh_value( jsonDataList, newDataIndex ).nodeTree = kson_parse( (const char*) configString );
+    kh_value( jsonDataList, newDataIndex ).rootNode = kson_parse( (const char*) configString );
     
-    if( kh_value( jsonDataList, newDataIndex ).nodeTree == NULL )
+    if( kh_value( jsonDataList, newDataIndex ).rootNode == NULL )
     {
       UnloadData( (int) newDataIndex );
       return DATA_INVALID_ID;
     }
   
-    kh_value( jsonDataList, newDataIndex ).currentNode = kh_value( jsonDataList, newDataIndex ).nodeTree->root;
+    kh_value( jsonDataList, newDataIndex ).currentNode = kh_value( jsonDataList, newDataIndex ).rootNode;
 
     //DEBUG_PRINT( "Found %lu keys in new JSON data", (size_t) kh_value( jsonDataList, newDataIndex ).nodeTree->root->n );
   }
@@ -103,7 +103,7 @@ void UnloadData( int dataID )
   khint_t dataIndex = kh_get( JSONInt, jsonDataList, (khint_t) dataID );
   if( dataIndex == kh_end( jsonDataList ) ) return;
     
-  kson_destroy( kh_value( jsonDataList, dataIndex ).nodeTree );
+  kson_destroy( kh_value( jsonDataList, dataIndex ).rootNode );
     
   kh_del( JSONInt, jsonDataList, dataIndex );
     
@@ -147,7 +147,7 @@ char* GetStringValue( int dataID, char* defaultValue, const char* pathFormat, ..
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_SGL_QUOTE && valueNode->type != KSON_TYPE_DBL_QUOTE )
+  if( valueNode->type != KSON_TYPE_STRING )
     return defaultValue;
   
   if( valueNode->v.str == NULL ) return defaultValue;
@@ -165,7 +165,7 @@ long GetIntegerValue( int dataID, long defaultValue, const char* pathFormat, ...
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
+  if( valueNode->type != KSON_TYPE_NUMBER ) return defaultValue;
   
   DEBUG_PRINT( "Found value: %ld", strtol( valueNode->v.str, NULL, 0 ) );
   
@@ -180,7 +180,7 @@ double GetRealValue( int dataID, double defaultValue, const char* pathFormat, ..
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
+  if( valueNode->type != KSON_TYPE_NUMBER ) return defaultValue;
   
   DEBUG_PRINT( "Found value: %g", strtod( valueNode->v.str, NULL ) );
   
@@ -195,7 +195,7 @@ bool GetBooleanValue( int dataID, bool defaultValue, const char* pathFormat, ...
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
-  if( valueNode->type != KSON_TYPE_NO_QUOTE ) return defaultValue;
+  if( valueNode->type != KSON_TYPE_BOOLEAN ) return defaultValue;
   
   if( strcmp( valueNode->v.str, "true" ) == 0 ) return true;
 
