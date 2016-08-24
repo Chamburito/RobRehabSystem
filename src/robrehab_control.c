@@ -233,6 +233,8 @@ void LoadSharedRobotsInfo()
 {
   static uint8_t infoWriteCount;
   
+  int sharedConfigID = ConfigParsing.GetParser()->LoadStringData( "{}" );
+  
   int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
   if( configFileID != DATA_INVALID_ID )
   {

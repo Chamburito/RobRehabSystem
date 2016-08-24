@@ -32,6 +32,9 @@
         INIT_FUNCTION( char*, Interface, GetStringValue, int, char*, const char*, ... ) \
         INIT_FUNCTION( bool, Interface, GetBooleanValue, int, bool, const char*, ... ) \
         INIT_FUNCTION( size_t, Interface, GetListSize, int, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, SetNumericValue, int, const char*, const double, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, SetStringValue, int, const char*, const char*, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, SetBooleanValue, int, const char*, const bool, const char*, ... ) \
         INIT_FUNCTION( bool, Interface, HasKey, int, const char*, ... )
 
 #endif // DATA_IO_H

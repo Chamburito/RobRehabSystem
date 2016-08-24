@@ -114,12 +114,12 @@ void UnloadData( int dataID )
   }
 }
 
-static inline const kson_node_t* GetPathNode( int dataID, const char* pathFormat, va_list pathArgs )
+static inline kson_node_t* GetPathNode( int dataID, const char* pathFormat, va_list pathArgs )
 {
   khint_t dataIndex = kh_get( JSONInt, jsonDataList, (khint_t) dataID );
   if( dataIndex == kh_end( jsonDataList ) ) return NULL;
   
-  const kson_node_t* currentNode = kh_value( jsonDataList, dataIndex ).currentNode;
+  kson_node_t* currentNode = kh_value( jsonDataList, dataIndex ).currentNode;
   char* searchPath = kh_value( jsonDataList, dataIndex ).searchPath;
   
   vsnprintf( searchPath, DATA_IO_MAX_KEY_PATH_LENGTH, pathFormat, pathArgs );
@@ -143,7 +143,7 @@ char* GetStringValue( int dataID, char* defaultValue, const char* pathFormat, ..
 {
   va_list pathArgs;
   va_start( pathArgs, pathFormat );  
-  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
@@ -161,7 +161,7 @@ long GetIntegerValue( int dataID, long defaultValue, const char* pathFormat, ...
 {
   va_list pathArgs;
   va_start( pathArgs, pathFormat );  
-  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
@@ -176,7 +176,7 @@ double GetRealValue( int dataID, double defaultValue, const char* pathFormat, ..
 {
   va_list pathArgs;
   va_start( pathArgs, pathFormat );  
-  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
@@ -191,7 +191,7 @@ bool GetBooleanValue( int dataID, bool defaultValue, const char* pathFormat, ...
 {
   va_list pathArgs;
   va_start( pathArgs, pathFormat );  
-  const kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
+  kson_node_t* valueNode = GetPathNode( dataID, pathFormat, pathArgs );
   va_end( pathArgs );
   if( valueNode == NULL ) return defaultValue;
   
@@ -206,7 +206,7 @@ size_t GetListSize( int dataID, const char* pathFormat, ... )
 {
   va_list pathArgs;
   va_start( pathArgs, pathFormat );  
-  const kson_node_t* listNode = GetPathNode( dataID, pathFormat, pathArgs );
+  kson_node_t* listNode = GetPathNode( dataID, pathFormat, pathArgs );
   va_end( pathArgs );  
   if( listNode == NULL ) return 0;
   
@@ -221,9 +221,74 @@ bool HasKey( int dataID, const char* pathFormat, ... )
 {
   va_list pathArgs;
   va_start( pathArgs, pathFormat );  
-  const kson_node_t* keyNode = GetPathNode( dataID, pathFormat, pathArgs );
+  kson_node_t* keyNode = GetPathNode( dataID, pathFormat, pathArgs );
   va_end( pathArgs );
   if( keyNode == NULL ) return false;
+  
+  return true;
+}
+
+bool SetNumericValue( int dataID, const char* key, const double value, const char* pathFormat, ... )
+{
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  kson_node_t* valueNode = NULL;
+  kson_node_t* parentNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
+  if( parentNode == NULL ) return false;
+  
+  if( parentNode->type == KSON_TYPE_BRACE )
+    valueNode = kson_add_key( valueNode, KSON_TYPE_NUMBER, key );
+  else if( parentNode->type == KSON_TYPE_BRACKET )
+    valueNode = kson_add_index( valueNode, KSON_TYPE_NUMBER );
+  
+  if( valueNode == NULL ) return false;
+  
+  char numberString[ 20 ];
+  sprintf( numberString, "%g", value );
+  kson_set( valueNode, numberString );
+  
+  return true;
+}
+
+bool SetStringValue( int dataID, const char* key, const char* value, const char* pathFormat, ... )
+{
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  kson_node_t* valueNode = NULL;
+  kson_node_t* parentNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
+  if( parentNode == NULL ) return false;
+  
+  if( parentNode->type == KSON_TYPE_BRACE )
+    valueNode = kson_add_key( valueNode, KSON_TYPE_NUMBER, key );
+  else if( parentNode->type == KSON_TYPE_BRACKET )
+    valueNode = kson_add_index( valueNode, KSON_TYPE_NUMBER );
+  
+  if( valueNode == NULL ) return false;
+  
+  kson_set( valueNode, value );
+  
+  return true;
+}
+
+bool SetBooleanValue( int dataID, const char* key, const bool value, const char* pathFormat, ... )
+{
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  kson_node_t* valueNode = NULL;
+  kson_node_t* parentNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
+  if( parentNode == NULL ) return false;
+  
+  if( parentNode->type == KSON_TYPE_BRACE )
+    valueNode = kson_add_key( valueNode, KSON_TYPE_NUMBER, key );
+  else if( parentNode->type == KSON_TYPE_BRACKET )
+    valueNode = kson_add_index( valueNode, KSON_TYPE_NUMBER );
+  
+  if( valueNode == NULL ) return false;
+  
+  kson_set( valueNode, value ? "true" : "false" );
   
   return true;
 }
