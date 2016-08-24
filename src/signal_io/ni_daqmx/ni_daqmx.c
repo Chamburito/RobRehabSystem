@@ -37,7 +37,8 @@ typedef struct _SignalIOTaskData
 {
   TaskHandle handle;
   Thread threadID;
-  bool isRunning, mode;
+  volatile bool isRunning
+  bool mode;
   unsigned int* channelUsesList;
   Semaphore* channelLocksList;
   uInt32 channelsNumber;

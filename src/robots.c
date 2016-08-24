@@ -56,7 +56,7 @@ struct _RobotData
   DECLARE_MODULE_INTERFACE_REF( ROBOT_CONTROL_INTERFACE );
   Controller controller;
   Thread controlThread;
-  bool isControlRunning;
+  volatile bool isControlRunning;
   enum ControlState controlState;
   Joint* jointsList;
   double** jointMeasuresTable;

@@ -47,7 +47,7 @@ struct _AsyncIPConnectionData
 // Thread for asyncronous connections update
 static Thread globalReadThread = THREAD_INVALID_HANDLE;
 static Thread globalWriteThread = THREAD_INVALID_HANDLE;
-static bool isNetworkRunning = false;
+static volatile bool isNetworkRunning = false;
 
 // Internal (private) list of asyncronous connections created (accessible only by index)
 static ThreadSafeMap globalConnectionsList = NULL;
