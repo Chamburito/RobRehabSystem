@@ -23,7 +23,7 @@
 #include <math.h>
 #include <string.h>
 
-#include "config_parser.h"
+#include "configuration.h"
 
 #include "debug/sync_debug.h"
 
@@ -62,24 +62,24 @@ Curve LoadCurveData( int configDataID )
   Curve newCurve = (Curve) malloc( sizeof(CurveData) );
   memset( newCurve, 0, sizeof(CurveData) );
   
-  newCurve->scaleFactor = ConfigParsing.GetParser()->GetRealValue( configDataID, 1.0, "scale_factor" );
-  newCurve->maxAbsoluteValue = ConfigParsing.GetParser()->GetRealValue( configDataID, -1.0, "max_amplitude" );
+  newCurve->scaleFactor = Configuration.GetIOHandler()->GetRealValue( configDataID, 1.0, "scale_factor" );
+  newCurve->maxAbsoluteValue = Configuration.GetIOHandler()->GetRealValue( configDataID, -1.0, "max_amplitude" );
 
-  size_t segmentsNumber = ConfigParsing.GetParser()->GetListSize( configDataID, "segments" );
+  size_t segmentsNumber = Configuration.GetIOHandler()->GetListSize( configDataID, "segments" );
 
   for( size_t segmentIndex = 0; segmentIndex < segmentsNumber; segmentIndex++ )
   {
     double curveBounds[ 2 ];
-    curveBounds[ 0 ] = ConfigParsing.GetParser()->GetRealValue( configDataID, 0.0, "segments.%lu.bounds.0", segmentIndex );
-    curveBounds[ 1 ] = ConfigParsing.GetParser()->GetRealValue( configDataID, 1.0, "segments.%lu.bounds.1", segmentIndex );
+    curveBounds[ 0 ] = Configuration.GetIOHandler()->GetRealValue( configDataID, 0.0, "segments.%lu.bounds.0", segmentIndex );
+    curveBounds[ 1 ] = Configuration.GetIOHandler()->GetRealValue( configDataID, 1.0, "segments.%lu.bounds.1", segmentIndex );
 
-    int parametersNumber = (int) ConfigParsing.GetParser()->GetListSize( configDataID, "segments.%lu.parameters", segmentIndex );
+    int parametersNumber = (int) Configuration.GetIOHandler()->GetListSize( configDataID, "segments.%lu.parameters", segmentIndex );
 
     double* curveParameters = (double*) calloc( parametersNumber, sizeof(double) );
     for( int parameterIndex = 0; parameterIndex < parametersNumber; parameterIndex++ )
-      curveParameters[ parametersNumber - parameterIndex - 1 ] = ConfigParsing.GetParser()->GetRealValue( configDataID, 0.0, "segments.%lu.parameters.%d", segmentIndex, parameterIndex );
+      curveParameters[ parametersNumber - parameterIndex - 1 ] = Configuration.GetIOHandler()->GetRealValue( configDataID, 0.0, "segments.%lu.parameters.%d", segmentIndex, parameterIndex );
 
-    char* curveType = ConfigParsing.GetParser()->GetStringValue( configDataID, "", "segments.%lu.type", segmentIndex );
+    char* curveType = Configuration.GetIOHandler()->GetStringValue( configDataID, "", "segments.%lu.type", segmentIndex );
     if( strcmp( curveType, "cubic_spline" ) == 0 && parametersNumber == SPLINE3_COEFFS_NUMBER ) 
       (void) AddSpline3Segment( newCurve, curveParameters, curveBounds );
     else if( strcmp( curveType, "polynomial" ) == 0 ) 
@@ -90,20 +90,20 @@ Curve LoadCurveData( int configDataID )
 
   newCurve->segmentsNumber = segmentsNumber;
 
-  ConfigParsing.GetParser()->UnloadData( configDataID );
+  Configuration.GetIOHandler()->UnloadData( configDataID );
   
   return newCurve;
 }
 
 Curve CurveInterpolation_LoadCurveFile( const char* curveName )
 {
-  int configFileID = ConfigParsing.LoadConfigFile( curveName );
+  int configFileID = Configuration.LoadConfigFile( curveName );
   return LoadCurveData( configFileID );
 }
 
 Curve CurveInterpolation_LoadCurveString( const char* curveString )
 {
-  int configDataID = ConfigParsing.LoadConfigString( curveString );
+  int configDataID = Configuration.ParseConfigString( curveString );
   return LoadCurveData( configDataID );
 }
 

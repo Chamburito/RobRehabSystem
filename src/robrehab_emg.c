@@ -26,7 +26,7 @@
 //#include "optimization.h"
 #include "emg_processing.h"
 
-#include "config_parser.h"
+#include "configuration.h"
 
 #include "klib/kvec.h"
 
@@ -85,7 +85,7 @@ int SubSystem_Init( const char* configType )
   sharedRobotJointsInfo = SHMControl.InitData( "robot_joints_info", SHM_CONTROL_OUT );
   sharedRobotJointsData = SHMControl.InitData( "robot_joints_data", SHM_CONTROL_OUT );
   
-  if( ConfigParsing.Init( configType ) )
+  if( Configuration.Init( configType ) )
   {
     SHMControl.GetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
     

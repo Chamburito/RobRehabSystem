@@ -24,9 +24,11 @@
 #define DATA_INVALID_ID -1
 
 #define DATA_IO_INTERFACE( Interface, INIT_FUNCTION ) \
+        INIT_FUNCTION( int, Interface, CreateEmptyData, void ) \
         INIT_FUNCTION( int, Interface, LoadFileData, const char* ) \
         INIT_FUNCTION( int, Interface, LoadStringData, const char* ) \
         INIT_FUNCTION( void, Interface, UnloadData, int ) \
+        INIT_FUNCTION( char*, Interface, GetDataString, int ) \
         INIT_FUNCTION( long, Interface, GetIntegerValue, int, long, const char*, ... ) \
         INIT_FUNCTION( double, Interface, GetRealValue, int, double, const char*, ... ) \
         INIT_FUNCTION( char*, Interface, GetStringValue, int, char*, const char*, ... ) \
@@ -35,6 +37,8 @@
         INIT_FUNCTION( bool, Interface, SetNumericValue, int, const char*, const double, const char*, ... ) \
         INIT_FUNCTION( bool, Interface, SetStringValue, int, const char*, const char*, const char*, ... ) \
         INIT_FUNCTION( bool, Interface, SetBooleanValue, int, const char*, const bool, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, AddList, int, const char*, const char*, ... ) \
+        INIT_FUNCTION( bool, Interface, AddLevel, int, const char*, const char*, ... ) \
         INIT_FUNCTION( bool, Interface, HasKey, int, const char*, ... )
 
 #endif // DATA_IO_H

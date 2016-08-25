@@ -20,7 +20,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#include "config_parser.h"
+#include "configuration.h"
 
 #include "motors.h"
 #include "sensors.h"
@@ -65,7 +65,7 @@ Actuator Actuators_Init( const char* configFileName )
   Actuator newActuator = NULL;
   
   sprintf( filePath, "actuators/%s", configFileName );
-  int configFileID = ConfigParsing.LoadConfigFile( filePath );
+  int configFileID = Configuration.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
     newActuator = (Actuator) malloc( sizeof(ActuatorData) );
@@ -73,7 +73,7 @@ Actuator Actuators_Init( const char* configFileName )
 
     bool loadSuccess = true;
 
-    if( (newActuator->sensorsNumber = ConfigParsing.GetParser()->GetListSize( configFileID, "sensors" )) > 0 )
+    if( (newActuator->sensorsNumber = Configuration.GetIOHandler()->GetListSize( configFileID, "sensors" )) > 0 )
     {
       newActuator->sensorFilter = Kalman.CreateFilter( CONTROL_MODES_NUMBER );
       Kalman.SetVariablesCoupling( newActuator->sensorFilter, CONTROL_POSITION, CONTROL_VELOCITY, CONTROL_PASS_INTERVAL );
@@ -83,8 +83,8 @@ Actuator Actuators_Init( const char* configFileName )
       newActuator->sensorsList = (Sensor*) calloc( newActuator->sensorsNumber, sizeof(Sensor) );
       for( size_t sensorIndex = 0; sensorIndex < newActuator->sensorsNumber; sensorIndex++ )
       {
-        newActuator->sensorsList[ sensorIndex ] = Sensors.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "sensors.%lu.id", sensorIndex ), 0x00 ); 
-        char* sensorType = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "sensors.%lu.input_variable", sensorIndex );
+        newActuator->sensorsList[ sensorIndex ] = Sensors.Init( Configuration.GetIOHandler()->GetStringValue( configFileID, "", "sensors.%lu.id", sensorIndex ), 0x00 ); 
+        char* sensorType = Configuration.GetIOHandler()->GetStringValue( configFileID, "", "sensors.%lu.input_variable", sensorIndex );
         for( int controlModeIndex = 0; controlModeIndex < CONTROL_MODES_NUMBER; controlModeIndex++ )
         {
           if( strcmp( sensorType, CONTROL_MODE_NAMES[ controlModeIndex ] ) == 0 ) 
@@ -96,30 +96,30 @@ Actuator Actuators_Init( const char* configFileName )
       }
     }
     
-    if( (newActuator->motor = Motors.Init( ConfigParsing.GetParser()->GetStringValue( configFileID, "", "motor.id" ) )) == NULL ) loadSuccess = false;
+    if( (newActuator->motor = Motors.Init( Configuration.GetIOHandler()->GetStringValue( configFileID, "", "motor.id" ) )) == NULL ) loadSuccess = false;
     
     newActuator->controlMode = CONTROL_POSITION;
-    char* controlModeName = ConfigParsing.GetParser()->GetStringValue( configFileID, (char*) CONTROL_MODE_NAMES[ CONTROL_POSITION ], "motor.output_variable" );
+    char* controlModeName = Configuration.GetIOHandler()->GetStringValue( configFileID, (char*) CONTROL_MODE_NAMES[ CONTROL_POSITION ], "motor.output_variable" );
     for( int controlModeIndex = 0; controlModeIndex < CONTROL_MODES_NUMBER; controlModeIndex++ )
     {
       if( strcmp( controlModeName, CONTROL_MODE_NAMES[ controlModeIndex ] ) == 0 ) newActuator->controlMode = controlModeIndex;
     }
     
     newActuator->logID = DATA_LOG_INVALID_ID;
-    if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "log_data" ) )
+    if( Configuration.GetIOHandler()->GetBooleanValue( configFileID, false, "log_data" ) )
     {
       sprintf( filePath, "actuators/%s", configFileName );
       newActuator->logID = DataLogging.InitLog( filePath, 9, 1000 );
       DataLogging.SetDataPrecision( newActuator->logID, 6 );
     } 
     
-    sprintf( filePath, "actuator_control/%s", ConfigParsing.GetParser()->GetStringValue( configFileID, "", "controller" ) );
+    sprintf( filePath, "actuator_control/%s", Configuration.GetIOHandler()->GetStringValue( configFileID, "", "controller" ) );
     LOAD_MODULE_IMPLEMENTATION( ACTUATOR_CONTROL_INTERFACE, filePath, newActuator, &loadSuccess );
     if( loadSuccess ) newActuator->controller = newActuator->InitController();
     
     newActuator->controlState = CONTROL_OPERATION;
 
-    ConfigParsing.GetParser()->UnloadData( configFileID );
+    Configuration.GetIOHandler()->UnloadData( configFileID );
 
     if( !loadSuccess )
     {

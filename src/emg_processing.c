@@ -27,7 +27,7 @@
 #include "signal_processing.h"
 #include "curve_interpolation.h"
 
-#include "config_parser.h"
+#include "configuration.h"
 
 #include "klib/khash.h"
 
@@ -311,14 +311,14 @@ static EMGMuscle LoadEMGMuscleData( const char* configFileName )
   EMGMuscle newMuscle = NULL;
   
   sprintf( filePath, "muscles/%s", configFileName );
-  int configFileID = ConfigParsing.LoadConfigFile( filePath );
+  int configFileID = Configuration.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
     newMuscle = (EMGMuscle) malloc( sizeof(EMGMuscleData) );
     
     for( size_t curveIndex = 0; curveIndex < MUSCLE_CURVES_NUMBER; curveIndex++ )
     {
-      char* curveString = ConfigParsing.GetParser()->GetStringValue( configFileID, NULL, "curves.%s", MUSCLE_CURVE_NAMES[ curveIndex ] );
+      char* curveString = Configuration.GetIOHandler()->GetStringValue( configFileID, NULL, "curves.%s", MUSCLE_CURVE_NAMES[ curveIndex ] );
       newMuscle->curvesList[ curveIndex ] = CurveInterpolation.LoadCurveString( curveString );
     }
 
@@ -328,7 +328,7 @@ static EMGMuscle LoadEMGMuscleData( const char* configFileName )
     newMuscle->gainsList[ MUSCLE_GAIN_PENATION ] = 1.0;
     newMuscle->gainsList[ MUSCLE_GAIN_FORCE ] = 1.0;
 
-    ConfigParsing.GetParser()->UnloadData( configFileID );
+    Configuration.GetIOHandler()->UnloadData( configFileID );
   }
   else
   {
@@ -348,7 +348,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
   EMGJoint newJoint = NULL;
   
   sprintf( filePath, "joints/%s", configFileName );
-  int configFileID = ConfigParsing.LoadConfigFile( filePath );
+  int configFileID = Configuration.LoadConfigFile( filePath );
   if( configFileID != DATA_INVALID_ID )
   {
     newJoint = (EMGJoint) malloc( sizeof(EMGJointData) );
@@ -356,18 +356,18 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
     
     bool loadError = false;
     size_t emgRawSamplesNumber = 0;
-    if( (newJoint->musclesListLength = (size_t) ConfigParsing.GetParser()->GetListSize( configFileID, "muscles" )) > 0 )
+    if( (newJoint->musclesListLength = (size_t) Configuration.GetIOHandler()->GetListSize( configFileID, "muscles" )) > 0 )
     {
       DEBUG_PRINT( "%u muscles found for joint %s", newJoint->musclesListLength, configFileName );
       
       newJoint->musclesList = (EMGMuscle*) calloc( newJoint->musclesListLength , sizeof(EMGMuscle) );
       for( size_t muscleIndex = 0; muscleIndex < newJoint->musclesListLength; muscleIndex++ )
       {
-        char* muscleName = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "muscles.%u.properties", muscleIndex );
+        char* muscleName = Configuration.GetIOHandler()->GetStringValue( configFileID, "", "muscles.%u.properties", muscleIndex );
         newJoint->musclesList[ muscleIndex ] = LoadEMGMuscleData( muscleName );
         if( newJoint->musclesList[ muscleIndex ] != NULL )
         {
-          char* sensorName = ConfigParsing.GetParser()->GetStringValue( configFileID, "", "muscles.%u.sensor", muscleIndex );
+          char* sensorName = Configuration.GetIOHandler()->GetStringValue( configFileID, "", "muscles.%u.sensor", muscleIndex );
           newJoint->musclesList[ muscleIndex ]->emgSensor = Sensors.Init( sensorName, SIGNAL_PROCESSING_RECTIFY | SIGNAL_PROCESSING_NORMALIZE );
           if( newJoint->musclesList[ muscleIndex ]->emgSensor != NULL )
           {
@@ -382,7 +382,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
       }
       
       newJoint->currentLogID = newJoint->offsetLogID = newJoint->calibrationLogID = newJoint->samplingLogID = newJoint->emgRawLogID = DATA_LOG_INVALID_ID;
-      if( ConfigParsing.GetParser()->GetBooleanValue( configFileID, false, "log_data" ) )
+      if( Configuration.GetIOHandler()->GetBooleanValue( configFileID, false, "log_data" ) )
       {
         size_t jointSampleValuesNumber = newJoint->musclesListLength + 3;
         
@@ -402,7 +402,7 @@ static EMGJoint LoadEMGJointData( const char* configFileName )
     }
     else loadError = true;
 
-    ConfigParsing.GetParser()->UnloadData( configFileID );
+    Configuration.GetIOHandler()->UnloadData( configFileID );
     
     if( loadError )
     {

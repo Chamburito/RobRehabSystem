@@ -29,7 +29,7 @@
 #include "shm_axis_control.h"
 #include "shm_joint_control.h"
 
-//#include "config_parser.h"
+//#include "configuration.h"
 
 #include "klib/kvec.h"
 

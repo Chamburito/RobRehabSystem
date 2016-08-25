@@ -20,67 +20,43 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
+///////////////////////////////////////////////////////////////////////////////
+///// Wrapper library for time measurement and thread sleeping (blocking) ///// 
+///// using low level operating system native methods (Xenomai Version)   /////
+///////////////////////////////////////////////////////////////////////////////
+
+#include "time/timing.h"
+
 #include <native/task.h>
-#include <native/queue.h>
-#include <native/intr.h>
-#include <native/pipe.h>
+#include <native/timer.h>
 
-#include <stdio.h>
-#include <stdbool.h>
-#include <time.h>
-#include <signal.h>
+DEFINE_NAMESPACE_INTERFACE( Timing, TIMING_INTERFACE )
 
-#include "debug/async_debug.h"
-
-#include "robrehab_subsystem.h"
-
-const int STACK_SIZE 8192;
-const int PRIORITY 1;
-
-static RT_TASK updateTask;
-
-static volatile bool isRunning = true;
-
-void HandleExit( int dummyData )
+// Make the calling thread wait for the given time ( in milliseconds )
+void Timing_Delay( unsigned long waitMilliseconds )
 {
-  DEBUG_PRINT( "received exit signal: %d", dummyData );
-  isRunning = false;
+  SRTIME waitNanoseconds = 1000000 * waitMilliseconds;
+  SRTIME waitTicks = rt_timer_ns2ticks( waitNanoseconds ); 
+  
+  rt_task_sleep( (RTIME) waitTicks );
 }
 
-void RunUpdateLoop( void* args )
+// Get system time in milisseconds
+unsigned long Timing_GetExecTimeMilliseconds()
 {
-  rt_task_set_periodic( NULL. TM_NOW, 1000000 * UPDATE_INTERVAL_MS );
+  SRTIME execTimeNanoseconds = rt_timer_tsc2ns( rt_timer_tsc() ) ;
   
-  while( isRunning ) // Check for program termination conditions
-  {
-    SubSystem.Update();
-      
-    rt_task_wait_period(); // Sleep to give the desired loop rate.
-  }
+  unsigned long execTimeMilliseconds = (unsigned long) ( execTimeNanoseconds / 1000000 );
+    
+  return execTime;
 }
 
-int main( int argc, char* argv[] )
-{ 
-  time_t rawTime;
-  time( &rawTime );
-  DEBUG_PRINT( "starting control program at time: %s", ctime( &rawTime ) );
-  
-  signal( SIGINT, HandleExit );
-  
-  if( argc > 1 )
-  {
-    if( SubSystem.Init( argv[ 1 ], NULL, NULL ) != -1 )
-    {
-      rt_task_spawn( &updateTask, NULL, STACK_SIZE, PRIORITY, T_JOINABLE, &RunUpdateLoop, NULL );
-      
-      rt_task_join( &updateTask );
-    }
-  }
-  
-  time( &rawTime );
-  DEBUG_PRINT( "ending control program at time: %s", ctime( &rawTime ) );
-
-  SubSystem.End();
-  
-  exit( 0 );
+// Get system time in seconds
+double Timing_GetExecTimeSeconds()
+{
+    SRTIME execTimeNanoseconds = rt_timer_tsc2ns( rt_timer_tsc() ) ;
+    
+    double execTimeSeconds = (double) ( execTimeNanoseconds / 1000000000.0 );
+    
+    return execTimeSeconds;
 }

@@ -11,18 +11,18 @@ typedef struct
 {
   DECLARE_MODULE_INTERFACE_REF( DATA_IO_INTERFACE );
 }
-ConfigParserImplementation;
-typedef ConfigParserImplementation* ConfigParser;
-//static ConfigParser parser;
+DataIOImplementation;
+typedef DataIOImplementation* DataIOHandler;
+//static DataIOHandler parser;
 
-#define CONFIG_PARSING_INTERFACE( Namespace, INIT_FUNCTION ) \
+#define CONFIGURATION_INTERFACE( Namespace, INIT_FUNCTION ) \
         INIT_FUNCTION( bool, Namespace, Init, const char* ) \
         INIT_FUNCTION( void, Namespace, SetBaseDirectory, const char* ) \
         INIT_FUNCTION( int, Namespace, LoadConfigFile, const char* ) \
-        INIT_FUNCTION( int, Namespace, LoadConfigString, const char* ) \
-        INIT_FUNCTION( ConfigParser, Namespace, GetParser, void )
+        INIT_FUNCTION( int, Namespace, ParseConfigString, const char* ) \
+        INIT_FUNCTION( DataIOHandler, Namespace, GetIOHandler, void )
 
-DECLARE_NAMESPACE_INTERFACE( ConfigParsing, CONFIG_PARSING_INTERFACE )
+DECLARE_NAMESPACE_INTERFACE( Configuration, CONFIGURATION_INTERFACE )
 
 
 #endif // CONFIG_PARSING_H

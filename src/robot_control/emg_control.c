@@ -26,7 +26,7 @@
 //#include "optimization.h"
 #include "emg_processing.h"
 
-#include "config_parser.h"
+#include "configuration.h"
 
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
@@ -70,11 +70,11 @@ Controller InitController( const char* config, const char* logDirectory )
 {
   DEBUG_PRINT( "Trying to load robot control config %s", config );
   
-  ConfigParsing.Init( "JSON" );
+  Configuration.Init( "JSON" );
 
   DataLogging.SetBaseDirectory( logDirectory );
   
-  int configDataID = ConfigParsing.LoadConfigString( config );
+  int configDataID = Configuration.ParseConfigString( config );
   if( configDataID != DATA_INVALID_ID )
   {
     ControlData* newController = (ControlData*) malloc( sizeof(ControlData) );
@@ -82,7 +82,7 @@ Controller InitController( const char* config, const char* logDirectory )
     
     newController->currentControlState = CONTROL_OPERATION;
   
-    newController->jointsNumber = ConfigParsing.GetParser()->GetListSize( configDataID, "joints" );
+    newController->jointsNumber = Configuration.GetIOHandler()->GetListSize( configDataID, "joints" );
     newController->samplersList = (EMGJointSampler*) calloc( newController->jointsNumber, sizeof(EMGJointSampler) );
     newController->jointNamesList = (char**) calloc( newController->jointsNumber, sizeof(char*) );
     
@@ -91,7 +91,7 @@ Controller InitController( const char* config, const char* logDirectory )
       newController->samplersList[ jointIndex ] = (EMGJointSampler) malloc( sizeof(EMGJointSamplingData) );
       EMGJointSampler newSampler = newController->samplersList[ jointIndex ];
       
-      newController->jointNamesList[ jointIndex ] = ConfigParsing.GetParser()->GetStringValue( configDataID, "", "joints.%lu", jointIndex );
+      newController->jointNamesList[ jointIndex ] = Configuration.GetIOHandler()->GetStringValue( configDataID, "", "joints.%lu", jointIndex );
       if( (newSampler->jointID = EMGProcessing.InitJoint( newController->jointNamesList[ jointIndex ] )) != EMG_JOINT_INVALID_ID )
       {
         newSampler->musclesCount = EMGProcessing.GetJointMusclesCount( newSampler->jointID );
@@ -106,7 +106,7 @@ Controller InitController( const char* config, const char* logDirectory )
       }
     }
     
-    ConfigParsing.GetParser()->UnloadData( configDataID );
+    Configuration.GetIOHandler()->UnloadData( configDataID );
 
     DEBUG_PRINT( "robot control config %s loaded", config );
     

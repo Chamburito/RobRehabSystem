@@ -40,9 +40,12 @@ static khash_t( JSONInt )* jsonDataList = NULL;
 
 DECLARE_MODULE_INTERFACE( DATA_IO_INTERFACE )
 
-int LoadStringData( const char* configString )
+
+static int ParseStringData( const char* dataString )
 {
-  if( configString == NULL ) return DATA_INVALID_ID;
+  const char* EMPTY_DATA_STRING = "{}";
+
+  if( dataString == NULL ) dataString = EMPTY_DATA_STRING; //return DATA_INVALID_ID;
   
   if( jsonDataList == NULL ) jsonDataList = kh_init( JSONInt );
   
@@ -53,8 +56,8 @@ int LoadStringData( const char* configString )
   DEBUG_PRINT( "Trying to insert key: %d (status: %d)", dataKey, insertionStatus );
   if( insertionStatus > 0 )
   {
-    //DEBUG_PRINT( "data content: %s", configString );                                           
-    kh_value( jsonDataList, newDataIndex ).rootNode = kson_parse( (const char*) configString );
+    DEBUG_PRINT( "data content: %s", dataString );                                           
+    kh_value( jsonDataList, newDataIndex ).rootNode = kson_parse( (const char*) dataString );
     
     if( kh_value( jsonDataList, newDataIndex ).rootNode == NULL )
     {
@@ -68,6 +71,16 @@ int LoadStringData( const char* configString )
   }
   
   return (int) kh_key( jsonDataList, newDataIndex );
+}
+
+int CreateEmptyData()
+{
+  return ParseStringData( NULL );
+}
+
+int LoadStringData( const char* dataString )
+{
+  return ParseStringData( dataString );
 }
 
 int LoadFileData( const char* filePath )
@@ -84,14 +97,14 @@ int LoadFileData( const char* filePath )
   
   fseek( configFile, 0, SEEK_END );
   long int fileSize = ftell( configFile );
-  char* configString = (char*) calloc( fileSize + 1, sizeof(char) );
+  char* dataString = (char*) calloc( fileSize + 1, sizeof(char) );
   fseek( configFile, 0, SEEK_SET );
-  fread( configString, sizeof(char), fileSize, configFile );
+  fread( dataString, sizeof(char), fileSize, configFile );
   fclose( configFile );  
   
-  int newDataID = LoadStringData( configString );
+  int newDataID = ParseStringData( dataString );
 
-  free( configString );
+  free( dataString );
   
   if( newDataID != DATA_INVALID_ID ) DEBUG_PRINT( "file %s data inserted", filePathExt );
 
@@ -112,6 +125,14 @@ void UnloadData( int dataID )
     kh_destroy( JSONInt, jsonDataList );
     jsonDataList = NULL;
   }
+}
+
+char* GetDataString( int dataID )
+{
+  khint_t dataIndex = kh_get( JSONInt, jsonDataList, (khint_t) dataID );
+  if( dataIndex == kh_end( jsonDataList ) ) return NULL;
+  DEBUG_PRINT( "getting data string from ID %d", dataID );
+  return kson_format_str( kh_value( jsonDataList, dataIndex ).rootNode, KSON_FMT_SERIAL );
 }
 
 static inline kson_node_t* GetPathNode( int dataID, const char* pathFormat, va_list pathArgs )
@@ -238,9 +259,9 @@ bool SetNumericValue( int dataID, const char* key, const double value, const cha
   if( parentNode == NULL ) return false;
   
   if( parentNode->type == KSON_TYPE_BRACE )
-    valueNode = kson_add_key( valueNode, KSON_TYPE_NUMBER, key );
+    valueNode = kson_add_key( parentNode, KSON_TYPE_NUMBER, key );
   else if( parentNode->type == KSON_TYPE_BRACKET )
-    valueNode = kson_add_index( valueNode, KSON_TYPE_NUMBER );
+    valueNode = kson_add_index( parentNode, KSON_TYPE_NUMBER );
   
   if( valueNode == NULL ) return false;
   
@@ -261,9 +282,9 @@ bool SetStringValue( int dataID, const char* key, const char* value, const char*
   if( parentNode == NULL ) return false;
   
   if( parentNode->type == KSON_TYPE_BRACE )
-    valueNode = kson_add_key( valueNode, KSON_TYPE_NUMBER, key );
+    valueNode = kson_add_key( parentNode, KSON_TYPE_NUMBER, key );
   else if( parentNode->type == KSON_TYPE_BRACKET )
-    valueNode = kson_add_index( valueNode, KSON_TYPE_NUMBER );
+    valueNode = kson_add_index( parentNode, KSON_TYPE_NUMBER );
   
   if( valueNode == NULL ) return false;
   
@@ -282,13 +303,51 @@ bool SetBooleanValue( int dataID, const char* key, const bool value, const char*
   if( parentNode == NULL ) return false;
   
   if( parentNode->type == KSON_TYPE_BRACE )
-    valueNode = kson_add_key( valueNode, KSON_TYPE_NUMBER, key );
+    valueNode = kson_add_key( parentNode, KSON_TYPE_NUMBER, key );
   else if( parentNode->type == KSON_TYPE_BRACKET )
-    valueNode = kson_add_index( valueNode, KSON_TYPE_NUMBER );
+    valueNode = kson_add_index( parentNode, KSON_TYPE_NUMBER );
   
   if( valueNode == NULL ) return false;
   
   kson_set( valueNode, value ? "true" : "false" );
+  
+  return true;
+}
+
+bool AddList( int dataID, const char* key, const char* pathFormat, ... )
+{
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  kson_node_t* valueNode = NULL;
+  kson_node_t* parentNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
+  if( parentNode == NULL ) return false;
+
+  if( parentNode->type == KSON_TYPE_BRACE )
+    valueNode = kson_add_key( parentNode, KSON_TYPE_BRACKET, key );
+  else if( parentNode->type == KSON_TYPE_BRACKET )
+    valueNode = kson_add_index( parentNode, KSON_TYPE_BRACKET );
+  
+  if( valueNode == NULL ) return false;
+  
+  return true;
+}
+
+bool AddLevel( int dataID, const char* key, const char* pathFormat, ... )
+{
+  va_list pathArgs;
+  va_start( pathArgs, pathFormat );  
+  kson_node_t* valueNode = NULL;
+  kson_node_t* parentNode = GetPathNode( dataID, pathFormat, pathArgs );
+  va_end( pathArgs );
+  if( parentNode == NULL ) return false;
+  
+  if( parentNode->type == KSON_TYPE_BRACE )
+    valueNode = kson_add_key( parentNode, KSON_TYPE_BRACE, key );
+  else if( parentNode->type == KSON_TYPE_BRACKET )
+    valueNode = kson_add_index( parentNode, KSON_TYPE_BRACE );
+  
+  if( valueNode == NULL ) return false;
   
   return true;
 }

@@ -22,7 +22,7 @@
   #define __declspec(dllexport)
       
   #define LOAD_PLUGIN( pluginName ) dlopen( pluginName, RTLD_NOW )
-  #define LOAD_PLUGIN_SYMBOL( pluginHandle, funcName ) (intptr_t) dlsym( pluginHandle, funcName )
+  #define LOAD_PLUGIN_SYMBOL( pluginHandle, funcName ) ( (intptr_t) dlsym( pluginHandle, funcName ) )
   #define UNLOAD_PLUGIN( pluginHandle ) dlclose( pluginHandle ) 
   
   #define PLUGIN_HANDLE void*
@@ -55,9 +55,9 @@
 #define LOAD_MODULE_IMPLEMENTATION( INTERFACE, pluginPath, Module, success ) \
   do { char pluginPathExt[ 256 ]; \
   sprintf( pluginPathExt, "plugins/%s." PLUGIN_EXTENSION, pluginPath ); \
-  printf( "trying to load plugin %s\n", pluginPathExt ); \
+  printf( "\ttrying to load plugin %s\n", pluginPathExt ); \
   PLUGIN_HANDLE pluginHandle = LOAD_PLUGIN( pluginPathExt ); \
-  printf( "plugin handle: %p\n", pluginHandle ); \
+  printf( "\tplugin handle: %p\n", pluginHandle ); \
   if( success != NULL ) *success = (bool) pluginHandle; \
   LOAD_PLUGIN_FUNCTIONS( INTERFACE, Module ) } while( 0 )
 

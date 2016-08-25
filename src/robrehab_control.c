@@ -31,7 +31,7 @@
 #include "klib/kvec.h"
 #include "klib/khash.h"
 
-#include "config_parser.h"
+#include "configuration.h"
 
 #include "debug/async_debug.h"
 #include "debug/data_logging.h"
@@ -44,16 +44,12 @@ const unsigned long UPDATE_INTERVAL_MS = (unsigned long) ( CONTROL_PASS_INTERVAL
 
 kvec_t( int ) robotIDsList;
 
-SHMController sharedRobotAxesInfo;
-SHMController sharedRobotJointsInfo;
+SHMController sharedRobotsInfo;
 SHMController sharedRobotAxesData;
 SHMController sharedRobotJointsData;
 
 kvec_t( Axis ) axesList;
 kvec_t( Joint ) jointsList;
-
-char robotAxesInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
-char robotJointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
 
 
 DEFINE_NAMESPACE_INTERFACE( SubSystem, ROBREHAB_SUBSYSTEM_INTERFACE )
@@ -68,21 +64,21 @@ int SubSystem_Init( const char* configType, const char* configDirectory,  const 
   kv_init( axesList );
   kv_init( jointsList );
   
-  sharedRobotAxesInfo = SHMControl.InitData( "robot_axes_info", SHM_CONTROL_IN );
-  sharedRobotJointsInfo = SHMControl.InitData( "robot_joints_info", SHM_CONTROL_IN );
+  sharedRobotsInfo = SHMControl.InitData( "robots_info", SHM_CONTROL_IN );
   sharedRobotAxesData = SHMControl.InitData( "robot_axes_data", SHM_CONTROL_IN );
   sharedRobotJointsData = SHMControl.InitData( "robot_joints_data", SHM_CONTROL_IN );
   
   DEBUG_PRINT( "looking for %s configuration", configType );
-  if( ! ConfigParsing.Init( configType ) )
+  if( ! Configuration.Init( configType ) )
   {
     DEBUG_PRINT( "couldn't load %s configuration loading plugin", configType );
     return -1;
   }
   
-  ConfigParsing.SetBaseDirectory( configDirectory );
+  Configuration.SetBaseDirectory( configDirectory );
   DataLogging.SetBaseDirectory( logDirectory );
   
+  DEBUG_PRINT( "loading configuration from %s", configDirectory );
   LoadSharedRobotsInfo();
 
   return 0;
@@ -92,8 +88,7 @@ void SubSystem_End()
 {
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "Ending RobRehab Control on thread %lx", THREAD_ID );
 
-  SHMControl.EndData( sharedRobotAxesInfo );
-  SHMControl.EndData( sharedRobotJointsInfo );
+  SHMControl.EndData( sharedRobotsInfo );
   SHMControl.EndData( sharedRobotAxesData );
   SHMControl.EndData( sharedRobotJointsData );
   
@@ -110,11 +105,11 @@ void SubSystem_End()
 
 void UpdateEvents()
 {
-  if( SHMControl.GetControlByte( sharedRobotAxesInfo, 0, SHM_CONTROL_REMOVE ) ) LoadSharedRobotsInfo();
+  if( SHMControl.GetControlByte( sharedRobotsInfo, 0, SHM_CONTROL_REMOVE ) ) LoadSharedRobotsInfo();
   
   for( size_t robotIndex = 0; robotIndex < kv_size( robotIDsList ); robotIndex++ )
   {
-    uint8_t robotCommand = SHMControl.GetControlByte( sharedRobotJointsInfo, robotIndex, SHM_CONTROL_REMOVE );
+    uint8_t robotCommand = SHMControl.GetControlByte( sharedRobotsInfo, robotIndex, SHM_CONTROL_REMOVE );
     if( robotCommand != 0x00 )
     {
       DEBUG_PRINT( "Robot %lu received command %u", robotIndex, robotCommand );
@@ -131,12 +126,12 @@ void UpdateEvents()
       else if( robotCommand == SHM_ROBOT_SET_USER )
       {
         char userName[ SHM_CONTROL_MAX_DATA_SIZE ];
-        SHMControl.GetData( sharedRobotJointsInfo, (void*) userName, 0, SHM_CONTROL_MAX_DATA_SIZE );
+        SHMControl.GetData( sharedRobotsInfo, (void*) userName, 0, SHM_CONTROL_MAX_DATA_SIZE );
         DataLogging.SetBaseDirectory( userName );
         DEBUG_PRINT( "New user name: %s", userName );
       }
 
-      SHMControl.SetControlByte( sharedRobotJointsInfo, robotIndex, robotState );
+      SHMControl.SetControlByte( sharedRobotsInfo, robotIndex, robotState );
     }
   }
 }
@@ -233,29 +228,30 @@ void LoadSharedRobotsInfo()
 {
   static uint8_t infoWriteCount;
   
-  int sharedConfigID = ConfigParsing.GetParser()->LoadStringData( "{}" );
+  int robotsConfigID = Configuration.GetIOHandler()->CreateEmptyData();
+  Configuration.GetIOHandler()->AddList( robotsConfigID, "robots", "" );  
+  Configuration.GetIOHandler()->AddList( robotsConfigID, "joints", "" );
+  Configuration.GetIOHandler()->AddList( robotsConfigID, "axes", "" );
   
-  int configFileID = ConfigParsing.LoadConfigFile( "shared_robots" );
+  int configFileID = Configuration.LoadConfigFile( "shared_robots" );
   if( configFileID != DATA_INVALID_ID )
   {
-    if( ConfigParsing.GetParser()->HasKey( configFileID, "robots" ) )
+    if( Configuration.GetIOHandler()->HasKey( configFileID, "robots" ) )
     {
-      size_t sharedRobotsNumber = ConfigParsing.GetParser()->GetListSize( configFileID, "robots" );
+      size_t sharedRobotsNumber = Configuration.GetIOHandler()->GetListSize( configFileID, "robots" );
       kv_resize( int, robotIDsList, sharedRobotsNumber );
 
       DEBUG_PRINT( "List size: %lu", sharedRobotsNumber );
 
-      char jointsInfo[ SHM_CONTROL_MAX_DATA_SIZE ] = "";
       for( size_t sharedRobotIndex = 0; sharedRobotIndex < sharedRobotsNumber; sharedRobotIndex++ )
       {
-        char* robotName = ConfigParsing.GetParser()->GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
+        char* robotName = Configuration.GetIOHandler()->GetStringValue( configFileID, NULL, "robots.%lu", sharedRobotIndex );
         if( robotName != NULL )
         {
           int robotID = Robots.Init( robotName );
           if( robotID != ROBOT_INVALID_ID )
           {
-            if( strlen(robotJointsInfo) > 0 ) strcat( robotJointsInfo, ":" );
-            sprintf( robotJointsInfo + strlen(robotJointsInfo), "%lu:%s", kv_size( robotIDsList ), robotName );
+            Configuration.GetIOHandler()->SetStringValue( robotsConfigID, NULL, robotName, "robots" );
             kv_push( int, robotIDsList, robotID );
 
             size_t axesNumber = Robots.GetAxesNumber( robotID );
@@ -264,8 +260,7 @@ void LoadSharedRobotsInfo()
               char* axisName = Robots.GetAxisName( robotID, axisIndex );
               if( axisName != NULL )
               {
-                if( strlen(robotAxesInfo) > 0 ) strcat( robotAxesInfo, "|" );
-                sprintf( robotAxesInfo + strlen(robotAxesInfo), "%lu:%s-%s", kv_size( axesList ), robotName, axisName );
+                Configuration.GetIOHandler()->SetStringValue( robotsConfigID, NULL, axisName, "axes" );
                 kv_push( Axis, axesList, Robots.GetAxis( robotID, axisIndex ) );
               }
             }
@@ -276,27 +271,29 @@ void LoadSharedRobotsInfo()
               char* jointName = Robots.GetJointName( robotID, jointIndex );
               if( jointName != NULL )
               {
-                if( strlen(jointsInfo) > 0 ) strcat( jointsInfo, ":" );
-                sprintf( jointsInfo + strlen(jointsInfo), "%lu:%s", kv_max( robotIDsList ) + kv_size( jointsList ), jointName );
+                Configuration.GetIOHandler()->SetStringValue( robotsConfigID, NULL, jointName, "joints" );
                 kv_push( Joint, jointsList, Robots.GetJoint( robotID, jointIndex ) );
               }
             }
           }
         }
       }
-      
-      if( strlen( jointsInfo ) > 0 ) sprintf( robotJointsInfo + strlen( robotJointsInfo ), "|%s", jointsInfo );
     }
 
-    ConfigParsing.GetParser()->UnloadData( configFileID );
+    Configuration.GetIOHandler()->UnloadData( configFileID );
   }
   
-  SHMControl.SetData( sharedRobotAxesInfo, (void*) robotAxesInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
-  SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++infoWriteCount );
-  SHMControl.SetControlByte( sharedRobotAxesInfo, 1, (uint8_t) kv_size( axesList ) );
+  char* robotsInfoString = Configuration.GetIOHandler()->GetDataString( robotsConfigID );
+  if( robotsInfoString != NULL )
+  {
+    DEBUG_PRINT( "robots info string: %s", robotsInfoString );
+    
+    SHMControl.SetData( sharedRobotsInfo, (void*) robotsInfoString, 0, SHM_CONTROL_MAX_DATA_SIZE );
+    SHMControl.SetControlByte( sharedRobotsInfo, 0, ++infoWriteCount );
+    SHMControl.SetControlByte( sharedRobotsInfo, 1, (uint8_t) kv_size( robotIDsList ) );
+    
+    free( robotsInfoString );
+  }
   
-  SHMControl.SetData( sharedRobotJointsInfo, (void*) robotJointsInfo, 0, SHM_CONTROL_MAX_DATA_SIZE );
-  SHMControl.SetControlByte( sharedRobotJointsInfo, 0, ++infoWriteCount );
-  SHMControl.SetControlByte( sharedRobotJointsInfo, 1, (uint8_t) kv_size( robotIDsList ) );
-  SHMControl.SetControlByte( sharedRobotJointsInfo, 2, (uint8_t) kv_size( jointsList ) );
+  Configuration.GetIOHandler()->UnloadData( robotsConfigID );
 }

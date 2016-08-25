@@ -25,7 +25,7 @@ link_directories( ${CMAKE_SOURCE_DIR}/libs )
 
 
 # (REAL-TIME) CONTROL APPLICATION
-add_executable( RobRehabControl src/robrehab_system.c src/robrehab_control.c src/shm_control.c src/matrices_blas.c src/kalman_filters.c src/robots.c src/actuators.c src/config_parser.c src/debug/data_logging.c src/sensors.c src/signal_processing.c src/motors.c src/curve_interpolation.c ${PLATFORM_SOURCES} )
+add_executable( RobRehabControl src/robrehab_system.c src/robrehab_control.c src/shm_control.c src/matrices_blas.c src/kalman_filters.c src/robots.c src/actuators.c src/configuration.c src/debug/data_logging.c src/sensors.c src/signal_processing.c src/motors.c src/curve_interpolation.c ${PLATFORM_SOURCES} )
 target_compile_definitions( RobRehabControl PUBLIC -DROBREHAB_CONTROL -DDEBUG )
 target_link_libraries( RobRehabControl -lm ${CMAKE_DL_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
 if( UNIX AND NOT APPLE )
@@ -40,15 +40,16 @@ target_link_libraries( RobRehabServer ${CMAKE_THREAD_LIBS_INIT} )
 
 # PLUGINS/MODULES
 
-add_library( JSON MODULE src/data_io/json_parser.c src/klib/kson.c )
+add_library( JSON MODULE src/data_io/json_io.c src/klib/kson.c )
 set_target_properties( JSON PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/data_io/ )
 set_target_properties( JSON PROPERTIES PREFIX "" )
+target_compile_definitions( JSON PUBLIC -DDEBUG )
 target_include_directories( JSON PUBLIC ${CMAKE_SOURCE_DIR}/src/data_io/ )
 
-# add_library( Dummy MODULE src/signal_io/dummy_io.c )
-# set_target_properties( Dummy PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
-# set_target_properties( Dummy PROPERTIES PREFIX "" )
-# target_include_directories( Dummy PUBLIC src/signal_io/ )
+add_library( Dummy MODULE src/signal_io/dummy_io.c )
+set_target_properties( Dummy PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
+set_target_properties( Dummy PROPERTIES PREFIX "" )
+target_include_directories( Dummy PUBLIC src/signal_io/ )
 
 add_library( NICANEPOS MODULE src/signal_io/ni_can_epos/ni_can_epos.c )
 set_target_properties( NICANEPOS PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
@@ -60,17 +61,17 @@ set_target_properties( PCI4E PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY
 set_target_properties( PCI4E PROPERTIES PREFIX "" )
 target_include_directories( PCI4E PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
 
-add_library( PD2MFx MODULE src/signal_io/power_daq/pd2_mfx.c )
-set_target_properties( PD2MFx PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
-set_target_properties( PD2MFx PROPERTIES PREFIX "" )
-target_include_directories( PD2MFx PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
-target_link_libraries( PD2MFx libpowerdaq32.so.1.0 )
-
-add_library( PD2AO MODULE src/signal_io/power_daq/pd2_ao.c )
-set_target_properties( PD2AO PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
-set_target_properties( PD2AO PROPERTIES PREFIX "" )
-target_include_directories( PD2AO PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
-target_link_libraries( PD2AO libpowerdaq32.so.1.0 )
+# add_library( PD2MFx MODULE src/signal_io/power_daq/pd2_mfx.c )
+# set_target_properties( PD2MFx PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
+# set_target_properties( PD2MFx PROPERTIES PREFIX "" )
+# target_include_directories( PD2MFx PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
+# target_link_libraries( PD2MFx libpowerdaq32.so.1.0 )
+# 
+# add_library( PD2AO MODULE src/signal_io/power_daq/pd2_ao.c )
+# set_target_properties( PD2AO PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
+# set_target_properties( PD2AO PROPERTIES PREFIX "" )
+# target_include_directories( PD2AO PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
+# target_link_libraries( PD2AO libpowerdaq32.so.1.0 )
 
 add_library( ForcePIControl MODULE src/actuator_control/force_pi_control.c )
 set_target_properties( ForcePIControl PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/actuator_control/ )
