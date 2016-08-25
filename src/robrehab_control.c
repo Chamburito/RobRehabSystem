@@ -174,7 +174,7 @@ void UpdateAxes()
       controlMeasuresList[ SHM_AXIS_STIFFNESS ] = (float) Robots.GetAxisMeasure( axis, CONTROL_STIFFNESS );
       controlMeasuresList[ SHM_AXIS_DAMPING ] = (float) Robots.GetAxisMeasure( axis, CONTROL_DAMPING );
       
-      //DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlMeasuresList[ SHM_AXIS_POSITION ], controlMeasuresList[ SHM_AXIS_VELOCITY ], controlMeasuresList[ SHM_AXIS_FORCE ] );
+      DEBUG_PRINT( "measures: p: %.3f - v: %.3f - f: %.3f", controlMeasuresList[ SHM_AXIS_POSITION ], controlMeasuresList[ SHM_AXIS_VELOCITY ], controlMeasuresList[ SHM_AXIS_FORCE ] );
       
       SHMControl.SetControlByte( sharedRobotAxesData, axisIndex, ++updateCount );
     //}

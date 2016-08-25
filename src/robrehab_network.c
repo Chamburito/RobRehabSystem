@@ -86,9 +86,9 @@ int SubSystem_Init( const char* configType, const char* configDirectory,  const 
   sharedRobotAxesData = SHMControl.InitData( "robot_axes_data", SHM_CONTROL_OUT );
   sharedRobotJointsData = SHMControl.InitData( "robot_joints_data", SHM_CONTROL_OUT );
   
-  char robotsInfoString[ SHM_CONTROL_MAX_DATA_SIZE ];
-  SHMControl.GetData( sharedRobotsInfo, (void*) robotsInfoString, 0, SHM_CONTROL_MAX_DATA_SIZE );
-  DEBUG_PRINT( "shared robots info: %s", robotsInfoString );
+  //char robotsInfoString[ SHM_CONTROL_MAX_DATA_SIZE ];
+  //SHMControl.GetData( sharedRobotsInfo, (void*) robotsInfoString, 0, SHM_CONTROL_MAX_DATA_SIZE );
+  //DEBUG_PRINT( "shared robots info: %s", robotsInfoString );
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network initialized on thread %lx", THREAD_ID );
   
@@ -190,7 +190,7 @@ static void UpdateClientEvent( unsigned long clientID )
       
       Timing.Delay( 100 );
       
-      SHMControl.GetData( sharedRobotsInfo, (void*) messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      SHMControl.GetData( sharedRobotsInfo, (void*) messageOut, 0, IP_MAX_MESSAGE_LENGTH );
       AsyncIPNetwork.WriteMessage( clientID, messageOut );
     }
     
@@ -248,7 +248,7 @@ static void UpdateClientAxis( unsigned long clientID )
       SHMControl.GetData( sharedRobotAxesData, messageOut + axisdataOffset, axisIndex * AXIS_DATA_BLOCK_SIZE, AXIS_DATA_BLOCK_SIZE );
       axisdataOffset += AXIS_DATA_BLOCK_SIZE;
     
-      //DEBUG_PRINT( "sending axis %u measures: %.3f", messageOut[ measureByteIndex ], measuresList[ 0 ] );
+      DEBUG_PRINT( "sending measures list to axis %lu", axisIndex );
     }
   }
   

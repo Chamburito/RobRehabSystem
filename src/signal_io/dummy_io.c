@@ -110,7 +110,7 @@ size_t Read( int taskID, unsigned int channel, double* ref_value )
   
   if( channel >= INPUT_CHANNELS_NUMBER ) return 0;
     
-  *ref_value = (double) ( taskID << 8 | channel );
+  *ref_value = (double) ( taskIndex + channel );
 
   return AQUISITION_BUFFER_LENGTH;
 }

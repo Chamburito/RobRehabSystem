@@ -154,7 +154,7 @@ double Sensors_Update( Sensor sensor, double* rawBuffer )
   
   double referenceOutput = Sensors.Update( sensor->reference, NULL );
   sensorOutput -= referenceOutput;
-
+  
   double sensorMeasure = CurveInterpolation.GetValue( sensor->measurementCurve, sensorOutput, sensorOutput );
   
   if( sensor->logID != DATA_LOG_INVALID_ID )

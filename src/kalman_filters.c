@@ -57,7 +57,7 @@ KalmanFilter Kalman_CreateFilter( size_t dimensionsNumber )
   
   newFilter->prediction = Matrices.CreateSquare( dimensionsNumber, MATRIX_IDENTITY );
   newFilter->predictionCovariance = Matrices.CreateSquare( dimensionsNumber, MATRIX_ZERO );
-  newFilter->predictionCovarianceNoise = Matrices.CreateSquare( dimensionsNumber, MATRIX_IDENTITY );
+  newFilter->predictionCovarianceNoise = Matrices.CreateSquare( dimensionsNumber, /*MATRIX_IDENTITY*/MATRIX_ZERO );
   
   Kalman_Reset( newFilter );
   
@@ -105,7 +105,7 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
   Matrices.Discard( filter->errorCovariance );
   filter->errorCovariance = Matrices.CreateSquare( newInputsNumber, MATRIX_ZERO );
   Matrices.Discard( filter->errorCovarianceNoise );  
-  filter->errorCovarianceNoise = Matrices.CreateSquare( newInputsNumber, MATRIX_IDENTITY );
+  filter->errorCovarianceNoise = Matrices.CreateSquare( newInputsNumber, /*MATRIX_IDENTITY*/MATRIX_ZERO );
   
   if( newInputsNumber > dimensionsNumber ) 
   {

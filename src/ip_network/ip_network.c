@@ -645,7 +645,7 @@ int IPNetwork_SendMessage( IPConnection connection, const char* message )
     return 0;
   }
   
-  DEBUG_PRINT( "connection socket %d sending message: %s", connection->socket->fd, message );
+  //DEBUG_PRINT( "connection socket %d sending message: %s", connection->socket->fd, message );
   
   return connection->ref_SendMessage( connection, message ); 
 }
