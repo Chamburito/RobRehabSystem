@@ -105,7 +105,7 @@ void SubSystem_End()
 
 void UpdateEvents()
 {
-  if( SHMControl.GetControlByte( sharedRobotsInfo, 0, SHM_CONTROL_REMOVE ) ) LoadSharedRobotsInfo();
+  if( SHMControl.GetControlByte( sharedRobotsInfo, SHM_CONTROL_MASK_SIZE - 1, SHM_CONTROL_REMOVE ) ) LoadSharedRobotsInfo();
   
   for( size_t robotIndex = 0; robotIndex < kv_size( robotIDsList ); robotIndex++ )
   {

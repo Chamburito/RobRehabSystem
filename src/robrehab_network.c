@@ -51,8 +51,7 @@ const size_t INFO_BLOCK_SIZE = 2;
 static kvec_t( unsigned long ) axisClientsList;
 static kvec_t( unsigned long ) jointClientsList;
 
-SHMController sharedRobotAxesInfo;
-SHMController sharedRobotJointsInfo;
+SHMController sharedRobotsInfo;
 SHMController sharedRobotAxesData;
 SHMController sharedRobotJointsData;
 
@@ -74,7 +73,7 @@ int SubSystem_Init( const char* configType, const char* configDirectory,  const 
   if( (jointServerConnectionID = AsyncIPNetwork.OpenConnection( IP_SERVER | IP_UDP, NULL, 50002 )) == IP_CONNECTION_INVALID_ID )
     return -1;
   
-  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "Received server connection IDs: %d (Info) - %d (Data) - %d(joint)", eventServerConnectionID, axisServerConnectionID, jointServerConnectionID );
+  /*DEBUG_EVENT( 1,*/DEBUG_PRINT( "Received server connection IDs: %lu (Info) - %lu (Data) - %lu(joint)", eventServerConnectionID, axisServerConnectionID, jointServerConnectionID );
   
   kv_init( eventClientsList );
   kv_init( axisClientsList );
@@ -83,10 +82,13 @@ int SubSystem_Init( const char* configType, const char* configDirectory,  const 
   kv_init( axisNetworkControllersList );
   kv_init( jointNetworkControllersList );
   
-  sharedRobotAxesInfo = SHMControl.InitData( "robot_axes_info", SHM_CONTROL_OUT );
-  sharedRobotJointsInfo = SHMControl.InitData( "robot_joints_info", SHM_CONTROL_OUT );
+  sharedRobotsInfo = SHMControl.InitData( "robots_info", SHM_CONTROL_OUT );
   sharedRobotAxesData = SHMControl.InitData( "robot_axes_data", SHM_CONTROL_OUT );
   sharedRobotJointsData = SHMControl.InitData( "robot_joints_data", SHM_CONTROL_OUT );
+  
+  char robotsInfoString[ SHM_CONTROL_MAX_DATA_SIZE ];
+  SHMControl.GetData( sharedRobotsInfo, (void*) robotsInfoString, 0, SHM_CONTROL_MAX_DATA_SIZE );
+  DEBUG_PRINT( "shared robots info: %s", robotsInfoString );
   
   /*DEBUG_EVENT( 0,*/DEBUG_PRINT( "RobRehab Network initialized on thread %lx", THREAD_ID );
   
@@ -112,8 +114,7 @@ void SubSystem_End()
   AsyncIPNetwork.CloseConnection( jointServerConnectionID );
   /*DEBUG_EVENT( 3,*/DEBUG_PRINT( "joint server %lu closed", jointServerConnectionID );
   
-  SHMControl.EndData( sharedRobotAxesInfo );
-  SHMControl.EndData( sharedRobotJointsInfo );
+  SHMControl.EndData( sharedRobotsInfo );
   SHMControl.EndData( sharedRobotAxesData );
   SHMControl.EndData( sharedRobotJointsData );
   
@@ -172,7 +173,6 @@ void SubSystem_Update()
 static void UpdateClientEvent( unsigned long clientID )
 {
   static char messageOut[ IP_MAX_MESSAGE_LENGTH ];
-  static uint8_t eventsCount;
   static uint8_t listRequestsCount;
   
   char* messageIn = AsyncIPNetwork.ReadMessage( clientID );
@@ -182,26 +182,25 @@ static void UpdateClientEvent( unsigned long clientID )
     
     uint8_t commandBlocksNumber = (uint8_t) *(messageIn++);
     
-    if( commandBlocksNumber == 0xFF )
+    if( commandBlocksNumber == 0x00 )
     {
       memset( messageOut, 0, IP_MAX_MESSAGE_LENGTH * sizeof(char) );
       
-      SHMControl.SetControlByte( sharedRobotAxesInfo, 0, ++listRequestsCount );
+      SHMControl.SetControlByte( sharedRobotsInfo, SHM_CONTROL_MASK_SIZE - 1, ++listRequestsCount );
       
-      SHMControl.GetData( sharedRobotAxesInfo, (void*) messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
-      AsyncIPNetwork.WriteMessage( clientID, messageOut );
-      SHMControl.GetData( sharedRobotJointsInfo, (void*) messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
+      Timing.Delay( 100 );
+      
+      SHMControl.GetData( sharedRobotsInfo, (void*) messageOut, 0, SHM_CONTROL_MAX_DATA_SIZE );
       AsyncIPNetwork.WriteMessage( clientID, messageOut );
     }
     
     for( uint8_t commandBlockIndex = 0; commandBlockIndex < commandBlocksNumber; commandBlockIndex++ )
     {
-      uint8_t eventIndex = (uint8_t) *(messageIn++);
+      uint8_t robotIndex = (uint8_t) *(messageIn++);
       uint8_t command = (uint8_t) *(messageIn++);
-      DEBUG_PRINT( "received event %u command: %u", eventIndex, command );
+      DEBUG_PRINT( "received robot %u command: %u", robotIndex, command );
       
-      SHMControl.SetControlByte( sharedRobotJointsInfo, eventIndex, ++eventsCount );
-      SHMControl.SetData( sharedRobotJointsInfo, (void*) &command, eventIndex, sizeof(uint8_t) );
+      SHMControl.SetControlByte( sharedRobotsInfo, robotIndex, command );
     }
   }
 }

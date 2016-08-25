@@ -282,9 +282,9 @@ bool SetStringValue( int dataID, const char* key, const char* value, const char*
   if( parentNode == NULL ) return false;
   
   if( parentNode->type == KSON_TYPE_BRACE )
-    valueNode = kson_add_key( parentNode, KSON_TYPE_NUMBER, key );
+    valueNode = kson_add_key( parentNode, KSON_TYPE_STRING, key );
   else if( parentNode->type == KSON_TYPE_BRACKET )
-    valueNode = kson_add_index( parentNode, KSON_TYPE_NUMBER );
+    valueNode = kson_add_index( parentNode, KSON_TYPE_STRING );
   
   if( valueNode == NULL ) return false;
   
@@ -303,9 +303,9 @@ bool SetBooleanValue( int dataID, const char* key, const bool value, const char*
   if( parentNode == NULL ) return false;
   
   if( parentNode->type == KSON_TYPE_BRACE )
-    valueNode = kson_add_key( parentNode, KSON_TYPE_NUMBER, key );
+    valueNode = kson_add_key( parentNode, KSON_TYPE_BOOLEAN, key );
   else if( parentNode->type == KSON_TYPE_BRACKET )
-    valueNode = kson_add_index( parentNode, KSON_TYPE_NUMBER );
+    valueNode = kson_add_index( parentNode, KSON_TYPE_BOOLEAN );
   
   if( valueNode == NULL ) return false;
   
