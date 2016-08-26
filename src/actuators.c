@@ -242,14 +242,9 @@ double* Actuators_UpdateMeasures( Actuator actuator, double* measuresBuffer )
   (void) Kalman.Predict( actuator->sensorFilter, (double*) actuator->measuresList );
   (void) Kalman.Update( actuator->sensorFilter, NULL, (double*) actuator->measuresList );
   
-  actuator->measuresList[ CONTROL_POSITION ] = ( rand() % 2001 - 1000 ) / 1000.0;
-  actuator->measuresList[ CONTROL_FORCE ] = ( rand() % 2001 - 1000 ) / 1000.0;
-  
   //DEBUG_PRINT( "position: %.3f - velocity: %.3f - force: %.3f", actuator->measuresList[ CONTROL_POSITION ], actuator->measuresList[ CONTROL_VELOCITY ], actuator->measuresList[ CONTROL_FORCE ] );
   
   if( measuresBuffer == NULL ) return actuator->measuresList;
-  
-  actuator->measuresList[ CONTROL_VELOCITY ] = ( actuator->measuresList[ CONTROL_POSITION ] - measuresBuffer[ CONTROL_POSITION ] ) / CONTROL_PASS_INTERVAL;
   
   measuresBuffer[ CONTROL_POSITION ] = actuator->measuresList[ CONTROL_POSITION ];
   measuresBuffer[ CONTROL_VELOCITY ] = actuator->measuresList[ CONTROL_VELOCITY ];

@@ -61,17 +61,17 @@ set_target_properties( PCI4E PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY
 set_target_properties( PCI4E PROPERTIES PREFIX "" )
 target_include_directories( PCI4E PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
 
-# add_library( PD2MFx MODULE src/signal_io/power_daq/pd2_mfx.c )
-# set_target_properties( PD2MFx PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
-# set_target_properties( PD2MFx PROPERTIES PREFIX "" )
-# target_include_directories( PD2MFx PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
-# target_link_libraries( PD2MFx libpowerdaq32.so.1.0 )
-# 
-# add_library( PD2AO MODULE src/signal_io/power_daq/pd2_ao.c )
-# set_target_properties( PD2AO PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
-# set_target_properties( PD2AO PROPERTIES PREFIX "" )
-# target_include_directories( PD2AO PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
-# target_link_libraries( PD2AO libpowerdaq32.so.1.0 )
+add_library( PD2MFx MODULE src/signal_io/power_daq/pd2_mfx.c )
+set_target_properties( PD2MFx PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
+set_target_properties( PD2MFx PROPERTIES PREFIX "" )
+target_include_directories( PD2MFx PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
+target_link_libraries( PD2MFx native rtdm powerdaq32 )
+
+add_library( PD2AO MODULE src/signal_io/power_daq/pd2_ao.c )
+set_target_properties( PD2AO PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
+set_target_properties( PD2AO PROPERTIES PREFIX "" )
+target_include_directories( PD2AO PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
+target_link_libraries( PD2AO native rtdm powerdaq32 )
 
 add_library( ForcePIControl MODULE src/actuator_control/force_pi_control.c )
 set_target_properties( ForcePIControl PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/actuator_control/ )
