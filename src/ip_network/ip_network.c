@@ -69,18 +69,26 @@
   typedef SocketPoller SocketPollerSet[ 1024 ];
   #define ADDRESS_LENGTH INET6_ADDRSTRLEN                       // Maximum length of IPv6 address (host+port) string
   typedef struct sockaddr_in6 IPAddressData;                    // IPv6 structure can store both IPv4 and IPv6 data
-  #define IS_IPV6_MULTICAST_ADDRESS( address ) ( ((IPAddressData*) address)->sin6_addr.s6_addr[ 0 ] == 0xFF )
+  #define IS_IPV6_MULTICAST_ADDRESS( address ) ( ((sockaddr_in6*) address)->sin6_addr.s6_addr[ 0 ] == 0xFF )
+  #define ARE_EQUAL_IPV6_ADDRESSES( address_1, address_2 ) ( ((struct sockaddr*) address_1)->sa_family == AF_INET6 && \
+                                                             ((IPAddressData*) address_1)->sin6_port == ((IPAddressData*) address_2)->sin6_port && \
+                                                             memcmp( ((IPAddressData*) address_1)->sin6_addr.s6_addr, ((IPAddressData*) address_2)->sin6_addr.s6_addr, 16 ) == 0 )
 #else
   typedef struct { Socket fd; } SocketPoller;
   typedef fd_set SocketPollerSet;
   #define ADDRESS_LENGTH INET_ADDRSTRLEN + PORT_LENGTH          // Maximum length of IPv4 address (host+port) string
   typedef struct sockaddr_in IPAddressData;                     // Legacy mode only works with IPv4 addresses
   #define IS_IPV6_MULTICAST_ADDRESS( address ) false
+  #define ARE_EQUAL_IPV6_ADDRESSES( address_1, address_2 ) false
 #endif
 typedef struct sockaddr* IPAddress;                             // Opaque IP address type
 #define IS_IPV4_MULTICAST_ADDRESS( address ) ( (ntohl( ((struct sockaddr_in*) address)->sin_addr.s_addr ) & 0xF0000000) == 0xE0000000 )
+#define ARE_EQUAL_IPV4_ADDRESSES( address_1, address_2 ) ( ((struct sockaddr*) address_1)->sa_family == AF_INET && \
+                                                           ((struct sockaddr_in*) address_1)->sin_port == ((struct sockaddr_in*) address_2)->sin_port && \
+                                                           ((struct sockaddr_in*) address_1)->sin_addr.s_addr == ((struct sockaddr_in*) address_2)->sin_addr.s_addr )
 
 #define IS_IP_MULTICAST_ADDRESS( address ) ( IS_IPV4_MULTICAST_ADDRESS( address ) || IS_IPV6_MULTICAST_ADDRESS( address ) )
+#define ARE_EQUAL_IP_ADDRESSES( address_1, address_2 ) ( ARE_EQUAL_IPV4_ADDRESSES( address_1, address_2 ) || ARE_EQUAL_IPV6_ADDRESSES( address_1, address_2 ) )
 
 #include "ip_network/ip_network.h"
 
@@ -741,7 +749,7 @@ static char* ReceiveUDPMessage( IPConnection connection )
   }
 
   // Verify if incoming message is destined to this connection (and returns the message if it is)
-  if( memcmp( (void*) &(connection->addressData), (void*) &address, addressLength ) == 0 )
+  if( ARE_EQUAL_IP_ADDRESSES( &(connection->addressData), &address ) )
   {
     recv( connection->socket->fd, NULL, 0, 0 );
     //DEBUG_PRINT( "socket %d received right message: %s", connection->socket->fd, connection->buffer );
@@ -827,7 +835,7 @@ static IPConnection AcceptUDPClient( IPConnection server )
   for( size_t clientIndex = 0; clientIndex < clientsNumber; clientIndex++ )
   {
     //DEBUG_PRINT( "comparing ports: %u - %u", server->clientsList[ clientIndex ]->address->sin6_port, ((struct sockaddr_in6*) &clientAddress)->sin6_port );
-    if( memcmp( (void*) &(server->clientsList[ clientIndex ]->addressData), (void*) &clientAddress, addressLength ) == 0 )
+    if( ARE_EQUAL_IP_ADDRESSES( &(server->clientsList[ clientIndex ]->addressData), &clientAddress ) )
       //return &dummyConnection;
       return NULL;
   }
