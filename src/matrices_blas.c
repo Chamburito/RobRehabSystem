@@ -46,17 +46,6 @@ struct _MatrixData
 DEFINE_NAMESPACE_INTERFACE( Matrices, MATRICES_INTERFACE )
 
 
-// Preenche a matrix com zeros
-Matrix Matrices_Clear( Matrix matrix )
-{
-  if( matrix == NULL ) return NULL;
-
-  memset( matrix->data, 0, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
-
-  return matrix;
-}
-
-// Criar a partir de array de tamanho linhas * colunas
 Matrix Matrices_Create( double* data, size_t rowsNumber, size_t columnsNumber )
 {
   if( rowsNumber > MATRIX_SIZE_MAX || columnsNumber > MATRIX_SIZE_MAX ) return NULL;
@@ -74,19 +63,6 @@ Matrix Matrices_Create( double* data, size_t rowsNumber, size_t columnsNumber )
   return newMatrix;
 }
 
-Matrix Matrices_Copy( Matrix source, Matrix destination )
-{
-  if( source == NULL || destination == NULL ) return NULL;
-
-  destination->rowsNumber = source->rowsNumber;
-  destination->columnsNumber = source->columnsNumber;
-
-  memcpy( destination->data, source->data, destination->rowsNumber * destination->columnsNumber * sizeof(double) );
-
-  return destination;
-}
-
-// Atalho para criar matriz quadrada (zero ou identidade)
 Matrix Matrices_CreateSquare( size_t size, char type )
 {
   Matrix newSquareMatrix = Matrices_Create( NULL, size, size );
@@ -100,7 +76,6 @@ Matrix Matrices_CreateSquare( size_t size, char type )
   return newSquareMatrix;
 }
 
-// Desaloca memória de matrix fornecida
 void Matrices_Discard( Matrix matrix )
 {
   if( matrix == NULL ) return;
@@ -110,53 +85,25 @@ void Matrices_Discard( Matrix matrix )
   free( matrix );
 }
 
-// Realoca a matriz para tamanho (linhas e colunas) dado
-Matrix Matrices_Resize( Matrix matrix, size_t rowsNumber, size_t columnsNumber )
+Matrix Matrices_Copy( Matrix source, Matrix destination )
 {
-  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
-  
-  if( matrix == NULL )
-    matrix = Matrices_Create( NULL, rowsNumber, columnsNumber );
-  else 
-  {
-    if( matrix->rowsNumber * matrix->columnsNumber < rowsNumber * columnsNumber )
-      matrix->data = (double*) realloc( matrix->data, rowsNumber * columnsNumber * sizeof(double) );
-  
-    memcpy( auxArray, matrix->data, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
-    
-    memset( matrix->data, 0, rowsNumber * columnsNumber * sizeof(double) );
-    
-    for( size_t column = 0; column < columnsNumber; column++ )
-    {
-      for( size_t row = 0; row < rowsNumber; row++ )
-        matrix->data[ column * rowsNumber + row ] = auxArray[ column * matrix->rowsNumber + row ];
-    }
-    
-    matrix->rowsNumber = rowsNumber;
-    matrix->columnsNumber = columnsNumber;
-  }
+  if( source == NULL || destination == NULL ) return NULL;
+
+  destination->rowsNumber = source->rowsNumber;
+  destination->columnsNumber = source->columnsNumber;
+
+  memcpy( destination->data, source->data, destination->rowsNumber * destination->columnsNumber * sizeof(double) );
+
+  return destination;
+}
+
+Matrix Matrices_Clear( Matrix matrix )
+{
+  if( matrix == NULL ) return NULL;
+
+  memset( matrix->data, 0, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
 
   return matrix;
-}
-
-// Obtém elemento da matriz na linha e coluna dadas
-double Matrices_GetElement( Matrix matrix, size_t row, size_t column )
-{
-  if( matrix == NULL ) return 0.0;
-
-  if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return 0.0;
-
-  return matrix->data[ column * matrix->rowsNumber + row ];
-}
-
-// Escreve elemento na matriz na linha e coluna dadas
-void Matrices_SetElement( Matrix matrix, size_t row, size_t column, double value )
-{
-  if( matrix == NULL ) return;
-
-  if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return;
-
-  matrix->data[ column * matrix->rowsNumber + row ] = value;
 }
 
 size_t Matrices_GetWidth( Matrix matrix )
@@ -173,7 +120,24 @@ size_t Matrices_GetHeight( Matrix matrix )
   return matrix->rowsNumber;
 }
 
-// Obtém vetor de 1 dimensão dos elementos da matriz
+double Matrices_GetElement( Matrix matrix, size_t row, size_t column )
+{
+  if( matrix == NULL ) return 0.0;
+
+  if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return 0.0;
+
+  return matrix->data[ column * matrix->rowsNumber + row ];
+}
+
+void Matrices_SetElement( Matrix matrix, size_t row, size_t column, double value )
+{
+  if( matrix == NULL ) return;
+
+  if( row >= matrix->rowsNumber || column >= matrix->columnsNumber ) return;
+
+  matrix->data[ column * matrix->rowsNumber + row ] = value;
+}
+
 double* Matrices_GetData( Matrix matrix, double* buffer )
 {
   if( matrix == NULL ) return NULL;
@@ -198,7 +162,34 @@ void Matrices_SetData( Matrix matrix, double* data )
   }
 }
 
-// Multiplica matriz por escalar
+Matrix Matrices_Resize( Matrix matrix, size_t rowsNumber, size_t columnsNumber )
+{
+  double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
+  
+  if( matrix == NULL )
+    matrix = Matrices_Create( NULL, rowsNumber, columnsNumber );
+  else 
+  {
+    if( matrix->rowsNumber * matrix->columnsNumber < rowsNumber * columnsNumber )
+      matrix->data = (double*) realloc( matrix->data, rowsNumber * columnsNumber * sizeof(double) );
+  
+    memcpy( auxArray, matrix->data, matrix->rowsNumber * matrix->columnsNumber * sizeof(double) );
+    
+    memset( matrix->data, 0, rowsNumber * columnsNumber * sizeof(double) );
+    
+    for( size_t column = 0; column < matrix->columnsNumber; column++ )
+    {
+      for( size_t row = 0; row < matrix->rowsNumber; row++ )
+        matrix->data[ column * rowsNumber + row ] = auxArray[ column * matrix->rowsNumber + row ];
+    }
+    
+    matrix->rowsNumber = rowsNumber;
+    matrix->columnsNumber = columnsNumber;
+  }
+
+  return matrix;
+}
+
 Matrix Matrices_Scale( Matrix matrix, double scalar, Matrix result )
 {
   if( matrix == NULL ) return NULL;
@@ -213,7 +204,6 @@ Matrix Matrices_Scale( Matrix matrix, double scalar, Matrix result )
   return result;
 }
 
-// Soma de matrizes
 Matrix Matrices_Sum( Matrix matrix_1, double weight_1, Matrix matrix_2, double weight_2, Matrix result )
 {
   if( matrix_1 == NULL || matrix_2 == NULL ) return NULL;
@@ -230,7 +220,6 @@ Matrix Matrices_Sum( Matrix matrix_1, double weight_1, Matrix matrix_2, double w
   return result;
 }
 
-// Produto de matrizes
 Matrix Matrices_Dot( Matrix matrix_1, char transpose_1, Matrix matrix_2, char transpose_2, Matrix result )
 {
   const double alpha = 1.0;
@@ -258,7 +247,6 @@ Matrix Matrices_Dot( Matrix matrix_1, char transpose_1, Matrix matrix_2, char tr
   return result;
 }
 
-// Determinante de matriz
 double Matrices_Determinant( Matrix matrix )
 {
   double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ];
@@ -283,7 +271,6 @@ double Matrices_Determinant( Matrix matrix )
   return determinant;
 }
 
-// Matriz transposta
 Matrix Matrices_Transpose( Matrix matrix, Matrix result )
 {
   double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ] = { 0 };
@@ -296,7 +283,7 @@ Matrix Matrices_Transpose( Matrix matrix, Matrix result )
   for( size_t row = 0; row < result->rowsNumber; row++ )
   {
     for( size_t column = 0; column < result->columnsNumber; column++ )
-      auxArray[ column * matrix->columnsNumber + row ] = matrix->data[ row * matrix->columnsNumber + column ];
+      auxArray[ column * result->rowsNumber + row ] = matrix->data[ row * matrix->rowsNumber + column ];
   }
 
   memcpy( result->data, auxArray, result->rowsNumber * result->columnsNumber * sizeof(double) );
@@ -304,7 +291,6 @@ Matrix Matrices_Transpose( Matrix matrix, Matrix result )
   return result;
 }
 
-// Matriz inversa
 Matrix Matrices_Inverse( Matrix matrix, Matrix result )
 {
   double auxArray[ MATRIX_SIZE_MAX * MATRIX_SIZE_MAX ] = { 0 };
@@ -327,11 +313,6 @@ Matrix Matrices_Inverse( Matrix matrix, Matrix result )
   
   if( info != 0 ) return NULL;
   
-  for( size_t pivotIndex = 0; pivotIndex < result->rowsNumber; pivotIndex++ )
-  {
-    if( auxArray[ pivotIndex * result->rowsNumber + pivotIndex ] == 0.0 ) return NULL;
-  }
-  
   int workLength = result->rowsNumber * result->columnsNumber;
   dgetri_( (int*) &(result->rowsNumber), result->data, (int*) &(result->rowsNumber), pivotArray, auxArray, &workLength, &info );
   
@@ -340,7 +321,6 @@ Matrix Matrices_Inverse( Matrix matrix, Matrix result )
   return result;
 }
 
-// Imprime matriz
 void Matrices_Print( Matrix matrix )
 {
   if( matrix == NULL ) return;
