@@ -80,11 +80,6 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   double positionDiff = ( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] - jointMeasuresTable[ 1 ][ CONTROL_POSITION ] );
   axisMeasuresTable[ 1 ][ CONTROL_POSITION ] = atan( positionDiff / BALL_BALL_WIDTH );  // + ieOffset; ? 
   
-  double rightForce = jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
-  double leftForce = jointMeasuresTable[ 1 ][ CONTROL_FORCE ];
-  axisMeasuresTable[ 0 ][ CONTROL_FORCE ] = ( leftForce + rightForce ) * BALL_LENGTH;
-  axisMeasuresTable[ 1 ][ CONTROL_FORCE ] = ( leftForce - rightForce ) * BALL_BALL_WIDTH / 2.0;
-  
   double dpRefStiffness = axisSetpointsTable[ 0 ][ CONTROL_STIFFNESS ]; 
   double dpPositionError = axisSetpointsTable[ 0 ][ CONTROL_POSITION ] - axisMeasuresTable[ 0 ][ CONTROL_POSITION ];
   double dpRefDamping = axisSetpointsTable[ 0 ][ CONTROL_DAMPING ];
@@ -103,4 +98,11 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   double ieRefForce = ieRefTorque / ( BALL_BALL_WIDTH / 2.0 );
   jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = ( -dpRefForce - ieRefForce ) / 2.0;
   jointSetpointsTable[ 1 ][ CONTROL_FORCE ] = ( -dpRefForce + ieRefForce ) / 2.0;
+  
+  double rightForce = jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
+  if( jointSetpointsTable[ 0 ][ CONTROL_FORCE ] < 0.0 ) rightForce = -rightForce;
+  double leftForce = jointMeasuresTable[ 1 ][ CONTROL_FORCE ];
+  if( jointSetpointsTable[ 1 ][ CONTROL_FORCE ] < 0.0 ) leftForce = -leftForce;
+  axisMeasuresTable[ 0 ][ CONTROL_FORCE ] = ( leftForce + rightForce ) * BALL_LENGTH;
+  axisMeasuresTable[ 1 ][ CONTROL_FORCE ] = ( leftForce - rightForce ) * BALL_BALL_WIDTH / 2.0;
 }
