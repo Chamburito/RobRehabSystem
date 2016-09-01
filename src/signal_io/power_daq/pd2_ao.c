@@ -170,7 +170,7 @@ bool IsOutputEnabled( int adapterIndex )
 
 bool Write( int adapterIndex, unsigned int channel, double value )
 {
-  const double TENSION_2_FORCE_RATIO = 0.027;
+  const double TENSION_2_TORQUE_RATIO = 0.027;    // [Nm/V]
   
   if( (size_t) adapterIndex >= adaptersNumber ) return false;
   
@@ -180,13 +180,13 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   
   if( !adapter->initialized ) return false;
   
-  value /= TENSION_2_FORCE_RATIO;
+  value /= TENSION_2_TORQUE_RATIO;
   if( value < (double) -IO_RANGE ) value = -IO_RANGE;
   else if( value < (double) IO_RANGE ) value = IO_RANGE;
-  value = 0.0;
+  
   DWORD output = ( value + IO_RANGE ) / ( 2 * IO_RANGE ) * 0xFFFF;
-  //DEBUG_PRINT( "writing output %x to handle %d and channel %u", output, adapter->outputHandle, channel );
-  if( _PdAO32Write( adapter->outputHandle, channel, output ) < 0 ) return false;
+  DEBUG_PRINT( "writing value %g (output: %x) to handle %d and channel %u", value, output, adapter->outputHandle, channel );
+  //if( _PdAO32Write( adapter->outputHandle, channel, output ) < 0 ) return false;
   
   return true;
 }

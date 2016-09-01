@@ -2,10 +2,10 @@
   "output_interface": {
     "type": "PD2AO",
     "id": "1",
-    "channel": 2
+    "channel": 1
   },
   "output_gain": {
-    "multiplier": 1,
-    "divisor": 1
+    "multiplier": 0.025,
+    "divisor": 6.28
   }
 }

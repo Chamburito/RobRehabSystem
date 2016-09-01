@@ -244,7 +244,7 @@ bool IsOutputEnabled( int adapterIndex )
 
 bool Write( int adapterIndex, unsigned int channel, double value )
 {
-  const double TENSION_2_FORCE_RATIO = 0.027;
+  const double TENSION_2_TORQUE_RATIO = 0.027;
   
   if( (size_t) adapterIndex >= adaptersNumber ) return false;
   
@@ -254,7 +254,7 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   
   if( !adapter->isWriting ) return false;
   
-  value /= TENSION_2_FORCE_RATIO;
+  value /= TENSION_2_TORQUE_RATIO;
   if( value < (double) -IO_RANGE ) value = -IO_RANGE;
   else if( value < (double) IO_RANGE ) value = IO_RANGE;
   
@@ -286,7 +286,7 @@ static void* AsyncReadBuffer( void* callbackData )
 {
   const double TENSION_2_CURRENT_RATIO = 2.35;
   //const double TENSION_2_CURRENT_OFFSET = 0.1;
-  const double CURRENT_2_FORCE_RATIO = 0.068;
+  const double CURRENT_2_TORQUE_RATIO = 0.068;
   
   uint16_t rawInputSamplesList[ RAW_INPUT_CHANNELS_NUMBER ];
   double tensionsList[ RAW_INPUT_CHANNELS_NUMBER ];
@@ -327,7 +327,7 @@ static void* AsyncReadBuffer( void* callbackData )
         double current = ( fabs( cos( alpha ) ) < 0.1 ) ? currentPair[ 1 ] / ( cos( alpha + ( 4.0 / 3.0 * M_PI ) ) ) : currentPair[ 0 ] / cos( alpha );
         
         size_t channel = rawChannel / 2;        
-        adapter->inputSamplesList[ channel ] = -current * CURRENT_2_FORCE_RATIO;
+        adapter->inputSamplesList[ channel ] = -current * CURRENT_2_TORQUE_RATIO;
         adapter->aquiredSamplesCountList[ channel ] = ( channel < aquiredSamplesCount / 2 ) ? 1 : 0;
         Semaphores.SetCount( adapter->inputChannelLocksList[ channel ], adapter->inputChannelUsesList[ channel ] );
       }

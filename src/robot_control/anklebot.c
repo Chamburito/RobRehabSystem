@@ -68,7 +68,6 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
 {
   const double BALL_LENGTH = 0.14;
   const double BALL_BALL_WIDTH = 0.19;
-  const double TRANS_2_ROT_RATIO = 0.025 / ( 2 * M_PI );
   const double SHIN_LENGTH = 0.42;
   const double ACTUATOR_LENGTH = 0.443;
   
@@ -78,11 +77,11 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   else if( dpSin < -1.0 ) dpSin = -1.0;
   axisMeasuresTable[ 0 ][ CONTROL_POSITION ] = asin( dpSin ); // + dpOffset; ?
   
-  double positionDiff = ( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] - jointMeasuresTable[ 1 ][ CONTROL_POSITION ] ) / 2.0;
-  axisMeasuresTable[ 1 ][ CONTROL_POSITION ] = atan( positionDiff / ( BALL_BALL_WIDTH / 2.0 ) );  // + ieOffset; ? 
+  double positionDiff = ( jointMeasuresTable[ 0 ][ CONTROL_POSITION ] - jointMeasuresTable[ 1 ][ CONTROL_POSITION ] );
+  axisMeasuresTable[ 1 ][ CONTROL_POSITION ] = atan( positionDiff / BALL_BALL_WIDTH );  // + ieOffset; ? 
   
-  double rightForce = jointMeasuresTable[ 0 ][ CONTROL_FORCE ] / TRANS_2_ROT_RATIO;
-  double leftForce = jointMeasuresTable[ 1 ][ CONTROL_FORCE ] / TRANS_2_ROT_RATIO;
+  double rightForce = jointMeasuresTable[ 0 ][ CONTROL_FORCE ];
+  double leftForce = jointMeasuresTable[ 1 ][ CONTROL_FORCE ];
   axisMeasuresTable[ 0 ][ CONTROL_FORCE ] = ( leftForce + rightForce ) * BALL_LENGTH;
   axisMeasuresTable[ 1 ][ CONTROL_FORCE ] = ( leftForce - rightForce ) * BALL_BALL_WIDTH / 2.0;
   
@@ -91,15 +90,17 @@ void RunControlStep( Controller controller, double** jointMeasuresTable, double*
   double dpRefDamping = axisSetpointsTable[ 0 ][ CONTROL_DAMPING ];
   double dpVelocity = axisSetpointsTable[ 0 ][ CONTROL_VELOCITY ];
   double dpRefTorque = dpRefStiffness * dpPositionError + dpRefDamping * dpVelocity;
+  axisSetpointsTable[ 0 ][ CONTROL_FORCE ] = dpRefTorque;
   
   double ieRefStiffness = axisSetpointsTable[ 1 ][ CONTROL_STIFFNESS ]; 
   double iePositionError = axisSetpointsTable[ 1 ][ CONTROL_POSITION ] - axisMeasuresTable[ 1 ][ CONTROL_POSITION ];
   double ieRefDamping = axisSetpointsTable[ 1 ][ CONTROL_DAMPING ];
   double ieVelocity = axisSetpointsTable[ 1 ][ CONTROL_VELOCITY ];
   double ieRefTorque = ieRefStiffness * iePositionError + ieRefDamping * ieVelocity;
+  axisSetpointsTable[ 1 ][ CONTROL_FORCE ] = ieRefTorque;
   
   double dpRefForce = dpRefTorque / BALL_LENGTH;
   double ieRefForce = ieRefTorque / ( BALL_BALL_WIDTH / 2.0 );
-  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = ( -dpRefForce + ieRefForce ) * TRANS_2_ROT_RATIO / 2.0;
-  jointSetpointsTable[ 1 ][ CONTROL_FORCE ] = ( -dpRefForce - ieRefTorque / ieRefForce ) * TRANS_2_ROT_RATIO / 2.0;
+  jointSetpointsTable[ 0 ][ CONTROL_FORCE ] = ( -dpRefForce - ieRefForce ) / 2.0;
+  jointSetpointsTable[ 1 ][ CONTROL_FORCE ] = ( -dpRefForce + ieRefForce ) / 2.0;
 }
