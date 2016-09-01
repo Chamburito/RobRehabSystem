@@ -1,0 +1,59 @@
+Help file for roborec - the robot record and playback tool.
+
+This tool records data from the robot and plays it
+back as reference control data.  It does this by copying
+data between the robot, system RAM memory, and the
+disk file system.
+
+Data that is played back to the robot comes from system RAM
+memory.  If you want to play back data from a disk file, you
+must load it into RAM memory first, using the "Read from
+File" command.
+
+Data that is plotted to the display comes from a disk file.
+If you want to display data from RAM memory, you must save
+it to a disk file first, using the "Write to File" command.
+
+Commands:
+
+Calibrate - Set the robot's calibration point.
+
+Move to Home - Move robot to the calibration point in .5
+seconds, then stay there until stopped.
+
+Read from File - Read path data from a file into the
+reference memory buffer.  This file name is prompted.
+
+Write to File - Write path data from reference memory buffer
+to a reference file.  This file has an automatically
+generated time-stamped name starting with the string recref.
+
+Record from Robot - Record from the robot to the reference
+memory buffer.  When the recording is stopped, a half-second
+of loopback data is added to the recording, to move the robot
+smoothly from the end point to the start point.
+
+Playback to Robot - The robot is first moved to the home
+point.  After half a second, play back from the reference
+memory buffer to the robot.  The reference memory is played
+back in a loop until stopped.
+
+Write Playback File - If this button is checked, a logfile
+will be written during the "Playback to Robot" command.
+This file has an automatically generated time-stamped name
+starting with the string reclog.
+
+Plot File - Plot data from a file.  X and Y vs time.  If
+you want to plot from the reference memory buffer, save it
+to a file first.
+
+Help - This message.
+
+Stop - Stop continuous commands (Move to Home, Record, or
+Playback).  Commands that need to be stopped update the
+"seconds" counter and have the word "running" in the status
+line.  The Stop command reports the status of the reference
+memory buffer.
+
+Exit - Exit the program.
+

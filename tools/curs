@@ -1,0 +1,238 @@
+#!/usr/bin/wish
+
+# simple cursor moving program
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+proc curs {w} {
+	# display canvas
+	set c [canvas $w.c -height 600 -width 600]
+
+	# handle resize
+        chwin $c [winfo width $c] [winfo height $c] 
+	bind $c <Configure> [list after idle chwin $c %w %h]
+
+	# big box
+	$c create rect {-200 -200 200 200}
+	# small stationary center box
+	$c create rect {-8 -8 8 8} -tag origin -fill red
+	# moving circle pointer
+	$c create oval {-10 -10 10 10} -tag circlep -fill yellow
+
+	return $c
+}
+
+# handle window resize
+proc chwin {c w h} {
+	set w2 [expr {$w / 2}]
+	set h2 [expr {$h / 2}]
+	# translate from 0,0 in upper left to 0,0 in center
+	$c config -scrollregion [list -$w2 -$h2 $w2 $h2]
+}
+
+
+global ob
+
+set ob(cwd) [pwd]
+set ob(loaded) 0
+set ob(running) 0
+
+# set up monitor window
+
+proc init {} {
+	global data ob
+
+	wm withdraw .
+	toplevel .top
+	set w ".top"
+
+
+	# widget definitions
+
+	# 4 buttons across top in a frame
+
+	frame $w.f
+	pack $w.f
+
+	foreach i {load run star quit} {
+		button $w.f.b_${i} -text "$i" -command [list b_${i}_proc $w]
+	}
+
+	$w.f.b_load config -bg green
+	$w.f.b_run  config -bg red -state disabled
+	$w.f.b_quit config -bg red
+
+	# canvas in a separate toplevel window
+
+        toplevel .can
+        set ::canw [curs .can]
+        pack $::canw
+
+	# status at the bottom
+
+	set ::font "Helvetica -24"
+	# this width dictates width for window.
+	label $w.xy -text "tachometer: no data" -font $::font -width 30
+
+
+	# widget placement
+
+	pack $w.f.b_load $w.f.b_run $w.f.b_star $w.f.b_quit -side left
+	pack $w.xy
+}
+
+# b_quit_proc called when quit button is pressed
+
+proc b_quit_proc {w} {
+
+	# puts "called quit"
+	b_unload_proc $w
+	after 1000 exit
+}
+
+# b_load_proc called when load button is pressed
+
+proc b_load_proc {w} {
+	global ob
+
+	# puts "called load"
+	if {$ob(loaded)} {
+		puts "load: already loaded"
+		return
+	}
+	cd $ob(cwd)
+	after idle {
+		set ob(loaded) 1
+		start_lkm
+		start_shm
+	}
+	$w.f.b_star  config -text star -command [list b_star_proc $w] -bg green -state normal
+	$w.f.b_run  config -text run -command [list b_run_proc $w] -bg green -state normal
+	$w.f.b_load config -text unload -command [list b_unload_proc $w] -bg red
+}
+
+proc b_star_proc {w} {
+	star_proc
+}
+
+# b_unload_proc called when unload button is pressed
+
+proc b_unload_proc {w} {
+	global ob
+
+	# puts "called unload"
+
+	if {!$ob(loaded)} {
+		puts "load: already unloaded"
+		return
+	}
+
+	cd $ob(cwd)
+	b_pause_proc $w
+	stop_shm
+	stop_lkm
+	$w.f.b_load config -text load -command [list b_load_proc $w] -bg green
+	$w.f.b_run  config -state disabled -bg red
+}
+
+# b_run_proc called when run button is pressed
+
+proc b_run_proc {w} {
+	global ob
+
+	# puts "called run"
+	if {!$ob(loaded)} {
+		puts "run: not yet loaded"
+		return
+	}
+	if {$ob(running)} {
+		puts "run: already running"
+		return
+	}
+	set ob(running) 1
+	start_loop
+	tick ""
+	$w.f.b_run config -text pause -command [list b_pause_proc $w] -bg red
+}
+
+# b_pause_proc called when quit button is pressed
+
+proc b_pause_proc {w} {
+	global ob
+
+	# puts "called pause"
+	if {!$ob(running)} {
+		puts "pause: already paused"
+		return
+	}
+
+	# ticking will stop at next tick
+	set ob(running) 0
+	stop_loop
+	$w.f.b_run config -text run -command [list b_run_proc $w] -bg green
+}
+
+# tick reads x/y 5x/sec when robot code is loaded.
+
+proc tick {w} {
+	global ob data
+
+	set w .top
+	# this will stop ticking if it returns.
+	if {!$ob(running)} {
+		$w.xy configure -text "tachometer: no data"
+		return
+	}
+
+	set p(x) [getptr x]
+	set p(y) [expr {0 - [getptr y]}]
+
+	set x1 [expr {$p(x) - 10}]
+	set x2 [expr {$p(x) + 10}]
+	set y1 [expr {$p(y) - 10}]
+	set y2 [expr {$p(y) + 10}]
+
+	$::canw coords circlep [list $x1 $y1 $x2 $y2]
+	$w.xy configure -text "x = $p(x), y = $p(y)"
+
+	after 100 [list tick $w]
+}
+
+proc tach_exit {} {
+	set w ".top.f"
+	puts "tach exit: quitting..."
+	$w.b_quit invoke
+}
+
+init
+
+set w ".top.f"
+
+wm protocol .top WM_DELETE_WINDOW tach_exit
+wm protocol .can WM_DELETE_WINDOW tach_exit
+
+bind .top <Key-l> "$w.b_load invoke"
+bind .top <Key-u> "$w.b_unload invoke"
+bind .top <Key-r> "$w.b_run invoke"
+bind .top <Key-p> "$w.b_pause invoke"
+bind .top <Key-q> "$w.b_quit invoke"
+bind .top <Escape> "$w.b_quit invoke"
+
+bind .can <Key-l> "$w.b_load invoke"
+bind .can <Key-u> "$w.b_unload invoke"
+bind .can <Key-r> "$w.b_run invoke"
+bind .can <Key-p> "$w.b_pause invoke"
+bind .can <Key-q> "$w.b_quit invoke"
+bind .can <Escape> "$w.b_quit invoke"
+

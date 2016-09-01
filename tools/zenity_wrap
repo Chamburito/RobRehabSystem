@@ -1,0 +1,24 @@
+#! /bin/sh
+
+# zenity wrapper
+# if we're in a gnome, use zenity.
+# if not, use echo.
+
+# usage: zenity_wrap "be careful out there!" --warning
+
+# argv 1: string in quotes, for --text
+# optional argv 2: type - usually --error, --warning, or --info.
+# defaults to --info.
+
+# if not set, set to text
+
+disp=${DESKTOP_SESSION:-text}
+
+str=$1
+type=${2:-"--info"}
+
+if [ $disp = text ]; then
+	echo zenity message: $str
+else
+	zenity $type --text "$str"
+fi

@@ -1,0 +1,57 @@
+#! /usr/bin/tclsh
+
+# get dat file body
+# shows example parse of log header, to get its length.
+
+global ob
+
+if {[info exists env(CROB_HOME)]} {
+    set ob(crobhome) $env(CROB_HOME)
+} else {
+    set ob(crobhome) /home/imt/crob
+}
+
+# get filename from command line args
+
+if {$argc == 1} {
+    set file [lindex $argv 0]
+    if {![file readable $file]} {
+        puts stderr "datbody: file $file is not readable."
+	exit 1
+    }
+} else {
+    puts stderr "usage: datbody filename"
+    exit 1
+}
+
+# now, $file is the name of a readable file.
+
+# header vars are stored (e.g):
+# s logheadsize 000250
+
+proc s {name val} {
+	global ob
+	set ob($name) $val
+}
+
+# read the header, catch errors.
+set rc [catch {exec $ob(crobhome)/tools/dathead $file} header]
+
+if {$rc != 0} {
+	puts stderr "datbody: errorCode $errorCode"
+	puts stderr "datbody: errorInfo $errorInfo"
+	exit 1
+}
+
+# this takes the header and executes it, filling ob vars.
+eval $header
+
+# size probably has leading zeros, which tcl would take as octal.
+# this forces it to decimal
+scan $ob(logheadsize) %d size
+
+# use tail to skip the header, and output the body.
+# tail numbers chars starting at 1, so, size+1.
+incr size
+
+exec /usr/bin/tail -c +${size} $file >@stdout

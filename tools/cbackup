@@ -1,0 +1,215 @@
+#! /bin/sh
+
+# copy a directory to a CDROM,
+# make an ISO, copy and check.
+
+# this version runs without automount
+
+# gets called by /home/imt/lgames/clock/cons2
+
+# 1/2007
+# fixed as per http://www.troubleshooters.com/linux/coasterless.htm
+
+# let's say you are saving the files for a patient named pat123.
+# $1 will be /home/imt/therapist/pat123.
+# the CD will get the contents of /home/imt/therapist/pat123,
+# usually eval, therapy, and maybe cons.log .
+# (will put them all in a dir called pat123)
+# the name pat123 will be the CD's volume-id, which will show in
+# windows, or if you run the Linux program:
+# volname /dev/cdrom
+
+# make sure /etc/cdrecord.conf is set up to default to the right place.
+# if you have a lite-on 24x/10x/40x drive, it should have a line
+# at the bottom like this:
+
+#	liteon=         0,0,0   24      -1      burnproof
+
+# or put the right dev in CDRECORD_DEV
+
+# for debugging
+# set -x
+
+CDRECORD_PROG=$CROB_HOME/tools/cdr/cdrecord
+MKISOFS_PROG=$CROB_HOME/tools/cdr/mkisofs
+
+CDDEV=/dev/cdrom
+
+if [ -e /media ] ; then
+	# debian 2005
+	CDMNT=/media/cdrom
+	CDRECORD_DEV=1,0,0
+else
+	# red hat 2002
+	CDMNT=/mnt/cdrom
+	CDRECORD_DEV=0,0,0
+fi
+
+# this should work all around, on latest ubuntu, the dev is 1000,0,0
+# CDRECORD_DEV=`$CDRECORD_PROG -scanbus | grep -i cd.rom | cut -d" " -f 1`
+
+# echo cd device: $CDRECORD_DEV
+
+function bail () {
+	echo $*
+	zenity --error --text "$*"
+	exit 1
+}
+
+function save_gconf () {
+# echo save gconf
+gconftool-2 --dump /desktop/gnome/volume_manager > $TMP/gconfdump.xml
+}
+
+function restore_gconf () {
+# echo restore gconf
+gconftool-2 --load $TMP/gconfdump.xml
+}
+
+function gconf_norun () {
+# echo gconf norun
+gconftool-2 --type bool --set /desktop/gnome/volume_manager/automount_media false
+gconftool-2 --type bool --set /desktop/gnome/volume_manager/autobrowse false
+gconftool-2 --type bool --set /desktop/gnome/volume_manager/autoburn false
+gconftool-2 --type bool --set /desktop/gnome/volume_manager/autorun false
+}
+
+function done_cleanup () {
+restore_gconf
+eject $CDMNT
+rm -rf /tmp/cback$$
+}
+
+if [ $# != 1 ]; then
+bail "usage: cbackup dirname"
+fi
+
+if [ ! -d $1 ]; then
+bail "cbackup: error, cannot open directory $1"
+fi
+
+# make sure cdrecord is suid root.
+STATSTR=`stat -c "%a%U" $CDRECORD_PROG`
+if [ "$STATSTR" != "4755root" ]; then
+bail "cbackup: error, $CDRECORD_PROG must be setuid root."
+fi
+
+$CDRECORD_PROG -scanbus > /dev/null 2>&1
+if [ $? != 0 ]; then
+bail "cbackup: cdrecord failed, probably not setuid."
+fi
+
+SIZE=`du -s $1 | cut -f1`
+MSIZE=`expr $SIZE / 1000`
+
+if [ $SIZE -gt 650000 ]; then
+bail "cbackup: error, you may not write more than 650,000 Kb ($SIZE Kb), assuming 700 Mb CD"
+fi
+
+TMP=/tmp/cback$$
+DIR=$1
+TDIR=$TMP
+
+# delete temp files on exit
+trap "done_cleanup; exit 1" INT TERM EXIT
+
+# with echo for debugging
+# trap "echo rm -rf /tmp/cback$$" INT TERM EXIT
+
+CWD=`pwd`
+# make tmp dir and mount point
+mkdir -p $TMP/mnt
+# make iso from dir
+dname=`dirname $DIR`
+bname=`basename $DIR`
+
+# or perhaps put the files in a tgz first?
+# cd $dname
+# tar cvfz $TMP/$bname.tgz $DIR
+# $MKISOFS_PROG -quiet -r -o $TMP/iso $TMP/$bname.tgz
+# cd $CWD
+
+# -J Joliet - so files work on old Windows machines
+# -r Rock Ridge - for UNIX file info like long names, perms.
+# -V volume-id - cd name
+
+# before, we didn't use Joliet, now we do.
+# $MKISOFS_PROG -quiet -r -V $bname -o $TMP/iso $DIR
+
+# $MKISOFS_PROG -quiet -r -J -V $bname -root $bname -o $TMP/iso $DIR
+
+save_gconf
+gconf_norun
+eject $CDMNT
+
+ZTEXT="cbackup: Please insert a blank CDROM in the drive tray, close the tray (if present), then hit OK, and the backup process will begin ..."
+zenity --info --text "$ZTEXT"
+
+# eject -t $CDMNT
+
+T0=`date +%s`
+ZTEXT="cbackup: Starting to write $1 $SIZE Kb to CDROM, preparing ISO image ..."
+{ 
+$MKISOFS_PROG -quiet -r -J -V $bname -o $TMP/iso -graft-points /$bname/=$DIR/
+echo
+} | zenity --progress --text "$ZTEXT" --auto-close
+
+# mount disk iso in loop mode
+# mount -o loop $TMP/iso $TMP/mnt
+# see if the disk iso matches files
+# diff -r $TMP/mnt $DIR || bail 'bad disk iso'
+# unmount disk iso
+# umount $TMP/mnt
+
+# burn the iso to a cdrom
+date >> $TMP/cdr.out
+
+# take out the -dummy when ready
+# $CDRECORD_PROG -dummy dev=cdrom $TMP/iso >> $TMP/cdr.out 2>&1
+
+ZTEXT="Burning backup CDROM for folder $bname ..."
+{
+# cdrecord finds cdrom without dev= on ubuntu
+# $CDRECORD_PROG dev=$CDRECORD_DEV padsize=63s -pad -dao $TMP/iso >> $TMP/cdr.out 2>&1
+$CDRECORD_PROG padsize=63s -pad -dao $TMP/iso >> $TMP/cdr.out 2>&1
+echo
+} | zenity --progress --text "$ZTEXT" --auto-close
+
+date >> $TMP/cdr.out
+
+# open and close the tray
+# eject 
+# mount -r $CDMNT
+sleep 1
+
+echo 0 > $TMP/rc
+# see if the cdrom file matches the file on disk
+ZTEXT="Comparing source image with CDROM for folder $bname ..."
+{
+# diff the cd image with the iso
+# diff -r -q $CDMNT/$bname $DIR
+$CROB_HOME/tools/rawread $CDDEV 2> /dev/null | md5sum | cut -f1 -d" " > $TMP/devsum
+md5sum $TMP/iso | cut -f1 -d" "> $TMP/isosum
+# cat $TMP/isosum $TMP/devsum 1>&2
+diff $TMP/isosum $TMP/devsum
+echo $? > $TMP/rc
+echo
+} | zenity --progress --text "$ZTEXT" --auto-close
+
+T1=`date +%s`
+SECS=`expr $T1 - $T0`
+
+rc=`cat $TMP/rc`
+if [ $rc = 0 ]; then
+ZTEXT="cbackup: Backup for folder $bname SUCCEEDED, source image and CDROM match (backup of $MSIZE megabytes took $SECS seconds).  Hit OK, wait for the CD to eject, and label CD."
+zenity --info --text "$ZTEXT"
+else
+ZTEXT="cbackup: Backup for folder $bname FAILED, source image and CDROM do not match.  Hit OK, and wait for the CD to eject."
+zenity --error --text "$ZTEXT"
+fi
+
+# reset trap
+trap - INT TERM EXIT
+done_cleanup
+
+exit $rc

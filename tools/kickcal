@@ -1,0 +1,302 @@
+#! /usr/bin/wish
+
+# motor kick tests
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2006 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+# these are the 5cm kicks
+# callbacks for the big buttons
+# done in any of 4 directions
+# from any of 5 positions
+
+# note: if you don't center between X and Y kicking
+# you might get confused about the current origin.
+# i.e., you might end up at .05,.05, etc.
+
+proc do_kick_left {} {
+    global ob
+
+    set ob(curr,x) [expr {$ob(curr,x) - .05}]
+    set ob(kickx,textv) "Kick Right"
+    .kickx configure -command do_kick_right
+    setxy $ob(curr,x) $ob(curr,y)
+}
+
+proc do_kick_right {} {
+    global ob
+
+    set ob(curr,x) [expr {$ob(curr,x) + .05}]
+    set ob(kickx,textv) "Kick Left"
+    .kickx configure -command do_kick_left
+    setxy $ob(curr,x) $ob(curr,y)
+}
+
+proc do_kick_up {} {
+    global ob
+
+    set ob(curr,y) [expr {$ob(curr,y) + .05}]
+    set ob(kicky,textv) "Kick Down"
+    .kicky configure -command do_kick_down
+    setxy $ob(curr,x) $ob(curr,y)
+}
+
+proc do_kick_down {} {
+    global ob
+
+    set ob(curr,y) [expr {$ob(curr,y) - .05}]
+    set ob(kicky,textv) "Kick Up"
+    .kicky configure -command do_kick_up
+    setxy $ob(curr,x) $ob(curr,y)
+}
+
+# callbacks for the scales
+proc setstiff {i} {
+    global ob
+
+    if {$ob(vstiff) < 0 || $ob(vstiff) > 5000} {
+	puts "stiffness $ob(vstiff) out of range"
+	quit
+    }
+    wshm stiff $i
+    # puts "stiff $i"
+}
+
+proc setdamp {i} {
+    global ob
+
+    if {$ob(vdamp) < 0 || $ob(vdamp) > 200} {
+	puts "damping $ob(vdamp) out of range"
+	quit
+    }
+    wshm damp $i
+    # puts "damp $i"
+}
+
+proc quit {} {
+    stop_loop
+    stop_shm
+    stop_lkm
+    exit
+}
+
+# center the arm at a new x,y, when you push a big button
+# this factors in the y -0.65, so we don't specify it.
+# this moves origin offset_x and offset_y!
+
+proc setxy {x y} {
+    global ob
+
+    set ob(curr,x) $x
+    set ob(curr,y) $y
+    # deal with the -0.65
+    set y65 [expr {$y - 0.65}]
+    wshm offset_x $x
+    wshm offset_y $y65
+    # puts "setxy resetting offsets to $x $y65"
+    labxy
+    # point control at new center
+    movebox 0 0 {0 1 0} {0.0 0.0 0.0 0.0} {0.0 0.0 0.0 0.0}
+}
+
+proc labxy {} {
+    global ob
+    set ob(currxy,text) "motor x = $ob(curr,x)   y = $ob(curr,y)   pos x = $ob(pos,x)   y = $ob(pos,y)"
+}
+
+proc init {} {
+    global data ob
+
+    start_lkm
+    start_shm
+    wshm have_thermal_model 0
+    after 100
+    start_loop
+
+    # we don't want the damping zone for this test.
+    wshm no_safety_check 1
+
+    # init stiff/damp from imt2.cal
+    # these v variables will be what shows on the scales.
+    set ob(vstiff) [rshm stiff]
+    set ob(vdamp) [rshm damp]
+
+    set ob(init,stiff) $ob(vstiff)
+    set ob(init,damp) $ob(vdamp)
+
+    set ob(pos,x) 0.0
+    set ob(pos,y) 0.0
+
+    set ob(kickx,textv) "Kick Right"
+    set ob(kicky,textv) "Kick Down"
+
+    # the display looks like this:
+    #    0      1    2
+    # 0 quit kickx kicky
+    # 1      status
+    # 2 nw         ne
+    # 3        c
+    # 4 sw         se
+    # 5      stiff
+    # 6      damp
+
+    # widget definitions
+    # 3 buttons across top
+
+    button .kickx -textvariable ob(kickx,textv) -command do_kick_right
+    button .kicky -textvariable ob(kicky,textv) -command do_kick_down
+    button .quit -text Quit -command quit -bg red
+
+    # make the buttons wide enough
+    # so the screen doesn't jiggle when the text changes
+    # and make them equal width so the columns stay equal
+    .kickx configure -width 12
+    .kicky configure -width 12
+    .quit configure -width 12
+
+    # origin at center
+    setxy 0.0 0.0
+
+    # position
+    label .currxy -textvariable ob(currxy,text)
+
+    # directional buttons reposition origin
+
+    foreach i {nw ne sw se c} {
+	button .$i -text "$i" -command [list do_dir_button $i]
+    }
+
+    # widget placement
+
+    # dir buttons stretch in both x and y.
+
+    grid columnconfigure . 0 -weight 1
+    grid columnconfigure . 1 -weight 1
+    grid columnconfigure . 2 -weight 1
+
+    grid rowconfigure . 2 -weight 1
+    grid rowconfigure . 3 -weight 1
+    grid rowconfigure . 4 -weight 1
+
+    # place items in the grid.
+
+    grid .quit	.kickx	.kicky
+    grid .currxy	-	-
+
+    grid .nw	x	.ne	-sticky news
+    grid x		.c	x	-sticky news
+    grid .sw	x	.se	-sticky news
+
+# the scale set command here initializes before the first call to -command.
+# if this was not true, the scales might have bad initial values.
+# the first -command happens after the grid.
+
+    scale .stiff -orient horizontal -length 500 -from 0 -to 5000 \
+	-label Stiffness -command setstiff -resolution 10 \
+	-tickinterval 1000
+    .stiff set $ob(vstiff)
+
+    scale .damp -orient horizontal -length 500 -from 0 -to 1000 \
+	-label Damping -command setdamp -resolution 5 \
+	-tickinterval 200
+    .damp set $ob(vdamp)
+
+    # these span full width.
+    grid .stiff - -
+    grid .damp - -
+
+    # initial window size
+
+    wm geometry . 600x400
+
+    # start arm in the center
+    do_dir_button c
+
+    pos
+}
+
+proc pos {} {
+	set ::ob(pos,x) [rshm x]
+	set ::ob(pos,y) [rshm y]
+	labxy
+	after 100 pos
+}
+
+# make sure the buttons are gray and voltages are low
+# when we move the origin
+
+proc disable_buttons {} {
+    wshm pfotest 1.0
+    foreach i {kickx kicky c ne nw se sw stiff damp} {
+	.$i config -state disabled
+    }
+}
+
+proc enable_buttons {} {
+    foreach i {kickx kicky c ne nw se sw stiff damp} {
+	.$i config -state normal
+    }
+    wshm pfotest 5.0
+}
+
+# do_dir_button gets called when a dir button is clicked.
+
+proc do_dir_button {dir} {
+    global ob
+
+    # we're moving the origin, so set some sane values, for safety
+    .stiff set $ob(init,stiff)
+    .damp set $ob(init,damp)
+    disable_buttons
+
+    set x 0.0; set y 0.0
+    switch $dir {
+	c	{set x 0.0; set y 0.0}
+	nw	{set x -0.2; set y 0.2}
+	ne	{set x 0.2; set y 0.2}
+	sw	{set x -0.2; set y -0.2}
+	se	{set x 0.2; set y -0.2}
+    }
+
+    set ob(kickx,textv) "Centering"
+    set ob(kicky,textv) "Centering"
+    .kickx configure -command do_kick_right
+    .kicky configure -command do_kick_down
+    set ob(curr,x) $x
+    set ob(curr,y) $y
+
+    # we're moving the origin here
+    # arm should already be in the right place
+    # but stop it in case it's not
+    stop_movebox
+    after 50 {
+	wshm offset_x 0.0
+	wshm offset_y -0.65
+    }
+
+    # this isn't quite done after 1000, but close enough.
+    after 100 { center_arm_1s }
+
+    # to new home
+    after 1000 {movebox 0 0 {0 200 1} {0.0 0.0 0.0 0.0} {$::ob(curr,x) $::ob(curr,y) 0.0 0.0}}
+    # reset offsets, etc.
+    after 2000 {setxy $::ob(curr,x) $::ob(curr,y)}
+
+    after 2000 {set ::ob(kickx,textv) "Kick Right"}
+    after 2000 {set ::ob(kicky,textv) "Kick Down"}
+    after 2000 {enable_buttons}
+}
+
+bind . <Key-q> ".quit invoke"
+
+init

@@ -1,0 +1,104 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+# make this async with proper exit!
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+puts "Loading Linux Kernel Module."
+puts ""
+puts "litrip: send linear robot on a trip up and down."
+start_lkm
+start_shm
+start_loop
+
+# typeahead bad
+flushin stdin
+
+puts "Linear Robot Motion Test"
+puts "Press 'Enter' to start."
+
+gets stdin
+
+exec echo -n "started " >> /tmp/litrip.dat
+exec date >> /tmp/litrip.dat
+
+wshm safety_pos 1.0
+wshm linear_stiff 100.0
+wshm linear_damp 5.0
+
+# this is only for testing with a 5 kg weight.
+set ::xlist {.3 0.0}
+
+# for unweighted testing
+set ::xlist {
+-.2 -.15 -.1 -.05
+0.0
+.05 .1 .15 .2
+}
+
+set ::slottime 1.0
+
+set ::xlen [llength $xlist]
+
+proc done_report {} {
+	exec echo "$::slots slots" >> /tmp/litrip.dat
+	exec echo -n "stopped " >> /tmp/litrip.dat
+	exec date >> /tmp/litrip.dat
+}
+
+proc done {} {
+done_report
+puts "Unloading Linux Kernel Module"
+stop_loop
+stop_shm
+stop_lkm
+exit
+}
+
+set ::donevar 0
+fileevent stdin readable [list set ::donevar 1]
+
+# puts "hit enter to stop"
+set ::slots 0
+
+proc irand {i} {
+    expr {int(rand() * $i)}
+}
+
+proc loop {} {
+    after [expr int(1000 * $::slottime)] loop
+    set x [lindex $::xlist [irand $::xlen]]
+    while {$x == $::lastx} {
+	set x [lindex $::xlist [irand $::xlen]]
+    }
+    if {$::donevar > 0} {done}
+    set mtime [expr int(200 * $::slottime)]
+    puts "$::slots: move $x in $mtime ticks, hit enter to stop"
+    movebox 0 16 {0 $mtime 1} {$::lastx 0 0 0} {$x 0 0 0}
+    set ::lastx $x
+    incr ::slots
+    if {($::slots % 3600) == 0} {
+	exec echo -n "   " >> /tmp/litrip.dat
+	exec date >> /tmp/litrip.dat
+	exec echo "   $::slots slots" >> /tmp/litrip.dat
+    }
+}
+
+set ::lastx 0.0
+
+loop
+
+vwait ::donevar
+
+done

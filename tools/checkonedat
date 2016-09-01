@@ -1,0 +1,48 @@
+#! /usr/bin/tclsh
+
+# Copyright 2007 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# checkonedat
+
+# check one IMT binary .dat file for consistency
+
+# convert to .asc with ta.tcl
+# read each row
+# assure that the 1st field is one greater than the previous
+# if not, it indicates that we've lost a sample or a byte somewhere.
+
+# to check many files, you can do something like:
+# find . -name '*.dat' -print | xargs -n 1 checkonedat > log
+
+
+set f [lindex $::argv 0]
+
+set stream [open |[list $::env(CROB_HOME)/ta.tcl $f]]
+
+# first row
+
+gets $stream line
+set lasti [lindex $line 0]
+set linenum 0
+
+# rest of rows
+
+while {[gets $stream line]} {
+	set i [lindex $line 0]
+	if {[expr {abs($i - ($lasti + 1.0)) > .5 }]} {
+		puts "error $f line $linenum: lasti=$lasti, i=$i"
+		catch {close $stream}
+		exit 1
+	}
+	incr linenum
+	set lasti $i
+}
+
+# done
+
+catch {close $stream}
+puts "ok $f"
+exit 0

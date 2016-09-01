@@ -1,0 +1,161 @@
+#!/usr/bin/tclsh
+
+# Copyright 2007 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# realtime stripchart 200 Hz
+
+package require Tk
+package require BLT
+
+source $env(CROB_HOME)/shm.tcl
+
+namespace import blt::*
+
+set ob(alreadyloaded) 0
+
+if {[is_lkm_loaded]} {
+    set ob(alreadyloaded) 1
+    tk_messageBox -message "Robot kernel module already loaded."
+    start_shm
+} else {
+	start_rtl
+}
+
+after 100
+set sysHz [rshm Hz]
+if {$sysHz % 200} {
+	tk_messageBox -message "Can't run rstrip, Hz must be a multiple of 200"
+	rstrip_done
+}
+set ntick [expr {$sysHz / 200}]
+
+# vector and stripchart are blt components.
+# if you have a vector v, you can update it in realtime with
+# v set $list
+
+# init the vector to a fixed size.
+
+set Hz 200
+
+vector xvec($Hz)
+# fill xvec with [0..$Hz-1]
+xvec seq 0 [expr {$Hz - 1}]
+
+button .stopgo -text go -command rstrip_go
+button .done -text done -command rstrip_done
+
+grid .stopgo  -sticky w -row 0 -column 0
+grid .done -sticky e -row 0 -column 4
+
+set ::enamevar1 i
+set ::enamevar2 time_delta_tick
+
+    foreach i {1 2} {
+	vector yvec${i}($Hz)
+	entry .ename$i -width 30 -textvariable ::enamevar$i
+	set ::eautovar$i 1
+	checkbutton .eauto$i -variable ::eautovar$i -text autorange
+	set ::eminvar$i 0
+	entry .emin$i -textvariable ::eminvar$i -width 10
+	set ::emaxvar$i 0
+	entry .emax$i -textvariable ::emaxvar$i -width 10
+	stripchart .s$i -height 2i -width 8i -bufferelements no
+	.s$i element create line$i -xdata xvec -ydata yvec$i -symbol none -label ""
+	grid .ename$i .eauto$i .emin$i .emax$i -sticky w
+	grid .s$i - - - -
+    }
+
+# bind . <Key-q> rstrip_done
+
+set ::got_i 0
+
+proc got_a_tick {} {
+    gets $::tickfd x
+    incr ::got_i
+    foreach i {1 2} {
+	    global ylist$i yvec$i
+	    set var$i [eval rshm [set ::enamevar$i]]
+	    lappend ylist$i [set var$i]
+
+	if {($::got_i % $::Hz) == 0} {
+
+	    yvec$i set [set ylist$i]
+
+	    if {[set ::eautovar$i]} {
+		set ::eminvar$i [set yvec${i}(min)]
+		set ::emaxvar$i [set yvec${i}(max)]
+		.s$i axis config y -min "" -max ""
+	    } else {
+		.s$i axis config y -min [set ::eminvar$i] -max [set ::emaxvar$i]
+	    }
+	    set ylist$i {}
+	}
+    }
+}
+
+# spincv
+
+# example print a line in a timing loop controlled by ntickfifo.
+# /dev/rtf5 is the tick fifo, it gets written every ntickfifo samples.
+# if you are sampling at 200Hz, set ntickfifo to 200 to print once
+# per second.
+
+# (for this demo, run "go", then run this script,
+# then use shm to adjust ntickfifo.)
+
+# use fileevent to notify got_a_tick that the tickfifo has been written.
+
+# note that this code is async/event-driven,
+# we wait in vwait, not in gets.
+
+global tickfd i
+
+set tickfd [open "/proc/xenomai/registry/pipes/crob_tick" r]
+set i 0
+
+# set up the event
+
+fileevent $::tickfd readable got_a_tick
+
+set done 0
+
+# call this when we get a tick, 200x/sec.
+
+proc rstrip_stop {} {
+	.ename1 config -state normal
+	.ename2 config -state normal
+	wshm ntickfifo 0
+	.stopgo config -text go -command rstrip_go
+}
+
+proc rstrip_go {} {
+	.ename1 config -state readonly
+	.ename2 config -state readonly
+	wshm ntickfifo $::ntick
+	.stopgo config -text stop -command rstrip_stop
+}
+
+proc rstrip_done {} {
+	global ob
+
+	if {[info exists ::tickfd]} {
+	    close $::tickfd
+	}
+
+	if {$ob(alreadyloaded)} {
+	    rstrip_stop
+	    after 100
+	    tk_messageBox -message \
+	    "Not unloading, this program did not load LKM (run stop)."
+	    exit
+        }
+
+	after 100
+	puts "stop kernel module"
+	stop_rtl
+	exit
+}
+

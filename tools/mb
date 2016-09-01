@@ -1,0 +1,115 @@
+#! /usr/bin/tclsh
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/tools/modbus.tcl
+
+package require Tk
+
+option add *Button.font {Helvetica 14 bold}
+option add *Entry.font {Helvetica 14 bold}
+option add *Label.font {Helvetica 14 bold}
+option add *Checkbutton.font {Helvetica 14 bold}
+
+# ==================================================
+proc cmd_open_plc {} {
+    .bopen configure -text "close plc" -command cmd_close_plc -bg red
+    do_open_plc
+}
+
+proc cmd_close_plc {} {
+    .bopen configure -text "open plc" -command cmd_open_plc -bg green
+    do_close_plc
+}
+
+# ==================================================
+
+proc quit {} {
+    do_close_plc
+    exit 0
+}
+
+proc do_gui {} {
+button .bopen -text "open plc" -command cmd_open_plc -bg green
+
+label .l_title -text "ELC MODBUS Serial Interface"
+grid .bopen .l_title -
+
+label .l_reg -text "reg (hex)"
+label .l_arg -text "arg (any)"
+grid  x .l_reg .l_arg
+
+button .b_read_coil_status -text "01 read coil status (symtc)" -command {do_read_coil_status $::ob(rcs_addr) $::ob(rcs_nbits)}
+entry .e_rcs_addr -textvariable ::ob(rcs_addr)
+entry .e_rcs_nbits -textvariable ::ob(rcs_nbits)
+
+button .b_read_input_status -text "02 read input status (sxymtc)" -command {do_read_input_status $::ob(ris_addr) $::ob(ris_nbits)}
+entry .e_ris_addr -textvariable ::ob(ris_addr)
+entry .e_ris_nbits -textvariable ::ob(ris_nbits)
+
+button .b_read_holding_register -text "03 read holding register (tcd)" -command {do_read_holding_register $::ob(rhr_addr) $:ob(rhr_nbits)}
+entry .e_rhr_addr -textvariable ::ob(rhr_addr)
+entry .e_rhr_nbits -textvariable ::ob(rhr_nbits)
+
+button .b_force_single_coil -text "05 force single coil (symtc)" -command {do_force_single_coil $::ob(fsc_addr) $::ob(fsc_state)}
+entry .e_fsc_addr -textvariable ::ob(fsc_addr)
+checkbutton .cb_fsc_state -variable ::ob(fsc_state) -text "(set?)"
+
+button .b_preset_single_register -text "06 preset single register (tcd)" -command {do_preset_single_register $::ob(psr_addr) $::ob(psr_nbits)}
+entry .e_psr_addr -textvariable ::ob(psr_addr)
+entry .e_psr_nbits -textvariable ::ob(psr_nbits)
+
+button .b_force_multiple_coils -text "0F force multiple coils (symtc)" -command {do_force_multiple_coils x y}
+
+button .b_preset_multiple_register -text "10 preset multiple register (tcd)" -command {do_preset_multiple_register $::ob(pmr_addr) $::ob(pmr_nbits)}
+entry .e_pmr_addr -textvariable ::ob(pmr_addr)
+entry .e_pmr_nbits -textvariable ::ob(pmr_nbits)
+
+button .b_report_slave_id -text "11 report slave id (none)" -command do_report_slave_id
+
+button .b_quit -text quit -command quit
+
+label .l_toplc -text "To PLC: " -textvariable ::ob(toplc)
+label .l_fromplc -text "From PLC: " -textvariable ::ob(fromplc)
+label .l_plcerr -text "" -textvariable ::ob(plcerr)
+
+grid .b_read_coil_status .e_rcs_addr .e_rcs_nbits
+grid .b_read_coil_status -sticky we
+
+grid .b_read_input_status .e_ris_addr .e_ris_nbits
+grid .b_read_input_status -sticky we
+
+grid .b_read_holding_register .e_rhr_addr .e_rhr_nbits
+grid .b_read_holding_register -sticky we
+
+grid .b_force_single_coil .e_fsc_addr .cb_fsc_state
+grid .b_force_single_coil -sticky we
+grid .cb_fsc_state -sticky w
+
+grid .b_preset_single_register .e_psr_addr .e_psr_nbits
+grid .b_preset_single_register -sticky we
+
+grid .b_force_multiple_coils
+grid .b_force_multiple_coils -sticky we
+
+grid .b_preset_multiple_register .e_pmr_addr .e_pmr_nbits
+grid .b_preset_multiple_register -sticky we
+
+grid .b_report_slave_id
+grid .b_report_slave_id -sticky we
+
+grid .l_toplc - -
+grid .l_toplc -sticky w
+
+grid .l_fromplc - -
+grid .l_fromplc -sticky w
+
+grid .l_plcerr - -
+grid .l_plcerr -sticky w
+
+grid .b_quit - -
+}
+
+# ==================================================
+
+do_gui

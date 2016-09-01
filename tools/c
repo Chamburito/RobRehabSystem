@@ -1,0 +1,47 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+puts "loading linux kernel module."
+start_lkm
+start_shm
+
+set x -.14
+set y .14
+
+# set x .14
+# set y .14
+
+puts "point controller home to ($x,$y), hit enter to start"
+gets stdin
+
+start_loop
+
+wshm no_safety_check 1
+wshm stiff 200.0
+
+# set x and y to 0.0 or wherever you want the manipulandum cursor to stay
+
+# this movebox is an infinite loop, so it stays at x,y.
+movebox 0 0 {0 1 0} [list $x $y 0.0 0.0] [list $x $y 0.0 0.0]
+
+puts "hit enter to stop"
+gets stdin
+
+puts "unloading linux kernel module"
+stop_loop
+stop_shm
+stop_lkm

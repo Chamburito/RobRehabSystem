@@ -1,0 +1,46 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+puts "Loading Linux Kernel Module."
+start_lkm
+start_shm
+
+puts "Register PC7266 ISA encoder index points, hit cr to start..."
+gets stdin
+
+start_loop
+
+# set "Mode 2"
+
+puts "Please pass the robot through index points"
+puts "This should be done by moving the robot arm"
+puts "from the NW (start at the stops) target to the center"
+puts "and moving the PS axis to the center out of"
+puts "supination (assuming the right hand is used)"
+puts "Press 'Enter' when done."
+
+wshm isaenc_docal 1
+
+gets stdin
+
+# back to "mode 0"
+wshm isaenc_docal 2
+
+puts "Encoder calibration done."
+puts "Unloading Linux Kernel Module"
+stop_loop
+stop_shm
+stop_lkm
+

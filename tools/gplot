@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# Copyright 2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# gplot - simple shell script command line front end to gnuplot
+
+# to plot column 1 vs 2 in foo.dat:
+# gplot foo.dat 1 2
+
+if [ $# -eq 3 ]; then
+echo plot \"\< $CROB_HOME/ta.tcl $1\" u $2:$3 w l | gnuplot -persist
+exit
+fi
+
+if [ $# -eq 5 ]; then
+echo plot \"\< $CROB_HOME/ta.tcl $1\" u $2:$3 w l, \"\" u $4:$5 w l | gnuplot -persist
+exit
+fi
+
+if [ $# -eq 7 ]; then
+echo plot \"\< $CROB_HOME/ta.tcl $1\" u $2:$3 w l , \"\" u $4:$5 w l , \"\" u $6:$7 w l | gnuplot -persist
+exit
+fi
+
+if [ $# -eq 9 ]; then
+echo plot \"\< $CROB_HOME/ta.tcl $1\" u $2:$3 w l , \"\" u $4:$5 w l , \"\" u $6:$7 w l , \"\" u $8:$9 w l | gnuplot -persist
+exit
+fi
+
+echo "gplot datfile [col1 col2 [3 4 [5 6 [7 8]]]]"

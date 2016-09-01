@@ -1,0 +1,67 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+puts "loading linux kernel module."
+start_lkm
+start_shm
+
+wshm ankle_stiff 2.
+wshm ankle_damp .01
+
+start_loop
+
+puts "center ankle, then hit enter."
+gets stdin
+
+wshm pcienc_zero 1
+
+after 100
+
+puts -nonewline "logging? (if yes, hit y, then enter, else just enter) "
+flush stdout
+gets stdin in
+
+if {$in == "y"} {
+    set baselogdir $::env(LOG_HOME)
+    set curtime [clock seconds]
+    set datestamp [clock format $curtime -format "%Y%m%d_%a"]
+    set timestamp [clock format $curtime -format "%H%M%S"]
+    set fn ankle.$timestamp.dat
+    set logdir [file join $baselogdir $datestamp]
+    file mkdir $logdir
+    set logfile [file join $logdir ankle.${timestamp}.dat]
+
+    puts "logging data $logfile ..."
+    # write_ankle_fifo_fn is 9
+    wshm logfnid 9
+    # 11 items
+    set  nlog 11
+    start_log $logfile $nlog
+}
+
+puts "running point controller."
+
+acenter
+
+puts "to exit, hit enter."
+
+gets stdin
+if {$in == "y"} {
+	stop_log
+}
+
+stop_rtl

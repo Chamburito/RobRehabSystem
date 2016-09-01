@@ -1,0 +1,246 @@
+#! /usr/bin/wish
+
+# calibrate the arm
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+
+# click load to load robot module into kernel,
+# then click run to run robot code.
+
+# now the program is reading x/y values.
+# move the arm to the five calib points,
+# and click the dir buttons when ready.
+
+# dir buttons will report x/y position at click time,
+# to aid calibration.
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+set ob(scdir) /proc/sys/kernel/imt
+set ob(cwd) [pwd]
+set ob(savedatpid) 0
+set ob(loaded) 0
+set ob(running) 0
+set ob(havegrid) 0
+set ob(lastx) 0
+set ob(lasty) 0
+
+
+# set up monitor window
+
+proc init {} {
+	global data ob
+
+	# the display looks like this:
+	#    0    1    2
+	# 0 load run  quit
+	# 1 nw         ne
+	# 2       c
+	# 3 sw         se
+	# 4     status
+
+	# w is empty, but there might be a time when we want
+	# to be part of a widget hierarchy.
+
+	set w ""
+
+
+	# widget definitions
+
+	# 3 buttons across top
+
+	foreach i {load run quit} {
+		button $w.b_${i} -text "$i" -command [list b_${i}_proc $w]
+	}
+
+	$w.b_load config -bg green
+	$w.b_run  config -bg red -state disabled
+	$w.b_quit config -bg red
+
+
+	# directional buttons in the middle
+
+	foreach i {nw ne sw se c} {
+		button $w.$i -text "$i" -command [list b_cal_proc $w $i]
+	}
+
+	# status at the bottom
+
+	label $w.xy -text "arm calibration: no data" -font {Helvetica -24}
+	label $w.deg -text "" -font {Helvetica -24}
+	label $w.off -text "" -font {Helvetica -24}
+
+
+	# widget placement
+
+	# dir buttons stretch in both x and y.
+
+	grid columnconfigure . 0 -weight 1
+	grid columnconfigure . 1 -weight 1
+	grid columnconfigure . 2 -weight 1
+
+	grid rowconfigure . 1 -weight 1
+	grid rowconfigure . 2 -weight 1
+	grid rowconfigure . 3 -weight 1
+
+	# place items in the grid.
+
+	grid $w.b_load $w.b_run $w.b_quit
+
+	grid $w.nw	x	$w.ne	-sticky news
+	grid x		$w.c	x	-sticky news
+	grid $w.sw	x	$w.se	-sticky news
+
+	grid $w.xy	-	-
+	grid $w.deg	-	-
+	grid $w.off	-	-
+
+	# initial size
+
+	wm geometry . 600x400
+}
+
+# b_cal_proc gets called when a dir button is clicked.
+# read x/y, and edit the label
+
+proc b_cal_proc {w dir} {
+	set x [format %.3f [rshm x]]
+	set y [format %.3f [rshm y]]
+	$w.$dir config -text "$dir ($x, $y)"
+}
+
+# b_quit_proc called when quit button is pressed
+
+proc b_quit_proc {w} {
+
+	# puts "called quit"
+	b_unload_proc $w
+	after 1000 exit
+}
+
+# b_load_proc called when load button is pressed
+
+proc b_load_proc {w} {
+	global ob
+
+	# puts "called load"
+	if {$ob(loaded)} {
+		puts "load: already loaded"
+		return
+	}
+	cd $ob(cwd)
+	after idle {
+		start_lkm
+		start_shm
+		set ob(loaded) 1
+	}
+	$w.b_run  config -text run -command [list b_run_proc $w] -bg green -state normal
+	$w.b_load config -text unload -command [list b_unload_proc $w] -bg red
+}
+
+# b_unload_proc called when unload button is pressed
+
+proc b_unload_proc {w} {
+	global ob
+
+	# puts "called unload"
+
+	if {!$ob(loaded)} {
+		puts "load: already unloaded"
+		return
+	}
+
+	cd $ob(cwd)
+	b_pause_proc $w
+	stop_loop
+	stop_shm
+	stop_lkm
+	$w.b_load config -text load -command [list b_load_proc $w] -bg green
+	$w.b_run  config -state disabled -bg red
+}
+
+# b_run_proc called when run button is pressed
+
+proc b_run_proc {w} {
+	global ob
+
+	# puts "called run"
+	if {!$ob(loaded)} {
+		puts "run: not yet loaded"
+		return
+	}
+	if {$ob(running)} {
+		puts "run: already running"
+		return
+	}
+	set ob(running) 1
+	start_loop
+	tick ""
+	# set ob(savedatpid) [exec cat < /proc/xenomai/registry/pipes/crob_out > /tmp/im.dat &]
+	$w.b_run config -text pause -command [list b_pause_proc $w] -bg red
+}
+
+# b_pause_proc called when quit button is pressed
+
+proc b_pause_proc {w} {
+	global ob
+
+	# puts "called pause"
+	if {!$ob(running)} {
+		puts "pause: already paused"
+		return
+	}
+	# puts "pause: killing $ob(savedatpid)"
+
+	# ticking will stop at next tick
+	set ob(running) 0
+	# exec kill $ob(savedatpid)
+	# set ob(savedatpid) 0
+	pause_loop
+	$w.b_run config -text run -command [list b_run_proc $w] -bg green
+}
+
+# tick reads x/y 5x/sec when robot code is loaded.
+
+proc tick {w} {
+	global ob data
+
+	# this will stop ticking if it returns.
+	if {!$ob(running)} {
+		$w.xy configure -text "arm calibration: no data" -font {Helvetica -24}
+		$w.deg configure -text "" -font {Helvetica -24}
+		return
+	}
+
+	set x [format %.3f [rshm x]]
+	set y [format %.3f [rshm y]]
+	set sdeg [format %.3f [rshm shoulder_angle_degrees]]
+	set edeg [format %.3f [rshm elbow_angle_degrees]]
+	set scal [format %.6f [rshm shoulder_angle_cal]]
+	set ecal [format %.6f [rshm elbow_angle_cal]]
+
+	$w.xy configure -text "x = $x, y = $y" -font {Helvetica -24}
+	$w.deg configure -text "sdeg = $sdeg, edeg = $edeg" -font {Helvetica -24}
+	$w.off configure -text "soff = $scal, eoff = $ecal" -font {Helvetica -24}
+
+	cd $ob(cwd)
+
+	after 200 [list tick $w]
+}
+
+set w ""
+bind . <Key-l> "$w.b_load invoke"
+bind . <Key-r> "$w.b_run invoke"
+bind . <Key-q> "$w.b_quit invoke"
+
+init

@@ -1,0 +1,12 @@
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+start_rtl
+after 1000
+every 1000 {
+	puts "[rshm sec] [rshm adcvolts 8]"
+}
+vwait done

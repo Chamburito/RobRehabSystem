@@ -1,0 +1,213 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# run a damping controller
+# you can modify the damping with wshm damp 10.0 or whatever.
+# or by hand with ./shm.
+
+# if vex is already running, then just star/stop shm, not lkm or loop.
+
+# note that a .lf (loopfix) file is created by wrefloop/loopfix
+
+# if this dies, run: # pkill wrefloop
+# to kill the loop that feeds reference data to the controller
+
+global ob
+
+# set up the log file name
+
+proc logsetup {name} {
+    global ob
+
+    set curtime [clock seconds]
+    set datestamp [clock format $curtime -format "%Y%m%d_%a"]
+    set timestamp [clock format $curtime -format "%H%M%S"]
+    set fn $name.$timestamp.dat
+    set baselogdir $::env(LOG_HOME)
+    set logdir [file join $baselogdir $datestamp]
+    file mkdir $logdir
+    set ob(logf) [file join $logdir $fn]
+}
+
+proc done {} {
+	global ob
+	if {[info exists ob(saverefpid)]} {
+		puts "stopping wrefloop, pid $ob(saverefpid)"
+		exec kill $ob(saverefpid)
+	}
+	after 100
+
+	stop_movebox 0
+
+	wshm nref 0
+
+	if {[info exists ob(logging)]} {
+	if {$ob(logging)} {
+	    puts "stopping log $ob(logf)"
+	    stop_log
+	    after 100
+	}
+	}
+	stop_loop
+	stop_shm
+
+	# give it time to exit
+	after 1000
+
+	puts "unloading robot kernel module"
+	stop_lkm
+	puts "done"
+	exit
+}
+
+set ::donevar 0
+
+proc loop {} {
+	checkfault
+	after 100 loop
+	if {$::donevar > 0} {done}
+}
+
+proc bgerror {mes} {
+	puts "\nerror: $mes"
+	done
+}
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+cd $ob(crobhome)/tools
+
+set ob(nlog) 18
+set ob(ankle_pt_ctl) 15
+
+# Added line below, 10/17/06, 3:00PM
+set ob(ankle_ctl) 8
+set ob(reffnid) 1
+
+puts "loading robot kernel module"
+start_lkm
+start_shm
+start_loop
+
+wshm no_safety_check 1
+after 200
+
+if {[rshm paused]} {
+	checkfault
+	puts "hit enter to exit"
+	gets stdin in
+	done
+}
+
+wshm logfnid 9
+wshm reffnid $ob(reffnid)
+
+puts "to zero encoders, hit y, else enter."
+gets stdin in
+
+if {$in == "y"} {
+    puts "zeroing encoders"
+    wshm pcienc_zero 1
+    after 200
+}
+
+logsetup ankle
+
+set reffilename $ob(logf)
+
+
+if {[rshm paused]} {
+	checkfault
+	puts "hit enter to exit"
+	gets stdin in
+	done
+}
+
+after 200
+
+# Added 3 lines below : 10/17/06, 2:50PM, allow use of anscales during record
+set x [rshm ankle_ie_pos]
+set y [rshm ankle_dp_pos]
+# movebox 0 $ob(ankle_ctl) {0 200 1} {$x $y 0 0} {0 0 0 0}
+
+puts "writing ref logfile $reffilename $ob(nlog) items,"
+puts "to start logging, hit enter."
+gets stdin in
+
+if {$in == "q"} {
+	done
+}
+
+start_log $reffilename $ob(nlog)
+set t1 [clock clicks -milliseconds]
+# log for at least one second
+after 1000
+puts "to stop logging, hit enter."
+gets stdin
+stop_log
+after 200
+
+set t2 [clock clicks -milliseconds]
+set tdiff [expr {$t2 - $t1}]
+set rows [lindex [exec ./datinfo $reffilename | grep logrows] 2]
+puts "logging ran for $tdiff ms, wrote $rows samples."
+if {$rows < 10} {
+	puts "only got $rows samples, exiting"
+	done
+}
+
+# exec ./display &
+
+puts "exec ./gpan.tcl $reffilename &"
+exec ./gpan.tcl $reffilename &
+
+after 200
+puts "sending reffile $reffilename through reffn $ob(reffnid) to ctl $ob(ankle_pt_ctl),"
+puts "to start reference control, hit enter."
+puts "to start new logger then reference control, hit y, then enter."
+gets stdin in
+
+set ob(logging) no
+if {$in == "y"} {
+
+    # ankle playback
+    logsetup ankle_pb
+
+    puts "writing playback logfile $ob(logf) $ob(nlog) items,"
+    start_log $ob(logf) $ob(nlog)
+
+    set ob(logging) yes
+
+}
+
+wshm nref $ob(nlog)
+
+wshm no_safety_check 0
+after 100
+
+# run the reference point controller, until stopped.
+movebox 0 $ob(ankle_pt_ctl) {0 1 0} {0 0 0 0} {0 0 0 0} 
+
+after 200
+puts "running wrefloop, ^C and cleanup to exit (for now)"
+
+set ob(saverefpid) [ exec ./wrefloop $reffilename &]
+
+after 200
+puts "to stop reference control, hit enter."
+
+set ::donevar 0
+fileevent stdin readable [list set ::donevar 1]
+
+loop
+
+vwait ::donevar
+
+# done may be called by hitting newline or if fault occurs
+done

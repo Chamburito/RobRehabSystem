@@ -1,0 +1,64 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+if {[is_lkm_loaded]} {
+	set lkm_already_loaded 1
+	puts "linux kernel module was already loaded."
+} else {
+	set lkm_already_loaded 0
+	puts "loading linux kernel module."
+	start_lkm
+}
+start_shm
+
+start_loop
+after 100
+
+set x 0.0
+set y 0.0
+
+puts "place stalk on calibration block, then hit enter"
+gets stdin
+wshm isaenc_zero 1
+
+puts "wrist point controller home to ($x,$y), hit enter to start"
+gets stdin
+
+wcenter $x $y
+
+movebox 1 0 {0 1 0} {0 0 0 0} {0 0 0 0}
+after 100
+movebox 0 7 {0 1 0} {0 0 0 0} {0 0 0 0}
+
+wshm slot_max 2
+
+puts "hit enter to stop"
+gets stdin
+
+puts "moving wrist robot to rest position"
+wdone
+
+if {!$lkm_already_loaded} {
+    puts "unloading linux kernel module"
+    stop_loop
+    stop_shm
+    stop_lkm
+} else {
+    stop_shm
+    puts "not unloading linux kernel module"
+}
+

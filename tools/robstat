@@ -1,0 +1,51 @@
+#! /bin/sh
+
+# get status of robot resources
+
+# echo the headers that the basic status progs print,
+# because we filter them out when grepping (except for lsof)
+
+if [ ! -e $IMT_CONFIG/current_robot ]; then
+	echo file $IMT_CONFIG/current_robot does not exist.
+	exit 1
+fi
+
+echo Application version:
+ls -l /opt/imt/robot
+echo
+
+echo Current Robot Type: `cat $IMT_CONFIG/current_robot`
+echo
+
+echo IMT Environment Variables:
+for i in CROB_HOME LGAMES_HOME X3DGAMES_HOME I18N_HOME \
+PROTOCOLS_HOME ROBOT_HOME THERAPIST_HOME LOG_HOME IMT_CONFIG; do
+echo $i=`eval echo \\$"$i"`
+done
+echo
+
+echo Loaded Devices:
+cat /proc/devices | grep -E "powerdaq|pci4e|rtpipe"
+echo
+
+echo Open Files:
+# lsof prints a goofy warning that we grep out.
+lsof -c robot -c shm -c iofifo -c rwarp -c cat 2>&1 |
+	grep -E -v "ext3 file system|may be incomplete"
+echo
+
+echo Running Processes:
+echo "UID        PID  PPID  C STIME TTY          TIME CMD"
+ps -ef | grep -w -i -E 'robot|shm|ififo|rwarp|cat' | grep -v grep
+echo
+
+echo Loaded Kernel Modules:
+echo "Module                  Size  Used by"
+lsmod | grep -i -E 'xeno_|pwrdaq|pci4e'
+echo
+
+echo Allocated Shared Memory:
+echo "key        shmid      owner      perms      bytes      nattch     status"
+# 44455246 is the UEI powerdaq shm area
+# 494D543[1-4] are the IMT shm areas
+ipcs -m | grep -i -E '44455246|494D543|494D544'

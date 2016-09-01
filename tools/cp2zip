@@ -1,0 +1,25 @@
+#! /bin/sh
+
+# copy all files in /home/imt/therapist/place to /mnt/zip/therapist/place
+
+# sometimes it's called /mnt/zip, sometimes /mnt/zip250.0
+
+case $1 in
+/home/imt/*)
+dir=`echo $1 | sed s/^.home.imt.//`
+cd /home/imt/
+;;
+*)
+dir=$1
+;;
+esac
+
+ZIP=`echo /mnt/zip* | cut -f1`
+echo mounting $ZIP
+mount $ZIP
+sleep 1
+echo cp -a --parents $dir $ZIP
+cp -a --parents $dir $ZIP
+sleep 1
+umount $ZIP
+echo copy to zip done

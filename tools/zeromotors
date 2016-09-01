@@ -1,0 +1,34 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# zeromotors
+# may be good to run this with in the background during startup
+# to assure that there are no residual voltages on robot motors.
+
+# start_lkm is enough, because the lkm starts the control loop paused,
+# which calls write_zero_torques().
+# no need to call start_shm or start_loop.
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+if {[is_lkm_loaded]} {
+	puts "linux kernel module is already loaded, exit."
+	exit 1
+}
+
+start_lkm
+after 100
+stop_lkm
+
+exit 0
+

@@ -1,0 +1,15 @@
+#! /bin/sh
+
+# convert all .dat files in a dir to .asc
+
+cd $1
+for i in *.dat
+do
+	if [ $i = '*.dat' ]; then
+		echo no .dat files in $1
+		break
+	fi
+	BASE=`basename $i .dat`
+	echo $CROB_HOME/ta.tcl $i
+	$CROB_HOME/ta.tcl $i > $BASE.asc
+done

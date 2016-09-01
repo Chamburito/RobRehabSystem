@@ -1,0 +1,44 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+puts "loading linux kernel module."
+# start_lkm
+start_shm
+
+wshm ft_flip 1
+after 100
+wshm ft_dobias 1
+after 100
+wshm sin_amplitude 3.0
+wshm logfnid 10
+wshm nlog 9
+
+foreach i {2 4 6 8 10 12 14 16 18 20} {
+	set p [expr {1.0 / $i}]
+	puts "period $i Hz = $p"
+	wshm sin_amplitude 3.0
+	wshm sin_period $p
+	after 2000
+	wshm sin_amplitude 0.0
+	after 1000
+}
+
+wshm nlog 0
+after 100
+
+puts "unloading linux kernel module"
+stop_shm

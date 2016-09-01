@@ -1,0 +1,348 @@
+#! /usr/bin/tclsh
+
+# todo: loop reading the state of xym, and set the bg of the buttons
+# if the bits are set
+
+package require Tk
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/tools/modbus.tcl
+
+# button bg
+# option add *Button.activeBackground 
+
+option add *Checkbutton.selectColor green
+
+# ===
+
+proc lreverse list {
+    set res {}
+    set i [llength $list]
+    while {$i > 0} {lappend res [lindex $list [incr i -1]]}
+    set res
+ } ;# RS
+
+proc do_write_plc {str} {
+	if {![info exists ::ob(plcfd)]} {
+		error "plc not open"
+	}
+	set sum [calclrc $str]
+	set str "$str $sum"
+
+	set ::ob(toplc) "To PLC: $str"
+
+	# puts "do_write_plc: $str"
+
+	set str [rmnonhex $str]
+	set str ":$str"
+
+	write_plc $::ob(plcfd) $str
+
+	after 100
+}
+
+proc do_read_plc {} {
+	if {![info exists ::ob(plcfd)]} {
+		error "plc not open"
+	}
+	set ret ""
+	set ret [read_plc $::ob(plcfd)]
+
+	# convert ":abcdef\n" to "ab cd ef "
+
+	set ret [rmnonhex $ret]
+	set ret [insblanks $ret]
+
+	# note, errocode is first token of data.
+	foreach {slave cmd errcode data cksum} [parse_mb_str $ret] break
+
+	do_check_read_plc $cmd $errcode
+
+	if {![checklrcisok $ret]} { error "Command returned bad checksum, $ret" }
+
+	# puts "do_read_plc: $ret"
+
+	return $ret
+}
+
+# ==================================================
+
+proc do_read_coil_status {addr len} {
+	set str [gen_read_coil_status $addr $len]
+	do_write_plc $str
+	set ret [do_read_plc]
+	do_print_mb_ret_list $ret
+	foreach {slave cmd count data cksum} [parse_mb_str $ret] break
+	puts "count $count data <$data> cksum $cksum"
+	puts ""
+}
+
+proc ret_read_input_status {addr len} {
+	set str [gen_read_input_status $addr $len]
+	do_write_plc $str
+	set ret [do_read_plc]
+	foreach {slave cmd count data cksum} [parse_mb_str $ret] break
+	return $data
+}
+
+proc do_read_input_status {addr len} {
+	set str [gen_read_input_status $addr $len]
+	do_write_plc $str
+	set ret [do_read_plc]
+	do_print_mb_ret_list $ret
+	foreach {slave cmd count data cksum} [parse_mb_str $ret] break
+	puts "count $count data <$data> cksum $cksum"
+	puts ""
+}
+
+proc do_read_holding_register {addr words} {
+	set str [gen_read_holding_register $addr $words]
+	do_write_plc $str
+	set ret [do_read_plc]
+	do_print_mb_ret_list $ret
+	foreach {slave cmd count data cksum} [parse_mb_str $ret] break
+	puts "count $count data <$data> cksum $cksum"
+	puts ""
+}
+
+proc do_force_single_coil {addr len} {
+	set str [gen_force_single_coil $addr $len]
+	do_write_plc $str
+	set ret [do_read_plc]
+	do_print_mb_ret_list $ret
+	foreach {slave cmd count data cksum} [parse_mb_str $ret] break
+	puts "count $count data <$data> cksum $cksum"
+	puts ""
+}
+
+proc do_preset_single_register {addr val} {
+	set str [gen_preset_single_register $addr $val]
+	do_write_plc $str
+	set ret [do_read_plc]
+	do_print_mb_ret_list $ret
+	foreach {slave cmd count data cksum} [parse_mb_str $ret] break
+	puts "count $count data <$data> cksum $cksum"
+	puts ""
+}
+
+proc do_force_multiple_coils {} {
+	set str [gen_force_multiple_coils $::ob(fmc_addr) $::ob(fmc_state)]
+	do_write_plc $str
+	do_read_plc
+}
+
+proc do_preset_multiple_register {} {
+	set str [gen_preset_multiple_register $::ob(pmr_addr) $::ob(pmr_nbits)]
+	do_write_plc $str
+	do_read_plc
+}
+
+proc ret_report_slave_id {} {
+	set str [gen_report_slave_id]
+	do_write_plc $str
+	set ret [do_read_plc]
+	set data [lrange $ret 5 6]
+	# puts "count $count id $id running $run data <$data> cksum $cksum"
+	# puts ""
+	return $data
+}
+
+proc do_report_slave_id {} {
+	set str [gen_report_slave_id]
+	do_write_plc $str
+	set ret [do_read_plc]
+	do_print_mb_ret_list $ret
+	set count [lindex $ret 2]
+	set id [lindex $ret 3]
+	set run [lindex $ret 4]
+	set data [lrange $ret 5 6]
+	set cksum [lindex $ret end]
+	puts "count $count id $id running $run data <$data> cksum $cksum"
+	puts ""
+}
+
+proc mb_cmd_name {cmd} {
+	scan $cmd %x deccmd
+	switch $deccmd {
+	1 {return read_coil_status}
+	2 {return read_input_status}
+	3 {return read_holding_register}
+	5 {return force_single_coil}
+	6 {return preset_single_register}
+	15 {return force_multiple_coils}
+	16 {return preset_multiple_register}
+	17 {return report_slave_id}
+	default {return unknown_command}
+	}
+}
+
+proc do_print_mb_ret_list {mbrlist} {
+	foreach {slave cmd errcode data cksum} [parse_mb_str $mbrlist] break
+	scan $cmd %x deccmd
+	set success 1
+	if {$deccmd >= 0x80} {
+		set success 0
+		incr deccmd -0x80
+	}
+	
+	set namestr [mb_cmd_name $cmd]
+	if {$success} {
+		set sucstr "Command $namestr $cmd succeeded."
+	} else {
+		set sucstr "Command $namestr $cmd failed, code $errcode"
+	}
+	puts "Slave $slave $sucstr"
+}
+	
+
+
+# ==================================================
+
+proc quit {} {
+	do_close_plc
+	exit
+}
+
+# the commands are returned as dd cc bb aa
+# we want aabbccdd
+
+proc jrev list {
+    join [lreverse $list] ""
+}
+
+proc do_read {} {
+    global ob
+    do_open_plc
+
+    set ret [ret_report_slave_id]
+    set ob(plc,id) [join $ret ""]
+    # puts "id $ob(plc,id)"
+
+    .lreading config -text reading
+    update idletasks
+    foreach i {x y m} {
+	set ret [ret_read_input_status ${i}0 32]
+	set ob(plc,$i) [jrev $ret]
+	# puts "$i $ob(plc,$i)"
+    }
+    .lreading config -text ""
+
+    do_close_plc
+}
+
+proc do_walk {} {
+    global ob
+    foreach i {x y m} {
+	scan $ob(plc,$i) %x n
+	for {set j 0} {$j < 32} {incr j} {
+	    set bj [format %2.2o $j]
+	    if {$n & 1} {
+		# puts "$i bit $bj is set"
+		but_on .b$i$bj
+	    } else {
+		but_off .b$i$bj
+	    }
+	    set n [expr {$n >> 1}]
+	}
+    }
+}
+
+# ===
+proc cb_command {} {
+	global ob
+	if {$ob(setcb)} {
+	    foreach w $ob(buttlist) {$w config -activebackground darkseagreen1}
+	    foreach w $ob(buttlist) {$w config -activeforeground black}
+	} else {
+	    foreach w $ob(buttlist) {$w config -activebackground gray40}
+	    foreach w $ob(buttlist) {$w config -activeforeground white}
+	}
+}
+
+proc do_grid {} {
+    global arr ob
+
+    button .bquit -text Quit -command do_quit
+    grid .bquit -row 0 -column 0
+
+    # if the set checkbox is green, left-click sets the bit.
+    # if the set checkbox is not, left-click clears the bit.
+    # the state of this checkbox changes the activebackground of the buttons
+    # as a further indicator.
+    checkbutton .cbset -text Set -variable ::ob(setcb) -command cb_command
+    grid .cbset -row 0 -column 1
+
+    label .lreading -text ""
+    grid .lreading -row 0 -column 2
+
+    set nrow 1
+    set rowoff 1
+
+    set ob(buttlist) {}
+
+    foreach type {x y m} {
+	label .l$type
+	grid .l$type -row $nrow -column 0
+
+	foreach j {0 1 2 3} {
+	    foreach i {0 1 2 3 4 5 6 7} {
+		set arr(btext,"${type}${j}${i}") $type$j$i
+		set arr(cmd,"${type}${j}${i}") [list but_cmd ${type}${j}${i}"]
+		button .b${type}${j}${i} -width 5 \
+		    -text $arr(btext,"${type}${j}${i}") \
+		    -command $arr(cmd,"${type}${j}${i}") \
+		    -activebackground gray40 -activeforeground white
+		lappend ob(buttlist) .b${type}${j}${i}
+		set nrow [expr {$rowoff + $j + 1}]
+		grid .b${type}${j}${i} -row $nrow -column $i
+	    }
+	}
+	incr rowoff 5
+	incr nrow
+    }
+    .lx config -text "x Inputs"
+    .ly config -text "y Outputs"
+    .lm config -text "m Memory"
+}
+
+proc but_on {but} {
+	$but config -bg green -fg black
+}
+
+proc but_off {but} {
+	$but config -bg black -fg white
+}
+
+proc but_cmd {but} {
+    set type [string index $but 0]
+    set onum [string range $but 1 2]
+    scan $onum %o dnum
+    set xnum [format %2.2x $dnum]
+    do_open_plc
+puts "type $type xnum $xnum"
+    if {$::ob(setcb)} {
+	do_force_single_coil $type$xnum 1
+    } else {
+	do_force_single_coil $type$xnum 0
+    }
+    do_close_plc
+}
+
+proc do_quit {} {
+    quit
+}
+
+proc do_get {} {
+    do_read
+    do_walk
+}
+
+do_grid
+
+proc do_loop {} {
+    catch do_get ret
+    after 1000 do_loop
+}
+
+do_loop

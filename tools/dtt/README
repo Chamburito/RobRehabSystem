@@ -1,0 +1,42 @@
+Mon Jan 12 15:26:04 EST 2009
+
+Help for dat_to_text program
+
+dat_to_text converts a directory tree full of IMT binary (.dat)
+files to plaintext (.asc) format.  The .asc format is suitable
+for reading with Excel or Matlab.
+
+dat_to_text creates a "mirror" directory structure in the current
+folder.
+
+For example, if you start in /home/imt and there was a file called:
+
+  /home/imt/therapist/test/eval/20070314_Wed/round_dyn_2d_121409_Sb5.dat
+
+it will write a new file called:
+
+  /home/imt/mirror/therapist/test/eval/20070314_Wed/round_dyn_2d_121409_Sb5.asc
+
+Usually, you want to cd to /home/imt (or wherever your home
+folder is) and run $CROB_HOME/tools/dtt/dat_to_text, asking it to
+convert the therapist folder.  
+
+You need to specify that you want all files newer than X days.
+If you want all files, try 9999, which is more than 25 years in
+days.
+
+Example run:
+
+imt@imt:~$ $CROB_HOME/tools/dtt/dat_to_text 
+Convert dat files to plaintext.
+
+directory to convert: therapist
+newer than X days: 9999
+
+The dat_to_text program will start printing names of new files:
+
+writing mirror/therapist/test/eval/20070314_Wed/round_dyn_2d_121409_Sb5.asc
+writing mirror/therapist/test/eval/20070314_Wed/round_dyn_2d_121409_SWt6.asc
+etc.
+
+When it's finished, it will print --done--

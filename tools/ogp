@@ -1,0 +1,28 @@
+# gp - gnuplot wrapper
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+CROB=$CROB_HOME
+COLS=${1:-7}
+DAT=${2:-/tmp/im.dat}
+ASC=`dirname $DAT`/`basename $DAT .dat`.asc
+
+$CROB/ta.tcl $COLS $DAT > $ASC
+TMP=/tmp/gp/link.asc
+trap "rm -rf /tmp/gp" EXIT
+ln -s $ASC $TMP/link.asc
+gnuplot -persist << "EOF"
+set size square
+set data style lines
+set xrange [-.2:.2]
+set yrange [-.2:.2]
+set xzeroaxis
+set yzeroaxis
+set grid
+plot '/tmp/gp/link.asc' u 2:3
+EOF

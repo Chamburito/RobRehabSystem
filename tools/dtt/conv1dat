@@ -1,0 +1,14 @@
+#! /bin/sh
+
+# convert one file:
+
+# 1) make mirror/dir/x.asc name from dir/x.dat name
+
+base=`basename $1 .dat`
+dir=`dirname $1`
+
+# 2) convert dir/x.dat to mirror/dir/x.asc
+
+echo writing mirror/${dir}/$base.asc
+mkdir -p mirror/${dir}
+$CROB_HOME/ta.tcl $1 > mirror/${dir}/$base.asc

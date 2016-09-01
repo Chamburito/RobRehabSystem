@@ -1,0 +1,79 @@
+#! /bin/sh
+
+# copy a directory to a CDROM,
+# make an ISO, copy and check.
+
+# make sure /etc/cdrecord.conf is set up to default to the right place.
+# if you have a lite-on 24x/10x/40x drive, it should have a line
+# at the bottom like this:
+
+#	liteon=         0,0,0   24      -1      burnproof
+
+
+# for debugging
+# set -x
+
+TMP=/tmp/cback$$
+DIR=$1
+TDIR=$TMP
+
+# delete temp files on exit
+trap "rm -rf /tmp/cback$$" EXIT
+
+# with echo for debugging
+# trap "echo rm -rf /tmp/cback$$" EXIT
+
+function bail () {
+	echo $1
+	exit 1
+}
+
+CWD=`pwd`
+# make tmp dir and mount point
+mkdir -p /tmp/cback$$/mnt
+# make iso from dir
+dname=`dirname $DIR`
+bname=`basename $DIR`
+
+# or perhaps put the files in a tgz first?
+# cd $dname
+# tar cvfz $TMP/$bname.tgz $DIR
+# mkisofs -quiet -r -o $TMP/iso $TMP/$bname.tgz
+# cd $CWD
+
+mkisofs -quiet -r -V $bname -o $TMP/iso $DIR
+
+# mount disk iso in loop mode
+# mount -o loop $TMP/iso $TMP/mnt
+# see if the disk iso matches files
+# diff -r $TMP/mnt $DIR || bail 'bad disk iso'
+# unmount disk iso
+# umount $TMP/mnt
+
+# burn the iso to a cdrom
+date >> $TMP/cdr.out
+
+echo "burning backup cdrom for $bname ..."
+# take out the -dummy when ready
+# cdrecord -dummy dev=cdrom $TMP/iso >> $TMP/cdr.out 2>&1
+cdrecord dev=cdrom $TMP/iso >> $TMP/cdr.out 2>&1
+
+date >> $TMP/cdr.out
+
+sleep 5
+
+# must be ejected before remount (?)
+eject cdrom
+
+# mount the cdrom as a filesystem
+mount /mnt/cdrom
+sleep 5
+
+# see if the cdrom file matches the file on disk
+diff -r /mnt/cdrom/ $DIR || bail 'bad cdrom iso'
+
+# do this, if you don't want to look.
+# umount /mnt/cdrom
+# eject cdrom
+
+echo "backup cdrom for $bname done."

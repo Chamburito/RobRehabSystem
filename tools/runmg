@@ -1,0 +1,10 @@
+cd $CROB_HOME/tools
+# if anything is running, kill it quietly.
+$CROB_HOME/stop > /dev/nul1
+# kill other instances of cg.tcl
+pkill -f "./mousegames"
+echo
+date
+echo runmg: starting mousegames from $PWD
+./mousegames
+

@@ -1,0 +1,86 @@
+#!/usr/bin/wish
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+package require Tk
+
+# we are not using the root window, so hide it
+wm withdraw .
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+use_wrist
+
+if {[is_lkm_loaded]} {
+	set lkm_already_loaded 1
+	puts "linux kernel module was already loaded."
+} else {
+	set lkm_already_loaded 0
+	puts "loading linux kernel module."
+	start_lkm
+}
+start_shm
+
+wshm no_safety_check 1
+wshm no_motors 1
+start_loop
+after 100
+
+# turn off plc cal bit, will only be turned on if the cal succeeds.
+exec $::ob(crobhome)/tools/plc set-cal-dis
+
+set x 0.0
+set y 0.0
+
+tk_messageBox -title "Place Stalk"  -message "Place stalk on calibration block then hit OK to center"
+# gets stdin
+wshm wrist_aa_offset 0.0
+wshm isaenc_zero 1
+wshm pcienc_zero 1
+
+wshm no_safety_check 0
+wshm no_motors 0
+after 100
+
+# good cal, turn on plc cal bit
+exec $::ob(crobhome)/tools/plc set-cal-en
+
+# tk_messageBox -title Home -message "Robot centers to ($x,$y)"
+# gets stdin
+
+# wcenter $x $y
+
+movebox 1 0 {0 1 0} {0 0 0 0} {0 0 0 0}
+after 100
+movebox 0 7 {0 1 0} {0 0 0 0} {0 0 0 0}
+
+wshm slot_max 2
+
+tk_messageBox -title Done -message "Remove block, then hit OK to lower robot to rest position"
+# gets stdin
+
+puts "moving wrist robot to rest position"
+wdone
+
+if {!$lkm_already_loaded} {
+    puts "unloading linux kernel module"
+    stop_loop
+    stop_shm
+    stop_lkm
+} else {
+    stop_shm
+    puts "not unloading linux kernel module"
+}
+
+exit

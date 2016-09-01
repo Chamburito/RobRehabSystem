@@ -1,0 +1,163 @@
+#! /bin/bash
+
+# if SMR_DEBUG is yes, just generate report file, don't print or ftp.
+
+PRINTER=hp4345
+
+u=`id -u`
+if [ "$u" != 0 ]; then
+         echo "user is $u, must be 0 (root).  Run as \"sudo $0\""
+         exit 1
+fi
+
+if [ "$IMT_CONFIG" == "" ]; then
+         echo "IMT_CONFIG is not set, please make sure imt.rc has been sourced."
+         exit 1
+fi
+
+if [ -e /etc/dhcp3/dhclient.conf.imt ]; then
+         echo "seems crob/tools/name has been run, should unname before shipping"
+	 echo -n "Continue? [y/N] "
+	 read RESPONSE
+	 if [ ! "$RESPONSE" == "y" ]; then
+                exit 1
+         fi
+fi
+
+echo -n Loading robot control loop...
+$CROB_HOME/go
+echo done.
+
+echo -n Generating report...
+
+head -c 32 /dev/urandom | md5sum | head -c 5 > /tmp/$$
+FILE_DIRECTORY=/root/imt
+SHORT_FILE_NAME=machine_report_`date +%Y%m%d`-`cat /tmp/$$`
+FILE_NAME=$FILE_DIRECTORY/$SHORT_FILE_NAME
+rm /tmp/$$
+
+echo -n > $FILE_NAME
+echo -n Machine Report for >> $FILE_NAME
+for ROBOT in `ls $IMT_CONFIG/robots` ;
+  do
+  grep 'Calibration file for' $IMT_CONFIG/robots/$ROBOT/imt2.cal | sed -e 's/# Calibration file for://' >> $FILE_NAME
+done
+echo `date` >> $FILE_NAME
+echo >> $FILE_NAME
+
+echo Contents >> $FILE_NAME
+echo >> $FILE_NAME
+echo " 1. Disk" >> $FILE_NAME
+echo " 2. RAM" >> $FILE_NAME
+echo " 3. CPU" >> $FILE_NAME
+echo " 4. CD-ROM" >> $FILE_NAME
+echo " 5. MAC Address" >> $FILE_NAME
+echo " 6. PowerDAC Cards" >> $FILE_NAME
+echo " 7. PCI Info" >> $FILE_NAME
+echo " 8. uname -a" >> $FILE_NAME
+echo " 9. Install History" >> $FILE_NAME
+echo "10. Application Version" >> $FILE_NAME
+echo "11. imt2.cal files" >> $FILE_NAME
+echo >> $FILE_NAME
+echo >> $FILE_NAME
+echo >> $FILE_NAME
+echo "1. Disk" >> $FILE_NAME
+echo "=======" >> $FILE_NAME
+echo >> $FILE_NAME
+smartctl -a -d ata `df / | grep dev | head -c 12` | grep Model >> $FILE_NAME
+smartctl -a -d ata `df / | grep dev | head -c 12` | grep Family >> $FILE_NAME
+smartctl -a -d ata `df / | grep dev | head -c 12` | grep Serial >> $FILE_NAME
+smartctl -a -d ata `df / | grep dev | head -c 12` | grep Firmware >> $FILE_NAME
+smartctl -a -d ata `df / | grep dev | head -c 12` | grep 'User Capacity' >> $FILE_NAME
+echo >> $FILE_NAME
+echo "2. RAM" >> $FILE_NAME
+echo "======" >> $FILE_NAME
+echo >> $FILE_NAME
+cat /proc/meminfo | head -n1 >> $FILE_NAME
+echo >> $FILE_NAME
+echo "3. CPU" >> $FILE_NAME
+echo "======" >> $FILE_NAME
+echo >> $FILE_NAME
+cat /proc/cpuinfo >> $FILE_NAME
+echo -n "" >> $FILE_NAME
+echo "4. CD-ROM" >> $FILE_NAME
+echo "=========" >> $FILE_NAME
+echo >> $FILE_NAME
+sudo cdrecord dev=ATAPI -scanbus 2>&1 | grep '[0-9],[0-9],[0-9]' >> $FILE_NAME
+echo >> $FILE_NAME
+echo "5. MAC Address" >> $FILE_NAME
+echo "==============" >> $FILE_NAME
+echo >> $FILE_NAME
+ifconfig eth0 | grep HWaddr >> $FILE_NAME
+echo >> $FILE_NAME
+echo "6. PowerDAC Cards" >> $FILE_NAME
+echo "=================" >> $FILE_NAME
+echo >> $FILE_NAME
+cat /proc/pwrdaq >> $FILE_NAME
+echo -n "" >> $FILE_NAME
+echo "7. PCI Info" >> $FILE_NAME
+echo "===========" >> $FILE_NAME
+echo >> $FILE_NAME
+# lspci >> $FILE_NAME
+# echo >> $FILE_NAME
+# lshw -short seems better for this
+/usr/sbin/lshw -short >> $FILE_NAME 2> /dev/null
+echo >> $FILE_NAME
+echo "8. uname -a" >> $FILE_NAME
+echo "===========" >> $FILE_NAME
+echo >> $FILE_NAME
+uname -a >> $FILE_NAME
+echo -n "" >> $FILE_NAME
+echo "9. Install History" >> $FILE_NAME
+echo "==================" >> $FILE_NAME
+echo >> $FILE_NAME
+cat /root/imt/imt-install-info >> $FILE_NAME
+echo -n "" >> $FILE_NAME
+echo "10. Applcation Version" >> $FILE_NAME
+echo "==================" >> $FILE_NAME
+echo >> $FILE_NAME
+ls -l /opt/imt >> $FILE_NAME
+echo -n "" >> $FILE_NAME
+echo "11. imt2.cal files" >> $FILE_NAME
+echo "==================" >> $FILE_NAME
+echo >> $FILE_NAME
+for ROBOT in `ls $IMT_CONFIG/robots` ;
+  do
+  echo $ROBOT imt2.cal >> $FILE_NAME
+  echo ---------------------------- >> $FILE_NAME
+  echo >> $FILE_NAME
+  cat $IMT_CONFIG/robots/$ROBOT/imt2.cal >> $FILE_NAME
+  echo >> $FILE_NAME
+  echo >> $FILE_NAME
+  done
+echo >> $FILE_NAME
+echo >> $FILE_NAME
+echo >> $FILE_NAME
+echo >> $FILE_NAME
+echo >> $FILE_NAME
+echo End $FILE_NAME >> $FILE_NAME
+echo done.
+
+echo -n Unloading robot control loop.
+$CROB_HOME/stop
+echo done.
+
+if [ "$SMR_DEBUG" != "yes" ]; then
+  echo -n Sending to printer...
+  # cat $FILE_NAME | sed 's/$/\r/' | pr -l 60 -h $SHORT_FILE_NAME | /bin/nc -w 1 $PRINTER 9100
+  cat $FILE_NAME | sed 's/$/\r/' | /bin/nc -w 1 $PRINTER 9100
+  echo done.
+
+  echo -n Sending file to down...
+  ftp -in <<EOF
+  open down
+  user ftp-box wonder-eclipse-airline
+  lcd $FILE_DIRECTORY
+  put $SHORT_FILE_NAME
+EOF
+  echo done.
+else
+  echo SMR_DEBUG set, no ftp or print.
+fi
+
+echo Report saved as $FILE_NAME

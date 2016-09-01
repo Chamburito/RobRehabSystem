@@ -1,0 +1,88 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2009 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# ceacenter - calibrate ce ankle robot
+
+package require Tk
+
+wm withdraw .
+
+font create default -family Times -size -18
+option add *font default
+
+global ob
+
+proc tksleep {time} {
+	after $time set ::tksleep_end 1
+	vwait ::tksleep_end
+}
+
+set ob(crobhome) $::env(CROB_HOME)
+source $ob(crobhome)/shm.tcl
+
+# start the Linux Kernel Modules, shared memory, and the control loop
+# puts "loading linux kernel module"
+if {[is_lkm_loaded]} {
+	puts "lkm already loaded, exiting."
+	exit 1
+} else {
+	start_lkm
+}
+
+start_shm
+
+tksleep 100
+
+wshm ankle_stiff 50.0
+wshm ankle_damp 1.0
+
+# start in open loop mode
+wshm test_raw_torque 1
+# no damping zone
+wshm no_safety_check 1
+
+# check that this is an ankle
+
+set ob(have_ankle) 0
+set ob(have_ankle) [rshm have_ankle]
+
+start_loop
+
+# sleep for .1 sec, gives robot chance to start
+tksleep 100
+
+# turn off plc cal bit, will only be turned on if the cal succeeds.
+exec $::ob(crobhome)/tools/plc set-cal-dis
+
+tk_messageBox -title Succeeded -message "Stand at calibration point, then press OK."
+
+# zero encoders
+
+wshm pcienc_zero 1
+tksleep 100
+
+# good cal, turn on plc cal bit
+exec $::ob(crobhome)/tools/plc set-cal-en
+
+wshm test_raw_torque 0
+
+tksleep 100
+
+# planar
+movebox 0 8 {0 1 0} {0 0 0 0} {0 0 0 0}
+
+tksleep 100
+
+tk_messageBox -title Succeeded -message "Good Calibration"
+
+# puts "unloading linux kernel module"
+
+stop_loop
+stop_shm
+stop_lkm
+
+exit 0

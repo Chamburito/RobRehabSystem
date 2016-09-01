@@ -1,0 +1,221 @@
+#! /usr/bin/wish
+# mon - monitor all variables in imt shared memory
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+set ob(scdir) /proc/sys/kernel/imt
+set ob(cwd) [pwd]
+set ob(savedatpid) 0
+set ob(loaded) 0
+set ob(running) 0
+set ob(warp_ticking) 0
+set ob(ticking) 0
+set ob(havegrid) 0
+set ob(lastx) 0
+set ob(lasty) 0
+
+# set up monitor window
+
+proc init {} {
+	global fd data ob
+
+	button .b_load -text load -command b_load_proc -bg green
+	button .b_run -text run -command b_run_proc -bg red -state disabled
+	button .b_plot -text plot -command b_plot_proc
+	button .b_quit -text quit -command b_quit_proc -bg red
+
+	frame .f -width 250 -height 250
+
+        grid .b_load
+        grid .b_run
+        grid .b_plot
+        grid .b_quit
+	grid .f
+
+}
+
+# make grid - do this once.
+# robot module must already be loaded
+# so we can get sysctl vars.
+
+proc make_grid {w} {
+	global ob data
+
+	if { ! $ob(havegrid) } {
+		set ob(havegrid) 1
+		grid $w
+
+		# handle sysctl vars
+		# cd $ob(scdir)
+		foreach i {i samplenum sec x y adcvolts} {
+			set data($i) ""
+			label $w.l$i -text $i
+			entry $w.e$i -textvariable data($i)
+			grid $w.l$i $w.e$i
+		}
+		# cd $ob(cwd)
+	}
+
+	.b_run config -state normal -bg green
+
+}
+
+# tick updates the grid periodically
+# while the module is loaded.
+
+proc tick {} {
+	global ob data
+
+	if {! $ob(ticking)} return
+
+	# cd $ob(scdir)
+	foreach i {i samplenum sec x y adcvolts} {
+		# if [file isdirectory $i] continue
+		set data($i) [rshm $i]
+	}
+	# cd $ob(cwd)
+
+	after 100 tick
+}
+
+# b_quit_proc called when quit button is pressed
+
+proc b_quit_proc {} {
+
+	# puts "called quit"
+	b_unload_proc
+	after 1000 exit
+}
+
+# b_load_proc called when load button is pressed
+
+proc b_load_proc {} {
+	global ob
+
+	# puts "called load"
+	if {$ob(loaded)} {
+		puts "load: already loaded"
+		return
+	}
+	cd $ob(cwd)
+	after idle {
+		start_lkm
+		start_shm
+		set ob(loaded) 1
+		make_grid .f
+		set ob(ticking) 1
+		tick
+	}
+	.b_load config -text unload -command b_unload_proc -bg red
+}
+
+# b_unload_proc called when quit button is pressed
+
+proc b_unload_proc {} {
+	global ob
+
+	# puts "called unload"
+
+	if {!$ob(loaded)} {
+		puts "load: already unloaded"
+		return
+	}
+
+	cd $ob(cwd)
+	b_pause_proc
+	set ob(ticking) 0
+	stop_loop
+	stop_shm
+	stop_lkm
+	.b_load config -text load -command b_load_proc -bg green
+	.b_run config -state disabled -bg red
+}
+
+# b_run_proc called when quit button is pressed
+
+proc b_run_proc {} {
+	global ob
+
+	# puts "called run"
+	if {!$ob(loaded)} {
+		puts "run: not yet loaded"
+		return
+	}
+	if {$ob(running)} {
+		puts "run: already running"
+		return
+	}
+	set ob(running) 1
+	start_loop
+	start_log /tmp/im.dat 9
+	set ob(warp_ticking) 1
+	warp_tick
+	.b_run configure -text pause -command b_pause_proc -bg red
+}
+
+# b_pause_proc called when quit button is pressed
+
+proc b_pause_proc {} {
+	global ob
+
+	# puts "called pause"
+	if {!$ob(running)} {
+		puts "pause: already paused"
+		return
+	}
+	# puts "pause: killing $ob(savedatpid)"
+	set ob(running) 0
+	set ob(warp_ticking) 0
+	stop_log
+	pause_loop
+	.b_run configure -text run -command b_run_proc -bg green
+}
+
+# b_plot_proc called when quit button is pressed
+
+proc b_plot_proc {} {
+	global ob
+	exec $ob(crobhome)/cgp /tmp/im.dat > /dev/tty &
+}
+
+# warp_tick have cursor follow arm
+
+proc warp_tick {} {
+	global ob
+
+	if {!$ob(warp_ticking)} return
+
+	set x [rshm x]
+	set y [rshm y]
+
+	set x [expr { int(($x * 1000.) + (1024 / 2)) }]
+	set y [expr { 768 - (int(($y * 1000.) + (768 / 2))) }]
+
+	if {$x != $ob(lastx) || $y != $ob(lasty)} {
+		mouse_warp $x $y
+		set ob(lastx) $x
+		set ob(lasty) $y
+	}
+
+	# puts "warp_tick x $x y $y"
+	after 4 warp_tick
+}
+
+# mouse_warp sent cursor to x,y
+
+proc mouse_warp {x y} {
+	# event generate . <Motion> -warp yes -x $x -y $y
+}
+
+init

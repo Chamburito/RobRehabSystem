@@ -1,0 +1,17 @@
+i=0
+while :
+do
+
+i=`expr $i + 1`
+
+echo -n "go $i: "
+date
+./go
+sleep 1
+
+echo -n "stop: "
+date
+./stop
+sleep 1
+
+done

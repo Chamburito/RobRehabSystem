@@ -1,0 +1,372 @@
+#! /usr/bin/wish
+# display - monitor variables in imt shared memory
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+# for 8.4
+if {[info proc tkTabToWindow] == ""} {
+    proc tkTabToWindow {w} {
+	::tk::TabToWindow $w
+    }
+}
+
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+# where the vars files get stored
+file mkdir $::env(IMT_CONFIG)/varlist
+
+proc arr_init {} {
+global arr
+
+set arr(0,lname) i
+set arr(1,lname) samplenum
+set arr(2,lname) sec
+set arr(3,lname) "adcvolts 0"
+set arr(4,lname) "adcvolts 8"
+set arr(5,lname) x
+set arr(6,lname) y
+}
+
+set ob(dfont) {Helvetica 16 bold}
+
+set ob(savedatpid) 0
+set ob(loaded) 0
+set ob(running) 0
+set ob(ticking) 0
+set ob(havegrid) 0
+set ob(lastx) 0
+set ob(lasty) 0
+
+# set up monitor window
+
+proc init {} {
+	global fd arr ob
+
+	button .b_load -text load -command b_load_proc -bg green
+	button .b_run -text run -command b_run_proc -bg red -state disabled
+	button .b_ftbias -text "ft bias" -command ft_bias
+	button .b_rvars -text "read vars" -command b_read_vars
+	button .b_wvars -text "write vars" -command b_write_vars
+	button .b_quit -text quit -command b_quit_proc -bg red
+	label .dummy1
+
+        grid .b_load .b_run .b_ftbias .b_quit
+        grid .b_rvars .b_wvars
+	grid .dummy1
+	make_grid
+
+	set ob(alreadyloaded) 0
+
+	# already loaded
+	if {[is_lkm_loaded]} {
+		set ob(alreadyloaded) 1
+		tk_messageBox -message "Robot kernel module already loaded."
+		b_load_proc noload
+	}
+
+}
+
+# note!
+# the 1st numeric arg is a value.
+# the second optional arg is a location, which defaults to zero.
+# this is not obvious, but it's cleaner to make the 2nd arg
+# position always mean the same thing. to wshm
+
+# problem is that rshm has 1/2 args, and wshm has 2/3,
+# so 2 args in wshm are different from 2 args in rshm.
+
+# wshm scr 2 3 writes a 2 in scr[3]
+
+proc wshm_but_proc {} {
+	global ob
+	eval wshm $ob(wshm_entry)
+	# puts "eval wshm $ob(wshm_entry)"
+
+}
+
+# zero array
+
+proc zero_arr {} {
+    global arr
+    foreach side {l r} {
+	for {set i 0} {$i < 16} {incr i} {
+	    set arr($i,${side}name) ""
+	    set arr($i,${side}val) ""
+	    # gray, not pink.
+	    color_lab 1.0 $arr($i,${side}lab)
+	}
+    }
+}
+
+# make grid - do this once.
+
+proc make_grid {{w ""}} {
+	global ob arr
+
+	if { ! $ob(havegrid) } {
+	    set ob(havegrid) 1
+
+	    set ob(wshm_entry) ""
+	    entry $w.wshm_entry -textvariable ob(wshm_entry) -bg pink \
+		-font $ob(dfont)
+	    bind $w.wshm_entry <Return> wshm_but_proc
+	    button $w.wshm_button -text "write shm" -bg pink \
+		-command wshm_but_proc
+	    grid $w.wshm_entry $w.wshm_button
+	    # the order of widget creation is important
+	    # to make tabbing work in a nice column-major way
+	    foreach side {l r} {
+		for {set i 0} {$i < 16} {incr i} {
+		    set arr($i,${side}name) ""
+		    set arr($i,${side}val) ""
+		    entry $w.${side}name$i -textvariable arr($i,${side}name) \
+		    -font $ob(dfont)
+bind $w.${side}name$i <Return> [bind all <Tab>]
+bind $w.${side}name$i <Control-Key-c> [list copy_entry %W]
+		    label $w.${side}val$i -textvariable arr($i,${side}val) \
+		    -width 10 -font $ob(dfont)
+		    set arr($i,${side}lab) $w.${side}val$i
+		}
+	    }
+
+
+# last one binds to nothing
+bind $w.rname15 <Control-Key-c> {}
+
+	    for {set i 0} {$i < 16} {incr i} {
+		    grid $w.lname$i $w.lval$i $w.rname$i $w.rval$i
+	    }
+
+	    arr_init
+
+	}
+
+	.b_run config -state normal -bg green
+
+}
+
+# tick updates the grid periodically
+# while the module is loaded.
+
+proc tick {} {
+	global ob arr
+
+	after 100 tick
+
+	if {! $ob(ticking)} return
+	if {! $ob(running)} return
+
+	# if the variable doesn't exist, prepend it with ? and ignore it.
+
+	# checking the focus means we can modify the entries
+	# and the rshm's will not fail on partial names.
+	set focw [focus]
+	    foreach side {l r} {
+	    for {set i 0} {$i < 16} {incr i} {
+		# bad name
+		if {[string index $arr($i,${side}name) 0] == "?"} {
+			set arr($i,${side}val) "..."
+			continue
+		}
+		# in progress
+		if {$focw == ".${side}name$i"} {
+			set arr($i,${side}val) "..."
+			continue
+		}
+		# don't continue past a blank
+		if {$arr($i,${side}name) == ""} {
+			set arr($i,${side}val) ""
+			color_lab 1.0  $arr($i,${side}lab)
+			break
+		}
+
+		set arr($i,${side}val) [eval rshm $arr($i,${side}name)]
+		if {$ob(last_rshm_failed)} {
+			set arr($i,${side}name) "?$arr($i,${side}name)"
+		}
+		color_lab $arr($i,${side}val) $arr($i,${side}lab)
+	    }
+	}
+
+}
+
+# color a label pink if its var is negative
+
+proc color_lab {var lab} {
+    if {$var < 0.0} {
+        $lab configure -bg pink
+    } else {
+        $lab configure -bg #d9d9d9
+    }
+}
+
+# copy current entry to next and tab there
+
+proc copy_entry {w} {
+	set got [$w get]
+	# if there is a 1st arg and it's an int, increment it.
+	set idx [lindex $got 1]
+	if {[string is integer -strict $idx]} {
+		incr idx
+		set got "[lindex $got 0] $idx"
+	}
+	set new [tk_focusNext $w]
+	tkTabToWindow $new
+	$new delete 0 end
+	$new insert 0 $got
+}
+
+# b_quit_proc called when quit button is pressed
+
+proc b_quit_proc {} {
+
+	# puts "called quit"
+	b_unload_proc
+	after 1000 exit
+}
+
+# b_load_proc called when load button is pressed
+
+proc b_load_proc {{doload load}} {
+	global ob
+
+	# puts "called load"
+	if {$ob(loaded) && $doload == "load"} {
+		puts "load: already loaded"
+		return
+	}
+
+	if {$doload == "load"} { start_lkm }
+	start_shm
+	set ob(loaded) 1
+	set ob(ticking) 1
+	tick
+
+	.b_load config -text unload -command b_unload_proc -bg red
+}
+
+# b_unload_proc called when quit button is pressed
+
+proc b_unload_proc {} {
+	global ob
+
+	# puts "called unload"
+
+	if {$ob(alreadyloaded)} {
+		tk_messageBox -message \
+		"Not unloading, this program did not load LKM (run stop)."
+		return
+	}
+	if {!$ob(loaded)} {
+		puts "load: already unloaded"
+		return
+	}
+
+	b_pause_proc
+	stop_loop
+	set ob(ticking) 0
+	stop_shm
+	stop_lkm
+	.b_load config -text load -command b_load_proc -bg green
+	.b_run config -state disabled -bg red
+}
+
+# b_run_proc called when run button is pressed
+
+proc b_run_proc {} {
+	global ob
+
+	# puts "called run"
+	if {!$ob(loaded)} {
+		puts "run: not yet loaded"
+		return
+	}
+	if {$ob(running)} {
+		puts "run: already running"
+		return
+	}
+	set ob(running) 1
+	start_loop
+	.b_run configure -text pause -command b_pause_proc -bg red
+}
+
+# b_pause_proc called when quit button is pressed
+
+proc b_pause_proc {} {
+	global ob
+
+	# puts "called pause"
+	if {!$ob(running)} {
+		puts "pause: already paused"
+		return
+	}
+	# puts "pause: killing $ob(savedatpid)"
+	set ob(running) 0
+	pause_loop
+	.b_run configure -text run -command b_run_proc -bg green
+}
+
+# read name variables from file
+
+proc b_read_vars {} {
+
+    global ob arr
+    set types {
+        {{Display Variables Files}       {.vars}        }
+        {{All Files}        *             }
+    }
+    set fn ""
+    set fn [tk_getOpenFile -defaultextension .vars -filetypes $types \
+        -initialdir $::env(IMT_CONFIG)/varlist -initialfile display.vars]
+    if {$fn == ""} { return }
+    set fd [open $fn]
+    # sanity check
+    gets $fd head
+    if {"$head" != "# display vars"} {
+	error "read_vars: bad input file $fn"
+	close $fd
+	return
+    }
+
+    # clear old array data
+    zero_arr
+
+    array set arr [read $fd]
+    close $fd
+}
+
+# write name variables to file
+
+proc b_write_vars {} {
+
+    global ob arr
+    set types {
+        {{Display Variables Files}       {.vars}        }
+        {{All Files}        *             }
+    }
+    set fn ""
+    set fn [tk_getSaveFile -defaultextension .vars -filetypes $types \
+        -initialdir $::env(IMT_CONFIG)/varlist -initialfile display.vars]
+    if {$fn == ""} { return }
+    set fd [open $fn w]
+    # header
+    puts $fd "# display vars"
+    # only write names, not values.
+    puts $fd [array get arr *,?name]
+    close $fd
+}
+
+
+init
+

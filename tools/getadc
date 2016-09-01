@@ -1,0 +1,17 @@
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+start_rtl
+for {set i 0} {$i < 3000} {incr i} {
+puts -nonewline "$i "
+for {set j 0} {$j < 16} {incr j} {
+	puts -nonewline "[rshm adcvolts $j] "
+}
+after 10
+puts ""
+}
+stop_rtl
+

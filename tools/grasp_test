@@ -1,0 +1,52 @@
+#! /usr/bin/wish
+# grasp_test - test a grasp sensor
+# test discrete squeeze and release events only, not forces.
+# should be device independent.
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2007 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+start_shm
+
+canvas .c
+pack .c
+.c create oval {50 50 150 150} -fill red -tag ball
+
+proc squeeze {} {
+	.c coords ball {90 90 110 110}
+}
+
+proc release {} {
+	.c coords ball {50 50 150 150}
+}
+
+proc done {} {
+	stop_grasp
+	stop_shm
+	exit
+}
+
+set ob(screen,x) 0.0
+set ob(screen,y) 0.0
+
+bind .c <<GraspSqueeze>> squeeze
+bind .c <<GraspRelease>> release
+bind . <q> done
+
+start_grasp .c
+
+every 50 {
+	grasp_iter .c
+}

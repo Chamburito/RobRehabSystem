@@ -1,0 +1,45 @@
+#! /usr/bin/tclsh
+
+# vget - get values for robot variables
+# print values for all vars on command line
+# example:
+# /home/imt/crob/tools/vpr x y xvel yvel ft_xworld ft_yworld ft_zworld
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {[is_lkm_loaded]} {
+	set lkm_already_loaded 1
+	# puts stderr "linux kernel module was already loaded."
+} else {
+	set lkm_already_loaded 0
+	# puts stderr "loading linux kernel module."
+	start_lkm
+}
+
+start_shm
+start_loop
+after 100
+
+set olist {}
+
+foreach i $argv {
+	lappend olist [rshm $i]
+}
+
+puts $olist
+
+if {!$lkm_already_loaded} {
+    # puts stderr "unloading linux kernel module"
+    stop_loop
+    stop_shm
+    stop_lkm
+} else {
+    stop_shm
+    # puts stderr "not unloading linux kernel module"
+}
+
+exit

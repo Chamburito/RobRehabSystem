@@ -1,0 +1,290 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2008 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# cewcenter - calibrate wrist robot with relative encoders
+
+# method:
+# using open loop control
+# swing ps right-up, pull diff left-down
+# set encoders to setpoints so that old zero is zero.
+# query encoders
+# move folded links to left-up stop
+# query encoders
+# compare queries and check for alignment.
+# if the alignment is good, then we assume that the zero was good.
+# if good, switch to closed loop control
+# use controller to move links to 0,0 origin
+
+package require Tk
+
+wm withdraw .
+
+font create default -family Times -size -18
+option add *font default
+
+global ob
+
+proc done {{ret 0}} {
+	stop_loop
+	stop_shm
+	stop_lkm
+
+	exit $ret
+}
+
+proc pop {str} {
+	toplevel .pop
+	label .pop.lab
+	pack .pop.lab
+
+	.pop.lab config -text $str -padx 20 -pady 40 -font default
+	set x [winfo rootx .]
+	set y [winfo rooty .]
+	incr x 50
+	incr y 50
+	wm geometry .pop +${x}+${y}
+	wm deiconify .pop
+	raise .pop
+}
+
+proc delpop {} {
+	destroy .pop
+}
+
+proc tksleep {time} {
+	after $time set ::tksleep_end 1
+	vwait ::tksleep_end
+}
+
+# send raw voltages to both planar motors
+
+proc wrmot {{l 0.0} {r 0.0} {ps 0.0}} {
+	global ob
+
+	wshm wrist_left_test_volts $l
+	wshm wrist_right_test_volts $r
+	wshm wrist_ps_test_volts $ps
+}
+
+# get displacements for 3 motor axes
+
+proc gmangles {} {
+	set tl [rshm wrist_left_disp]
+	set tr [rshm wrist_right_disp]
+	set tps [rshm wrist_ps_disp]
+	return [list $tl $tr $tps]
+}
+
+# normalize an angle to between 0 and 2pi radians
+
+proc radnorm {a} {
+	set twopi [expr {atan(1) * 8.}]
+	while {$a > $twopi} {
+		set a [expr {$a - $twopi}]
+	}
+	while {$a < 0.0} {
+		set a [expr {$a + $twopi}]
+	}
+	return $a
+}
+
+# print axis angles
+
+proc prtheta {ts te} {
+	puts "s $ts e $te"
+}
+
+set ob(slop) 1.
+set ob(rspan) 10.4
+set ob(lspan) 10.4
+set ob(psspan) 12.9
+
+# actual radian span measures from ce wrist
+# r -11.230887 -0.705478 10.525409
+# l 0.358031 10.859357 10.501326
+# ps -8.930376 8.893407 17.823783
+
+
+proc checkcal {r1 r2 l1 l2 ps1 ps2} {
+	global ob
+	set rdiff [expr {abs($r1 - $r2)}]
+	set ldiff [expr {abs($l2 - $l1)}]
+	set psdiff [expr {$ps2 - $ps1}]
+
+	if {abs($ldiff - $ob(lspan)) > $ob(slop) } {
+		puts "l diff span out of range: $ldiff"
+		print_spans $r1 $r2 $l1 $l2 $ps1 $ps2
+		return 1
+	}
+	if {abs($rdiff - $ob(rspan)) > $ob(slop) } {
+		puts "r diff span out of range: $rdiff"
+		print_spans $r1 $r2 $l1 $l2 $ps1 $ps2
+		return 1
+	}
+	if {abs($psdiff - $ob(psspan)) > $ob(slop)} {
+		puts "ps diff span out of range: $psdiff"
+		print_spans $r1 $r2 $l1 $l2 $ps1 $ps2
+		return 1
+	}
+	return 0
+}
+
+proc print_spans {r1 r2 l1 l2 ps1 ps2} {
+	puts "r $r1 $r2 [expr {abs($r2 - $r1)}]"
+	puts "l $l1 $l2 [expr {abs($l2 - $l1)}]"
+	puts "ps $ps1 $ps2 [expr {abs($ps2 - $ps1)}]"
+}
+
+# main prog
+
+set ob(vtiny) 4
+set ob(vsmall) 7
+set ob(vbig) 10
+
+set ob(crobhome) $::env(CROB_HOME)
+source $ob(crobhome)/shm.tcl
+
+use_wrist
+
+# start the Linux Kernel Modules, shared memory, and the control loop
+# puts "loading linux kernel module"
+if {[is_lkm_loaded]} {
+	puts "lkm already loaded, exiting."
+	exit 1
+} else {
+	start_lkm
+}
+start_shm
+pop "Wrist Calibration in Progress..."
+
+# start in open loop mode
+wshm test_raw_torque 1
+# no gravity compensation
+wshm wrist_diff_gcomp 0.0
+wshm wrist_ps_gcomp 0.0
+# we're messing with the encoders, so don't check for odd behavior
+wshm no_safety_check 1
+# let me play with all the dofs
+wshm wrist_nocenter3d 1
+
+# in the games, the aa offset is 0.3, but for the cal, we assume
+# that the stalk sticks straight out for zero.
+
+wshm wrist_aa_offset 0.0
+
+# we want the ps to be pretty stiff
+wshm wrist_ps_stiff 50.0
+
+# check that this is a wrist
+
+set ob(have_wrist) 0
+set ob(have_wrist) [rshm have_wrist]
+
+if {$ob(have_wrist) == 0} {
+	done 1
+}
+
+start_loop
+
+# sleep for .1 sec, gives robot chance to start
+tksleep 100
+
+# turn off plc cal bit, will only be turned on if the cal succeeds.
+exec $::ob(crobhome)/tools/plc set-cal-dis
+
+# set counts
+# if they are set in imt2.cal, keep them, else set them here.
+
+set sc [rshm pcienc_setct 0]
+
+# 16704000 = 2^24 - -73216
+# 16719000 = 2^24 - -58216
+
+if {$sc == 0} {
+	wshm pcienc_setct 2335 0
+	wshm pcienc_setct 16704000 1
+	wshm pcienc_setct 16735000 2
+	wshm pcienc_setct 0 3
+}
+
+# swing left to wind up
+wrmot 0 0 $ob(vsmall)
+tksleep 1000
+
+# swing right ps up, open loop
+
+wrmot 0 0 -$ob(vsmall)
+tksleep 1000
+wrmot -$ob(vbig) 0.0 -$ob(vbig)
+tksleep 1000
+
+# set encoders, but not to zero
+
+wshm pcienc_dosetct 1
+tksleep 100
+
+# read encoders
+foreach {r1 l1 ps1} [gmangles] break
+
+# swing left ps up, using closed loop
+# note that we pull to points beyond the stops
+# to get the "springs" to be very stiff
+
+wshm test_raw_torque 0
+
+# static
+# differential
+movebox 1 7 {0 1 0} {-1 -.9 0 0} {-1 -.9 0 0}
+tksleep 20
+# ps
+movebox 0 12 {0 1 0} {-1 0 0 0} {-1 0 0 0}
+tksleep 20
+
+# now move
+# differential
+movebox 1 7 {0 600 1} {-1 -.9 0 0} {2 -2 0 0}
+tksleep 20
+# ps
+movebox 0 12 {0 600 1} {-1 0 0 0} {2 0 0 0}
+tksleep 3000
+
+# finish ps
+movebox 0 12 {0 20 1} {1 0 0 0} {10 0 0 0}
+tksleep 200
+
+# read encoders
+foreach {r2 l2 ps2} [gmangles] break
+tksleep 100
+
+# print_spans $r1 $r2 $l1 $l2 $ps1 $ps2
+
+# check spans
+
+set ret [checkcal $r1 $r2 $l1 $l2 $ps1 $ps2]
+
+if {!$ret} {
+	# good cal, turn on plc cal bit
+	exec $::ob(crobhome)/tools/plc set-cal-en
+
+	# looser now, so it doesn't shake
+	wshm wrist_ps_stiff 10.0
+	wshm wrist_diff_stiff 2.0
+
+	wcenter
+	delpop
+	tk_messageBox -title Succeeded -message "Good Calibration"
+	wdone
+} else {
+	# bad cal, stop motor forces now, plc cal is still off
+	stop_loop
+        delpop
+        tk_messageBox -title Failed -message "Bad Calibration"
+}
+
+# puts "unloading linux kernel module"
+
+done

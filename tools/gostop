@@ -1,0 +1,16 @@
+# go and stop in a loop, as simple a regression test
+
+i=0
+
+while :
+do
+	i=`expr $i + 1`
+
+	echo -n `date +%T.%N ` go $i "... "
+	$CROB_HOME/go
+	echo done.
+
+	echo -n `date +%T.%N ` stop "... "
+	$CROB_HOME/stop
+	echo done.
+done

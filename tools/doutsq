@@ -1,0 +1,63 @@
+#!/usr/bin/tclsh
+
+# Copyright 2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# dout square wave user mode
+# not realtime precise, but not bad.
+# arg is time in seconds
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+# start the Linux Kernel Modules, shared memory, and the control loop
+puts "loading linux kernel module"
+if {[is_lkm_loaded]} {
+	puts "lkm already loaded."
+} else {
+	start_lkm
+}
+start_shm
+
+start_loop
+
+set Hz 200
+wshm restart_Hz $Hz
+wshm restart_go 1
+after 100
+
+set ntick 1
+wshm ntickfifo $ntick
+puts "tick rate ($ntick / $Hz) ms"
+
+set tickfd [open /proc/xenomai/registry/pipes/crob_tick]
+
+set num 10
+if {$argc == 1} {
+    set num [lindex $argv 0]
+}
+set num [expr {$num * $Hz / $ntick}]
+
+for {set i 0} {$i < $num} {incr i} {
+	gets $tickfd
+	set sq [expr {$i %2}]
+	wshm dout0 $sq
+	wshm dout1 $sq
+	# puts "tick $i $sq"
+}
+
+wshm dout0 0
+wshm dout1 0
+
+close $tickfd
+
+puts "unloading linux kernel module"
+
+stop_loop
+stop_shm
+stop_lkm

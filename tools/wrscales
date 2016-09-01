@@ -1,0 +1,184 @@
+#! /usr/bin/wish
+# wrscales - stiffness and damping on an adjustable sliding scale
+# for the wrist.
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+	puts "scales: robot kernel module is not yet loaded"
+	exit
+}
+
+start_shm
+
+after 100
+
+set sclen 250
+
+set maxdstiff 80
+set maxpsstiff 200
+set maxddamp 1.5
+set maxpsdamp 10.0
+set maxdgcomp .05
+set maxpsgcomp .25
+set maxaaoff .5
+
+set resdstiff [expr {$maxdstiff * .01}]
+set respsstiff [expr {$maxpsstiff * .01}]
+set resddamp [expr {$maxddamp * .01}]
+set respsdamp [expr {$maxpsdamp * .01}]
+set resdgcomp [expr {$maxdgcomp * .01}]
+set respsgcomp [expr {$maxpsgcomp * .01}]
+set resaaoff [expr {$maxaaoff * .01}]
+
+set tickdstiff [expr {$maxdstiff * .2}]
+set tickpsstiff [expr {$maxpsstiff * .2}]
+set tickddamp [expr {$maxddamp * .2}]
+set tickpsdamp [expr {$maxpsdamp * .2}]
+set tickdgcomp [expr {$maxdgcomp * .2}]
+set tickpsgcomp [expr {$maxpsgcomp * .2}]
+set tickaaoff [expr {$maxaaoff * .2}]
+
+set vdstiff [rshm wrist_diff_stiff]
+set vddamp [rshm wrist_diff_damp]
+set vpsstiff [rshm wrist_ps_stiff]
+set vpsdamp [rshm wrist_ps_damp]
+set vpsgcomp [rshm wrist_ps_gcomp]
+set vdgcomp [rshm wrist_diff_gcomp]
+set vaaoff [rshm wrist_aa_offset]
+
+if {$vdstiff < 0 || $vdstiff > $maxdstiff} {
+	puts "diff stiffness $vdstiff out of range"
+	quit
+}
+
+if {$vddamp < 0 || $vddamp > $maxddamp} {
+	puts "diff damping $vddamp out of range"
+	quit
+}
+
+if {$vpsstiff < 0 || $vpsstiff > $maxpsstiff} {
+	puts "ps stiffness $vpsstiff out of range"
+	quit
+}
+
+if {$vpsdamp < 0 || $vpsdamp > $maxpsdamp} {
+	puts "ps damping $vpsdamp out of range"
+	quit
+}
+
+if {$vpsgcomp < 0 || $vpsgcomp > $maxpsgcomp} {
+	puts "ps gravity compensation $vpsgcomp out of range"
+	quit
+}
+
+if {$vdgcomp < 0 || $vdgcomp > $maxdgcomp} {
+	puts "diff gravity compensation $vdiffgcomp out of range"
+	quit
+}
+
+if {$vaaoff < 0 || $vaaoff > $maxaaoff} {
+	puts "ps ad/ab offset $vaaoff out of range"
+	quit
+}
+
+# the scale set command here initializes before the first call to -command.
+# if this was not true, the scales might have bad initial values.
+# the first -command happens after the pack.
+
+scale .dstiff -orient horizontal -length $sclen -from 0.0 -to $maxdstiff \
+	-label "Wrist Diff Stiffness" -command setdstiff -resolution $resdstiff \
+	-tickinterval $tickdstiff
+.dstiff set $vdstiff
+
+scale .ddamp -orient horizontal -length $sclen -from 0 -to $maxddamp \
+	-label "Wrist Diff Damping" -command setddamp -resolution $resddamp \
+	-tickinterval $tickddamp
+.ddamp set $vddamp
+
+scale .dgcomp -orient horizontal -length $sclen -from 0 -to $maxdgcomp \
+	-label "Wrist Diff Gravity Compensation" -command setdgcomp -resolution $resdgcomp \
+	-tickinterval $tickdgcomp
+.dgcomp set $vdgcomp
+
+scale .psstiff -orient horizontal -length $sclen -from 0 -to $maxpsstiff \
+	-label "Wrist PS Stiffness" -command setpsstiff -resolution $respsstiff \
+	-tickinterval $tickpsstiff
+.psstiff set $vpsstiff
+
+scale .psdamp -orient horizontal -length $sclen -from 0 -to $maxpsdamp \
+	-label "Wrist PS Damping" -command setpsdamp -resolution $respsdamp \
+	-tickinterval $tickpsdamp
+.psdamp set $vpsdamp
+
+scale .psgcomp -orient horizontal -length $sclen -from 0 -to $maxpsgcomp \
+	-label "Wrist PS Gravity Compensation" -command setpsgcomp -resolution $respsgcomp\
+	-tickinterval $tickpsgcomp
+.psgcomp set $vpsgcomp
+
+scale .aaoff -orient horizontal -length $sclen -from 0 -to $maxaaoff \
+	-label "Wrist AA Offset" -command setaaoff -resolution $resaaoff \
+	-tickinterval $tickaaoff
+.aaoff set $vaaoff
+
+button .quit -text quit -command quit -bg red
+
+pack .dstiff .ddamp .dgcomp .psstiff .psdamp .psgcomp .aaoff .quit
+
+proc setdstiff {i} {
+	wshm wrist_diff_stiff $i
+	# puts "stiff $i"
+}
+
+proc setddamp {i} {
+	wshm wrist_diff_damp $i
+	# puts "damp $i"
+}
+
+proc setdgcomp {i} {
+	wshm wrist_diff_gcomp $i
+	# puts "gcomp $i"
+}
+
+proc setpsstiff {i} {
+	wshm wrist_ps_stiff $i
+	# puts "stiff $i"
+}
+
+proc setpsdamp {i} {
+	wshm wrist_ps_damp $i
+	# puts "damp $i"
+}
+
+proc setpsdamp {i} {
+	wshm wrist_ps_damp $i
+	# puts "damp $i"
+}
+
+proc setpsgcomp {i} {
+	wshm wrist_ps_gcomp $i
+	# puts "gcomp $i"
+}
+
+proc setaaoff {i} {
+	wshm wrist_aa_offset $i
+	# puts "gcomp $i"
+}
+
+proc quit {} {
+	stop_shm
+	exit
+}

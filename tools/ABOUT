@@ -1,0 +1,36 @@
+Tue Sep 14 19:14:55 EDT 2004
+
+1sec.tcl - example prog using the ntickfifo to tick once per second.
+abox - move the ankle robot in a box pattern
+avmz - send 0 volts to motors, make sure they don't spin.
+beep.tcl - beep a variety of tones
+calib - an early version of x/y calibration, see ecal
+cbackup - cd backup script
+center - center planar robot
+damp.tcl - set up a damping field
+display - display shm variables in text form
+ecal - encoder calibration
+ftcal - force tranducer calibration (obsoleted by wshm ft_dobias)
+ftvsmotors - show ft forces vs motor command forces
+getftbias - force tranducer calibration (obsoleted by wshm ft_dobias)
+grabcal - grab cal file from ATI FT cd
+isaencal - isa counter card calibration
+mon - old version of "display" with "plot" button
+motor_static - test motors under static load (for robotestmenu)
+motor.tcl - measure Z moment of motors under static load
+motor_tests - initial tests for motors (before they are mounted in robot)
+move - wrist program?
+msdev.tcl - calculate mean/std dev on 7-column data
+ogp - old gnuplot wrapper
+roadtrip - test to send the handle around the plane, on a road trip
+robotestmenu - shake, road trip, static, vex, ft vs motors
+scales - modify stiff, damp, etc with sliding scale
+shake - robot shake test 
+sine - wrist sine waves
+strepl - string replace perl script
+ta.sh - convert binary "to ascii"
+vex - show planar robot vectors in graphical and text form
+wbox - move wrist robot in box shaped path
+wcenter - center wrist robot
+wrscales - scales for wrist
+zero.tcl - send zeros, similar to avmz

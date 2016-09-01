@@ -1,0 +1,25 @@
+#! /bin/sh
+
+# loop, feeding a ref file to dififo
+
+# loopfix creates $1.lf
+./loopfix $1
+
+function byebye() {
+	pkill datbody
+	pkill -f 'cat.*lf'
+}
+
+trap byebye EXIT
+
+while :
+do
+# echo datbody `date`
+./datbody $1 > /proc/xenomai/registry/pipes/crob_in
+cat $1.lf > /proc/xenomai/registry/pipes/crob_in
+ret=$?
+if [ $ret != 0 ] ; then
+	echo wrefloop: datbody returned $ret
+	exit
+fi
+done

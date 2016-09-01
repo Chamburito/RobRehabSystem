@@ -1,0 +1,270 @@
+#! /usr/bin/wish
+# ecal - encoder calibration
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# to calibrate:
+# 1) line up link with calibration bar at right.
+# 2) click corresponding button (shoulder or elbow)
+# do this for each of shoulder and elbow links.
+# when done, quit, and program will print angle_offsets
+# that should be pasted into imt2.cal
+
+# what ecal does:
+# angle_cal will have the correct offset when the link
+# is lined up with the calibration bar.
+# so when you line up the link and hit the button,
+# ecal records the current value of angle_cal for the link,
+# including setting angle_offset in the currently loaded program
+# (but not in the imt2.cal file, which you must do by hand).
+
+# you can run this even if another program (like vex) is running.
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+proc arr_init {} {
+global arr
+
+set arr(0,name) sec
+set arr(1,name) shoulder_angle_degrees
+set arr(2,name) shoulder_angle_cal
+set arr(3,name) elbow_angle_degrees
+set arr(4,name) elbow_angle_cal
+set arr(5,name) x
+set arr(6,name) y
+}
+
+option add *Entry.font {Helvetica 16 bold}
+option add *Label.font {Helvetica 16 bold}
+
+global ob
+
+set ob(savedatpid) 0
+set ob(loaded) 0
+set ob(running) 0
+set ob(ticking) 0
+set ob(havegrid) 0
+set ob(lastx) 0
+set ob(lasty) 0
+set ob(shoulder_angle_offset) 0.0
+set ob(elbow_angle_offset) 0.0
+
+# set up monitor window
+
+proc init {} {
+	global fd arr ob
+
+	button .b_load -text load -command b_load_proc -bg green
+	button .b_run -text run -command b_run_proc -bg red -state disabled
+	button .b_shoulder -text "shoulder" -bg yellow -command [list set_angle shoulder]
+	label .l_shoulder -text "0.0"
+	button .b_elbow -text "elbow" -bg yellow -command [list set_angle elbow]
+	label .l_elbow -text "0.0"
+	button .b_quit -text quit -command b_quit_proc -bg red
+
+	frame .f -width 250 -height 250
+
+        grid .b_load
+	grid .b_run
+	grid .b_shoulder
+	grid .l_shoulder
+	grid .b_elbow
+	grid .l_elbow
+	grid .b_quit
+	grid .f
+
+	set ob(alreadyloaded) 0
+
+	# already loaded
+	if {[is_lkm_loaded]} {
+		set ob(alreadyloaded) 1
+		tk_messageBox -message "Robot kernel module already loaded."
+		b_load_proc noload
+	} else {
+		b_load_proc
+	}
+
+	b_run_proc
+	after 100
+
+	set ob(shoulder_angle_offset) [rshm shoulder_angle_offset]
+	set ob(elbow_angle_offset) [rshm elbow_angle_offset]
+	.l_shoulder config -text $ob(shoulder_angle_offset)
+	.l_elbow config -text $ob(elbow_angle_offset)
+}
+
+# note!
+# the 1st numeric arg is a value.
+# the second optional arg is a location, which defaults to zero.
+# this is not obvious, but it's cleaner to make the 2nd arg
+# position always mean the same thing. to wshm
+
+# problem is that rshm has 1/2 args, and wshm has 2/3,
+# so 2 args in wshm are different from 2 args in rshm.
+
+# wshm scr 2 3 writes a 2 in scr[3]
+
+proc set_angle {motor} {
+	global ob
+	set angle [rshm ${motor}_angle_cal]
+	wshm ${motor}_angle_offset $angle
+	set ob(${motor}_angle_offset) $angle
+	.l_${motor} config -text $angle
+	# puts "s ${motor}_angle_offset $angle"
+}
+
+# make grid - do this once.
+
+proc make_grid {w} {
+	global ob arr
+
+	if { ! $ob(havegrid) } {
+		set ob(havegrid) 1
+		grid $w
+
+		for {set i 0} {$i < 8} {incr i} {
+			set arr($i,name) ""
+			set arr($i,val) ""
+			entry $w.name$i -textvariable arr($i,name)
+			label $w.val$i -textvariable arr($i,val) -width 10
+			grid $w.name$i $w.val$i
+		}
+
+		arr_init
+
+	}
+
+	.b_run config -state normal -bg green
+
+}
+
+# tick updates the grid periodically
+# while the module is loaded.
+
+proc tick {} {
+	global ob arr
+
+	after 100 tick
+
+	if {! $ob(ticking)} return
+	if {! $ob(running)} return
+
+	for {set i 0} {$i < 20} {incr i} {
+		if {$arr($i,name) == ""} break
+		set arr($i,val) [eval rshm $arr($i,name)]
+	}
+
+}
+
+# b_quit_proc called when quit button is pressed
+
+proc b_quit_proc {} {
+	global ob
+
+	puts ""
+	puts "s shoulder_angle_offset $ob(shoulder_angle_offset)"
+	puts "s elbow_angle_offset $ob(elbow_angle_offset)"
+	# puts "called quit"
+	b_unload_proc
+	after 1000 exit
+}
+
+# b_load_proc called when load button is pressed
+
+proc b_load_proc {{doload load}} {
+	global ob
+
+	# puts "called load"
+	if {$ob(loaded) && $doload == "load"} {
+		puts "load: already loaded"
+		return
+	}
+
+	if {$doload == "load"} { start_lkm }
+	start_shm
+
+	# without these, going  through the (uncalibrated) damping zone
+	# might move the arm.
+	wshm no_safety_check 1
+	wshm no_motors 1
+
+	set ob(loaded) 1
+	make_grid .f
+	set ob(ticking) 1
+	tick
+
+	.b_load config -text unload -command b_unload_proc -bg red
+}
+
+# b_unload_proc called when quit button is pressed
+
+proc b_unload_proc {} {
+	global ob
+
+	# puts "called unload"
+
+	if {$ob(alreadyloaded)} {
+		tk_messageBox -message \
+		"Not unloading, this program did not load LKM (run stop)."
+		return
+	}
+	if {!$ob(loaded)} {
+		puts "load: already unloaded"
+		return
+	}
+
+	b_pause_proc
+	set ob(ticking) 0
+	stop_shm
+	stop_lkm
+	.b_load config -text load -command b_load_proc -bg green
+	.b_run config -state disabled -bg red
+}
+
+# b_run_proc called when run button is pressed
+
+proc b_run_proc {} {
+	global ob
+
+	# puts "called run"
+	if {!$ob(loaded)} {
+		puts "run: not yet loaded"
+		return
+	}
+	if {$ob(running)} {
+		puts "run: already running"
+		return
+	}
+	set ob(running) 1
+	start_loop
+	.b_run configure -text pause -command b_pause_proc -bg red
+}
+
+# b_pause_proc called when quit button is pressed
+
+proc b_pause_proc {} {
+	global ob
+
+	# puts "called pause"
+	if {!$ob(running)} {
+		puts "pause: already paused"
+		return
+	}
+	# puts "pause: killing $ob(savedatpid)"
+	set ob(running) 0
+	stop_loop
+	.b_run configure -text run -command b_run_proc -bg green
+}
+
+init

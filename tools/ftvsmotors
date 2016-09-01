@@ -1,0 +1,78 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# test force transducer forces vs motor commands.
+# motors push while arm is held static by handle,
+# applying forces to ft.
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+puts "Loading Linux Kernel Module."
+puts ""
+puts "ftvsmotors: test force transducer forces vs motor commands."
+puts "flip ft and fix arm at 0,0"
+start_lkm
+start_shm
+wshm have_thermal_model 0
+after 100
+start_loop
+
+after 100
+wshm no_safety_check 1
+wshm ft_flip 1
+wshm ft_dobias 1
+after 100
+after 100
+center_arm
+
+puts "Press 'Enter' to start."
+
+gets stdin
+
+set dlist {
+1 1
+1 -1
+-1 -1
+-1 1
+}
+
+foreach {x y} $dlist {
+	set f .15
+	set x [expr $x * $f]
+	set y [expr $y * $f]
+	puts "moving to $x $y"
+	movebox 0 0 {0 200 0} {0.0 0.0 0.0 0.0} {$x $y 0.0 0.0}
+	after 1000
+	movebox 0 0 {0 1000 0} {$x $y 0.0 0.0} {$x $y 0.0 0.0}
+	after 3000
+	
+	set mx [rshm x_force]
+	set ftx [rshm ft_xworld]
+	set my [rshm y_force]
+	set fty [rshm ft_yworld]
+	set xdiff [expr abs($mx / $ftx)]
+	set ydiff [expr abs($my / $fty)]
+	puts "mx $mx ftx $ftx mx/ftx $xdiff"
+	puts "my $my fty $fty my/fty $ydiff"
+	puts ""
+	after 1000
+	movebox 0 0 {0 200 0} {$x $y 0.0 0.0} {0.0 0.0 0.0 0.0}
+	after 1000
+}
+
+puts "Unloading Linux Kernel Module"
+stop_loop
+stop_shm
+stop_lkm
+exit
+
+done
+

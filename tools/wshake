@@ -1,0 +1,103 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+use_wrist
+
+set ::slots 180
+
+if {$argc == 1} {
+    set argv1 [lindex $argv 0]
+    if {[string is integer $argv1]} {
+	set ::slots $argv1
+    }
+}
+
+if {[is_lkm_loaded]} {
+	set ::lkm_already_loaded 1
+	puts "linux kernel module was already loaded."
+} else {
+	set ::lkm_already_loaded 0
+	puts "loading linux kernel module."
+	start_lkm
+}
+
+start_shm
+
+puts "hit enter to start ($::slots slots)"
+gets stdin
+
+set x 0.0
+set y 0.0
+
+start_loop
+
+flushin stdin
+
+set ::donevar 0
+fileevent stdin readable [list set ::donevar 1]
+
+# radians
+set n .4
+
+set a(0) [list -$n $n 0.0 0.0]
+set a(1) [list $n $n 0.0 0.0]
+set a(2) [list $n -$n 0.0 0.0]
+set a(3) [list -$n -$n 0.0 0.0]
+
+after 100
+
+wcenter -$n $n
+
+set i 0
+
+set slottime 1000
+set etime $slottime
+set mtime [expr {int($slottime / 1000. * 200.)}]
+every $etime {
+    if {!$::donevar} {
+        set ::vibe [expr {(($::i * 100) % 1000) + 100}]
+        wshm vibrate $::vibe
+
+	set j [expr {$::i % 4}]
+	set k [expr {($::i + 1) % 4}]
+	set m "movebox 0 7 {0 $::mtime 1} [list $::a($j)] [list $::a($k)]"
+	puts "$::i: $m, vibe $::vibe, hit enter to stop"
+	eval $m
+	incr ::i
+	if {$::i > $::slots} {set ::donevar 1}
+    }
+}
+
+proc done {} {
+    # lower wrist
+    wshm vibrate 0
+    wdone
+    if {!$::lkm_already_loaded} {
+	puts "unloading linux kernel module"
+	stop_loop
+	stop_shm
+	stop_lkm
+    } else {
+	puts "not unloading linux kernel module"
+	stop_shm
+    }
+}
+
+vwait donevar
+
+done
+

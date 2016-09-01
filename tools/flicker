@@ -1,0 +1,35 @@
+#! /usr/bin/tclsh
+
+set ob(crobhome) $::env(CROB_HOME)
+
+set a1 [lindex $argv 0]
+
+if {$a1 == ""} {set a1 1000}
+if {$a1 == 0} {set a1 1000}
+
+set ms [expr {int($a1 / 5)}]
+
+source $ob(crobhome)/shm.tcl
+
+puts "start kernel module"
+start_rtl
+
+puts "switching every $a1 ms, press enter to quit"
+wshm scr $ms 0
+
+movebox 0 18 {0 1 0} {0 0 0 0} {0 0 0 0}
+
+gets stdin
+
+stop_movebox
+
+after 100
+
+wshm dout0 0
+wshm dout1 0
+
+after 100
+
+puts "stop kernel module"
+stop_rtl
+exit

@@ -1,0 +1,49 @@
+#!/bin/bash
+
+u=`id -u`
+if [ "$u" != 0 ]; then
+         echo "user is $u, must be 0 (root)."
+         exit 1
+fi
+
+if [ -e /etc/dhcp3/dhclient.conf.imt ]; then
+         echo "seems crob/tools/name has already been run, so not going to name"
+	 exit 1
+fi
+
+if  [ ! $1 ] 
+then 
+  echo "Usage: name some-machine-name"  
+  echo
+  echo "Gives this machine a hostname and DNS name."
+  echo "Undo before shipping with 'unname'."
+  exit
+fi
+
+ifdown eth0
+# this doesn't always work with our Windows SBS 12/2008
+sed -e "s/send host-name \"imt\";/send host-name \"$1\";\nsend fqdn.fqdn \"$1.\";\nsend fqdn.encoded on;\nsend fqdn.server-update off;\n/" /etc/dhcp3/dhclient.conf > /tmp/dhclient.conf 
+
+if [ ! -e /etc/dhcp3/dhclient.conf.imt ] 
+then 
+    mv /etc/dhcp3/dhclient.conf /etc/dhcp3/dhclient.conf.imt 
+fi
+
+mv /tmp/dhclient.conf /etc/dhcp3/dhclient.conf
+
+sed -e "/^127\./s/imt/$1/" /etc/hosts > /tmp/hosts
+
+if [ ! -e /etc/hosts.imt ]
+then
+    mv /etc/hosts /etc/hosts.imt
+fi
+
+mv /tmp/hosts /etc/hosts 
+
+echo $1 > /etc/hostname
+hostname $1
+ifup eth0
+update-rc.d ssh defaults
+/etc/init.d/ssh start
+echo -n "Hostname is now " ; hostname
+echo "Logout of any X sessions (and back in again) to take effect."

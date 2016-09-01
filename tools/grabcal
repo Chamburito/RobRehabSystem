@@ -1,0 +1,32 @@
+#! /bin/sh
+#
+# this shell script mounts an ATI CD
+# pulls the FTnnnn.cal file off it
+# runs ftcal on the file, converting it to the form needed by RTLinux
+# and umounts and ejects the CD
+
+CDROM=/mnt/cdrom
+# mount
+mount $CDROM
+
+CALFILE=$CDROM/Calibration/F*
+
+# does the file exist?
+if [ ! -e $CALFILE ]; then
+echo grabcal: no such file: $CALFILE
+umount $CDROM
+exit
+fi
+
+NEWFILE=`echo $CALFILE | sed 's/.*\/FT//'`
+# copy
+cp $CALFILE .
+# convert
+./ftcal < $CALFILE > $NEWFILE
+# FTnnnn.cal comes off the CD with a goofy permission
+chmod 644 $NEWFILE FT$NEWFILE
+sync
+sync
+# done
+umount $CDROM
+eject $CDROM

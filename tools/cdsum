@@ -1,0 +1,5 @@
+#!/bin/sh
+#
+# Run this to do an md5 sum of the currently loaded cd.
+
+./rawread /dev/cdrom | md5sum

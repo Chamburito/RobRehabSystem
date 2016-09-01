@@ -1,0 +1,271 @@
+#! /usr/bin/wish
+# move - move motors with raw voltage
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# you can run this even if another program (like vex) is running.
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+option add *Entry.font {Helvetica 16 bold}
+option add *Label.font {Helvetica 16 bold}
+
+global ob
+
+set ob(savedatpid) 0
+set ob(loaded) 0
+set ob(running) 0
+set ob(lastx) 0
+set ob(lasty) 0
+
+proc zero_volts {} {
+	global arr
+	foreach i {shoulder elbow left right prosup linear hand} {
+		set arr(volts,$i) 0.0
+	}
+	pmotor shoulder 0
+	pmotor elbow 0
+	wmotor left 0
+	wmotor right 0
+	wmotor prosup 0
+	hmotor hand 0
+	lmotor linear 0
+}
+
+# set up display
+
+proc init {} {
+	global fd arr ob
+
+	button .b_quit -text quit -command b_quit_proc -bg red
+	label .l_dummy1 -text "             "
+	label .l_title -text "raw volts to motors"
+
+	label .l_dummy2 -text ""
+	button .b_zero -text zero -command b_zero_proc
+
+	button .b_pshoulder- -text "shoulder -" -command [list pmotor shoulder -]
+	label .l_pshoulder -textvariable arr(volts,shoulder)
+	button .b_pshoulder+ -text "shoulder +" -command [list pmotor shoulder +]
+
+	button .b_pelbow- -text "elbow -" -command [list pmotor elbow -]
+	label .l_pelbow -textvariable arr(volts,elbow)
+	button .b_pelbow+ -text "elbow +" -command [list pmotor elbow +]
+
+	button .b_wleft- -text "wleft -" -command [list wmotor left -]
+	label .l_wleft -textvariable arr(volts,left)
+	button .b_wleft+ -text "wleft +" -command [list wmotor left +]
+
+	button .b_wright- -text "wright -" -command [list wmotor right -]
+	label .l_wright -textvariable arr(volts,right)
+	button .b_wright+ -text "wright +" -command [list wmotor right +]
+
+	button .b_wprosup- -text "wprosup -" -command [list wmotor prosup -]
+	label .l_wprosup -textvariable arr(volts,prosup)
+	button .b_wprosup+ -text "wprosup +" -command [list wmotor prosup +]
+
+	button .b_hhand- -text "hand -" -command [list hmotor hand -]
+	label .l_hhand -textvariable arr(volts,hand)
+	button .b_hhand+ -text "hand +" -command [list hmotor hand +]
+
+	button .b_llinear- -text "linear -" -command [list lmotor linear -]
+	label .l_llinear -textvariable arr(volts,linear)
+	button .b_llinear+ -text "linear +" -command [list lmotor linear +]
+
+        grid .b_quit .l_dummy1
+	grid .l_title - -
+	grid .l_dummy2 .b_zero
+
+	grid .b_pshoulder- .l_pshoulder .b_pshoulder+
+	grid .b_pelbow- .l_pelbow .b_pelbow+
+
+	grid .b_wleft- .l_wleft .b_wleft+
+	grid .b_wright- .l_wright .b_wright+
+	grid .b_wprosup- .l_wprosup .b_wprosup+
+
+	grid .b_hhand- .l_hhand .b_hhand+
+
+	grid .b_llinear- .l_llinear .b_llinear+
+
+	set ob(alreadyloaded) 0
+
+	# already loaded
+	if {[is_lkm_loaded]} {
+		set ob(alreadyloaded) 1
+		tk_messageBox -message "Robot kernel module already loaded."
+		b_load_proc noload
+	} else {
+		b_load_proc
+	}
+
+	zero_volts
+
+	b_run_proc
+}
+
+set arr(p,dir,+) .5
+set arr(p,dir,-) -.5
+set arr(p,dir,0) 0.0
+set arr(p,dir,0.0) 0.0
+set arr(p,which,shoulder) s
+set arr(p,which,elbow) e
+
+proc pmotor {which dir} {
+	global arr
+	set arr(volts,$which) [expr {$arr(volts,$which) + $arr(p,dir,$dir)}]
+	if {$dir == 0} {
+		set arr(volts,$which) 0.0
+	}
+	wshm raw_torque_volts_$arr(p,which,$which) $arr(volts,$which)
+}
+
+set arr(w,which,left) left
+set arr(w,which,right) right
+set arr(w,which,prosup) ps
+set arr(w,dir,+) .5
+set arr(w,dir,-) -.5
+set arr(w,dir,0) 0.0
+set arr(w,dir,0.0) 0.0
+
+proc wmotor {which dir} {
+	global arr
+	set arr(volts,$which) [expr {$arr(volts,$which) + $arr(w,dir,$dir)}]
+	if {$dir == 0} {
+		set arr(volts,$which) 0.0
+	}
+	wshm wrist_$arr(w,which,$which)_test_volts $arr(volts,$which)
+}
+
+set arr(h,which,hand) hand
+set arr(h,dir,+) .5
+set arr(h,dir,-) -.5
+set arr(h,dir,0) 0.0
+set arr(h,dir,0.0) 0.0
+
+proc hmotor {which dir} {
+	global arr
+	set arr(volts,$which) [expr {$arr(volts,$which) + $arr(h,dir,$dir)}]
+	if {$dir == 0} {
+		set arr(volts,$which) 0.0
+	}
+	wshm hand_test_volts $arr(volts,$which)
+}
+
+set arr(l,which,linear) linear
+set arr(l,dir,+) .5
+set arr(l,dir,-) -.5
+set arr(l,dir,0) 0.0
+set arr(l,dir,0.0) 0.0
+
+proc lmotor {which dir} {
+	global arr
+	set arr(volts,$which) [expr {$arr(volts,$which) + $arr(l,dir,$dir)}]
+	if {$dir == 0} {
+		set arr(volts,$which) 0.0
+	}
+	wshm linear_test_volts $arr(volts,$which)
+}
+
+# b_quit_proc called when quit button is pressed
+
+proc b_quit_proc {} {
+	global ob
+
+	b_unload_proc
+	after 1000 exit
+}
+
+# b_load_proc called when load button is pressed
+
+proc b_load_proc {{doload load}} {
+	global ob
+
+	# puts "called load"
+	if {$ob(loaded) && $doload == "load"} {
+		puts "load: already loaded"
+		return
+	}
+
+	if {$doload == "load"} { start_lkm }
+	start_shm
+	set ob(loaded) 1
+}
+
+# b_unload_proc called when quit button is pressed
+
+proc b_unload_proc {} {
+	global ob
+
+	# puts "called unload"
+
+	if {$ob(alreadyloaded)} {
+		tk_messageBox -message \
+		"Not unloading, this program did not load LKM (run stop)."
+		return
+	}
+	if {!$ob(loaded)} {
+		puts "load: already unloaded"
+		return
+	}
+
+	b_pause_proc
+	stop_shm
+	stop_lkm
+}
+
+# b_run_proc called when run button is pressed
+
+proc b_run_proc {} {
+	global ob
+
+	# puts "called run"
+	if {!$ob(loaded)} {
+		puts "run: not yet loaded"
+		return
+	}
+	if {$ob(running)} {
+		puts "run: already running"
+		return
+	}
+	set ob(running) 1
+	wshm have_thermal_model 0
+	after 100
+	start_loop
+
+	wshm no_safety_check 1
+	wshm test_raw_torque 1
+}
+
+# b_pause_proc called when quit button is pressed
+
+proc b_pause_proc {} {
+	global ob
+
+	zero_volts
+
+	# puts "called pause"
+	if {!$ob(running)} {
+		puts "pause: already paused"
+		return
+	}
+	# puts "pause: killing $ob(savedatpid)"
+	set ob(running) 0
+	stop_loop
+}
+
+proc b_zero_proc {} {
+	zero_volts
+} 
+
+init

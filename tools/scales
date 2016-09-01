@@ -1,0 +1,122 @@
+#! /usr/bin/wish
+# scales - stiffness and damping on an adjustable sliding scale
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+	puts "scales: robot kernel module is not yet loaded"
+	exit
+}
+
+start_shm
+
+after 100
+
+set vstiff [rshm stiff]
+set vdamp [rshm damp]
+set vvolts [rshm pfotest]
+set vsramp [rshm safety_ramp]
+set vvibe [rshm vibrate]
+
+set maxvolts [rshm pfomax]
+
+if {$vstiff < 0 || $vstiff > 1000} {
+	puts "stiffness $vstiff out of range"
+	quit
+}
+
+if {$vdamp < 0 || $vdamp > 200} {
+	puts "damping $vdamp out of range"
+	quit
+}
+
+if {$vvolts < 0 || $vvolts > $maxvolts} {
+	puts "voltage $vvolts out of range"
+	quit
+}
+
+if {$vsramp < 0 || $vsramp > .1} {
+	puts "safety ramp $vsramp out of range"
+	quit
+}
+
+if {$vvibe < 0 || $vvibe > 20000} {
+	puts "vibration $vvibe out of range"
+	quit
+}
+
+# the scale set command here initializes before the first call to -command.
+# if this was not true, the scales might have bad initial values.
+# the first -command happens after the pack.
+
+scale .stiff -orient horizontal -length 250 -from 0 -to 1000 \
+	-label Stiffness -command setstiff -resolution 10 \
+	-tickinterval 200
+.stiff set $vstiff
+
+scale .damp -orient horizontal -length 250 -from 0 -to 200 \
+	-label Damping -command setdamp \
+	-tickinterval 40
+.damp set $vdamp
+
+scale .volts -orient horizontal -length 250 -from 0 -to $maxvolts \
+	-label "Maximum Voltage" -command setvolts -resolution .1 \
+	-tickinterval 1.0
+.volts set $vvolts
+
+scale .sramp -orient horizontal -length 250 -from 0 -to .05 \
+	-label "Safety Ramp" -command setsramp -resolution .002 \
+	-tickinterval .01
+.sramp set $vsramp
+
+scale .vibe -orient horizontal -length 250 -from 0 -to 20000 \
+	-label "Vibrate" -command setvibe -resolution 100 \
+	-tickinterval 5000
+.vibe set $vvibe
+
+button .quit -text quit -command quit -bg red
+
+pack .stiff .damp .volts .sramp .vibe .quit
+
+proc setstiff {i} {
+	wshm stiff $i
+	# puts "stiff $i"
+}
+
+proc setdamp {i} {
+	wshm damp $i
+	# puts "damp $i"
+}
+
+proc setvolts {i} {
+	wshm pfotest $i
+	# puts "pfotest $i"
+}
+
+proc setsramp {i} {
+	wshm safety_ramp $i
+	# puts "pfotest $i"
+}
+
+proc setvibe {i} {
+	wshm vibrate $i
+	# puts "pfotest $i"
+}
+
+proc quit {} {
+	stop_shm
+	exit
+}

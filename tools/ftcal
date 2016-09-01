@@ -1,0 +1,80 @@
+#! /usr/bin/tclsh
+
+# ftcal - tcl script to scrape data out of an ATI FTnnnn.cal SGML file,
+# for use in an imt2.cal file
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# takes FTnnnn.cal file on stdin.
+
+# usage: tclsh ftcal < FTnnnn.cal
+
+# trb May 2003
+
+set j 0
+set k 0
+set ft_cal ""
+set ft_scale ""
+
+while {[gets stdin line] >= 0} {
+    set clean [string trim [string map {< " " > " " \" " " = " "} $line]]
+
+    if {[string equal [lindex $clean 1] "version"]} {
+    if {![string equal [lindex $clean 2] "1.0"]} {
+	puts stderr "wrong version: $line"
+	exit
+    }
+    }
+
+    if {[string equal [lindex $clean 0] "FTSensor"]} {
+	puts "# $line"
+    }
+
+    if {[string equal [lindex $clean 0] "Calibration"]} {
+	puts "# $line"
+	puts ""
+    }
+
+    if {[string equal [lindex $clean 0] "Axis"]} {
+
+	# cal data is in columns 4-9.
+	foreach i {4 5 6 7 8 9} {
+	    append ft_cal "s ft_cal $j [lindex $clean $i]\n"
+	    incr j
+	}
+
+	# scale data is in column 13.
+	append ft_scale "s ft_scale $k [lindex $clean 13]\n"
+	incr k
+	append ft_cal "\n"
+    }
+}
+
+# print it
+puts -nonewline $ft_cal
+puts $ft_scale
+
+# sample calibration file:
+
+if 0 {
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NOTE: To ensure compatibility between your software and future F/T calibrations -->
+<!-- (such as recalibrations of your transducer or future purchases),                -->
+<!-- ATI does not support parsing of this file.  The only supported methods for      -->
+<!-- loading calibration data are the ATIDAQFT ActiveX component and the             -->
+<!-- ATI DAQ F/T C Library.                                                          -->
+<FTSensor  Serial="FT5119" BodyStyle="Gamma" Family="DAQ" NumGages="6" CalFileVersion="1.0">
+	<Calibration  PartNumber="US-30-100" CalDate="1/9/2003" ForceUnits="lbf" TorqueUnits="lbf-in" DistUnits="in" OutputMode="Ground Referenced Differential" OutputRange="20" OutputBipolar="True">
+		<Axis Name="Fx" values=" -0.41763  -0.22235   1.26797 -30.96059  -0.99539  31.98751 " max="30" scale="9.05964537732276"/>
+		<Axis Name="Fy" values=" -1.25792  35.35964   0.09228 -18.03949   1.06615 -18.27562 " max="30" scale="9.05964537732276"/>
+		<Axis Name="Fz" values=" 17.48501  -0.39301  17.63390  -0.35360  17.35616  -0.69492 " max="100" scale="2.81161408261741"/>
+		<Axis Name="Tx" values=" -0.20629  -0.74400 -30.83439   0.98932  30.32068  -0.70251 " max="100" scale="4.29187196412003"/>
+		<Axis Name="Ty" values=" 34.90813  -0.64760 -17.95408  -0.43155 -17.26641   1.34019 " max="100" scale="4.29187196412003"/>
+		<Axis Name="Tz" values="  0.92209 -16.87856   0.43325 -17.06802   0.86833 -17.60612 " max="100" scale="4.09280554648923"/>
+		<BasicTransform Dx="0" Dy="0" Dz="0.528957" Rx="0" Ry="0" Rz="0"/>
+	</Calibration>
+</FTSensor>
+}

@@ -1,0 +1,52 @@
+#!/usr/bin/wish
+
+# Copyright 2007 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# list errors in error array in currently loaded robot image
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+	puts "robot software must already be loaded."
+	exit
+}
+
+start_shm
+
+# errlist MUST track robdecl.h
+
+set errlist {
+        ERR_NONE
+        ERR_MAIN_LATE_TICK
+        WARN_MAIN_SLOW_TICK
+        WARN_MAIN_SLOW_SAMPLE
+        ERR_UEI_NSAMPLES
+        ERR_UEI_RET
+        ERR_UEI_BOARD_RANGE
+        ERR_UEI_BAD_ARRAY_PTRS
+        WARN_MAIN_FAST_TICK
+        ERR_AN_HIT_STOPS
+        ERR_AN_SHAFT_SLIP_LEFT
+        ERR_AN_SHAFT_SLIP_RIGHT
+        ERR_PL_ENC_KICK
+        ERR_LAST
+}
+
+set nerrors [rshm nerrors]
+if {$nerrors > 128} {
+	set nerrors 128
+}
+
+for {set i 0} {$i < $nerrors} {incr i} {
+    set errori [rshm errori $i]
+    set errorcode [rshm errorcode $i]
+    puts "$i: tick $errori: code $errorcode [lindex $errlist $errorcode]"
+}
+	
+stop_shm
+exit

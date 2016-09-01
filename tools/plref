@@ -1,0 +1,82 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# run a damping controller
+# you can modify the damping with wshm damp 10.0 or whatever.
+# or by hand with ./shm.
+
+# if vex is already running, then just star/stop shm, not lkm or loop.
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+cd $ob(crobhome)/tools
+
+puts "loading robot kernel module"
+start_rtl
+
+puts "to zero encoders, hit y, else enter."
+gets stdin in
+
+if {$in == "y"} {
+	puts "zeroing encoders"
+	wshm pcienc_zero 1
+}
+
+set nlog 9
+set reffnid 2
+set ctl 0
+set logf /tmp/planar.log
+
+wshm logfnid 0
+
+puts "logfile $logf $nlog items,"
+puts "to start logging, hit enter."
+gets stdin
+
+start_log $logf $nlog
+puts "to stop logging, hit enter."
+gets stdin
+
+
+stop_log
+
+exec ./display &
+
+exec ./gppl.tcl $logf &
+
+puts "sending log file $logf through reffn $reffnid to ctl $ctl,"
+puts "to start reference control, hit enter."
+gets stdin
+
+wshm reffnid $reffnid
+wshm nref $nlog
+
+movebox 0 $ctl {0 1 1} {0 0 0 0} {0 0 0 0} 
+
+puts "running wrefloop, ^C and cleanup to exit (for now)"
+
+set saverefpid [ exec ./wrefloop $logf &]
+
+puts "to stop reference control, hit enter."
+gets stdin
+
+puts "stopping wrefloop, pid $saverefpid"
+exec kill $saverefpid
+
+# give it time to exit
+after 1000
+
+stop_movebox 0
+
+puts "unloading robot kernel module"
+stop_rtl
+puts "done"
+

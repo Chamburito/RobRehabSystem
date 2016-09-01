@@ -1,0 +1,95 @@
+Wed May  6 14:11:11 EDT 2009
+
+notes on installing new version of r8169 driver,
+to support Itox motherboard
+
+if you have the right .ko file, like this:
+$CROB_HOME/tools/realtek/v6.10/r8169.ko.v6.10, just put it here:
+
+/lib/modules/2.6.15(or wherever)/kernel/drivers/net/r8169.ko
+
+if you need to compile a new .ko, read on.
+
+i got the RTL8110SC(L) Linux driver package from realtek.com
+
+r8169-6.010.00.tar.bz2
+
+LINUX driver for kernel 2.6.x and 2.4.X (support x86 and x64)
+Version 6.010.00
+Date 2009/5/5
+Size 29k
+
+http://www.realtek.com/downloads/downloadsView.aspx?Langid=1&PNid=4&PFid=4&Level=5&Conn=4&DownTypeID=3&GetDown=false&Downloads=true#RTL8110SC(L)
+
+(if you try to download a newer one, it might have a newer version number.)
+
+untar the archive with tar xvfj.
+
+note that the src directory from the tar might have bad ownership and
+modes (so you can't read it), which you can fix with chown and chmod.
+
+to compile the driver, go to to the net driver directory
+in your linux kernel source tree:
+
+cd trunk/linux-2.6.15/drivers/net/
+
+move the existing r8169.c and r8169.h aside.
+copy the .h and .c files from the src subdirectory to this dir
+
+i changed the name of the source file from r8169_n.c to r8169.c,
+to mimic what was already in the Linux tree, so the makefile would
+work unchanged.
+
+-rw-r--r--   1 trb  trb  103389 2009-04-13 02:30 r8169.c
+-rw-r--r--   1 trb  trb   29896 2009-04-13 02:45 r8169.h
+
+cd trunk/linux-2.6.15
+and run:
+
+make drivers/net/r8169.ko
+
+it's good to make it in place, in case there are funky Xenomai
+dependencies in there (I'm not clear on this).
+
+it prints some warnings like so, should be safe:
+
+root@ubdev:~/trunk/linux-2.6.15# make drivers/net/r8169.ko
+  CC [M]  drivers/net/r8169.o
+drivers/net/r8169.c: In function âl8169_tx_clearâdrivers/net/r8169.c:3094: warning: unused variable âvârivers/net/r8169.c: In function âl8169_rx_interruptâdrivers/net/r8169.c:3528: warning: unused variable â_quotaârivers/net/r8169.c: At top level:
+drivers/net/r8169.c:2356: warning: âl8169_phy_power_downâefined but not used  MODPOST
+Warning: could not open drivers/atm/fore200e_pca_fw.c: No such file or directoryWarning: could not open drivers/ieee1394/oui.c: No such file or directory
+Warning: could not open drivers/md/raid6tables.c: No such file or directory
+Warning: could not open drivers/net/wan/wanxlfw.inc: No such file or directory
+Warning: could not open drivers/scsi/aic7xxx/aic79xx_reg.h: No such file or directory
+Warning: could not open drivers/scsi/aic7xxx/aic7xxx_reg.h: No such file or directory
+  CC      drivers/net/r8169.mod.o
+  LD [M]  drivers/net/r8169.ko
+
+it makes the following:
+
+-rw-r--r--   1 root root  16138 2009-05-06 12:42 .r8169.o.cmd
+-rw-r--r--   1 root root  38516 2009-05-06 12:42 r8169.o
+-rw-r--r--   1 root root    615 2009-05-06 12:43 r8169.mod.c
+-rw-r--r--   1 root root   9711 2009-05-06 12:43 .r8169.mod.o.cmd
+-rw-r--r--   1 root root   1716 2009-05-06 12:43 r8169.mod.o
+-rw-r--r--   1 trb  trb     126 2009-05-06 12:43 .r8169.ko.cmd
+-rw-r--r--   1 root root  39690 2009-05-06 12:43 r8169.ko
+
+copy the new r8169.ko to
+
+/lib/modules/2.6.15-interactive-motion.1500/kernel/drivers/net/
+
+and load it with modprobe or by rebooting.
+
+when you run network-admin, it should now show an eth0 ethernet connection.
+activate it and it should work.
+
+if it's working, dmesg should print something like:
+
+r8169 Gigabit Ethernet driver 6.010.00 loaded
+ACPI: PCI Interrupt 0000:01:0b.0[A] -> GSI 18 (level, low) -> IRQ 18
+r8169: This product is covered by one or more of the following patents: US5,307,459, US5,434,872, US5,732,094, US6,570,884, US6,115,776, and US6,327,625.
+eth0: RTL8169SC/8110SC at 0xf8b7a000, 00:01:29:a4:da:da, IRQ 18
+r8169: eth0: link up
+
+if not, it should print clues.

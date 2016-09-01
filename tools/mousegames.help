@@ -1,0 +1,122 @@
+
+Help for the Mouse Games Console
+
+Information for playing the games is below, under "Games."
+
+Technical details:
+
+The Mouse Games console allows you to control the Linux
+X Window System cursor by making the robot simulate a
+one-button mouse.  It does this by loading the Robot Linux
+Kernel Module, and running software that makes the cursor
+track robot motion.
+
+Moving the robot simulates X/Y mouse motion.
+Squeezing the grasp sensor handle presses mouse button #1.
+Releasing the grasp sensor handle releases mouse button #1.
+
+The Mouse Games Console has a Run button at the top,
+and Help and Exit buttons at the bottom.
+In between are light blue buttons that run games.
+
+Run/Stop Button:
+
+When you start the console, this button says Run.
+
+When you press Run, it starts the cursor tracking software.
+When that program starts running,
+it changes the Run button label to Stop.
+
+When you press Stop, it stops the cursor tracking software.
+When that program stops running,
+it changes the Stop button label to Run.
+
+There is a message box to the right of the Run/Stop button
+with status information about the cursor tracking software.
+
+When the cursor tracking software is running, the mouse
+and the robot will both control the cursor.  You can use
+the mouse to move the cursor only if you hold the robot
+totally still, otherwise the robot motion will supersede
+the mouse motion.
+
+Some games work by squeezing and releasing an object to
+select it, and then squeezing and releasing again at a
+destination position.
+
+Other games work by squeezing the object, dragging to its
+destination, and then releasing.
+
+When the cursor tracking software is not running,
+you may still run and play the games with the PC mouse.
+
+Grasp Threshold Scale:
+
+The Grasp Threshold Scale slider adjusts the sensitivity of
+the grasp sensor to adjust for different levels of strength
+and tone in patients, and also for different sorts of grasp
+sensor.  The adjustment is for grasp press voltage between
+1 and 9 volts, varied by .5 volts.  Grasp release voltage
+will be set to .5 volt less than grasp press voltage.
+
+Exit Button:
+
+This exits the Robot Cursor Motion Console.
+If the cursor tracking software is running,
+it is stopped first.
+
+Help Button: This screen.
+
+
+
+
+Games:
+
+Solitaire: This program allows you to play dozens of
+variations of Solitaire.  To move the cards, you must grasp
+and drag them from one place to another.
+
+Mine Sweeper: Click the boxes, trying to avoid the mines.
+If you hit a mine, it explodes and the game is over.
+If you don't hit a mine, the game will tell you how many
+mines are adjacent to the box you clicked.  The object is to
+uncover all the boxes except the ones with mines.
+
+Color Lines: To score points, drag balls on the grid to
+form lines of five in a row of one color.  After dragging
+each ball, if you don't make five in a row, the computer
+places the "next balls" onto the playing surface.
+
+Same Color: Clicking on a set of two or more adjacent balls
+scores points.  The more balls in the set, the more points
+you score, each additional ball in a set doubles the score.
+Bonus points for clearing all the balls.
+
+Reversi:  Each piece has a black side and a white side. On
+your turn, you place one piece on the board with your color
+facing up. You must place the piece so that an opponent's
+piece, or a row of opponent's pieces, is flanked by your
+pieces. All of the opponent's pieces between your pieces
+are then turned over to become your color.  End up with the
+most pieces, and you win.
+
+Tetravex: Move all the numbered squares to the object rack,
+matching all the numbers on each edge of each square.
+
+Mah Jongg: A solitaire version of the Chinese tile game.
+Tiles that are not covered by other tiles and have space on
+either left or right, are in play.  Click matching pairs from
+those tiles, and they are removed from the board.
+Beside exact matching pairs, a season tile matches any
+season tile, and a flower tile matches any flower tile.
+Try to remove all the tiles.
+
+Klotski: A set of moving block games from Poland.
+The object of the game is to move the marked block to
+the goal pegs.  You must move the other blocks around
+to guide the marked block to the goal.
+
+Mon May 16 18:47:10 EDT 2005
+
+-- end of mousegames.help
+

@@ -1,0 +1,876 @@
+#!/usr/bin/wish
+
+# motor tests
+# perform these tests on robot motors:
+
+# being modified to work on different robots,
+# edit in progress.
+# 1/06
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# test cables
+# read encoders
+# motor zero volts
+# motor direction
+# torque curve
+# 80% max torque
+# analog input
+# digital output
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+# motor_test writes 6 items to log:
+
+# ob->log[j++] = (f64) ob->i;
+# ob->log[j++] = rob->ft.moment.z;
+# ob->log[j++] = rob->shoulder.angle.rad;
+# ob->log[j++] = rob->elbow.angle.rad;
+# ob->log[j++] = ob->raw_torque_volts.s;
+# ob->log[j++] = ob->raw_torque_volts.e;
+
+set ob(tmpdir) "/tmp/motor_test[pid]"
+
+set ob(have,planar) yes
+set ob(current_robot) planar
+set ob(have,wrist) no
+set ob(have,ankle) no
+set ob(have,linear) no
+set ob(robot,i) 0
+set ob(maxvolts) 5.0
+set ob(voltsmult) 1.0
+
+proc testline {tag text {command none}} {
+	global ob
+	if {[string compare $command none]} {
+		set b [button .b$tag -text $text -command test_$tag]
+	} else {
+		set b [label .b$tag -text $text]
+	}
+	set cb1 [checkbutton .cb1$tag -text "Motor 1"]
+	set cb2 [checkbutton .cb2$tag -text "Motor 2"]
+	set cb3 [checkbutton .cb3$tag -text "Motor 3"]
+	set lp [label .lp$tag -text done.]
+	#  Assign both to a row in the grid
+	# grid $l $b $lp $cb -padx 4 -pady 4
+	grid $b $cb1 $cb2 $cb3 $lp -pady 0 -sticky w
+	grid $b -sticky e
+	foreach i {b cb1 cb2 cb3 lp} {
+		set ob($i,$tag) [set $i]
+	}
+}
+
+# tick for n seconds.
+# when done, call donecmd
+
+set ob(timestop) 0
+
+proc ticktime {n {donecmd return}} {
+    global ob
+    if {$ob(timestop)} {
+	set n 0
+	set ob(timestop) 0
+    }
+
+    set ob(timestr) "Time: $n"
+    incr n -1
+
+    if {$n >= 0} {
+	after 1000 ticktime $n $donecmd
+    } else {
+	$donecmd
+    }
+}
+
+set ob(shmstop) 0
+
+proc tickshm {} {
+    global ob
+    if {$ob(shmstop)} {
+	return
+    }
+
+    if {$ob(have,planar)} {
+	set ob(anglestr1) "Motor 1 Angle: [rshm etheta]"
+	set ob(anglestr2) "Motor 2 Angle: [rshm stheta]"
+	set ob(anglestr3) "Motor 3 Angle: 0.0"
+	set ob(vel1) [rshm ethetadot]
+	set ob(vel2) [rshm sthetadot]
+	set ob(vel3) 0.0
+    }
+
+    if {$ob(have,wrist)} {
+	set ob(anglestr1) "Motor 1 Angle: [rshm wrist_right_disp]"
+	set ob(anglestr2) "Motor 2 Angle: [rshm wrist_left_disp]"
+	set ob(anglestr3) "Motor 3 Angle: [rshm wrist_ps_disp]"
+	# todo: thetadot
+	set ob(vel1) [rshm wrist_right_theta]
+	set ob(vel2) [rshm wrist_left_theta]
+	set ob(vel3) [rshm wrist_ps_theta]
+    }
+
+    if {$ob(have,ankle)} {
+	set ob(anglestr1) "Motor 1 Angle: [rshm ankle_right_disp]"
+	set ob(anglestr2) "Motor 2 Angle: [rshm ankle_left_disp]"
+	set ob(anglestr3) "Motor 3 Angle: 0.0"
+	# todo: thetadot
+	set ob(vel1) 0.0
+	set ob(vel2) 0.0
+	set ob(vel3) 0.0
+    }
+
+    if {$ob(have,linear)} {
+	set ob(anglestr1) "Motor 1 Angle: [rshm linear_disp]"
+	set ob(anglestr2) "Motor 2 Angle: 0.0"
+	set ob(anglestr3) "Motor 3 Angle: 0.0"
+	set ob(vel1) [rshm linear_vel]
+	set ob(vel2) 0.0
+	set ob(vel3) 0.0
+    }
+
+    set ob(velstr1) "Motor 1 Vel: $ob(vel1)"
+    set ob(velstr2) "Motor 2 Vel: $ob(vel2)"
+    set ob(velstr3) "Motor 3 Vel: $ob(vel3)"
+
+    set ob(ztorque) [rshm ft_zmoment]
+    set ob(ztorquestr) "Z moment: $ob(ztorque)"
+    set ob(ainval) [rshm adcvolts [expr {8 + $ob(ainchan)}]]
+    set ob(ainvalstr) "AIn($ob(ainchan)) volts: $ob(ainval)"
+    color_labels
+    after 50 tickshm
+}
+
+proc color_labels {} {
+    global ob
+
+    if {$ob(vel1) < 0.0} {
+	.thetadot1 configure -bg pink
+    } else {
+	.thetadot1 configure -bg #d9d9d9
+    }
+
+    if {$ob(vel2) < 0.0} {
+	.thetadot2 configure -bg pink
+    } else {
+	.thetadot2 configure -bg #d9d9d9
+    }
+
+    if {$ob(vel3) < 0.0} {
+	.thetadot3 configure -bg pink
+    } else {
+	.thetadot3 configure -bg #d9d9d9
+    }
+
+    if {$ob(ainval) < 0.0} {
+	.fainval configure -bg pink
+    } else {
+	.fainval configure -bg #d9d9d9
+    }
+
+    if {$ob(ztorque) < 0.0} {
+	.ztrq configure -bg pink
+    } else {
+	.ztrq configure -bg #d9d9d9
+    }
+
+}
+
+proc check_run_motors {} {
+    global ob
+
+    reap_zombies
+
+    if {!($ob(run,1) || $ob(run,2) || $ob(run,3))} {
+	status "Test stopped because no motor is selected."
+	error "No motor is selected."
+    }
+}
+
+# a test asks all motors to spin.
+# they spin only if the motor number checkbox is lit
+proc spin {volts} {
+    global ob
+    if {$ob(have,planar)} {
+	set e 0.0
+	set s 0.0
+	if {$ob(run,1)} {set e $volts}
+	if {$ob(run,2)} {set s $volts}
+	wshm raw_torque_volts_e $e
+	wshm raw_torque_volts_s $s
+    # puts "spin planar e $e s $s"
+    }
+
+    if {$ob(have,wrist)} {
+	set right 0.0
+	set left 0.0
+	set ps 0.0
+	if {$ob(run,1)} {set right $volts}
+	if {$ob(run,2)} {set left $volts}
+	if {$ob(run,3)} {set ps $volts}
+	wshm wrist_right_test_volts $right
+	wshm wrist_left_test_volts $left
+	wshm wrist_ps_test_volts $ps
+    # puts "spin wrist r $right l $left ps $ps"
+    }
+
+    if {$ob(have,ankle)} {
+	set right 0.0
+	set left 0.0
+	if {$ob(run,1)} {set right $volts}
+	if {$ob(run,2)} {set left $volts}
+	wshm ankle_right_test_volts $right
+	wshm ankle_left_test_volts $left
+    # puts "spin ankle r $right l $left"
+    }
+
+    if {$ob(have,linear)} {
+	set linear 0.0
+	if {$ob(run,1)} {set linear $volts}
+	wshm linear_test_volts $linear
+    # puts "spin linear $linear"
+    }
+}
+
+# ramp up to volts volts in 1 second.
+proc ramp_up {volts} {
+    global ob
+    foreach i {0 1 2 3 4 5} {
+	# ms wait
+	set wait [expr {$i * 200}]
+	set iv [expr {$volts * $i / 5.0}]
+	after $wait spin $iv
+    }
+}
+
+# ramp down from volts volts in 1 second.
+proc ramp_down {volts} {
+    global ob
+    foreach i {0 1 2 3 4 5} {
+	# ms wait
+	set wait [expr {$i * 200}]
+	set iv [expr {$volts * (5 - $i) / 5.0}]
+	after $wait spin $iv
+    }
+}
+
+proc choose_rob {} {
+global ob
+	# puts "choose_rob set robot type $ob(robot,i)"
+	set ob(have,planar) no
+	set ob(have,wrist) no
+	set ob(have,ankle) no
+	set ob(have,linear) no
+	switch $ob(robot,i) {
+	0 {
+	    set ob(have,planar) yes
+	    set ob(maxvolts) 5.0
+	    set ob(voltsmult) 1.0
+	    set ob(current_robot) planar
+
+	    if {$ob(pfovolts) == 10.0} {
+		set ob(maxvolts) 10.0
+		set ob(voltsmult) 2.0
+	    }
+	}
+	1 {
+	    set ob(have,wrist) yes
+	    set ob(maxvolts) 10.0
+	    set ob(voltsmult) 2.0
+	    set ob(current_robot) wrist
+	}
+	2 {
+	    set ob(maxvolts) 10.0
+	    set ob(have,ankle) yes
+	    set ob(voltsmult) 2.0
+	    set ob(current_robot) ankle
+	}
+	3 {
+	    set ob(have,linear) yes
+	    set ob(maxvolts) 10.0
+	    set ob(voltsmult) 2.0
+	    set ob(current_robot) linear
+	}
+	}
+}
+
+proc make_window {} {
+    global ob
+
+    button .exit -text Exit -command exit_command -bg red
+    button .stop -text Stop -command stop_command
+    button .zero -text "Zero Enc" -command zero_command
+    button .ft_bias -text "FT Bias" -command ft_bias
+    grid .exit .stop .zero .ft_bias -sticky w
+
+    label .dummy1
+    grid .dummy1
+    set ob(rob,planar) 0
+    set ob(rob,wrist) 0
+    set ob(rob,ankle) 0
+    set ob(rob,linear) 0
+    radiobutton .robpl -text "Planar" -command choose_rob -variable ob(robot,i) -value 0
+    radiobutton .robwr -text "Wrist" -command choose_rob -variable ob(robot,i) -value 1
+    radiobutton .roban -text "Ankle" -command choose_rob -variable ob(robot,i) -value 2
+    radiobutton .roblin -text "Linear" -command choose_rob -variable ob(robot,i) -value 3
+    label .roblab -text "Robot"
+    grid .roblab .robpl .robwr -sticky w
+    grid x .roban .roblin -sticky w
+
+    set ob(run,1) 0
+    set ob(run,2) 0
+    set ob(run,3) 0
+    checkbutton .motor1 -text "Motor 1" -variable ob(run,1)
+    checkbutton .motor2 -text "Motor 2" -variable ob(run,2)
+    checkbutton .motor3 -text "Motor 3" -variable ob(run,3)
+    label .molab -text "Motor Active"
+    grid .molab .motor1 .motor2 .motor3 -sticky w
+
+    # label .dummy15
+    # grid .dummy15
+
+    frame .hr1 -bd 3 -height 3 -relief ridge
+    grid .hr1 - -sticky we -pady 4
+
+    # label .dummy2
+    # grid .dummy2
+
+    label .lcables -text "Test Cables"
+    checkbutton .cbcables -text "done."
+    grid .lcables .cbcables -pady 4 -sticky w
+    grid .lcables -sticky e
+
+    testline read_encoders "Read Encoders" none
+
+    testline motor_0v "Motor Zero Volts" test
+    testline motor_dir "Motor Direction" test
+    testline torque_curve "Torque Curve" test
+    testline max_torque "80% Max Torque" test
+    testline backlash "Backlash" test
+    testline impedance "Impedance" test
+
+    button .bain -text "Analog Input" -command test_ain
+    checkbutton .cbain -text "done."
+    grid .bain .cbain -pady 4 -sticky w
+    grid .bain -sticky e
+
+    label .ldout -text "Digital Output"
+    checkbutton .cbdout -text "done."
+    grid .ldout .cbdout -pady 4 -sticky w
+    grid .ldout -sticky e
+
+    # testline ain "Analog Input" test
+    # testline dout "Digital Output" none
+
+    # label .dummy3
+    # grid .dummy3
+
+    frame .hr2 -bd 3 -height 3 -relief ridge
+    grid .hr2 - -sticky we -pady 4
+
+    # label .dummy4
+    # grid .dummy4
+
+
+    set ob(ainchan) 0
+    frame .fain
+    button .fain.minus -text "<<" \
+	    -command {set ob(ainchan) [expr {($ob(ainchan) + 7) % 8}]}
+    label .fain.chan -textvariable ob(ainchan)
+    button .fain.plus -text ">>" \
+	    -command {set ob(ainchan) [expr {($ob(ainchan) + 1) % 8}]}
+    set ob(ainvalstr) "AIn($ob(ainchan)) volts: 0.000"
+    label .fainval -textvariable ob(ainvalstr)
+    pack .fain.minus .fain.chan .fain.plus -side left
+    grid .fain .fainval -
+    grid .fainval -sticky w
+
+    checkbutton .dout0 -text dout0 -variable ob(dout0) -command test_dout
+    checkbutton .dout1 -text dout1 -variable ob(dout1) -command test_dout
+    grid  x .dout0 .dout1 - -sticky w
+
+    foreach i {1 2 3} {
+	set ob(anglestr$i) "Motor $i Angle: 0.000"
+	label .theta$i -textvariable ob(anglestr$i)
+	set ob(velstr$i) "Motor $i Vel: 0.000"
+	label .thetadot$i -textvariable ob(velstr$i)
+	grid .theta$i - .thetadot$i - -sticky w
+    }
+
+    set ob(ztorquestr) "Z Moment: 0.000"
+    label .ztrq -textvariable ob(ztorquestr)
+
+    set ob(timestr) "Time: 0"
+    label .time -textvariable ob(timestr)
+    grid .ztrq - .time - -sticky w
+
+    label .dummy5
+    grid .dummy5
+
+    label .status -text ""
+    grid .status - - - - -
+
+    wm geometry . 600x675
+    wm minsize . 600 675
+    wm title . "InMotion2 Component Tests"
+    wm withdraw .
+
+}
+
+# brakes off, send zero volts to each motor,
+# plot data
+# make sure motors do not turn.
+# also make sure there is no noise.
+proc test_motor_0v {} {
+    global ob
+    set ob(procname) [procname]
+    set sec 60
+    check_run_motors
+    status "[procname]: $sec seconds..."
+    set ob(m0vlog) [file join $ob(tmpdir) motor_0v.dat]
+    ticktime $sec done_motor_0v
+    # TODO 3
+    wshm logfnid 1
+    start_log $ob(m0vlog) 10
+    spin 0.0
+}
+
+proc motor_0v_p2p {} {
+    global ob
+
+    set flist {}
+    if {$ob(have,planar)} {set flist {1 e 2 s}}
+    if {$ob(have,wrist)} {set flist {1 r 2 l 3 ps}}
+    if {$ob(have,linear)} {set flist {1 lin}}
+
+    set fd [open "|$ob(crobhome)/ta.tcl  $ob(m0vlog)" r]
+
+    foreach {n m} $flist {
+	# set name to eang or sang
+	set name ${m}ang
+	set ob(m0v,$name,min) 1000.0
+	set ob(m0v,$name,max) -1000.0
+    }
+
+    while {[gets $fd line]} {
+	foreach {i zmo sang eang storque etorque rang lang psang linang} $line break
+        foreach {n m} $flist {
+	    # set name to eang or sang
+	    set name ${m}ang
+	    # set ang to the angle value
+	    set ang [set $name]
+	    if {$ang > $ob(m0v,$name,max)} {set ob(m0v,$name,max) $ang}
+	    if {$ang < $ob(m0v,$name,min)} {set ob(m0v,$name,min) $ang}
+	}
+    }
+    puts "encoder peak to peak noise:"
+
+    set thresh .002
+    if {$ob(have,planar)} {set thresh .002}
+    if {$ob(have,wrist)} {set thresh .03}
+    # tbd
+    if {$ob(have,linear)} {set thresh .002}
+    foreach {n m} $flist {
+	set name ${m}ang
+	set ang [set $name]
+	set ob(m0v,$name,noise) [expr {$ob(m0v,$name,max) - $ob(m0v,$name,min)}]
+	puts -nonewline "motor $n: min $ob(m0v,$name,min) max $ob(m0v,$name,max) peak to peak $ob(m0v,$name,noise)"
+	if {$ob(m0v,$name,noise) > $thresh} {
+	    puts -nonewline " noisy" 
+	} else {
+	    puts -nonewline " ok" 
+	}
+	puts ""
+    }
+
+    puts ""
+    close $fd
+}
+
+proc done_motor_0v {} {
+    global ob
+    set ob(procname) [procname]
+    status "[procname]: done."
+    stop_log
+    # elbow and shoulder angles
+    if {$ob(have,planar)} {
+	plot_log $ob(m0vlog) "plot '%f' using 1:3, '%f' using 1:4"
+    }
+    if {$ob(have,wrist)} {
+	plot_log $ob(m0vlog) "plot '%f' using 1:7, '%f' using 1:8, '%f' using 1:9"
+    }
+    if {$ob(have,linear)} {
+	plot_log $ob(m0vlog) "plot '%f' using 1:10"
+    }
+    motor_0v_p2p
+}
+
+# brakes off,
+# send -.5v and .5v
+# check direction of motor rotation
+proc test_motor_dir {} {
+    global ob
+    set ob(procname) [procname]
+    check_run_motors
+    status "$ob(procname): spinning with negative voltage (ccw)..."
+    ticktime 10
+    set ob(tvolts) [expr {.5 * $ob(voltsmult)}]
+    spin -$ob(tvolts)
+    after 5000 {
+	 status "$ob(procname): spinning with positive voltage (cw)..."
+	 spin $ob(tvolts)
+    }
+    after 10000 {
+        set ob(tvolts) 0.0
+	spin $ob(tvolts)
+	status "$ob(procname): done."
+    }
+}
+
+# test_torque_curve helper fn send voltage
+# n is an index into tcvoltslist
+proc torque_curve_volts {n} {
+	global ob
+
+	# tcl here stands for torque curve list.
+	if {$n >= $ob(tcllen)} {
+		# we are done
+		spin 0.0
+		set running "motor:"
+		if {$ob(run,1)} { set running "$running motor 1" }
+		if {$ob(run,2)} { set running "$running motor 2" }
+		if {$ob(run,3)} { set running "$running motor 3" }
+
+		# print results to tty and ~/torque.dat
+		status "torque_curve done."
+		set tcout [open "~/torque.dat" a]
+		puts [clock format [clock seconds]]
+		puts $tcout [clock format [clock seconds]]
+		puts "Torque Curve: $ob(current_robot) $running (written to ~/torque.dat)"
+		puts $tcout "Torque Curve: $ob(current_robot) $running"
+		foreach v $ob(tcvoltslist) {
+		    set v [expr {double($v)}]
+		    puts "$v: $ob(torque,$v)"
+		    puts $tcout "$v: $ob(torque,$v)"
+		}
+		puts ""
+		puts $tcout ""
+		close $tcout
+		return
+	}
+
+	# not done, send a voltage
+	set volts [expr {double([lindex $ob(tcvoltslist) $n])}]
+
+	spin $volts
+	status "torque_curve ($n): $volts volts"
+
+	# read after 2.5 secs
+	after 2500 torque_curve_readz $n $volts
+	# next iter after 5 secs
+	incr n 
+	after 5000 torque_curve_volts $n
+}
+
+# test_torque_curve helper fn read z
+proc torque_curve_readz {n volts} {
+	global ob
+	set ob(torque,$volts) [rshm ft_zmoment]
+	status "torque_curve ($n): $volts volts read z"
+}
+
+# send set of motor voltages
+# get torque curve
+proc test_torque_curve {} {
+    global ob
+    # a gentle order for the spin, start slowly.
+    # will still kick going from 5v to 0v.
+    check_run_motors
+    set ob(tcvoltslist) {-1 -2 -3 -4 -5 0 1 2 3 4 5}
+    if {$ob(maxvolts) == 10.0} {
+	set ob(tcvoltslist) {-2 -4 -6 -8 -10 0 2 4 6 8 10}
+    }
+    set ob(tcllen) [llength $ob(tcvoltslist)]
+    ticktime [expr {$ob(tcllen) * 5}]
+    torque_curve_volts 0
+}
+
+# brakes off, send zero volts to each motor,
+# plot data
+# make sure motors do not turn.
+# also make sure there is no noise.
+proc test_max_torque {} {
+    global ob
+    set ob(procname) [procname]
+    check_run_motors
+    set ttime 60
+    ticktime [expr {2 * $ttime + 5}]
+    set ob(m80plog) [file join $ob(tmpdir) motor_0v.dat]
+    wshm logfnid 1
+    start_log $ob(m80plog) 6
+
+    set ob(rampvolts) [expr {4.0 * $ob(voltsmult)}]
+    # later...
+    # off after 30 sec
+    # after 30000 {wshm nlog 0}
+    # on after 4 min 30 sec
+    # after 27000 {wshm nlog 6}
+
+    status "[procname]: +$ob(rampvolts)v for $ttime seconds"
+    ramp_up $ob(rampvolts)
+
+    after [expr {$ttime * 1000}] {
+	    status "$ob(procname): ramping down"
+	    ramp_down $ob(rampvolts)
+    }
+    after [expr {($ttime + 5) * 1000}] {
+	    status "$ob(procname): $ob(rampvolts)v for 60 seconds"
+	    ramp_up -$ob(rampvolts)
+    }
+    after [expr {(2 * $ttime + 5) * 1000}] {
+	    ramp_down -$ob(rampvolts)
+	    status "$ob(procname): done"
+	    stop_log
+	    plot_log $ob(m80plog) "plot '%f' using 1:2"
+    }
+}
+
+proc test_backlash {} {
+    global ob
+    set ob(procname) [procname]
+    set sec 10
+    set ob(volts) 5.0
+    ticktime $sec
+    status "[procname]: $sec seconds..."
+    status "sending -5 volts"
+
+    ramp_up -$ob(volts)
+
+    after 2500 {
+	global ob
+	status "read angles -$ob(volts) volts"
+	if {$ob(have,wrist)} {
+	    set ob(angle,1,n) [rshm wrist_right_disp]
+	    set ob(angle,2,n) [rshm wrist_left_disp]
+	    set ob(angle,3,n) [rshm wrist_ps_disp]
+	}
+    }
+    after 4000 {
+	ramp_down -$ob(volts)
+    }
+
+    after 5000 {
+	status "sending $ob(volts) volts"
+	ramp_up $ob(volts)
+    }
+
+    after 7500 {
+	global ob
+	status "read angles $ob(volts) volts"
+	if {$ob(have,wrist)} {
+	    set ob(angle,1,p) [rshm wrist_right_disp]
+	    set ob(angle,2,p) [rshm wrist_left_disp]
+	    set ob(angle,3,p) [rshm wrist_ps_disp]
+	}
+    }
+    after 9000 {
+	ramp_down $ob(volts)
+
+	# print results to tty and ~/torque.dat
+	status "backlash done."
+	set tcout [open "~/torque.dat" a]
+	puts [clock format [clock seconds]]
+	puts $tcout [clock format [clock seconds]]
+	puts "Backlash: $ob(current_robot) (written to ~/torque.dat)"
+	puts $tcout "Backlash: $ob(current_robot)"
+
+	foreach i {1 2 3} {
+	    puts "$i: [expr {abs($ob(angle,$i,p) - $ob(angle,$i,n))}]"
+	    puts $tcout "$i: expr {fabs($ob(angle,$i,p) - $ob(angle,$i,n)}])"
+	}
+	puts ""
+	puts $tcout ""
+	close $tcout
+	return
+    }
+}
+
+proc test_ain {} {
+    global ob
+    set ob(procname) [procname]
+    set sec 60
+    ticktime $sec
+    status "[procname]: $sec seconds..."
+
+    set ob(ain,log) [file join $ob(tmpdir) ain.asc]
+    file mkdir $ob(tmpdir)
+    set ob(ain,out) [open $ob(ain,log) w]
+    for {set j 0} {$j < 16} {incr j} {
+	set ob(ain,min,$j) 1000.0
+	set ob(ain,max,$j) -1000.0
+    }
+    set ob(ain,i) 0
+    every 10 {
+	global ob
+	if {$ob(ain,i) >= 3000} {
+	    after cancel $ob(ain_after_id)
+	    done_ain
+	    return
+	}
+
+	puts -nonewline $ob(ain,out) "$ob(ain,i) "
+	for {set j 0} {$j < 16} {incr j} {
+	    set val "[rshm adcvolts $j] "
+	    if {$val < $ob(ain,min,$j)} {set ob(ain,min,$j) $val}
+	    if {$val > $ob(ain,max,$j)} {set ob(ain,max,$j) $val}
+	    puts -nonewline $ob(ain,out) $val
+	}
+	puts $ob(ain,out) ""
+	incr ob(ain,i)
+
+    } ob(ain_after_id)
+}
+
+proc done_ain {} {
+    global ob
+    set ob(procname) [procname]
+    status "[procname]: done."
+    close $ob(ain,out)
+    puts "ain peak to peak noise:"
+    for {set j 0} {$j < 16} {incr j} {
+	set noise [expr {$ob(ain,max,$j) - $ob(ain,min,$j)}]
+	puts -nonewline "$j: $noise"
+	if {$noise > .04} {
+	    puts -nonewline " noisy" 
+	} else {
+	    puts -nonewline " ok" 
+	}
+	puts ""
+    }
+    puts ""
+    plot_log $ob(ain,log) "plot '%f' using 1:2 w l, \
+    '%f' using 1:3 w l, \
+    '%f' using 1:4 w l, \
+    '%f' using 1:5 w l, \
+    '%f' using 1:6 w l, \
+    '%f' using 1:7 w l, \
+    '%f' using 1:8 w l, \
+    '%f' using 1:9 w l, \
+    '%f' using 1:10 w l, \
+    '%f' using 1:11 w l, \
+    '%f' using 1:12 w l, \
+    '%f' using 1:13 w l, \
+    '%f' using 1:14 w l, \
+    '%f' using 1:15 w l, \
+    '%f' using 1:16 w l, \
+    '%f' using 1:17 w l"
+}
+
+proc test_dout {} {
+    global ob
+    wshm dout0 $ob(dout0)
+    wshm dout1 $ob(dout1)
+}
+
+set ob(rtl_loaded) 0
+
+proc load_command {} {
+    global ob
+    if {$ob(rtl_loaded)} {
+	error "lkm already loaded"
+    }
+    set ob(rtl_loaded) 1
+    wm protocol . WM_DELETE_WINDOW exit_command
+    start_lkm
+    start_shm
+    # no safety zone
+    wshm safety_pos 10.0
+    wshm no_safety_check 1
+    # write open loop voltages
+    wshm test_raw_torque 1
+    wshm logfnid 1
+    wshm shoulder_torque_xform 1.0
+    wshm elbow_torque_xform 1.0
+    # no dio oversampling
+    wshm diovs 1
+    # zero wrist gcomp
+    wshm wrist_diff_gcomp 0.0
+    wshm wrist_ps_gcomp 0.0
+
+    wshm have_thermal_model 0
+    after 100
+    start_loop
+    after 100
+    if {$ob(have,planar)} {
+	set ob(motor,1) e
+	set ob(motor,2) s
+	set ob(motor,3) none
+    }
+    if {$ob(have,ankle)} {
+	set ob(motor,1) r
+	set ob(motor,2) l
+	set ob(motor,3) none
+    }
+    if {$ob(have,wrist)} {
+	set ob(motor,1) r
+	set ob(motor,2) l
+	set ob(motor,3) ps
+    }
+    if {$ob(have,linear)} {
+	set ob(motor,1) linear
+	set ob(motor,2) none
+	set ob(motor,3) none
+    }
+    tickshm
+}
+
+proc exit_command {} {
+    global ob
+    status "Unloading InMotion2 Robot Linux Kernel Module..."
+    update idle
+    stop_command
+    set ob(rtl_loaded) 0
+    stop_rtl
+    file delete -force $ob(tmpdir)
+    exit
+}
+
+# clear all alarms,
+# zero motor stuff
+# then restart tickshm
+
+proc stop_command {} {
+    global ob
+
+    reap_zombies
+    spin 0.0
+    set ob(timestop) 1
+    stop_log
+    cancel_afters
+    set ob(timestr) "Time: 0"
+    spin 0.0
+    after 200 tickshm
+    after 1500 {set ob(timestop) 0}
+    status "Test stopped by Stop button."
+}
+
+proc zero_command {} {
+    wshm pcienc_zero 1
+    wshm isaenc_zero 1
+}
+proc status {text} {
+	.status configure -text $text
+}
+
+make_window
+load_command
+wm deiconify .
+

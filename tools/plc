@@ -1,0 +1,225 @@
+#! /usr/bin/tclsh
+
+# program plc
+# a wrapper program to perform plc commands
+# using the shell command line
+
+# M0: pc_cmd_pwr_en: cmd from PC
+# M1: pc_cmd_pwr_dis: cmd from PC
+# M2: pc_cmd_drive_en: cmd from PC
+# M3: pc_cmd_drive_dis: cmd from PC
+# M4: calibrated
+
+# plc looks for a file in $::env(IMT_CONFIG), called either
+# have_plc or have_no_plc.
+# if you have neither of these files, then the software runs
+# assuming that you have no PLC, but it complains.
+# if you have no PLC (as in pre-CE machines), create the have_no_plc
+# file, and the software should run, skipping PLC checks.
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/tools/modbus.tcl
+
+set ::ob(plcret) 0
+
+proc mynameargs {} {info level -2}
+
+proc pmynameargs {args} {puts [mynameargs]}
+
+# report slave id returns:
+# FF if running, so exit 0
+# 00 if stopped so exit 1
+# nothing if turned off so exit 2
+
+proc cmd-check-plc {} {
+	do_report_slave_id
+	set ans [rmnonhex $::ob(fromplc)]
+	set ans [insblanks $ans]
+	set ans [lindex $ans 4]
+	if {$ans == ""} {
+		set ::ob(plcret) 2
+		return
+	}
+	scan $ans %x val
+	set ::ob(plcret) [expr {$val != 0xFF}]
+}
+
+# todo
+# proc cmd-set-bit {args}
+# proc cmd-clear-bit {args}
+# proc cmd-check-bit {args}
+# proc cmd-check-status {args}
+
+proc cmd-set-pwr-en {} {
+	do_force_single_coil m0 1
+}
+
+proc cmd-set-pwr-dis {} {
+	do_force_single_coil m1 1
+}
+
+# octal x4 is bit 0x10 of hex x0
+proc cmd-check-pwr {} {
+	do_read_input_status x0 8
+	set bits8 [lindex $::ob(fromplc) 3]
+	set bits8 [rmnonhex $bits8]
+	set bits8 [insblanks $bits8]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x10)}]
+}
+
+# octal x25 is bit 0x20 of hex x10
+proc cmd-check-estop {} {
+	do_read_input_status x10 8
+	set bits8 [lindex $::ob(fromplc) 3]
+	set bits8 [rmnonhex $bits8]
+	set bits8 [insblanks $bits8]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x20)}]
+}
+
+proc cmd-set-drive-en {} {
+	do_force_single_coil m2 1
+}
+
+proc cmd-set-drive-dis {} {
+	do_force_single_coil m3 1
+}
+
+# octal y27 is bit 0x80 of hex y10
+# active follows the drive state
+proc cmd-check-active {} {
+	do_read_input_status y10 8
+	set bits8 [rmnonhex $::ob(fromplc)]
+	set bits8 [insblanks $bits8]
+	set bits8 [lindex $bits8 3]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x80)}]
+}
+
+# octal y24 is bit 0x10 of hex y10
+proc cmd-check-ready-lamp {} {
+	do_read_input_status y10 8
+	set bits8 [rmnonhex $::ob(fromplc)]
+	set bits8 [insblanks $bits8]
+	set bits8 [lindex $bits8 3]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x10)}]
+}
+
+# decimal m17 is bit 0x2 of hex m10
+proc cmd-check-pwr-pc-5v {} {
+	do_read_input_status m10 8
+	set bits8 [rmnonhex $::ob(fromplc)]
+	set bits8 [insblanks $bits8]
+	set bits8 [lindex $bits8 3]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x2)}]
+}
+
+# decimal m18 is bit 0x4 of hex m10
+proc cmd-check-pwr-hv {} {
+	do_read_input_status m10 8
+	set bits8 [rmnonhex $::ob(fromplc)]
+	set bits8 [insblanks $bits8]
+	set bits8 [lindex $bits8 3]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x4)}]
+}
+
+# decimal m19 is bit 0x8 of hex m10
+proc cmd-check-pwr-24v {} {
+	do_read_input_status m10 8
+	set bits8 [rmnonhex $::ob(fromplc)]
+	set bits8 [insblanks $bits8]
+	set bits8 [lindex $bits8 3]
+	scan $bits8 %x val
+# puts "24v val [format 0x%x $val]"
+	set ::ob(plcret) [expr {!($val & 0x8)}]
+}
+
+proc cmd-set-cal-en {} {
+	do_force_single_coil mf 1
+}
+
+proc cmd-set-cal-dis {} {
+	do_force_single_coil m10 1
+}
+
+# decimal m4 is bit 0x10 of hex m0
+proc cmd-check-cal {} {
+	do_read_input_status m0 8
+	set bits8 [rmnonhex $::ob(fromplc)]
+	set bits8 [insblanks $bits8]
+	set bits8 [lindex $bits8 3]
+	scan $bits8 %x val
+	set ::ob(plcret) [expr {!($val & 0x10)}]
+}
+
+# print sorted list of cmd-commands
+
+proc cmd-help {args} {
+    puts "usage: plc command\n"
+    puts "where command is one of:"
+    foreach i [lsort [info proc cmd-*]] {
+	regsub ^cmd- $i "" cmd
+	puts "$cmd"
+    }
+}
+
+# parse the command line and call a cmd proc
+
+proc dispatch {} {
+	global argv
+
+	set cmd [lindex $argv 0]
+	set cmdargs [lrange $argv 1 end]
+	if {[info proc cmd-$cmd] != ""} {
+
+		# do this even if there's no plc
+		if {"$cmd" == "help"} {
+			eval cmd-$cmd $cmdargs
+			exit 0
+		}
+
+		# override for testing robot without plc
+		if {[info exists ::env(NO_PLC_OK)]} {
+			puts "testing with env variable NO_PLC_OK set"
+			exit 0
+		}
+
+		# if neither have_plc nor have_no_plc exist, exit with warning.
+		if {![file exists $::env(IMT_CONFIG)/have_plc] 
+		    && ![file exists $::env(IMT_CONFIG)/have_no_plc]} {
+			puts "$::env(IMT_CONFIG)/have_plc not found"
+			exit 0
+		}
+
+		# do both exist?
+		if {[file exists $::env(IMT_CONFIG)/have_plc] 
+		    && [file exists $::env(IMT_CONFIG)/have_no_plc]} {
+			puts "$::env(IMT_CONFIG)/have_plc and have_no_plc both found"
+			puts "remove one!"
+			exit 1
+		}
+
+		# if have_no_plc exists, exit quietly with success.
+		if {[file exists $::env(IMT_CONFIG)/have_no_plc]} {
+			exit 0
+		}
+
+		# we get here if have_plc is found
+
+		eval cmd-$cmd $cmdargs
+	} else {
+		puts "plc: no such command - $cmd"
+		puts {run: "plc help" for a list of valid commands.}
+		exit 1
+	}
+}
+
+do_open_plc
+dispatch
+do_close_plc
+exit $::ob(plcret)

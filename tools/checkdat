@@ -1,0 +1,57 @@
+# check for existence of patient data files in directory $1
+# does not search subdirectories.
+
+# example:
+
+# for i in /home/imt/therapist/test/*/*
+# do
+#	./checkdat $i
+#	read
+# done
+
+
+
+cd $1
+TMP=/tmp/checkdat$$
+ls > $TMP
+trap "rm -rf $TMP" EXIT
+
+# write commands that may be parsed by sh or tcl
+
+
+echo "s date `date`"
+echo "s dir $1"
+# blocks in dir
+echo s du `du -s $1 | cut -f1`
+echo
+
+# $TMP has the file list.  grep through it for each type, and print a count
+# game files
+echo s all_dat `grep 'dat' $TMP | wc -l`
+echo s all_asc `grep 'asc' $TMP | wc -l`
+echo
+echo s circle `grep '^circle_' $TMP | grep dat | wc -l`
+echo s point_to_point `grep '^point_to_point_' $TMP | grep dat | wc -l`
+echo s playback_static `grep '^playback_static_' $TMP | grep dat | wc -l`
+echo s round_dyn `grep '^round_dyn_' $TMP | grep dat | wc -l`
+echo s shoulder `grep '^shoulder_' $TMP | grep dat | wc -l`
+echo s brh05_a `grep '^brh05_a' $TMP | grep dat | wc -l`
+echo s brh05_b `grep '^brh05_b' $TMP | grep dat | wc -l`
+echo s adaptive_asc `grep '^adaptive_' $TMP | grep asc | wc -l`
+echo s oneway `grep '^oneway_' $TMP | grep dat | wc -l`
+echo s general `grep '^general_' $TMP | grep dat | wc -l`
+echo s star `grep '^star_' $TMP | grep dat | wc -l`
+echo s starforce `grep '^star_force_' $TMP | grep dat | wc -l`
+echo s test `grep '^test_' $TMP | grep dat | wc -l`
+echo
+
+# these are also game files
+# direction files
+for i in N NE E SE S SW W NW
+do
+	echo s ${i}_b `grep "_${i}b" $TMP | grep dat | wc -l`
+	echo s ${i}_t `grep "_${i}t" $TMP | grep dat | wc -l`
+done
+echo
+echo "s done 1"
+echo

@@ -1,0 +1,61 @@
+#! /usr/bin/tclsh
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/tools/modbus.tcl
+
+proc quit {} {
+	do_close_plc
+	exit
+}
+
+proc do_test {} {
+	do_open_plc
+
+	do_report_slave_id
+	do_print_read_write_plc
+	do_read_input_status x10 16
+	do_print_read_write_plc
+	puts ""
+
+	do_force_single_coil s0 1
+	do_print_read_write_plc
+	do_read_coil_status s0 8
+	do_print_read_write_plc
+	do_force_single_coil s0 0
+	do_print_read_write_plc
+	do_read_coil_status s0 8
+	do_print_read_write_plc
+	puts ""
+
+	do_preset_single_register c0 0x0123
+	do_print_read_write_plc
+	do_preset_single_register c1 0x4567
+	do_print_read_write_plc
+	do_preset_single_register c2 0x89ab
+	do_print_read_write_plc
+	do_preset_single_register c3 0xcdef
+	do_print_read_write_plc
+	do_read_holding_register c0 4
+	do_print_read_write_plc
+	puts ""
+
+	do_preset_single_register c0 0
+	do_print_read_write_plc
+	do_preset_single_register c1 0
+	do_print_read_write_plc
+	do_preset_single_register c2 0
+	do_print_read_write_plc
+	do_preset_single_register c3 0
+	do_print_read_write_plc
+	do_read_holding_register c0 4
+	do_print_read_write_plc
+	puts ""
+
+	do_read_holding_register t20 1
+	do_print_read_write_plc
+
+	do_close_plc
+}
+
+do_test

@@ -1,0 +1,42 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+puts "loading linux kernel module."
+start_lkm
+start_shm
+
+wshm sin_period 2.0
+wshm sin_amplitude 0.5
+wshm sin_which_motor 3
+wshm test_raw_torque 1
+
+puts "sine controller, sin_period 2.0, sin_amplitude 0.5, sin_which_motor 3 (both)"
+puts "hold on, hit enter to start"
+gets stdin
+
+start_loop
+
+# infinite loop
+movebox 0 6 {0 1 0} {0.0 0.0 0.0 0.0} {0.0 0.0 0.0 0.0}
+
+puts "hit enter to stop"
+gets stdin
+
+puts "unloading linux kernel module"
+stop_loop
+stop_shm
+stop_lkm

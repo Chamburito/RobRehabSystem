@@ -1,0 +1,21 @@
+# newuser script, not done yet
+
+read -p "login name: " loginname
+read -p "real name: " realname
+echo
+echo Adding user...
+echo login name: $loginname
+echo real name: $realname
+read -p "ok? (type y for yes) " ok
+if [ "$ok" != y ]; then
+    echo bye
+    exit
+fi
+exit
+
+useradd --gecos "$realname" $loginname
+usermod -G robot $loginname
+usermod -G admin $loginname
+copy imt_config
+edit imt.rc
+copy crob lgames protocols

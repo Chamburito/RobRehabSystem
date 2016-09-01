@@ -1,0 +1,63 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+package require Tk
+
+# we are not using the root window, so hide it
+wm withdraw .
+
+set ob(crobhome) $::env(CROB_HOME)
+set ob(lgameshome) $::env(LGAMES_HOME)
+
+source $ob(crobhome)/shm.tcl
+source $ob(lgameshome)/common/util.tcl
+
+clear_robot_cal_done
+
+set do_stop_lkm yes
+
+if {[is_lkm_loaded]} {
+        set lkm_already_loaded 1
+	tk_messageBox -title "Warning" -message "Linux kernel module is already loaded."
+} else {
+        set lkm_already_loaded 0
+        start_lkm
+}
+start_shm
+
+wshm no_safety_check 1
+start_loop
+after 100
+
+tk_messageBox -title "Place Handle"  -message "Place linear handle at upper calibration point, then hit OK"
+
+set limvolts [rshm linear_limit_volts]
+
+wshm isaenc_zero 1
+wshm pcienc_zero 1
+
+if {$limvolts < 3.0} {
+	tk_messageBox -title "Calibration failed" -message "Limit switch error: Robot handle is not at upper calibration point!!!"
+} else {
+	set_robot_cal_done
+	tk_messageBox -title "Calibration succeeded" -message "Calibration complete."
+}
+
+if {!$lkm_already_loaded} {
+    stop_loop
+    stop_shm
+    stop_lkm
+} else {
+    stop_shm
+    tk_messageBox -title "Warning" -message "not unloading Linux kernel module"
+}
+
+exit

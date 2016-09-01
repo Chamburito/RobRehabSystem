@@ -1,0 +1,51 @@
+#! /usr/bin/tclsh
+
+# loopfix - given a .dat file, append some data to the end
+# to smooth the loop transition from end to beginning.
+# creates $in.lf
+
+set pid [pid]
+
+set in [lindex $argv 0]
+set tmp /tmp/lf$pid.asc
+set out "$in.lf"
+exec ~imt/crob/ta.tcl $in > $tmp
+
+# this isn't very tclsh
+set head [exec head -1 $tmp]
+set tail [exec tail -2 $tmp]
+
+set len [llength $head]
+# puts $len
+# puts $head 
+# puts $tail
+
+for {set i 0} {$i < $len} {incr i} {
+	set h($i) [lindex $head $i]
+	set t($i) [lindex $tail $i]
+	set d($i) [expr {$t($i) - $h($i)}]
+}
+
+# parray h
+# parray t
+# parray d
+
+set lfa [open "$out" w]
+fconfigure $lfa -translation binary -encoding binary
+
+set ticks 50.0
+# not from 0, since the existing item is 0.
+for {set i 1} {$i < $ticks} {incr i} {
+	set o(0) [expr {$t(0) + $i}]
+	set o(1) [expr {$t(1) - $i * $d(1) / $ticks}]
+	set o(2) [expr {$t(2) - $i * $d(2) / $ticks}]
+	# puts "$o(0) $o(1) $o(2)"
+	puts -nonewline $lfa [binary format "d11" \
+	[list $o(0) $o(1) $o(2) 0. 0. 0. 0. 0. 0. 0. 0.]]
+}
+
+# output new records
+
+close $lfa
+
+file delete $tmp

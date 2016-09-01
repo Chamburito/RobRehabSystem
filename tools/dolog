@@ -1,0 +1,86 @@
+#!/usr/bin/tclsh
+
+# dolog - write a logfile from a running control loop
+# usage: dolog filename logfnid nlog
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# run a logger
+
+global ob
+
+if {$argc != 3} {
+	puts "dolog filename logfnid nlog"
+	exit 1
+}
+
+set ob(afn) [lindex $argv 0]
+set ob(alogfnid) [lindex $argv 1]
+set ob(anlog) [lindex $argv 2]
+
+proc logsetup {name} {
+    global ob
+
+    set curtime [clock seconds]
+    set datestamp [clock format $curtime -format "%Y%m%d_%a"]
+    set timestamp [clock format $curtime -format "%H%M%S"]
+    set fn $name.$timestamp.dat
+    set baselogdir $::env(LOG_HOME)
+    set logdir [file join $baselogdir $datestamp]
+    file mkdir $logdir
+    set ob(logf) [file join $logdir $fn]
+    set ob(nlog) $ob(anlog)
+
+    wshm logfnid $ob(alogfnid)
+}
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+cd $ob(crobhome)/tools
+
+if {![is_lkm_loaded]} {
+        puts "An lkm should already be loaded."
+	exit 1
+}
+
+start_shm
+
+logsetup $ob(afn)
+
+puts "writing log file $ob(logf)"
+puts "logger $ob(alogfnid), $ob(nlog) items."
+puts "press enter to start logging."
+gets stdin in
+puts "started at [clock format [clock seconds]]"
+
+set paused [rshm paused]
+
+if {$paused == 1} {
+	puts "the robot is paused."
+	puts "exiting."
+	stop_shm
+	exit 1
+}
+
+puts "writing to logfnid [rshm logfnid]"
+
+start_log $ob(logf) $ob(nlog)
+
+puts "press enter to stop logging."
+gets stdin
+
+stop_log
+
+puts "stopped at [clock format [clock seconds]]"
+
+stop_shm
+
+after 100
+
+puts "done"
+

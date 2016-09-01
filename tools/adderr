@@ -1,0 +1,33 @@
+#!/usr/bin/wish
+
+# Copyright 2007 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# add null errors to error array, to test error reporting.
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+	puts "robot software must already be loaded."
+	exit
+}
+
+start_shm
+
+set i [rshm i]
+set nerrors [rshm nerrors]
+set errorindex [expr {$nerrors % 128}]
+
+wshm errorindex $errorindex
+wshm errori $i $errorindex
+wshm errorcode 0 $errorindex
+incr nerrors
+wshm nerrors $nerrors
+puts "$errorindex: wrote 0"
+	
+stop_shm
+exit

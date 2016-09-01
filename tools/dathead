@@ -1,0 +1,17 @@
+#! /bin/sh
+# get dat log file header
+
+if [ ! -r "$1" ]; then
+	echo dathead: file \"$1\" is not readable. 1>&2
+	exit 1
+fi
+
+top=`sed 1q $1`
+
+if [ "$top" != "# imt log" ]; then
+	echo dathead: $1 is not an imt log file. 1>&2
+	exit 1
+fi
+
+# print until #####, then exit immediately.
+sed '/^#####$/q' < $1

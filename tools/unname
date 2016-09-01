@@ -1,0 +1,30 @@
+#!/bin/bash
+
+u=`id -u`
+if [ "$u" != 0 ]; then
+         echo "user is $u, must be 0 (root)."
+         exit 1
+fi
+
+if [ ! -e /etc/dhcp3/dhclient.conf.imt ]; then
+    echo "seems crob/tools/name has not been run, so not going to unname"
+    exit 1
+fi
+
+if grep 1001 /etc/passwd ; then
+    echo "seems there is a user in /etc/passwd other than imt, so not going to unname"
+    exit 1
+fi
+
+ifdown eth0
+rm -f /home/imt/.ssh/known_hosts
+rm -f /home/imt/.bash_history 
+mv -f /etc/dhcp3/dhclient.conf.imt /etc/dhcp3/dhclient.conf
+mv -f /etc/hosts.imt /etc/hosts
+echo "imt" > /etc/hostname
+hostname imt
+/etc/init.d/ssh stop
+update-rc.c -f ssh remove
+ifup eth0
+echo -n "Host name is now " ; hostname
+echo "Logout of any X sessions (and back in again) to take effect."

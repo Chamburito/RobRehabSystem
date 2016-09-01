@@ -1,0 +1,126 @@
+
+Ayuda para la consola de juegos
+
+La información para jugar los juegos está abajo,
+bajo título "Juegos."
+
+Detalles Técnicos:
+
+La consola de juegos le permite a usted controlar el cursor
+del sistema Linux X Window haciendo que el robot simule un
+"mouse" de un botón.  Hace esto cargando el "Linux Kernel Module"
+del robot, y ejecutando software que hace que el cursor
+sigue el movimiento del robot.
+
+El movimiento del robot simula el movimiento X/Y del mouse. 
+El apretar la manija del sensor de agarre presiona
+el botón #1 del mouse. 
+El liberar la manija del sensor del agarre libera
+el botón #1 del mouse.
+
+La consola de juegos tiene un botón de arranque en la tapa,
+y botones para ayuda y salida en el fondo.
+En el medio están los botones azules ligeros que activan los juegos.
+
+Botones de Arranque/Parada:
+
+Cuando usted enciende la consola, este botón dice Arranque.
+
+Cuando usted presiona el botón de Arranque, este botón
+enciende el software de seguimiento del cursor.
+Cuando ese programa comienza a funcionar, la etiqueta del
+botón cambia de Arranque a Parada.
+
+Cuando usted presiona el botón de Parada, esta acción para el software.
+Cuando ese programa para de funcionar, la etiqueta del botón
+cambia de Parada a Arranque. 
+
+Hay una caja de mensajes a la derecha del botón de
+Arranque/Parada con la información de estado sobre el
+software.
+
+Usted puede usar el mouse para mover el cursor solo
+si usted mantiene el robot totalmente quieto, de otra forma
+el movimiento del robot reemplazará el movimiento del mouse.
+Algunos juegos trabajan apretando y liberando un objeto,
+arrastrándolo hacia su destino, y entonces liberándolo.
+
+Otros juegos trabajan apretando el objeto, arrastrándolo a
+su destino, y entonces liberándolo.
+
+Cuando el software no está funcionando, usted todavía puede
+activar y jugar los juegos con el mouse.
+
+Escala del umbral del agarre:
+
+El dial de la escala del umbral de agarre ajusta la
+sensibilidad del sensor para ajustar diversos niveles de la
+fuerza y del tono en pacientes, y también para diversas
+clases de sensores.  El ajuste del voltaje asociado al
+apriete del agarre es entre 0.5 y 5.0 voltios, variado por
+voltios de 0.05.  El voltaje de la liberación del agarre se
+fijara 0.25 voltios menos que el voltaje de apriete. 
+
+Botón de Salida:
+
+Esto termina el uso de la consola.
+Si el software está funcionando, este botón para primero el software.
+
+Botón de Ayuda: Esta pantalla.
+
+
+
+
+Juegos:
+
+Solitario: Este programa permite que usted juegue docenas de
+variaciones de Solitario.  Para mover las cartas, usted debe
+agarrar y arrastrar las cartas de un lugar a otro.
+
+Buscaminas: Haga clic en los casilleros, intentando evitar
+las minas.  Si usted golpea una mina, esta estalla y el juego
+termina.  Si usted no golpea una mina, el juego le dirá
+cuantas minas están adyacentes al casillero en el cual usted
+hizo clic.  El objetivo de este juego es destapar todos los
+casilleros excepto aquellos con minas.
+
+Líneas De Color: Para anotar puntos, arrastre las bolas en
+la rejilla para formar líneas de cinco en una fila de un
+solo color.  Después de arrastrar cada bola, si usted no
+hace cinco en una fila, la computadora coloca las "bolas
+siguientes" sobre la superficie en que juega.
+
+Mismo Color: El cliquear en un sistema de dos o más
+adyacentes bolas anota puntos.  Más bolas en el sistema, más
+puntos que usted anota.  Cada bola adicional en un sistema
+dobla la anotación.  Recibirá puntos extras por despejar
+todas las bolas.
+
+Reversi: Cada pieza tiene un lado negro y un lado blanco.  En
+su turno, usted coloca una sola pieza en el tablero con el
+color para arriba.  Usted debe poner la pieza de modo que la
+pieza del oponente, o una fila de la pieza del oponente, es
+flanqueado por sus piezas.  Todas las piezas del opositor que
+están entre sus piezas son volteadas para que se conviertan
+en piezas de su color.  El que finaliza con mas piezas gana.
+
+Tetravex: Mueva todos los cuadrados numerados hacia el
+estante, empareje todos los números en cada borde de cada
+cuadrado.
+
+Mah Jongg: Una versión solitaria del juego chino del
+azulejo.  Los azulejos que no son cubiertos por otros
+azulejos y tienen espacio en la izquierda o derecha siguen
+en juego.  Seleccione pares que emparejan, y sáquelos del
+tablero.  Al lado de pares que emparejan exactos, un azulejo
+actúa como comodín y empareja cualquier azulejo.  Intente
+quitar todos los azulejos.
+
+Klotski: Un sistema de juego de bloques móviles de Polonia.
+El objeto del juego es mover el bloque marcado a las
+clavijas de la meta.  Usted debe mover los otros bloques
+alrededor para dirigir el bloque marcado a la meta.
+
+Wed Jun  1 22:11:48 CEST 2005
+
+-- fin de mousegames_es.help

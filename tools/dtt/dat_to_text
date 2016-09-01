@@ -1,0 +1,30 @@
+#! /bin/sh
+
+# 1) ask for directory name and age of files (newer than X days)
+
+echo Convert dat files to plaintext.
+echo
+echo -n "directory to convert: "
+read dir
+
+if [ ! -d $dir ]; then
+	echo $dir is not a directory.
+	exit 1
+fi
+
+echo -n "newer than X days: "
+read days
+test "$days" -gt 0
+if [ $? != 0 ]; then
+	echo "$days" is not an integer greater than zero.
+	exit 1
+fi
+
+echo
+
+# 2) make a list of files that match this pattern, and run conv1dat
+
+find $dir -name '*.dat' -mtime -${days} -print | xargs -n 1 $CROB_HOME/tools/dtt/conv1dat
+
+echo
+echo --done--

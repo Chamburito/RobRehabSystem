@@ -1,0 +1,123 @@
+#! /usr/bin/wish
+# anscales - stiffness and damping on an adjustable sliding scale
+# for the ankle.
+
+# InMotion2 robot system software for RTLinux
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+	puts "scales: robot kernel module is not yet loaded"
+	exit
+}
+
+start_shm
+
+after 100
+
+set sclen 250
+
+set maxstiff 300.
+set maxdamp 6.
+set maxieoff .3
+set maxdpoff .3
+
+set resstiff 5.
+set resdamp .05
+set resieoff .01
+set resdpoff .01
+
+set tickstiff [expr {$maxstiff * .2}]
+set tickdamp [expr {$maxdamp * .2}]
+set tickieoff [expr {$maxieoff * .4}]
+set tickdpoff [expr {$maxdpoff * .4}]
+
+set vstiff [rshm ankle_stiff]
+set vdamp [rshm ankle_damp]
+set vieoff [rshm ankle_ie_offset]
+set vdpoff [rshm ankle_dp_offset]
+
+if {$vstiff < 0 || $vstiff > $maxstiff} {
+	puts "stiffness $vstiff out of range"
+	quit
+}
+
+if {$vdamp < 0 || $vdamp > $maxdamp} {
+	puts "damping $vdamp out of range"
+	quit
+}
+
+if {$vieoff < -$maxieoff || $vieoff > $maxieoff} {
+	puts "ie offset $vieoff out of range"
+	quit
+}
+
+if {$vdpoff < -$maxdpoff || $vdpoff > $maxdpoff} {
+	puts "dp offset $vdpoff out of range"
+	quit
+}
+
+# the scale set command here initializes before the first call to -command.
+# if this was not true, the scales might have bad initial values.
+# the first -command happens after the pack.
+
+scale .stiff -orient horizontal -length $sclen -from 0.0 -to $maxstiff \
+	-label "Ankle Stiffness (Nm/rad)" -command setstiff -resolution $resstiff \
+	-tickinterval $tickstiff
+.stiff set $vstiff
+
+scale .damp -orient horizontal -length $sclen -from 0 -to $maxdamp \
+	-label "Ankle Damping (Nms/rad)" -command setdamp -resolution $resdamp \
+	-tickinterval $tickdamp
+.damp set $vdamp
+
+scale .ieoff -orient horizontal -length $sclen -from -$maxieoff -to $maxieoff \
+	-label "Ankle IE Offset (rad)" -command setieoff -resolution $resieoff \
+	-tickinterval $tickieoff
+.ieoff set $vieoff
+
+scale .dpoff -orient horizontal -length $sclen -from -$maxdpoff -to $maxdpoff \
+	-label "Ankle DP Offset (rad)" -command setdpoff -resolution $resdpoff \
+	-tickinterval $tickdpoff
+.dpoff set $vdpoff
+
+button .quit -text quit -command quit -bg red
+
+pack .stiff .damp .ieoff .dpoff .quit
+
+proc setstiff {i} {
+	wshm ankle_stiff $i
+	# puts "stiff $i"
+}
+
+proc setdamp {i} {
+	wshm ankle_damp $i
+	# puts "damp $i"
+}
+
+proc setieoff {i} {
+	wshm ankle_ie_offset $i
+	# puts "ie offset $i"
+}
+
+proc setdpoff {i} {
+	wshm ankle_dp_offset $i
+	# puts "dp offset $i"
+}
+
+proc quit {} {
+	stop_shm
+	exit
+}
+

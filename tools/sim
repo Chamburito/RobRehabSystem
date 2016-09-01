@@ -1,0 +1,254 @@
+#! /usr/bin/wish
+
+package require Tk
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# run a damping controller
+# you can modify the damping with wshm damp 10.0 or whatever.
+# or by hand with ./shm.
+
+# if vex is already running, then just star/stop shm, not lkm or loop.
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+    puts "sim: no lkm running, exiting."
+    exit 1
+}
+
+proc current_robot {} {
+    exec cat $::env(IMT_CONFIG)/current_robot
+}
+
+set ob(current_robot) [current_robot]
+
+start_shm
+
+proc zero_all {} {
+    set ::pos_x 0.0
+    set ::pos_y 0.0
+    set ::last_x 0.0
+    set ::last_y 0.0
+    set ::vel_x 0.0
+    set ::vel_y 0.0
+}
+
+wshm sim_sensors 1
+# since we're simulating, the real sensors may be returning strange values.
+wshm no_safety_check 1
+
+set ob(scale) 1000.0
+
+#
+# Example 37-1
+# A large scrolling canvas.
+#
+
+proc Scrolled_Canvas { c args } {
+	frame $c
+	eval {canvas $c.canvas \
+		-xscrollcommand [list $c.xscroll set] \
+		-yscrollcommand [list $c.yscroll set] \
+		-highlightthickness 0 \
+		-borderwidth 0} $args
+	scrollbar $c.xscroll -orient horizontal \
+		-command [list $c.canvas xview]
+	scrollbar $c.yscroll -orient vertical \
+		-command [list $c.canvas yview]
+	grid $c.canvas $c.yscroll -sticky news
+	grid $c.xscroll -sticky ew
+	grid rowconfigure $c 0 -weight 1
+	grid columnconfigure $c 0 -weight 1
+	return $c.canvas
+}
+
+proc UnScrolled_Canvas { c args } {
+	frame $c
+	eval canvas $c.canvas $args
+	pack $c.canvas
+	return $c.canvas
+}
+
+#
+# Example 37-2
+# The canvas "Hello, World!" example.
+#
+
+proc CanvasHello {} {
+	global ob
+
+	zero_all
+	vel_loop
+	
+	set can [UnScrolled_Canvas .c -width 600 -height 600 \
+		-scrollregion {-300 -300 300 300}]
+	pack .c -fill both -expand true
+	$can create rect [centxy 0.0 0.0 .2] -tag scale -outline red
+	$can create oval [centxy 0 0 .012] -tag scale
+	# Create a text object on the canvas
+	$can create oval [centxy 0 0 .012] -fill yellow \
+	    -tag "movable cursor scale"
+	# Bind actions to objects with the movable tag
+	$can bind movable <Button-1> {CanvasMark %x %y %W}
+	$can bind movable <B1-Motion> {CanvasDrag %x %y %W}
+
+	$can scale scale 0 0 $ob(scale) $ob(scale)
+
+	bind . <Key-q> done
+	bind . <Key-c> "center $can"
+}
+proc CanvasMark { x y can} {
+	global canvas
+	# Map from view coordinates to canvas coordinates
+	set x [$can canvasx $x]
+	set y [$can canvasy $y]
+	# Remember the object and its location
+	set canvas($can,obj) [$can find closest $x $y]
+	set canvas($can,x) $x
+	set canvas($can,y) $y
+}
+proc CanvasDrag { x y can} {
+	global canvas ob
+	# puts "passed x $x y $y"
+	# Map from view coordinates to canvas coordinates
+	set x [$can canvasx $x]
+	set y [$can canvasy $y]
+	# puts "canvas x $x y $y"
+	# Move the current object
+	set dx [expr $x - $canvas($can,x)]
+	set dy [expr $y - $canvas($can,y)]
+	# puts "dx $dx dy $dy"
+	$can move $canvas($can,obj) $dx $dy
+	set canvas($can,x) $x
+	set canvas($can,y) $y 
+	# find center of current object
+	set bbox [$can bbox $canvas($can,obj)]
+	foreach {x1 y1 x2 y2} $bbox break
+	set cx [expr {($x1 + $x2) / 2.}]
+	set cy [expr {($y1 + $y2) / 2.}]
+	# puts "bbox $bbox"
+	# puts "center x $cx y $cy"
+	# convert center to world space
+	set ::pos_x [expr {$cx / $ob(scale)}]
+	set ::pos_y [expr {-($cy / $ob(scale))}]
+	wm title . "$::ob(current_robot) ($::pos_x, $::pos_y)"
+
+	switch $ob(current_robot) {
+	    planar {
+		wshm sim_pos_x $::pos_x
+		wshm sim_pos_y $::pos_y
+	    }
+	    wrist {
+		set ::pos_x [expr {$::pos_x * 2.0}]
+		wshm sim_wr_pos_fe $::pos_x
+		wshm sim_wr_pos_ps $::pos_x
+		wshm sim_wr_pos_aa $::pos_y
+	    }
+	    linear {
+		wshm sim_pos_y $::pos_y
+	    }
+	}
+
+	# we need to do this too!
+	do_vel
+
+	# puts "new x $x y $y"
+	# puts ""
+}
+
+proc init {c} {
+	global ob
+	# bind $c <Configure> [list after idle chwin $c %w %h]
+	bind $c <Motion> {CanvasDrag %W %x %y}
+	bind $c <Button-1> {CanvasMark %W %x %y}
+
+	bind . <Key-q> done
+
+	# dampzone
+	$c create rect [centxy 0.0 0.0 .2] -tag rect -outline red
+	$c scale rect 0 0 $ob(scale) $ob(scale)
+}
+
+proc center {can} {
+	global ob
+	$can coords cursor [centxy 0 0 .012]
+	$can scale cursor 0 0 $ob(scale) $ob(scale)
+	wm title . "(0.0, 0.0)"
+	set ::pos_x 0.0
+	set ::pos_y 0.0
+	switch $ob(current_robot) {
+	    planar {
+		wshm sim_pos_x 0.0
+		wshm sim_pos_y 0.0
+
+		wshm sim_vel_x 0.0
+		wshm sim_vel_y 0.0
+	    }
+	    wrist {
+		wshm sim_wr_pos_fe 0.0
+		wshm sim_wr_pos_ps 0.0
+		wshm sim_wr_pos_aa 0.0
+
+		wshm sim_wr_vel_fe 0.0
+		wshm sim_wr_vel_ps 0.0
+		wshm sim_wr_vel_aa 0.0
+	    }
+	    linear {
+		wshm sim_pos_y 0.0
+
+		wshm sim_vel_y 0.0
+	    }
+	}
+}
+
+proc done {} {
+
+	after cancel vel_loop
+
+	catch {stop_shm} result
+	after 100
+	exit
+}
+
+set ::Hz 10
+
+proc do_vel {} {
+	global ob
+	set ::vel_x [expr {($::pos_x - $::last_x) * $::Hz}]
+	set ::vel_y [expr {($::pos_y - $::last_y) * $::Hz}]
+
+	switch $ob(current_robot) {
+	    planar {
+		wshm sim_vel_x $::vel_x
+		wshm sim_vel_y $::vel_y
+	    }
+	    wrist {
+		wshm sim_wr_vel_fe $::vel_x
+		wshm sim_wr_vel_ps $::vel_x
+		wshm sim_wr_vel_aa $::vel_y
+	    }
+	    linear {
+		wshm sim_wr_vel_aa $::vel_y
+	    }
+    }
+}
+
+proc vel_loop {} {
+	set avar [expr {1000 / $::Hz}]
+	do_vel
+	set ::last_x $::pos_x
+	set ::last_y $::pos_y
+
+	after $avar vel_loop
+}
+
+# init $c
+CanvasHello

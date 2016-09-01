@@ -1,0 +1,210 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# ao8sine - test fixture for interaction between
+# uei ao8 boards a pd2mf boards
+
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+set ob(loghome) $::env(LOG_HOME)
+set ob(logtime) [clock seconds]
+
+set ob(bank) 0
+if {$argc == 1} {
+    set argv1 [lindex $argv 0]
+    if {[string is integer $argv1]} {
+        set ob(bank) $argv1
+    }
+}
+
+set ltstring [clock format $ob(logtime) -format %Y%m%d_%H%M%S_%a]
+set ob(logname) [join "ao8sine bank $ob(bank) $ltstring" _ ]
+
+file mkdir $ob(loghome)
+puts ""
+puts "opening $ob(loghome)/$ob(logname) ..."
+set ob(logfd) [open "$ob(loghome)/$ob(logname)" w]
+
+set ::env(NO_PLC_OK) yes
+
+source $ob(crobhome)/shm.tcl
+
+set ::ob(wputs_wait) no
+
+set ::ob(maxvolts) 5.0
+
+# puts to screen and log file
+proc lputs {args} {
+	eval puts $args
+	eval puts $::ob(logfd) $args
+}
+
+# puts to screen and log file
+proc lputsnl {args} {
+	eval puts -nonewline $args
+	eval puts -nonewline $::ob(logfd) $args
+}
+
+# puts and maybe wait
+proc wputs {str} {
+	set got ""
+	if {$::ob(wputs_wait)} {
+		puts $str
+		gets stdin got
+	}
+	return $got
+}
+
+proc get_aorms {} {
+	for {set i 0} {$i < 8} {incr i} {
+		set ::ob(aorms,$i) [rshm aorms $i]
+	}
+}
+
+proc print_aorms {i} {
+	lputsnl "$::ob(aorms,$i) "
+}
+
+proc do_aorms {i {Hz 1}} {
+	set ticks [expr {int(1000.0 / $Hz)}]
+	# add a little fudge
+	set bigticks [expr {$ticks + 100}]
+	after $bigticks
+	get_aorms
+	print_aorms $i
+}
+
+# debugging
+# proc wshm {args} {
+	# puts "wshm: $args"
+# }
+
+lputs "\n\n\n"
+lputs "System: ________________________________________"
+lputs "\n\n\n"
+lputs "Signature: ________________________________________"
+lputs "\n\n\n"
+lputs "Pass: _____   Fail: _____"
+lputs "\n\n\n"
+lputs "Date: [clock format $ob(logtime)]"
+lputs "\n\n\n"
+
+
+puts "loading linux kernel module."
+start_lkm
+start_shm
+start_loop
+
+wshm test_no_torque 1
+wshm scr 0 1
+wshm sin_period 5.0
+wshm sin_amplitude 0.0
+wshm have_ft 0
+
+# infinite loop
+movebox 0 23 {0 1 0} {0.0 0.0 0.0 0.0} {0.0 0.0 0.0 0.0}
+
+# we are not yet clear on why bank 0 and bank 1 require different
+# delay values (that is, scr(2)).  but they do, for now.
+if {$ob(bank) != 1} {
+    set bank 0
+    wshm scr -2 2
+    lputs "using bank 0 (ain 0-7) with delay of 2 samples"
+} else {
+    set bank 1
+    wshm scr -1 2
+    lputs "using bank 1 (ain 8-15) with delay of 1 sample"
+}
+lputs ""
+
+wshm scr $bank 3
+lputs "sine wave amplitude +/-$::ob(maxvolts) volts"
+
+lputs "base volts: starting with 0 volts."
+# wputs "hit enter to stop test segment."
+
+wshm scr 255 1
+wshm sin_amplitude 0.0
+set Hz 10
+
+lputsnl "$Hz Hz: "
+for {set i 0} {$i < 8} {incr i} {
+    set per [expr {1.0 / $Hz}]
+    wshm sin_period $per
+    wshm aocount 0
+
+    do_aorms $i $Hz
+
+    # wputs "hit enter to stop test segment"
+}
+lputs ""
+lputs ""
+
+lputs "operation: drive one line at a time at 1Hz, 10 Hz, and 50Hz."
+
+for {set i 0} {$i < 8} {incr i} {
+    lputsnl "operation rms $i: "
+    foreach Hz {1 10 50} {
+	wshm sin_amplitude 0.0
+
+	# puts "line $i $Hz Hz"
+	# wputs "hit enter to start test segment"
+
+	set whichlines [expr {1 << $i}]
+	# puts "whichlines [format %02X $whichlines]"
+	wshm scr $whichlines 1
+	wshm sin_amplitude $::ob(maxvolts)
+	set per [expr {1.0 / $Hz}]
+	wshm sin_period $per
+	wshm aocount 0
+
+	do_aorms $i $Hz
+
+	# wputs "hit enter to stop test segment"
+    }
+    lputs ""
+}
+lputs ""
+
+lputs "crosstalk: drive all but one line at a time at 1Hz, 10 Hz, and 50Hz."
+
+for {set i 0} {$i < 8} {incr i} {
+    lputsnl "crosstalk rms $i: "
+    foreach Hz {1 10 50} {
+	wshm sin_amplitude 0.0
+
+	# puts "all but line $i $Hz Hz"
+	# wputs "hit enter to start test segment"
+
+	set whichlines [expr {0xFF ^ (1 << $i)}]
+	# puts "whichlines [format %02X $whichlines]"
+	wshm scr $whichlines 1
+	wshm sin_amplitude $::ob(maxvolts)
+	set per [expr {1.0 / $Hz}]
+	wshm sin_period $per
+	wshm aocount 0
+
+	do_aorms $i $Hz
+
+	# wputs "hit enter to stop test segment"
+    }
+    lputs ""
+}
+lputs ""
+
+wshm sin_amplitude 0.0
+
+# wputs "test complete, hit enter to finish."
+
+close $ob(logfd)
+
+puts "unloading linux kernel module"
+stop_loop
+stop_shm
+stop_lkm

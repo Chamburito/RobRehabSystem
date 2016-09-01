@@ -1,0 +1,129 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+proc load_command {} {
+    global ob
+
+    start_lkm
+    start_shm
+    wshm have_thermal_model 0
+    after 100
+    start_loop
+
+
+    wshm no_safety_check 1
+    wshm test_raw_torque 1
+    # wshm shoulder_torque_xform 1.0
+    # wshm elbow_torque_xform 1.0
+    # wshm diovs 1
+    set ob(run,1) 1
+    set ob(run,2) 1
+    set ob(motor,1) e
+    set ob(motor,2) s
+
+    set ob(pfovolts) 0.
+    set ob(voltsmult) 1.0
+    set ob(pfovolts) [rshm pfomax]
+    if {$ob(pfovolts) == 10.0} {set ob(voltsmult) 2.0}
+
+    set v [expr {3. * $ob(voltsmult)}]
+
+    puts "Loading InMotion2 Robot Linux Kernel Module..."
+    puts ""
+    puts "motor_static: test motors under static load."
+    puts "lock handle in place before starting test."
+    puts "push both motors with ${v}v force"
+    puts "first 15 minutes pushing away from robot body"
+    puts "then 15 minutes pulling toward robot body."
+}
+
+proc exit_command {} {
+    spin 1 0.0
+    spin 2 0.0
+    puts "Unloading InMotion2 Robot Linux Kernel Module..."
+    stop_rtl
+    exit
+}
+
+proc spin {motor volts} {
+    global ob
+    if {![string match {[12]} $motor]} {
+	return
+    }
+    set volts [expr {$volts * $ob(voltsmult)}]
+    if {$ob(run,$motor)} {
+	wshm raw_torque_volts_$ob(motor,$motor) $volts
+    } else {
+	wshm raw_torque_volts_$ob(motor,$motor) 0.0
+    }
+}
+
+# ramp up to volts volts in 1 second.
+proc ramp_up {motor volts} {
+	foreach i {0 1 2 3 4 5} {
+	    # ms wait
+	    set wait [expr {$i * 200}]
+	    set iv [expr {$volts * $i / 5.0}]
+	    after $wait spin $motor $iv
+	}
+}
+
+# ramp down from volts volts in 1 second.
+proc ramp_down {motor volts} {
+	foreach i {0 1 2 3 4 5} {
+	    # ms wait
+	    set wait [expr {$i * 200}]
+	    set iv [expr {$volts * (5 - $i) / 5.0}]
+	    after $wait spin $motor $iv
+	}
+}
+
+proc static_test {ttime} {
+    set ::tvolts 3.0
+    set ::ttime $ttime
+    puts "[clock format [clock seconds]]"
+    puts "ramp up push $::ttime seconds"
+    ramp_up 1 $::tvolts
+    ramp_up 2 $::tvolts
+
+    after [expr {$::ttime * 1000}] {
+    puts "ramp down"
+	    ramp_down 1 $::tvolts
+	    ramp_down 2 $::tvolts
+    }
+    after [expr {($::ttime + 5) * 1000}] {
+    puts "[clock format [clock seconds]]"
+    puts "ramp up pull $::ttime seconds"
+	    ramp_up 1 -$::tvolts
+	    ramp_up 2 -$::tvolts
+    }
+    after [expr {(2 * $::ttime + 5) * 1000}] {
+    puts "ramp down"
+	    ramp_down 1 -$::tvolts
+	    ramp_down 2 -$::tvolts
+    }
+    after [expr {(2 * $::ttime + 7) * 1000}] {
+	    puts "done"
+	    set ::donevar 1
+    }
+}
+
+set ::donevar 0
+load_command
+
+# n is number of seconds for each side of test.
+static_test 900
+
+vwait ::donevar
+exit_command
+

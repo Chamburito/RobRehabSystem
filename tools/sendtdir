@@ -1,0 +1,56 @@
+#! /usr/bin/expect
+
+set remotelogin burke@newman.mit.edu
+set remotedir krebs/curl05/
+
+# send therapist directory
+
+proc tr { from to string } {
+	return [exec tr $from $to << $string]
+}
+
+proc bail {} {
+	puts "scp error"
+	stty echo
+	exit 1
+}
+
+cd $HOME
+
+set pid [pid]
+set tmp /tmp/sendtdir$pid
+
+set pw [lindex $argv 0]
+set pw [tr A-Za-z N-ZA-Mn-za-m $pw]
+set dirs [lrange $argv 1 end]
+
+set date [clock format [clock seconds] -format %y%m%d_%H%M%S_%a]
+set aname $tmp/$date.tgz
+regsub -all $HOME $dirs "" sdirs
+
+file mkdir -p $tmp
+eval exec tar cfz $aname $sdirs
+
+set prompt "(%|#|\\$) $"
+
+# logging in should be pretty quick.
+# catching the timeout catches remote being down
+spawn scp -q -r $aname $remotelogin:$remotedir
+expect {
+	word: {stty -echo; send "$pw\r"}
+	timeout {bail}
+}
+stty echo
+
+# we got to the site, sending the data may take a while.
+# 100 Mb of data at 100Kb/sec would be 1000 sec, <20 mins
+set timeout 7200
+
+# catching "try again" gets incorrect passwords
+
+expect {
+	"try again" {bail}
+	-re $prompt
+}
+
+file delete -force $tmp

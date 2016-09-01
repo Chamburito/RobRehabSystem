@@ -1,0 +1,92 @@
+#!/usr/bin/tclsh
+
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# shake the arm
+
+# usage: shake [msec]
+# msec is the amount of time to shake at each shake frequency.
+# it shakes at 10 different frequencies.  see sensact.c.
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+set msec 5000
+if {$argc == 1} {
+	set argv1 [lindex $argv 0]
+	if {[string is integer $argv1]} {
+		set msec $argv1
+	}
+	if {$msec < 100} {
+		set msec 100
+	}
+}
+
+puts "loading linux kernel module."
+start_lkm
+start_shm
+
+set x 0.0
+set y -0.0
+
+start_loop
+
+wshm safety_pos 5.0
+after 100
+
+center_arm_2s
+
+puts "shake: shake robot for 30 minutes,"
+puts "using a range of frequencies and amplitudes"
+puts "be careful when you run this."
+puts "make sure arm is centered before starting."
+puts "point controller homes to ($x,$y), hit enter to start."
+puts "damping 40 stiffness 400 time $msec"
+
+after 2000
+
+wshm damp 40.
+wshm stiff 400.
+wshm safety_pos 0.2
+
+# typeahead bad.
+flushin stdin
+
+gets stdin
+
+# set x and y to 0.0 or wherever you want the manipulandum cursor to stay
+
+# this movebox is an infinite loop, so it stays at x,y.
+movebox 0 0 {0 1 0} [list $x $y 0.0 0.0] [list $x $y 0.0 0.0]
+
+set donevar 0
+fileevent stdin readable [list set donevar 1]
+puts "hit enter to stop"
+
+set ::vibe 0
+set ::time 0.0
+
+every $msec {
+	# half an hour
+	if {$::time >= 1800.0} {set ::donevar 1}
+	set ::vibe [expr {($::vibe % 1000) + 100}]
+	puts "time: $::time, vibe $::vibe, hit enter to stop"
+	set ::time [expr $::time + {$::msec / 1000.0}]
+	wshm vibrate $::vibe
+}
+
+# gets stdin
+
+vwait donevar
+
+puts "unloading linux kernel module"
+stop_loop
+stop_shm
+stop_lkm

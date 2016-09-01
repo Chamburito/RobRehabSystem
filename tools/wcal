@@ -1,0 +1,35 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+global ob
+
+source $ob(crobhome)/shm.tcl
+
+if {![is_lkm_loaded]} {
+	puts "linux kernel module was not loaded, exit."
+	exit
+}
+
+start_shm
+
+start_loop
+after 100
+
+puts "place stalk on calibration block, then hit enter"
+gets stdin
+wshm isaenc_zero 1
+
+puts "calibration complete."
+
+stop_shm
+

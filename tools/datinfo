@@ -1,0 +1,11 @@
+#! /bin/sh
+
+# get dat file header and calculate body size and number of rows
+
+cols=`$CROB_HOME/tools/dathead $1 | grep columns | cut -d " " -f 3`
+size=`$CROB_HOME/tools/datbody $1 | wc -c`
+rows=`expr $size / $cols / 8`
+$CROB_HOME/tools/dathead $1
+echo "# other dat info not in header"
+echo s logsize $size
+echo s logrows $rows

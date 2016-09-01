@@ -1,0 +1,116 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+# make this async with proper exit!
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+puts "Loading Linux Kernel Module."
+puts ""
+puts "roadtrip: send robot arm on a trip around work surface."
+puts "runs for 30 minutes."
+start_lkm
+start_shm
+start_loop
+
+# typeahead bad
+flushin stdin
+
+puts "Arm Motion Test"
+puts "Press 'Enter' to start."
+
+gets stdin
+
+wshm safety_pos 1.0
+wshm stiff 200.0
+wshm damp 5.0
+wshm vibrate 300
+
+set xylist {
+-.2 -.2
+-.2  .3
+ .3  .3
+ .3 -.2
+}
+
+set xylist {
+-.2 -.2
+-.4  .3
+0.0  .3
+ .4  .3
+ .2 -.2
+
+-.2 -.2
+ .2 -.2
+
+ .4  .3
+0.0  .3
+-.4  .3
+
+-.2 -.2
+ .2 -.2
+}
+
+set xylist {
+-.2 -.15
+-.4  .3
+0.0  .3
+ .4  .3
+ .2 -.15
+
+-.2 -.15
+ .2 -.15
+
+ .4  .3
+0.0  .3
+-.4  .3
+
+-.2 -.15
+ .2 -.15
+}
+
+proc done {} {
+puts "Unloading Linux Kernel Module"
+stop_loop
+stop_shm
+stop_lkm
+exit
+}
+
+# loop time based on length of xylist
+set llentime [expr {1000 * [llength $xylist] / 2}]
+
+set ::donevar 0
+fileevent stdin readable [list set ::donevar 1]
+
+# puts "hit enter to stop"
+set ::time 0
+
+proc loop {list} {
+    if {![llength $list]} {set list $::xylist}
+    after 1000 [list loop [lrange $list 2 end]]
+    set x [lindex $list 0]
+    set y [lindex $list 1]
+    if {$::time > 7200.0} {done}
+    if {$::donevar > 0} {done}
+    puts "$::time: center_arm1s $x $y, hit enter to stop"
+    center_arm_1s $x $y
+    incr ::time
+}
+
+loop $::xylist
+
+vwait ::donevar
+
+done
+

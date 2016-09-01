@@ -1,0 +1,113 @@
+#!/usr/bin/tclsh
+
+# Copyright 2009 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# wrref - wrist ref, like anref
+
+# vars
+
+# refterm: high water mark of refarray
+# nwref/nrref: number or samples to save, a faucet variable
+# refwi/refri: ticking count
+# reffnid
+
+# copying back refarray happens when you call a particular reffn
+
+global ob
+
+# set up the log file name
+
+proc logsetup {name} {
+    global ob
+
+    set curtime [clock seconds]
+    set datestamp [clock format $curtime -format "%Y%m%d_%a"]
+    set timestamp [clock format $curtime -format "%H%M%S"]
+    set fn $name.$timestamp.dat
+    set baselogdir $::env(LOG_HOME)
+    set logdir [file join $baselogdir $datestamp]
+    file mkdir $logdir
+    set ob(logf) [file join $logdir $fn]
+}
+
+proc done {} {
+	global ob
+
+	wshm refterm 0
+
+	stop_movebox 0
+
+	after 100
+	stop_loop
+	after 100
+	stop_shm
+
+	# give it time to exit
+	after 1000
+
+	puts "unloading robot kernel module"
+	stop_lkm
+	puts "done"
+	exit
+}
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+cd $ob(crobhome)/tools
+
+set ob(wrist_ctl) 7
+set ob(wrist_ref_ctl) 24
+
+puts "loading robot kernel module"
+start_lkm
+start_shm
+start_loop
+
+wshm no_safety_check 1
+set ob(reffnid) 3
+wshm reffnid $ob(reffnid)
+
+after 200
+
+##### save ref data
+
+puts "to start saving ref data, hit enter."
+gets stdin in
+set t1 [clock clicks -milliseconds]
+wshm nwref 5
+after 1000
+
+puts "to stop saving ref data, hit enter."
+gets stdin
+
+after 200
+set t2 [clock clicks -milliseconds]
+
+wshm nwref 0
+set nrefwi [rshm refwi]
+wshm refterm $nrefwi
+wshm refwi 0
+
+##### play back ref data
+
+after 200
+puts "to start reference control, hit enter."
+gets stdin in
+
+after 100
+wshm nrref 5
+
+# run the reference point controller, until stopped.
+movebox 0 $ob(wrist_ref_ctl) {0 1 0} {0 0 0 0} {0 0 0 0} 
+
+after 200
+puts "to stop reference control, hit enter."
+gets stdin in
+wshm nrref 0
+
+done

@@ -1,0 +1,55 @@
+#! /bin/sh
+
+# check-plc status
+
+if [ -z "$CROB_HOME" ]; then
+        echo "CROB_HOME is not set, imt_config/imt.rc must be sourced"
+        exit 1
+fi
+
+CROB=$CROB_HOME
+cd $CROB/tools
+
+./plc check-plc
+ret=$?
+[ $ret -eq 0 ] && echo plc is running
+[ $ret -eq 1 ] && echo plc is stopped
+[ $ret -eq 2 ] && echo plc is not responding
+[ $ret -ne 0 ] && exit $ret
+
+ ./plc check-ready-lamp 
+ret=$?
+[ $ret -eq 0 ] && echo '[y24]' ready lamp is on
+[ $ret -ne 0 ] && echo '[y24]' ready lamp is off
+
+ ./plc check-active
+ret=$?
+[ $ret -eq 0 ] && echo '[y27]' active lamp is on
+[ $ret -ne 0 ] && echo '[y27]' active lamp is off
+
+ ./plc check-cal 
+ret=$?
+[ $ret -eq 0 ] && echo '[m04]' robot is calibrated
+[ $ret -ne 0 ] && echo '[m04]' robot is not calibrated
+
+ ./plc check-estop
+ret=$?
+[ $ret -eq 0 ] && echo '[x25]' estop is not stopped
+[ $ret -ne 0 ] && echo '[x25]' estop is stopped
+
+ ./plc check-pwr-pc-5v
+ret=$?
+[ $ret -eq 0 ] && echo '[m17]' pc 5v is ok
+[ $ret -ne 0 ] && echo '[m17]' pc 5v is not ok
+
+# ./plc check-pwr-hv 
+# ret=$?
+# [ $ret -eq 0 ] && echo '[m18]' hv is ok
+# [ $ret -ne 0 ] && echo '[m18]' hv is not ok
+
+ ./plc check-pwr-24v
+ret=$?
+[ $ret -eq 0 ] && echo '[m19]' 24v is ok
+[ $ret -ne 0 ] && echo '[m19]' 24v is not ok
+
+exit 0

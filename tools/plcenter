@@ -1,0 +1,289 @@
+#!/usr/bin/tclsh
+
+# Copyright 2003-2008 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# plcal - calibrate planar robot with relative encoders
+
+# with the latest jr3-equipped planar on a standard left-handed robot.
+# (right-handed will be different!)
+
+# method:
+# using open loop control
+# fold links to motors
+# move folded links to left stop
+# zero encoders
+# query encoders
+# move folded links to right stop
+# query encoders
+# compare queries and check for alignment.
+# if the alignment is good, then we assume that the zero was good.
+# if good, switch to closed loop control
+# use controller to move links to 0,0 origin
+
+package require Tk
+
+wm withdraw .
+
+font create default -family Times -size -18
+option add *font default
+
+global ob
+
+proc pop {str} {
+	toplevel .pop
+	label .pop.lab
+	pack .pop.lab
+
+	.pop.lab config -text $str -padx 20 -pady 40 -font default
+	set x [winfo rootx .]
+	set y [winfo rooty .]
+	incr x 50
+	incr y 50
+	wm geometry .pop +${x}+${y}
+	wm deiconify .pop
+	raise .pop
+}
+
+proc delpop {} {
+	destroy .pop
+}
+
+proc tksleep {time} {
+	after $time set ::tksleep_end 1
+	vwait ::tksleep_end
+}
+
+# send raw voltages to both planar motors
+
+proc plmot {{s 0.0} {e 0.0}} {
+	global ob
+
+	set s [expr {$s * $ob(voltsmult)}]
+	set e [expr {$e * $ob(voltsmult)}]
+
+	wshm raw_torque_volts_s $s
+	wshm raw_torque_volts_e $e
+}
+
+# send raw voltage to hand motor
+
+proc hamot {{h 0.0}} {
+	global ob
+	if {!$ob(have_hand)} {return}
+	wshm hand_test_volts $h
+}
+
+# get radian encoder angles from both axes
+
+proc gtheta {} {
+	set ts [rshm stheta]
+	set te [rshm etheta]
+	return [list $ts $te]
+}
+
+# normalize an angle to between 0 and 2pi radians
+
+proc radnorm {a} {
+	set twopi [expr {atan(1) * 8.}]
+	while {$a > $twopi} {
+		set a [expr {$a - $twopi}]
+	}
+	while {$a < 0.0} {
+		set a [expr {$a + $twopi}]
+	}
+	return $a
+}
+
+# print axis angles
+
+proc prtheta {ts te} {
+	puts "s $ts e $te"
+}
+
+proc checkcal {se rl srl rse} {
+	global ob
+	if {abs($srl - $ob(stopspan)) > $ob(slop) } {
+		puts "stop span out of range: $srl"
+		return 1
+	}
+	if {abs($rse - $ob(linkspan)) > $ob(slop)} {
+		puts "link span out of range: $rse"
+		return 1
+	}
+	if {abs($se) > ($ob(slop)/2.)} {
+		puts "sediff $se"
+		return 1
+	}
+	if {abs($rl) > ($ob(slop)/2.)} {
+		puts "rldiff $rl"
+		return 1
+	}
+	return 0
+}
+
+# main prog
+
+# calculate differences:
+
+# srl: rs and ls
+# erl: re and le
+# rse: rs and re
+# lse: ls and le
+
+# TODO 9/08 these span numbers should be read from imt2.cal
+
+# srl (and erl) should be near the actual span (1.55 radians)
+set ob(stopspan) 1.55
+# rse (and lse) should be near max locked open (2.56 radians)
+set ob(linkspan) 2.56
+
+set ob(vbig) 1.0
+set ob(vsmall) .5
+set ob(vtiny) .2
+
+set ob(hsmall) -1.0
+set ob(hbig) -3.0
+
+set ob(slop) .1
+
+set ob(crobhome) $::env(CROB_HOME)
+source $ob(crobhome)/shm.tcl
+
+# start the Linux Kernel Modules, shared memory, and the control loop
+# puts "loading linux kernel module"
+if {[is_lkm_loaded]} {
+	puts "lkm already loaded, exiting."
+	exit 1
+} else {
+	start_lkm
+}
+start_shm
+pop "Planar Calibration in Progress..."
+
+# start in open loop mode
+wshm test_raw_torque 1
+# no damping zone
+wshm no_safety_check 1
+
+# check that this is a planar, and whether it has a hand
+
+set ob(have_planar) 0
+set ob(have_planar) [rshm have_planar]
+set ob(have_hand) 0
+set ob(have_hand) [rshm have_hand]
+
+# find out whether this is a 5 or 10 volt planar
+
+set ob(pfovolts) 0.
+set ob(voltsmult) 1.0
+set ob(pfovolts) [rshm pfomax]
+if {$ob(pfovolts) == 10.0} {set ob(voltsmult) 2.0}
+
+start_loop
+
+# sleep for .1 sec, gives robot chance to start
+tksleep 100
+
+# turn off plc cal bit, will only be turned on if the cal succeeds.
+exec $::ob(crobhome)/tools/plc set-cal-dis
+
+# slow fold toward motors
+plmot $ob(vtiny) $ob(vtiny)
+hamot $ob(hsmall) 
+tksleep 3000
+
+# fold toward motors
+plmot $ob(vsmall) $ob(vsmall)
+tksleep 3000
+
+# move folded toward left
+plmot $ob(vsmall) $ob(vbig)
+hamot $ob(hbig) 
+tksleep 4000
+
+# zero encoders
+
+wshm pcienc_zero 1
+tksleep 100
+
+# read encoders
+foreach {ls le} [gtheta] break
+
+# move folded toward right
+plmot $ob(vsmall) $ob(vtiny)
+tksleep 2000
+plmot $ob(vbig) $ob(vsmall)
+tksleep 2000
+
+foreach {rs re} [gtheta] break
+
+# difference between right shoulder and elbow
+set rsediff [radnorm [expr {$rs - $re}]]
+# difference between left shoulder and elbow
+set lsediff [radnorm [expr {$ls - $le}]]
+# difference between those two
+set sediff [expr {abs($rsediff - $lsediff)}]
+
+# difference between right and left shoulder
+set srldiff [radnorm [expr {$rs - $ls}]]
+# difference between right and left elbow
+set erldiff [radnorm [expr {$re - $le}]]
+# difference between those two
+set rldiff [expr {abs($srldiff - $erldiff)}]
+
+puts diffs
+puts [format "%5.2f %5.2f %5.2f" $ls $srldiff $rs]
+puts [format "%5.2f       %5.2f" $lsediff $rsediff]
+puts [format "%5.2f %5.2f %5.2f" $le $erldiff $re]
+puts ""
+
+set ret [checkcal $sediff $rldiff $srldiff $rsediff]
+
+plmot 0 0
+hamot 0
+tksleep 100
+
+# center on good cal
+
+if {!$ret} {
+
+	set x [rshm x]
+	set y [rshm y]
+
+	wshm test_raw_torque 0
+
+	# max 2 volts in old sys, or 4 in new.
+	set pfotv [expr {2.0 * $ob(voltsmult)}]
+	wshm pfotest $pfotv
+
+	# good cal, turn on plc cal bit
+	exec $::ob(crobhome)/tools/plc set-cal-en
+
+	tksleep 100
+
+	puts "move to center"
+	# planar
+	movebox 0 0 {0 600 1} {$x $y 0.0 0.0} {0.0 0.0 0.0 0.0}
+	tksleep 100
+	# hand
+        movebox 1 22 {0 200 1} {.05 0 0 0} {.06 0 0 0}
+	tksleep 3000
+	delpop
+	tk_messageBox -title Succeeded -message "Good Calibration"
+} else {
+	delpop
+	puts "bad calibration"
+	tk_messageBox -title Failed -message "Bad Calibration"
+
+}
+
+# puts "unloading linux kernel module"
+
+stop_loop
+stop_shm
+stop_lkm
+
+exit $ret

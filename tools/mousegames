@@ -1,0 +1,181 @@
+#!/usr/bin/wish
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+global ob
+
+font create default -family Times -size -18
+option add *font default
+
+set ob(crobhome) $::env(CROB_HOME)
+
+set env(PATH) /usr/games/:$::env(PATH)
+
+source $ob(crobhome)/shm.tcl
+
+source $::env(I18N_HOME)/i18n.tcl
+
+proc start_warp {} {
+	global ob
+
+	set ob(running) 1
+	.lwarp configure -text [imes "Starting..."] -bg yellow
+	update idle
+
+	start_rtl
+	exec $ob(crobhome)/rwarp &
+	if {[rshm have_planar]} {
+		set ob(robot) Planar
+	} elseif {[rshm have_wrist]} {
+		set ob(robot) Wrist
+	}
+	.lwarp configure -text "$ob(robot) [imes Running.]" -bg green
+	.bwarp configure -text [imes "Stop"] -command stop_warp
+
+	setgrasp $ob(gvolts)
+	# no motors, no safety damping.
+	wshm no_motors 1
+}
+
+proc stop_warp {} {
+	global ob
+
+	set ob(running) 0
+	.lwarp configure -text [imes "Stopping..."] -bg yellow
+	update idle
+
+	exec /usr/bin/pkill rwarp
+	stop_rtl
+	.lwarp configure -text "$ob(robot) [imes Stopped.]" -bg red
+	.bwarp configure -text [imes "Run"] -command start_warp
+}
+
+# don't let them edit the actual help file :)
+proc help {} {
+	global ob
+	file copy -force $ob(crobhome)/tools/mousegames.help /tmp/
+	# file copy -force $ob(crobhome)/tools/mousegames_it.help /tmp/mousegames.help
+	exec gedit /tmp/mousegames.help &
+}
+
+proc done {} {
+	global ob
+	if {$ob(running)} {
+		stop_warp
+	}
+	exit
+}
+
+proc gcommand {file} {
+	global env
+
+	if [info exists env(LANGUAGE)] {
+		set oLANGUAGE $env(LANGUAGE)
+		set env(LANGUAGE) it_IT
+	}
+	if [info exists env(GDM_LANG)] {
+		set oGDM_LANG $env(GDM_LANG)
+		set env(GDM_LANG) it_IT
+	}
+	if [info exists env(LANG)] {
+		set oLANG $env(LANG)
+		set env(LANG) it_IT
+	}
+
+	exec $file &
+
+	if [info exists env(LANGUAGE)] {
+		set env(LANGUAGE) $oLANGUAGE 
+	}
+	if [info exists env(GDM_LANG)] {
+		set env(GDM_LANG) $oGDM_LANG 
+	}
+	if [info exists env(LANG)] {
+		set env(LANG) $oLANG 
+	}
+}
+
+# game button
+proc gbut {w text file} {
+	button $w -width 25 -text [imes $text] -bg lightblue1 -bd 3 \
+	-command [list gcommand $file]
+}
+
+# setgrasp sets thresholds in the lkm
+# .75 will give .75 down and .50 up,  a good range
+# noise is at about .25-.30, so lower values might not be so good.
+
+proc setgrasp {i} {
+	global ob
+
+	set press [expr double($i)]
+	set release [expr $press - .25]
+
+	set ob(gvolts) $press
+
+	if {!$ob(running)} {
+		# puts "not running"
+		return
+	}
+
+	wshm grasp_press $press
+	wshm grasp_release $release
+	# puts "setting $press"
+}
+
+proc make_window {} {
+    global ob
+
+    # score files hack
+    if {![file exists /var/games]} {
+    	# file link -symbolic /var/lib/games /var/games
+    	exec /bin/ln -s /var/lib/games /var/games
+    }
+
+    set ob(running) 0
+    set ob(robot) Robot
+    button .bwarp
+    label .lwarp
+    .lwarp configure -text "$ob(robot) [imes Stopped.]" -bg red
+    .bwarp configure -text [imes "Run"] -command start_warp
+    grid .bwarp .lwarp -ipadx 10 -ipady 10
+
+    set ob(gvolts) .75
+    scale .grasp -orient horizontal -length 350 -from .5 -to 5.0 \
+	-label [imes "Grasp Threshold"] -command setgrasp -resolution .05 \
+	-tickinterval 1
+    .grasp set $ob(gvolts)
+    grid .grasp -
+
+    gbut .bsol "Solitaire" sol
+    gbut .bmine "Mine Sweeper" gnomine
+    gbut .blines "Color Lines" glines
+    gbut .bsame "Same Color" same-gnome
+    gbut .breversi "Reversi" iagno
+    gbut .btetravex "Tetravex" gnotravex
+    gbut .bmahjongg "Mah Jongg" mahjongg
+    gbut .bklotski "Klotski" gnotski
+
+    button .help -text [imes Help] -command help
+    button .done -text [imes Exit] -command done -bg red
+
+    grid .bsol .bmine -ipadx 10 -ipady 10
+    grid .blines .bsame -ipadx 10 -ipady 10
+    grid .breversi .btetravex -ipadx 10 -ipady 10
+    grid .bmahjongg .bklotski -ipadx 10 -ipady 10
+
+    label .dummy2
+    grid .dummy2
+
+    grid .help .done -ipadx 10 -ipady 10
+
+    wm title . "Robot Mouse Games Console"
+    wm geometry . 600x600
+}
+
+make_window

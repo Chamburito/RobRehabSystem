@@ -1,0 +1,22 @@
+#! /usr/bin/tclsh
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+start_shm
+
+puts "loading ref"
+
+wshm refwi 2
+
+wshm refarr 1 0
+wshm refarr 10 1
+wshm refarr 100 2
+
+wshm refarr 2 5
+wshm refarr 20 6
+wshm refarr 200 7
+
+stop_shm
+

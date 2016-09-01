@@ -1,0 +1,84 @@
+#!/usr/bin/wish
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+package require Tk
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+proc testline {tag text {command none}} {
+	global ob
+	if {[string compare $command none]} {
+		set b [button .b$tag -text $text -command test_$tag]
+	} else {
+		set b [label .b$tag -text $text]
+	}
+	set cb1 [checkbutton .cb1$tag -text "done"]
+	#  Assign both to a row in the grid
+	# grid $l $b $cb -padx 4 -pady 4
+	grid $b $cb1 -pady 4 -sticky w
+	grid $b -sticky e
+	foreach i {b cb1} {
+		set ob($i,$tag) [set $i]
+	}
+}
+
+proc make_window {} {
+    global ob
+
+    button .exit -text Exit -command test_exit -bg red
+    grid .exit
+
+    label .dummy1
+    grid .dummy1
+
+    testline shake "Shake" test
+    testline roadtrip "Road Trip" test
+    testline static "Static" test
+    testline vex "Vex" test
+    testline ft "FT vs. Motors" test
+}
+
+proc test_exit {} {
+	global ob
+
+	# exec $ob(crobhome)/stop &
+	exit
+}
+
+proc test_shake {} {
+	global ob
+
+	exec $ob(crobhome)/tools/shake <@stdin >@stdout 2>@stderr &
+}
+
+proc test_roadtrip {} {
+	global ob
+
+	exec $ob(crobhome)/tools/roadtrip <@stdin >@stdout 2>@stderr &
+}
+
+proc test_static {} {
+	global ob
+
+	exec $ob(crobhome)/tools/motor_static <@stdin >@stdout 2>@stderr &
+}
+
+proc test_vex {} {
+	global ob
+
+	exec $ob(crobhome)/vex <@stdin >@stdout 2>@stderr &
+}
+
+proc test_ft {} {
+	global ob
+
+	exec $ob(crobhome)/tools/ftvsmotors <@stdin >@stdout 2>@stderr &
+}
+
+make_window

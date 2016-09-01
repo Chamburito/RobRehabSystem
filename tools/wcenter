@@ -1,0 +1,11 @@
+#! /bin/sh
+
+# call either cewcenter or blockwcenter
+
+if [ -r "$IMT_CONFIG/have_plc" -o -r $IMT_CONFIG/testcewrist ]; then
+	# ce style
+	exec $CROB_HOME/tools/cewcenter
+else
+	# old cal block style
+	exec $CROB_HOME/tools/blockwcenter
+fi

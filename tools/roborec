@@ -1,0 +1,470 @@
+#! /usr/bin/wish
+
+# roborec - robot record/playback tool
+
+# InMotion2 robot system software for Linux/Xenomai
+
+# Copyright 2009 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+font create default -family Helvetica -size -18
+
+source $::env(CROB_HOME)/shm.tcl
+
+# set up the log file name
+
+proc logsetup {name} {
+    set curtime [clock seconds]
+    set datestamp [clock format $curtime -format "%Y%m%d_%a"]
+    set timestamp [clock format $curtime -format "%H%M%S"]
+    set fn $name.$timestamp.dat
+    set baselogdir $::env(LOG_HOME)
+    set logdir [file join $baselogdir $datestamp]
+    file mkdir $logdir
+    return [file join $logdir $fn]
+}
+
+# if there is no ref data in RAM,
+# don't allow write ref, playback, or write logfile
+
+proc empty_ref_state {} {
+    global ob
+
+    if {$ob(refsource) == "empty"} {
+	foreach w {.bwref .bplayback .cwlog} { $w configure -state disabled }
+    }
+}
+
+# initialize state once at startup
+
+proc init {} {
+    global ob
+
+    package require Tk
+
+    set ob(crobhome) $::env(CROB_HOME)
+    set ob(current_robot) [current_robot]
+    if {$ob(current_robot) != "ankle"} {
+	error "roborec: no support for $ob(current_robot) robot"
+    }
+
+    set ob(is_cal) [is_robot_cal_done]
+
+    set ob(logf) ""
+    set ob(reff) ""
+    set ob(status) ""
+    set ob(status_str) ""
+    set ob(nsecs) ""
+    set ob(sec_str) ""
+    set ob(refsource) "empty"
+    set ob(log_dir) $::env(LOG_HOME)
+    set ob(logging) no
+    set ob(write_log) 0
+
+    wm title . "roborec - Robot Record/Playback Tool - $ob(current_robot)"
+    wm protocol . WM_DELETE_WINDOW do_exit
+
+    # these are decoration, they don't do anything.
+    set char_cal \u25cb
+    set char_right_tri >
+    set char_circle \u25cf
+    set char_bsquare \u25a0
+    set char_wsquare \u25a1
+    set char_help ?
+    set char_home H
+    set char_rref R
+    set char_wref W
+    set char_exit X
+
+    set wid 30
+    set wid2 [expr {$wid * 2}]
+
+    button .bcal -text "$char_cal    Calibrate" -command do_cal
+    button .bhome -text "$char_home    Move to Home" -command do_home
+
+    label .lstatus -textvariable ob(status_str)
+
+    button .brref -text " $char_rref     Read from File" -command do_read_ref
+    button .bwref -text " $char_wref   Write to File" -command do_write_ref
+
+    button .brecord -text "$char_circle    Record from Robot" -command do_record
+    button .bplayback -text "$char_right_tri     Playback to Robot" -command do_playback
+
+    label .lsecs -textvariable ob(sec_str)
+    checkbutton .cwlog -text "Write Playback Logfile" -variable ::ob(write_log)
+
+    button .bplot -text "$char_wsquare    Plot File" -command do_plot
+    button .bhelp -text "$char_help    Help" -command do_help
+
+    button .bstop -text "$char_bsquare    Stop" -command do_stop
+    button .bexit -text " $char_exit    Exit" -command do_exit
+
+    grid .bcal .bhome -sticky news
+    grid .lstatus - -sticky news
+    grid .brref .bwref -sticky news
+    grid .brecord .bplayback -sticky news
+    grid .lsecs .cwlog -sticky news
+    grid .bplot .bhelp -sticky news
+    grid .bstop .bexit -sticky news
+
+    set ob(blist) {.bcal .bhome .brref .bwref .brecord .bplayback .bplot .bhelp .bstop .bexit}
+    set ob(llist) {.lstatus .lsecs}
+    set ob(clist) {.cwlog}
+    set ob(wlist) [concat $ob(blist) $ob(llist) $ob(clist)]
+
+    foreach w $ob(wlist) { $w configure -state disabled -anchor w }
+    foreach w $ob(wlist) { $w configure -height 2 -font default }
+
+    .lstatus configure -state normal
+    .lstatus configure -width 60
+
+    zero_secs
+    set_status_str Stopped
+
+    update idletasks
+    load
+    ref_setup
+
+    foreach w $ob(wlist) { $w configure -state normal }
+    empty_ref_state
+}
+
+# calibrate the robot at current point
+
+proc do_cal {} {
+    global ob
+
+    wshm pcienc_zero 1
+    exec $ob(crobhome)/tools/plc set-cal-en
+    set ob(is_cal) yes
+
+    set_status_str Calibrated
+}
+
+# record path data from the robot to the reference array in RAM
+
+proc do_record {} {
+    global ob
+
+    set_status_str "Record running..."
+    set_status recording
+    set ob(refsource) "recorded from robot"
+
+    foreach w $ob(wlist) { $w configure -state disabled }
+    foreach w {.bstop .bexit .lsecs .lstatus} { $w configure -state normal }
+
+    # ref stuff
+    wshm refwi 0
+    wshm nwref 5
+
+    zero_secs
+    after 1000 sec_loop
+}
+
+# run the C code that adds the "loopack fix"
+# to the path data in the reference array in RAM.
+
+proc fix_loopback {} {
+    wshm ref_switchback_go 1
+}
+
+# during playback, if the write_log variable is set,
+# write a log file
+
+proc do_playback_log {} {
+    global ob
+
+    if {!$ob(is_cal)} {
+	set_status_str "Robot is not calibrated."
+	error "robot is not yet calibrated."
+    }
+
+    if {$ob(write_log)} {
+	set_status_str "Playback running, writing logfile..."
+	set ob(logf) [logsetup reclog]
+	start_log $ob(logf) 18
+	set ob(logging) yes
+    }
+}
+
+# run the slot controller that handles playback
+# of the reference data
+
+proc do_playback_ctl {} {
+    global ob
+
+    wshm nrref 5
+    wshm refri 0
+     
+    do_playback_log
+
+    if {$ob(current_robot) == "ankle"} {
+	# ankle reference control
+	movebox 0 15 {0 1 0} {0 0 0 0} {0 0 0 0}
+    } else {
+	error "no support for $ob(current_robot) robot"
+    }
+}
+
+# make the robot move along the path stored in the reference array in RAM
+# this will continue in a loop until stopped
+
+proc do_playback {} {
+    global ob
+
+    set_status_str "Playback running..."
+    set_status playback
+
+    # center, then start in .5 sec
+    # the first x,y in the ref array
+    set x1 [rshm refarr 1]
+    set y1 [rshm refarr 2]
+    if {$ob(current_robot) == "ankle"} {
+	center_ankle $x1 $y1
+    } else {
+	error "no support for $ob(current_robot) robot"
+    }
+    after 500 do_playback_ctl
+
+    foreach w $ob(wlist) { $w configure -state disabled }
+    foreach w {.bstop .bexit .lsecs .lstatus} { $w configure -state normal }
+
+    zero_secs
+    after 1000 sec_loop
+}
+
+# copy data from the reference array in RAM to a reference log file
+
+proc do_write_ref {} {
+    global ob
+
+    set ob(reff) [logsetup recref]
+    set_status_str "Write reffile $ob(reff)"
+
+    logheader $ob(reff) 5
+    # refio will append to the header.
+    exec $ob(crobhome)/tools/refio -w $ob(reff)
+}
+
+# copy data from a reference log file to the reference array in RAM
+
+proc do_read_ref {} {
+    global ob
+
+    # reclog files do not have loopback fix!
+    set ftypes {
+	{{Reference Files}   recref*.dat}
+	{{All Files}   *}
+    }
+    set filename [tk_getOpenFile -initialdir $ob(log_dir) -filetypes $ftypes]
+
+    if {![file isfile $filename]} {
+	# probably empty file
+	return
+    }
+    file mkdir /tmp/roborec
+    set tmpfile /tmp/roborec/[pid].dat
+    set ret [catch {exec $ob(crobhome)/tools/datbody $filename > $tmpfile} result]
+    if {$ret != 0} {
+	error "failed trying to read $filename"
+	return
+    }
+    set_status_str "Read reffile $filename"
+    set ob(refsource) "$filename"
+    exec $ob(crobhome)/tools/refio -r $tmpfile
+    exec rm -rf /tmp/roborec
+    foreach w $ob(wlist) { $w configure -state normal }
+}
+
+# move the robot to the origin point.
+
+proc center_ankle {{x 0.0} {y 0.0}} {
+    set curx [rshm ankle_ie_pos]
+    set cury [rshm ankle_dp_pos]
+    movebox 0 8 {0 100 1} [list $curx $cury 0 0] [list $x $y 0 0]
+}
+
+# calls center_ankle, when you press the home button.
+# stays there until you hit stop.
+
+proc do_home {} {
+    global ob
+    set_status_str "Home running..."
+    
+    if {$ob(current_robot) == "ankle"} {
+	center_ankle
+    } else {
+	error "no support for $ob(current_robot) robot"
+    }
+
+    if {!$ob(is_cal)} {
+	set_status_str "Robot is not calibrated."
+	error "robot is not yet calibrated."
+    }
+
+    foreach w $ob(blist) { $w configure -state disabled }
+    .cwlog configure -state disabled
+    foreach w {.bstop .bexit} { $w configure -state normal }
+
+    zero_secs
+    after 1000 sec_loop
+}
+
+# plot i/e and d/p data vs time using gnuplot
+
+proc do_plot {} {
+    global ob
+
+    set ftypes {
+	{{All Files}   *}
+	{{Reference Files}   recref*.dat}
+	{{Playback Log Files}   reclog*.dat}
+    }
+    set filename [tk_getOpenFile -initialdir $ob(log_dir) -filetypes $ftypes]
+    if {![file isfile $filename]} {
+	# probably empty file
+	return
+    }
+    set ret [catch {exec $ob(crobhome)/tools/dathead $filename > /dev/null} result]
+    if {$ret != 0} {
+	error "plot failed trying to read $filename"
+	return
+    }
+    set_status_str "Plot logfile $filename"
+    exec $ob(crobhome)/tools/gpan.tcl $filename &
+}
+
+# display help file
+
+proc do_help {} {
+        global ob
+
+        file copy -force $ob(crobhome)/tools/roborec.help /tmp/
+        exec gedit /tmp/roborec.help &
+}
+
+# stop things from running, especially record, playback, and home.
+# also displays info about contents of ref array.
+
+proc do_stop {} {
+    global ob
+
+    after cancel sec_loop
+    after cancel do_playback_ctl
+
+    foreach w $ob(wlist) { $w configure -state normal }
+
+    empty_ref_state
+
+    wshm nwref 0
+    wshm nrref 0
+
+    if {$ob(status) == "recording"} {
+	fix_loopback
+    }
+
+    if {$ob(logging)} {
+	stop_log
+	set ob(logging) no
+    }
+
+    stop_movebox 0
+
+    reap_zombies
+
+    set_status stopped
+    set_status_str "Stopped, ref=$ob(refsource)"
+}
+
+# initialize data for the reference and logging operations
+
+proc ref_setup {} {
+    global ob
+
+    wshm no_safety_check 1
+    set ob(reffnid) 1
+    wshm reffnid $ob(reffnid)
+    set ob(logfnid) 9
+    wshm logfnid $ob(logfnid)
+}
+
+# start the robot control code
+
+proc load {} {
+    global ob
+
+    set_status_str "System loading..."
+
+    start_lkm
+    start_shm
+    start_loop
+
+    set_status_str "System loaded"
+
+    foreach w $ob(wlist) { $w configure -state normal }
+}
+
+# utility procs for status label
+
+proc set_status_str {str} {
+    global ob
+
+    set ob(status_str) $str
+    update idletasks
+}
+
+# internal program status
+
+proc set_status {str} {
+    global ob
+
+    set ob(status) $str
+}
+
+# utility procs for the one-second ticking clock
+
+proc bump_secs {} {
+    global ob
+
+    incr ob(nsecs)
+    set ob(sec_str) "$ob(nsecs) secs"
+}
+
+proc zero_secs {} {
+    global ob
+
+    set ob(nsecs) 0
+    set ob(sec_str) "$ob(nsecs) secs"
+}
+
+proc sec_loop {} {
+    bump_secs
+    after 1000 sec_loop
+}
+
+# cleanup and stop the program
+
+proc do_exit {} {
+    global ob
+
+    do_stop
+
+    foreach w $ob(wlist) { $w configure -state disabled }
+    .lstatus configure -state normal
+
+    set_status_str Unloading...
+
+    stop_loop
+    stop_shm
+    stop_lkm
+
+    set_status_str Exit
+
+    exit
+}
+
+# get the party started
+
+init

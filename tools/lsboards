@@ -1,0 +1,16 @@
+#! /bin/bash
+
+# grep through the lspci output, looking for our UEI and US Digital
+# data acquisition and encoder cards.
+
+# for example:
+# ./lsboards
+# 0000:06:01.0 0480: UEI 1057:1801 (rev 03)
+# 0000:06:02.0 0b40: US Digital PCI4E 1892:5747
+# 0000:06:03.0 0480: UEI 1057:1801 (rev 02)
+
+# does not query subsystem:subdevice ids, which would be nice.
+
+lspci -n |
+egrep "1892.5747|1057.1801" |
+sed -e "s/1057.1801/UEI &/" -e "s/1892.5747/US Digital PCI4E &/"

@@ -1,0 +1,108 @@
+#!/usr/bin/wish
+
+# Copyright 2003-2005 Interactive Motion Technologies, Inc.
+# Cambridge, MA, USA
+# http://www.interactive-motion.com
+# All rights reserved
+
+# starts 
+
+package require Tk
+
+# we are not using the root window, so hide it
+wm withdraw .
+
+global ob
+
+set ob(crobhome) $::env(CROB_HOME)
+
+source $ob(crobhome)/shm.tcl
+
+if {[is_lkm_loaded]} {
+	set ::lkm_already_loaded 1
+	puts "linux kernel module was already loaded."
+} else {
+	set lkm_already_loaded 0
+	puts "loading linux kernel module."
+	start_lkm
+}
+start_shm
+
+wshm no_safety_check 1
+wshm hand_test_volts 0.0
+wshm test_raw_torque 1
+wshm hand_stiff 1000.
+wshm hand_damp 5.0
+after 100
+
+start_loop
+
+proc do_cal {} {
+	do_hello_prompt
+}
+
+proc do_hello_prompt {} {
+	tk_messageBox -title "Zero Hand"  -message "Zero Hand."
+	after 100 do_ramp_up
+}
+
+proc do_ramp_up {} {
+	ramp_up -3 2
+	after 2100 do_zero_encs
+}
+
+proc ramp_up {{volts -2.0} {secs 2}} {
+	set steps 10
+	set msinc [expr {int($secs * 1000. / $steps)}]
+	set vinc [expr {double($volts) / $steps}]
+	# ramp up to volts in s sec
+	for {set i 0} {$i < $steps} {incr i} {
+		set v [expr {$i * $vinc}]
+		set ms [expr {$i * $msinc}]
+		after $ms [list send_volts $v]
+	}
+}
+
+proc do_zero_encs {} {
+	zero_hand
+	after 200 do_center
+}
+
+proc zero_hand {} {
+	# send_volts -6.0
+	after 50 {wshm isaenc_zero 1}
+	after 100 {wshm pcienc_zero 1}
+	after 150 {wshm no_safety_check 0}
+}
+
+proc do_center {} {
+	# puts "enc 0 [rshm pcienc_raw 0]"
+	wshm no_safety_check 0
+	wshm test_raw_torque 0
+	movebox 0 22 {0 200 1} {.05 0 0 0} {.06 0 0 0}
+	after 1000 {
+		tk_messageBox -title "Done"  -message "Hand centered, robot calibration done."
+		stop_movebox 0
+		done
+	}
+}
+
+proc send_volts {v} {
+	# puts "$v volts"
+	wshm hand_test_volts $v
+}
+
+proc done {} {
+	if {!$::lkm_already_loaded} {
+	    puts "unloading linux kernel module"
+	    stop_loop
+	    stop_shm
+	    stop_lkm
+	} else {
+	    stop_shm
+	    puts "not unloading linux kernel module"
+	}
+	after 100 exit
+}
+
+do_cal 

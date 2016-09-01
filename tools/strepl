@@ -1,0 +1,5 @@
+one=$1
+two=$2
+shift;shift
+echo perl -pi -e "s/$one/$two/g" `grep -l "$one" $*`
+perl -pi -e "s/$one/$two/g" `grep -l "$one" $*`
