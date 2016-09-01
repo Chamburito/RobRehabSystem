@@ -24,6 +24,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
 #include <signal.h>
@@ -35,10 +36,16 @@
 
 static volatile bool isRunning = true;
 
-void HandleExit( int dummyData )
+void HandleExit( int signal )
 {
-  DEBUG_PRINT( "received exit signal: %d", dummyData );
+  DEBUG_PRINT( "received exit signal: %d", signal );
   isRunning = false;
+}
+
+void HandleError( int signal )
+{
+  DEBUG_PRINT( "received error signal: %d", signal );
+  exit( EXIT_FAILURE );
 }
 
 /* Program entry-point */
@@ -50,7 +57,10 @@ int main( int argc, char* argv[] )
   time( &rawTime );
   DEBUG_PRINT( "starting control program at time: %s", ctime( &rawTime ) );
   
-  signal( SIGINT, HandleExit );
+  atexit( SubSystem.End );
+  
+  signal( SIGINT, HandleExit );   // Handle Keyboard Interruption (Crtl^C)
+  signal( SIGSEGV, HandleError ); // Try to prevent not running termination calls on a Segmentation Fault event
   
   if( argc > 1 )
   {
@@ -67,8 +77,6 @@ int main( int argc, char* argv[] )
   
   time( &rawTime );
   DEBUG_PRINT( "ending control program at time: %s", ctime( &rawTime ) );
-
-  SubSystem.End();
   
-  exit( 0 );
+  exit( EXIT_SUCCESS );
 }
