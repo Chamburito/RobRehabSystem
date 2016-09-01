@@ -27,6 +27,7 @@
 
 #include "kalman_filters.h"
 
+#include "debug/async_debug.h"
 
 struct _KalmanFilterData
 {
@@ -59,6 +60,9 @@ KalmanFilter Kalman_CreateFilter( size_t dimensionsNumber )
   newFilter->predictionCovariance = Matrices.CreateSquare( dimensionsNumber, MATRIX_ZERO );
   newFilter->predictionCovarianceNoise = Matrices.CreateSquare( dimensionsNumber, MATRIX_IDENTITY );
   
+  newFilter->errorCovariance = Matrices.CreateSquare( dimensionsNumber, MATRIX_ZERO );
+  newFilter->errorCovarianceNoise = Matrices.CreateSquare( dimensionsNumber, MATRIX_IDENTITY );
+
   Kalman_Reset( newFilter );
   
   return newFilter;
@@ -102,13 +106,13 @@ void Kalman_AddInput( KalmanFilter filter, size_t dimensionIndex )
     Matrices.SetElement( filter->inputModel, newInputIndex, stateIndex, 0.0 );
   Matrices.SetElement( filter->inputModel, newInputIndex, dimensionIndex, 1.0 );
   
-  Matrices.Discard( filter->errorCovariance );
-  filter->errorCovariance = Matrices.CreateSquare( newInputsNumber, MATRIX_ZERO );
-  Matrices.Discard( filter->errorCovarianceNoise );  
-  filter->errorCovarianceNoise = Matrices.CreateSquare( newInputsNumber, MATRIX_IDENTITY );
-  
-  if( newInputsNumber > dimensionsNumber ) 
+  if( newInputsNumber > dimensionsNumber )
   {
+    Matrices.Discard( filter->errorCovariance );
+    filter->errorCovariance = Matrices.CreateSquare( newInputsNumber, MATRIX_ZERO );
+    Matrices.Discard( filter->errorCovarianceNoise );  
+    filter->errorCovarianceNoise = Matrices.CreateSquare( newInputsNumber, MATRIX_IDENTITY );
+
     filter->gain = Matrices.Resize( filter->gain, newInputsNumber, newInputsNumber );
     filter->error = Matrices.Resize( filter->error, newInputsNumber, 1 );
   }
@@ -182,7 +186,7 @@ double* Kalman_Update( KalmanFilter filter, double* inputsList, double* result )
     Matrices.Dot( filter->gain, MATRIX_KEEP, filter->predictionCovariance, MATRIX_KEEP, filter->gain );                     // K[nxn] * P[nxn] -> K[nxn]
     Matrices.Sum( filter->predictionCovariance, 1.0, filter->gain, -1.0, filter->predictionCovariance );                    // P[nxn] - K[nxn] -> P[nxn]
   }
-  
+
   if( result == NULL ) return NULL;
   
   return Matrices.GetData( filter->state, result );

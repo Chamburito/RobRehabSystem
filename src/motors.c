@@ -89,7 +89,7 @@ Motor Motors_Init( const char* configFileName )
   return newMotor;
 }
 
-inline void Motors_End( Motor motor )
+void Motors_End( Motor motor )
 {
   if( motor == NULL ) return;
   
@@ -98,7 +98,7 @@ inline void Motors_End( Motor motor )
   free( motor );
 }
 
-inline void Motors_Enable( Motor motor )
+void Motors_Enable( Motor motor )
 {
   if( motor == NULL ) return;
   
@@ -106,42 +106,42 @@ inline void Motors_Enable( Motor motor )
   motor->EnableOutput( motor->interfaceID, true );
 }
 
-inline void Motors_Disable( Motor motor )
+void Motors_Disable( Motor motor )
 {
   if( motor == NULL ) return;
   
   motor->EnableOutput( motor->interfaceID, false );
 }
 
-inline void Motors_Reset( Motor motor )
+void Motors_Reset( Motor motor )
 {
   if( motor == NULL ) return;
   
   motor->Reset( motor->interfaceID );
 }
 
-inline void Motors_SetGain( Motor motor, double gainFactor )
+void Motors_SetGain( Motor motor, double gainFactor )
 {
   if( motor == NULL ) return;
   
   motor->outputGain = gainFactor * motor->outputBaseGain;
 }
 
-inline void Motors_SetOffset( Motor motor, double offset )
+void Motors_SetOffset( Motor motor, double offset )
 {
   if( motor == NULL ) return;
   
   motor->outputOffset = offset;
 }
 
-inline bool Motors_IsEnabled( Motor motor )
+bool Motors_IsEnabled( Motor motor )
 {
   if( motor == NULL ) return false;
   
   return motor->IsOutputEnabled( motor->interfaceID );
 }
 
-inline bool Motors_HasError( Motor motor )
+bool Motors_HasError( Motor motor )
 {
   if( motor == NULL ) return false;
   
