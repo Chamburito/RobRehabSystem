@@ -116,7 +116,7 @@ size_t Read( int boardID, unsigned int channel, double* ref_value )
   if( PCI4E_GetCount( boardID, channel, &encoderCount ) < 0 ) return 0;
   if( encoderCount > ENCODER_MAX ) encoderCount -= 2 * ENCODER_MAX;
   
-  *ref_value = ( (double) encoderCount ) / ENCODER_MAX;
+  *ref_value = (double) encoderCount;  
 
   return 1;
 }

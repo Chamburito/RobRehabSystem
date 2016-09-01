@@ -38,7 +38,7 @@
 static const int DAQ_ACQUIRE = 1;
 static const int DAQ_RELEASE = 0;
 
-static const int IO_RANGE = 10;
+static const double IO_RANGE = 10.0;
 
 typedef struct _IOAdapterData
 {
@@ -64,7 +64,7 @@ int InitTask( const char* adapterConfig )
   
   Adapter_Info adapterInfo;
   _PdGetAdapterInfo( adapterIndex, &adapterInfo );
-  DEBUG_PRINT( "PD2-AO board ?: %s", ( adapterInfo.atType & atMF ) ? "true" : "false" );
+  DEBUG_PRINT( "PD2-AO board ?: %s", ( adapterInfo.atType & atPD2AO ) ? "true" : "false" );
   if( !( adapterInfo.atType & atPD2AO ) ) return SIGNAL_IO_TASK_INVALID_ID;
   
   if( adaptersNumber == 0 )
@@ -72,12 +72,14 @@ int InitTask( const char* adapterConfig )
     adaptersNumber = (size_t) PdGetNumberAdapters();
     adaptersList = (IOAdapter) calloc( adaptersNumber, sizeof(IOAdapterData) );
     memset( adaptersList, 0, adaptersNumber * sizeof(IOAdapterData) );
+    DEBUG_PRINT( "%lu PowerDAQ adapters found", adaptersNumber );
   }
   
   IOAdapter newAdapter = (IOAdapter) &(adaptersList[ adapterIndex ]);
   if( !newAdapter->initialized )
   {
-    newAdapter->outputHandle = PdAcquireSubsystem( adapterIndex, AnalogOut, DAQ_ACQUIRE );    
+    newAdapter->outputHandle = PdAcquireSubsystem( adapterIndex, AnalogOut, DAQ_ACQUIRE ); 
+    DEBUG_PRINT( "acquired output subsystem: %d", newAdapter->outputHandle );    
         
     Reset( adapterIndex );
     
@@ -95,7 +97,7 @@ void EndTask( int adapterIndex )
   
   Reset( adapterIndex );
     
-  PdAcquireSubsystem( adapter->outputHandle, AnalogOut, DAQ_RELEASE );
+  PdAcquireSubsystem( /*adapter->outputHandle*/2, AnalogOut, DAQ_RELEASE );
   
   adapter->initialized = false;
   
@@ -136,6 +138,7 @@ void Reset( int adapterIndex )
         
   _PdAOutReset( adapter->outputHandle );
   _PdAO32Reset( adapter->outputHandle );
+  _PdAOutSetCfg( adapter->outputHandle, 0, 0 );
 }
 
 bool AquireInputChannel( int adapterIndex, unsigned int channel )
@@ -180,8 +183,9 @@ bool Write( int adapterIndex, unsigned int channel, double value )
   value /= TENSION_2_FORCE_RATIO;
   if( value < (double) -IO_RANGE ) value = -IO_RANGE;
   else if( value < (double) IO_RANGE ) value = IO_RANGE;
-  
-  uint32_t output = (uint32_t) ( ( value + IO_RANGE ) / ( 2 * IO_RANGE ) ) * 0xFFFF;
+  value = 0.0;
+  DWORD output = ( value + IO_RANGE ) / ( 2 * IO_RANGE ) * 0xFFFF;
+  //DEBUG_PRINT( "writing output %x to handle %d and channel %u", output, adapter->outputHandle, channel );
   if( _PdAO32Write( adapter->outputHandle, channel, output ) < 0 ) return false;
   
   return true;

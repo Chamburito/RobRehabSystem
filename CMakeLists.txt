@@ -46,7 +46,7 @@ set_target_properties( JSON PROPERTIES PREFIX "" )
 target_compile_definitions( JSON PUBLIC -DDEBUG )
 target_include_directories( JSON PUBLIC ${CMAKE_SOURCE_DIR}/src/data_io/ )
 
-add_library( Dummy MODULE src/signal_io/dummy_io.c )
+add_library( Dummy MODULE src/signal_io/dummy_io.c ${PLATFORM_SOURCES} )
 set_target_properties( Dummy PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
 set_target_properties( Dummy PROPERTIES PREFIX "" )
 target_include_directories( Dummy PUBLIC src/signal_io/ )
@@ -61,7 +61,7 @@ set_target_properties( PCI4E PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY
 set_target_properties( PCI4E PROPERTIES PREFIX "" )
 target_include_directories( PCI4E PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
 
-add_library( PD2MFx MODULE src/signal_io/power_daq/pd2_mfx.c )
+add_library( PD2MFx MODULE src/signal_io/power_daq/pd2_mfx.c ${PLATFORM_SOURCES} )
 set_target_properties( PD2MFx PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/signal_io/ )
 set_target_properties( PD2MFx PROPERTIES PREFIX "" )
 target_include_directories( PD2MFx PUBLIC ${CMAKE_SOURCE_DIR}/src/signal_io/ )
